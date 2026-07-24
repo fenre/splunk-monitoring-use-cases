@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Rootkit Detection via File Integrity' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_rootkit_detection_via_file_integrity` (UC-1.1.68), SOC dashboard panel \"Linux — Rootkit Detection via File Integrity\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='custom:aide' that satisfy the UC-1.1.68 SPL filters for 'Rootkit Detection via File Integrity'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `custom:aide` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.68."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='custom:aide' where `host` satisfies `count` > 0 for UC-1.1.68 ('Rootkit Detection via File Integrity'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `custom:aide` events where `host` stays below `count` > 0, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.68."
   },
   "dataSources": "`sourcetype=custom:aide` (AIDE scan output ingested to Splunk) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix` with a custom scripted post-scan ingest — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:aide host=*\n| where change_type IN (\"added\", \"changed\", \"removed\")\n| stats count by host, file_path, change_type\n| where count>0",
   "description": "Surfaces AIDE file-integrity **added/changed/removed** rows for review. **count>0** is a guard so empty buckets drop out once you add windowing; most teams alert on the first new **file_path** not in a lookup.",
-  "value": "Unexpected changes in **/bin**, **/sbin**, or other protected trees are a fast path to find dropped binaries or config drift before you rely on slower AV-only signals on servers.",
+  "value": "Surfaces AIDE file-integrity **added/changed/removed** rows for review. Timely UC-1.1.68 alerting on 'Rootkit Detection via File Integrity' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Have AIDE print stable **change_type** and **file_path** fields. In production, add `| lookup aide_expected_changes file_path OUTPUT reason | where isnull(reason)` to suppress packager noise.",
   "visualization": "Alert, Table",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Rootkit Detection via File Integrity'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `custom:aide`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Rootkit Detection via File Integrity'. Correlate with apt/yum logs in the same `custom:aide` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:aide`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],

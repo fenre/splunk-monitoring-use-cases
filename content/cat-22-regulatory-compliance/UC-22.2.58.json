@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Quarantine fires; attack stops within 2 min. Healthy KPI evidence.",
-    "negativeScenario": "Quarantine ineffective. Evidence captured for remediation."
+    "positiveScenario": "Ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `anc_policy` satisfies detection threshold for UC-22.2.58 ('NIS2 Art.21(2)(b) — Cisco ISE ANC Closed-Loop Effectiveness Evidence'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `nac` / `cisco:ise:syslog` events where `anc_policy` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.2.58."
   },
   "dataSources": "`index=nac sourcetype=cisco:ise:syslog` 86001 + `index=notable`. Cross-reference UC-17.1.80. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=86001 anc_action=quarantine earliest=-1d\n| eval anc_time=_time, endpoint_mac=mac\n| join endpoint_mac [search index=notable severity=high earliest=-1d | rename _time as last_attack_time]\n| eval quarantine_to_stop=anc_time - last_attack_time\n| stats avg(quarantine_to_stop) as avg_seconds, count by anc_policy\n| eval nis2_clause=\"Art.21(2)(b)\", control=\"Containment_Effectiveness\"\n| collect index=audit_evidence",
-  "description": "We continuously evidence NIS2 Art.21(2)(b) — that automated containment is effective.",
-  "value": "NIS2 audit will probe incident response effectiveness. This UC produces measurable, machine-attested evidence of containment efficacy — not just policy.",
+  "description": "We continuously evidence NIS2 Art.21(2)(b) — that automated containment is effective. Searches `index=nac` with sourcetype `cisco:ise:syslog` for UC-22.2.58, aggregating `avg` by `anc_policy` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'NIS2 Art.21(2)(b) — Cisco ISE ANC Closed-Loop Effectiveness Evidence' without manual log review.",
+  "value": "We continuously evidence NIS2 Art. Timely UC-22.2.58 alerting on 'NIS2 Art.21(2)(b) — Cisco ISE ANC Closed-Loop Effectiveness Evidence' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "Schedule the saved search daily at 06:00 local time; archive results to the `audit_evidence` summary index for NIS2 quarterly review.",
   "visualization": "NIS2 containment-effectiveness panel.",
   "cimModels": [
@@ -62,7 +62,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Authorised NIS2 control testing** — Internal audit or GRC exercises 'NIS2 Art.21(2)(b) — Cisco ISE ANC Closed-Loop Effectiveness Evidence' during scheduled clause Art.21(2)(b) evidence collection. Match compliance programme calendar and accounts tagged `compliance_ops=true`.\n\n2. **External assessor sampling** — QSA or regulator sampling temporarily spikes `index=nac` `cisco:ise:syslog` volume. Cross-check engagement letter in `nis2_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB-approved change pauses or reshapes ingestion to `nac`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected cross-boundary events during normal service delivery.\n\n**Suppression mechanism:** `nis2_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
+  "knownFalsePositives": "1. **Authorised NIS2 control testing** — Internal audit exercises 'NIS2 Art.21(2)(b) — Cisco ISE ANC Closed-Loop Effectiveness Evidence' (UC-22.2.58) on `anc_policy` during scheduled clause Art.21(2)(b) sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=nac` `cisco:ise:syslog` without crossing evidence threshold. Cross-check engagement letter in `nis2_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `nac` for `anc_policy`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `anc_policy` during normal service delivery.\n\n**Suppression mechanism:** `nis2_exception_register.csv` keyed on `anc_policy`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "requiredFields": [
     "_time",
     "endpoint_mac",

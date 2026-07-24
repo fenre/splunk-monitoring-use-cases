@@ -55,17 +55,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Removing a planned test's execution record from index=testing past its planned_date+14d causes the UC to flag evidence_complete=0 on the next daily run.",
-    "negativeScenario": "A test with a recorded actual_run_time within the tolerance window reports evidence_complete=1, on_time=1.",
-    "fixtureRef": "",
-    "attackTechnique": "T1562",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=testing` sourcetype='test:plan_execution' where `test_id]` satisfies detection threshold for UC-22.3.45 ('DORA Art.24 — Digital operational-resilience testing: test-plan execution attestation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `testing` / `test:plan_execution` events where `test_id]` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.3.45."
   },
   "dataSources": "`index=testing` sourcetype=test:plan_execution (BAS/TLPT/DR runs); `index=ticketing` sourcetype=jira:issue (findings tickets); test-plan register `dora_test_plan.csv`. (Splunkbase 1621 — Splunk CIM Add-on)",
   "app": "Splunk Enterprise Security",
   "spl": "| inputlookup dora_test_plan.csv\n| eval planned_date_et=strptime(planned_date,\"%Y-%m-%d\")\n| join type=outer test_id\n  [search index=testing sourcetype=test:plan_execution\n   | stats latest(_time) AS actual_run_time latest(pass_fail) AS pass_fail sum(finding_count) AS finding_count BY test_id]\n| eval evidence_complete=if(isnotnull(actual_run_time),1,0)\n| eval on_time=if(actual_run_time<=planned_date_et+86400*14,1,0)\n| table test_id test_type scope_service planned_date actual_run_time pass_fail finding_count evidence_complete on_time",
   "description": "Pivots the DORA test-plan register against the actual execution telemetry from the BAS/TLPT/DR tooling. Each planned test either has matching execution evidence within a 14-day tolerance or it does not — the latter is a direct Art.24 non-conformance.",
-  "value": "Gives the CISO and the ICT risk committee a single-query attestation that the operational-resilience testing programme executed as planned, replacing an email-based reconciliation that typically slips by weeks.",
+  "value": "Pivots the DORA test-plan register against the actual execution telemetry from the BAS/TLPT/DR tooling. Timely UC-22.3.45 alerting on 'DORA Art.24 — Digital operational-resilience testing: test-plan execution attestation' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Maintain dora_test_plan.csv as the approved annual programme; (2) normalise execution output from BAS/DR tools to sourcetype=test:plan_execution; (3) schedule UC daily; (4) evidence_complete=0 past planned_date + 14d escalates to CISO; (5) per-quarter report to Board; (6) missing TLPT for significant entities escalates immediately. Indexes required: `index=testing`, `index=ticketing`.",
   "visualization": "Calendar heatmap of test executions, bar chart of findings per scope service, single value 'tests past due'. Key fields: `actual_run_time`, `evidence_complete`, `finding_count`, `on_time`, `pass_fail`, `planned_date`.",
   "cimModels": [],
@@ -83,7 +80,7 @@
       "url": "https://splunkbase.splunk.com/app/263"
     }
   ],
-  "knownFalsePositives": "1. **Test programme scheduling flexibility** — Annual testing programmes with allowed scheduling windows (Q1 vs. Q2) show different completion timing without missing obligations.\n\n2. **Proportionality-based scope reductions** — Smaller financial entities applying proportionality principles per Art.4 have reduced testing obligations that may appear as gaps.\n\n3. **Testing tool and methodology transitions** — Switching between testing tools or methodologies between cycles may show gap periods during transition.\n\n4. **Third-party testing firm onboarding** — New testing relationships requiring qualification verification may delay test commencement within the planning allowance.\n\n5. **Regulatory guidance interpretation** — Evolving RTS/ITS guidance on testing requirements may create temporary ambiguity about exact obligations.\n\n**Operational suppression:** Maintain a lookup table (`dora_approved_exceptions.csv`) mapping known legitimate activities by process owner, approval reference, and expiry date. Filter the SPL results against this lookup to suppress documented exceptions and reduce alert fatigue. Review and rotate entries quarterly per the ICT risk management framework review cycle.",
+  "knownFalsePositives": "1. **Authorised DORA control testing** — Internal audit exercises 'DORA Art.24 — Digital operational-resilience testing: test-plan execution attestation' (UC-22.3.45) on `test_id]` during scheduled clause Art.24 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=testing` `test:plan_execution` without crossing evidence threshold. Cross-check engagement letter in `dora_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `testing` for `test_id]`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `test_id]` during normal service delivery.\n\n**Suppression mechanism:** `dora_exception_register.csv` keyed on `test_id]`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1562"
   ],

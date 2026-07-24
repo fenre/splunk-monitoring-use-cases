@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Patient Flow and Bed Management Analytics' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_patient_flow_and_bed_management_analytics` (UC-21.3.11), SOC dashboard panel \"Operations — Patient Flow and Bed Management Analytics\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=healthcare` sourcetype='adtflow:event' that satisfy the UC-21.3.11 SPL filters for 'Patient Flow and Bed Management Analytics'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `healthcare` / `adtflow:event` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.3.11."
+    "positiveScenario": "Ingest synthetic events into `index=healthcare` sourcetype='adtflow:event' where `unit` satisfies detection threshold for UC-21.3.11 ('Patient Flow and Bed Management Analytics'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `healthcare` / `adtflow:event` events where `unit` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.3.11."
   },
   "dataSources": "`index=healthcare` `sourcetype=\"adtflow:event\"` fields `unit`, `event_type`, `bed_id`, `patient_class` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "ADT feed via HL7 or HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=healthcare sourcetype=\"adtflow:event\"\n| where event_type IN (\"admit\", \"transfer\", \"discharge\")\n| bin _time span=1h\n| stats dc(bed_id) as beds_used, sum(eval(if(event_type=\"admit\",1,0))) as admits, sum(eval(if(event_type=\"discharge\",1,0))) as discharges by unit, _time\n| eval net_flow=admits-discharges\n| table _time, unit, beds_used, admits, discharges, net_flow",
   "description": "Real-time bed occupancy and patient flow data supports throughput optimization, reduces boarding, and improves patient placement decisions.",
-  "value": "Service and risk leaders use signals from Patient Flow and Bed Management Analytics to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "Service and risk leaders use signals from Patient Flow and Bed Management Analytics to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Ingest ADT (Admit-Discharge-Transfer) HL7 messages. Calculate real-time census by unit. Track length of stay distributions and boarding times. Support capacity planning. **Domain context:** ADT feeds drive bed management and surge planning; HL7 v2 ADT^Axx messages must be de-duplicated (ACK/re-send storms). **Splunk:** Use message control ID in `props` to drop duplicates; PHI handling—minimize patient identifiers in analytics indexes.",
   "visualization": "Stacked area (census by unit), Line chart (admits vs discharges), Table (units at capacity).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Patient Flow and Bed Management Analytics'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `healthcare` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `healthcare`** — Planned work for 'Patient Flow and Bed Management Analytics' shifts `dc` over `span=1h` while `unit` remains in-scope for UC-21.3.11. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `adtflow:event`** — Scheduled automation elevates `_time` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `unit`** — Health checks in `healthcare` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `adtflow:event`** — First 48h baseline for `unit` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `unit`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

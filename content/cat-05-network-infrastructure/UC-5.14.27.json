@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Squid ICAP and eCAP Adaptation Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_squid_icap_and_ecap_adaptation_failures` (UC-5.14.27), SOC dashboard panel \"Operations — Squid ICAP and eCAP Adaptation Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='squid:cache' that satisfy the UC-5.14.27 SPL filters for 'Squid ICAP and eCAP Adaptation Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `proxy` / `squid:cache` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.27."
+    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='squid:cache' where `_time` satisfies `count` > 10 for UC-5.14.27 ('Squid ICAP and eCAP Adaptation Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `proxy` / `squid:cache` events where `_time` stays below `count` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.27."
   },
   "dataSources": "`index=proxy` `sourcetype=squid:cache` ICAP/eCAP diagnostics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"squid:cache\"\n| regex _raw=\"(?i)(ICAP|ECAP).*(?:fail|error|timeout)\"\n| bin _time span=5m\n| stats count by _time, host\n| where count > 10",
   "description": "Adaptation failures look like random web errors to users. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Operations teams detect Squid ICAP/eCAP content adaptation failures and bypass events where traffic flows unscanned, creating security gaps in antivirus and DLP enforcement.",
+  "value": "Adaptation failures look like random web errors to users. Timely UC-5.14.27 alerting on 'Squid ICAP and eCAP Adaptation Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Tune service timeouts; scale scanners horizontally when counts rise.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Squid ICAP and eCAP Adaptation Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `proxy` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy`** — Planned work for 'Squid ICAP and eCAP Adaptation Failures' shifts `count` over `span=5m` while `_time` remains in-scope for UC-5.14.27. Cross-check CMDB CHG.\n\n2. **Batch `count` on `squid:cache`** — Scheduled automation elevates `host` without crossing `count` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `squid:cache`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "squid",
     "syslog"

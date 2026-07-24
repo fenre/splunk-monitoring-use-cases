@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Data SLA Breach Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_data_sla_breach_tracking` (UC-24.9.9), SOC dashboard panel \"Operations — Data SLA Breach Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='dbx:warehouse_freshness' that satisfy the UC-24.9.9 SPL filters for 'Data SLA Breach Tracking'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dataops` / `dbx:warehouse_freshness` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.9.9."
+    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='dbx:warehouse_freshness' where `data_product` satisfies detection threshold for UC-24.9.9 ('Data SLA Breach Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dataops` / `dbx:warehouse_freshness` events where `data_product` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.9.9."
   },
   "dataSources": "Monte Carlo incident webhooks (`montecarlo:incident`), Great Expectations `validation_result` JSON (`great_expectations:validation`), Soda scan results (`soda:scan`), dbt test failures, warehouse `INFORMATION_SCHEMA` freshness/volume probes via DB Connect. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Monte Carlo / Bigeye / Soda webhooks and REST APIs via HEC; Great Expectations and dbt test results via HEC scripted inputs; custom warehouse data-quality probes via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops (sourcetype=dbx:warehouse_freshness OR sourcetype=dbt:sources OR sourcetype=montecarlo:incident)\n| stats latest(_time) as last_signal, values(status) as statuses by data_product\n| lookup data_sla data_product OUTPUT sla_hours\n| eval hours_since=round((now()-last_signal)/3600,1), breached=if(hours_since>sla_hours,1,0)\n| where breached=1\n| sort - hours_since",
   "description": "Combines freshness, source, and incident signals against per-data-product SLAs so breaches of committed data-delivery times are tracked in one view.",
-  "value": "Data teams increasingly commit to SLAs with the business; a single breach view holds the platform accountable and surfaces at-risk data products.",
+  "value": "Combines freshness, source, and incident signals against per-data-product SLAs so breaches of committed dat.... Timely UC-24.9.9 alerting on 'Data SLA Breach Tracking' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Maintain a `data_sla` lookup of data products and their SLA hours; schedule hourly; alert on breaches; report compliance to stakeholders.",
   "visualization": "Table of breached data products, SLA-compliance trend.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Data SLA Breach Tracking'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `dataops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `dataops`** — Planned work for 'Data SLA Breach Tracking' shifts `values` over `span=1h` while `data_product` remains in-scope for UC-24.9.9. Cross-check CMDB CHG.\n\n2. **Batch `values` on `dbx:warehouse_freshness`** — Scheduled automation elevates `hours_since` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `data_product`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbx:warehouse_freshness`** — First 48h baseline for `data_product` is unstable; join `data_sla` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `data_product`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],

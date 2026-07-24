@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'CCTV Video Analytics People-Count Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cctv_video_analytics_people_count_trending` (UC-15.5.5), SOC dashboard panel \"Operations — CCTV Video Analytics People-Count Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=physical` sourcetype='cctv:analytics' that satisfy the UC-15.5.5 SPL filters for 'CCTV Video Analytics People-Count Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `physical` / `cctv:analytics` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.5.5."
+    "positiveScenario": "Ingest synthetic events into `index=physical` sourcetype='cctv:analytics' where `camera_id` satisfies detection threshold for UC-15.5.5 ('CCTV Video Analytics People-Count Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `physical` / `cctv:analytics` events where `camera_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.5.5."
   },
   "dataSources": "`index=physical` · `sourcetype=\"cctv:analytics\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom TA (NVR REST/syslog), ONVIF pull, Hikvision ISAPI HEC, or Milestone connector mapped to listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=physical sourcetype=\"cctv:analytics\" earliest=-30d\n| where match(lower(analytic_type), \"(?i)people|occupancy|count\")\n| eval count=tonumber(coalesce(people_count, occupancy, \"\"))\n| timechart span=1h sum(count) by camera_id",
-  "description": "People counting validates staffing, queue management, and emergency occupancy limits.",
-  "value": "Informs operations and real-estate utilization without new sensors. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "People counting validates staffing, queue management, and emergency occupancy limits. Searches `index=physical` with sourcetype `cctv:analytics` for UC-15.5.5, aggregating `sum` by `camera_id` over `1h`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'CCTV Video Analytics People-Count Trending' without manual log review.",
+  "value": "People counting validates staffing, queue management, and emergency occupancy limits. Timely UC-15.5.5 alerting on 'CCTV Video Analytics People-Count Trending' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "(1) Confirm edge vs server analytics latency. (2) GDPR/privacy review for regions.",
   "visualization": "Line counts; heatmap by entrance.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'CCTV Video Analytics People-Count Trending'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `physical` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `physical`** — Planned work for 'CCTV Video Analytics People-Count Trending' shifts `sum` over `span=1h` while `camera_id` remains in-scope for UC-15.5.5. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cctv:analytics`** — Scheduled automation elevates `count` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `camera_id`** — Health checks in `physical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cctv:analytics`** — First 48h baseline for `camera_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `camera_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cctv",
     "syslog"

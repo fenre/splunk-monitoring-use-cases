@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Ambient Weather Observation Temperature Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_ambient_weather_observation_temperature_leaderbo` (UC-25.10.46), SOC dashboard panel \"Personal — Ambient Weather Observation Temperature Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ambientweather:obs' that satisfy the UC-25.10.46 SPL filters for 'Ambient Weather Observation Temperature Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `ambientweather:obs` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.46."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ambientweather:obs' where `station_id` satisfies detection threshold for UC-25.10.46 ('Ambient Weather Observation Temperature Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `ambientweather:obs` events where `station_id` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.46."
   },
   "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture/greenhouse sensors, aquarium controllers (`aquarium:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=ambientweather:obs temp_c=*\n| stats sum(temp_c) as total_value, avg(temp_c) as avg_value by station_id\n| sort - total_value",
-  "description": "Ranks station values by total and average temperature across Ambient Weather observation events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks station values by total and average temperature across Ambient Weather observation events. Searches `index=personal` with sourcetype `ambientweather:obs` for UC-25.10.46, aggregating `sum` by `station_id` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Ambient Weather Observation Temperature Leaderboard' without manual log review.",
+  "value": "Ranks station values by total and average temperature across Ambient Weather observation events. Timely UC-25.10.46 alerting on 'Ambient Weather Observation Temperature Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `temp_c` values for each Ambient Weather observation event and review total and average temperature by station.",
   "visualization": "Table of entities ranked by total temperature.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Ambient Weather Observation Temperature Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ambientweather:obs`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Ambient Weather Observation Temperature Leaderboard' stops polling `ambientweather:obs`; stale `station_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ambientweather:obs`. Dedup with `stats latest(*) by station_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

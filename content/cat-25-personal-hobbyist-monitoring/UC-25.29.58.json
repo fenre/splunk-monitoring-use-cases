@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Discord Presence Elapsed Minutes Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_discord_presence_elapsed_minutes_leaderboard` (UC-25.29.58), SOC dashboard panel \"Personal — Discord Presence Elapsed Minutes Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='discord:presence' that satisfy the UC-25.29.58 SPL filters for 'Discord Presence Elapsed Minutes Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `discord:presence` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.29.58."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='discord:presence' where `activity_name` satisfies detection threshold for UC-25.29.58 ('Discord Presence Elapsed Minutes Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `discord:presence` events where `activity_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.29.58."
   },
   "dataSources": "Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=discord:presence elapsed_min=*\n| stats sum(elapsed_min) as total_value, avg(elapsed_min) as avg_value by activity_name\n| sort - total_value",
-  "description": "Ranks activity values by total and average elapsed minutes across Discord presence events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks activity values by total and average elapsed minutes across Discord presence events. Searches `index=personal` with sourcetype `discord:presence` for UC-25.29.58, aggregating `sum` by `activity_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Discord Presence Elapsed Minutes Leaderboard' without manual log review.",
+  "value": "Ranks activity values by total and average elapsed minutes across Discord presence events. Timely UC-25.29.58 alerting on 'Discord Presence Elapsed Minutes Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `elapsed_min` values for each Discord presence event and review total and average elapsed minutes by activity.",
   "visualization": "Table of entities ranked by total elapsed minutes.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Discord Presence Elapsed Minutes Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `discord:presence`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Discord Presence Elapsed Minutes Leaderboard' stops polling `discord:presence`; stale `activity_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `discord:presence`. Dedup with `stats latest(*) by activity_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

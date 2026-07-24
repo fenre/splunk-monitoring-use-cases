@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Tailscale Exit Node Data Share' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_tailscale_exit_node_data_share` (UC-25.9.22), SOC dashboard panel \"Personal — Tailscale Exit Node Data Share\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tailscale:netmap' that satisfy the UC-25.9.22 SPL filters for 'Tailscale Exit Node Data Share'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tailscale:netmap` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.22."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tailscale:netmap' where `node` satisfies detection threshold for UC-25.9.22 ('Tailscale Exit Node Data Share'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `tailscale:netmap` events where `node` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.22."
   },
   "dataSources": "Personal network telemetry (`openwrt:syslog`, `unifi:event`, `pihole:query`, `adguard:query`, `tailscale:netmap`, `cloudflared:connector`, `doh:query`, `speedtest:result`, `uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "OpenWrt, UniFi, Pi-hole, AdGuard Home, Tailscale, Cloudflare Tunnel, DNS over HTTPS resolvers, and scheduled probes via syslog, APIs, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tailscale:netmap role=exit_node\n| bin _time span=1d\n| stats sum(tx_gb) as tx_gb, sum(rx_gb) as rx_gb by node _time\n| sort - tx_gb",
   "description": "Uses Tailscale exit-node telemetry telemetry to monitor which nodes are carrying the most routed traffic in index=personal.",
-  "value": "Splunk turns the feed into an operational check for exit nodes that may need more capacity or clearer policy, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Tailscale exit-node telemetry telemetry to monitor which nodes are carrying the most routed traffic in.... Timely UC-25.9.22 alerting on 'Tailscale Exit Node Data Share' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Tailscale exit-node telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Daily transfer chart for exit nodes.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Tailscale Exit Node Data Share'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tailscale:netmap`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Tailscale Exit Node Data Share' stops polling `tailscale:netmap`; stale `node` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tailscale:netmap`. Dedup with `stats latest(*) by node`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "cloudflare",
     "mqtt",

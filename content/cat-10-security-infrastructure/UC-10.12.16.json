@@ -27,13 +27,13 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=healthcare` sourcetype='target_sourcetype' that satisfy the UC-10.12.16 SPL filters for 'ePHI Access Audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `healthcare` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.16."
+    "positiveScenario": "Ingest synthetic events into `index=healthcare` sourcetype='target_sourcetype' where `user_id` satisfies `patients` > 50 for UC-10.12.16 ('ePHI Access Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `healthcare` / `target_sourcetype` events where `user_id` stays below `patients` > 50, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.16."
   },
   "dataSources": "`sourcetype=\"epic:audit\"`, `sourcetype=\"cerner:audit\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "EHR audit TA, Active Directory — Universal Forwarder (Splunkbase 617)",
   "spl": "index=healthcare sourcetype IN (\"epic:audit\",\"cerner:audit\") object_type=\"chart\"\n| search action IN (\"VIEW\",\"EXPORT\",\"PRINT\")\n| stats count, dc(patient_mrn) as patients by user_id, department\n| where patients>50 OR count>200\n| sort -patients",
-  "description": "HIPAA Security Rule requires accounting of disclosures; supports minimum necessary and investigation workflows.",
+  "description": "HIPAA Security Rule requires accounting of disclosures; supports minimum necessary and investigation workflows. Searches `index=healthcare` with sourcetype `configured sourcetype` for UC-10.12.16, aggregating `dc` by `user_id` over `the scheduled window`. Alerts when grouped results cross `patients` > 50 in the saved search. Gives Security Infra operators a repeatable signal for 'ePHI Access Audit' without manual log review.",
   "value": "Early 'ePHI Access Audit' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "De-identify MRNs in dashboards where possible; alert on bulk export and after-hours access to VIP records.",
   "visualization": "Table (high-volume accessors), Heatmap (user × department), Timeline (access bursts).",
@@ -63,7 +63,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'ePHI Access Audit'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=healthcare` `configured sourcetype`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `healthcare`** — Planned work for 'ePHI Access Audit' shifts `dc` over `span=1h` while `user_id` remains in-scope for UC-10.12.16. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `configured_sourcetype`** — Scheduled automation elevates `department` without crossing `patients` > 50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user_id`** — Health checks in `healthcare` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `user_id` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `user_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

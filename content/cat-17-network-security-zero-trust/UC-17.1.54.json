@@ -50,14 +50,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' that satisfy the UC-17.1.54 SPL filters for 'Cisco Secure Client / AnyConnect Posture Agent Heartbeat and Version Drift'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `nac` / `cisco:ise:syslog` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.54."
+    "positiveScenario": "Ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `endpoint_mac` satisfies `days_since_heartbeat` > 7 for UC-17.1.54 ('Cisco Secure Client / AnyConnect Posture Agent Heartbeat and Version Drift'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `nac` / `cisco:ise:syslog` events where `endpoint_mac` stays below `days_since_heartbeat` > 7, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.54."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Posture* category — codes `15050` (posture agent heartbeat), `15051` (posture agent version reported), `15052` (posture agent missing/timeout), `15053` (posture agent unsupported version), `15054` (posture agent stale config). Endpoint inventory feed from ISE OpenAPI `/api/v1/endpoint` polled hourly. Fields: `endpoint_mac`, `agent_version`, `agent_state`, `last_heartbeat`. Cisco Secure Endpoint API is the parallel feed.",
   "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
   "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (15050, 15051, 15052, 15053))\n  OR (index=nac sourcetype=\"cisco:ise:endpoint_inventory\")\n| stats count, latest(_time) as last_seen, latest(agent_version) as version, latest(agent_state) as state by endpoint_mac\n| eval days_since_heartbeat = round((now() - last_seen) / 86400, 1)\n| where days_since_heartbeat > 7 OR state==\"timeout\" OR like(version, \"4.10%\") OR like(version, \"4.9%\")",
   "description": "Detects endpoints whose posture agent (Cisco Secure Client / AnyConnect) hasn't sent a heartbeat for >7 days OR is running a deprecated/unsupported version. Both conditions break the posture trust loop.",
-  "value": "Without an active posture agent, ISE has no way to validate endpoint compliance — it falls back to a default posture decision, typically less restrictive. Detecting agent absence at scale highlights the deployment gap (devices not yet enrolled, devices retired but still in inventory, or devices the install team missed).",
+  "value": "Detects endpoints whose posture agent (Cisco Secure Client / AnyConnect) hasn't sent a heartbeat for >7 day.... Timely UC-17.1.54 alerting on 'Cisco Secure Client / AnyConnect Posture Agent Heartbeat and Version Drift' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Confirm *Posture* category at INFO. Endpoint-inventory poller every 1h. Schedule the search daily at 06:00 UTC.",
   "visualization": "(1) Single value: endpoints with stale heartbeat. (2) Bar chart: agent version distribution. (3) Top-N: device-types missing agents.",
   "cimModels": [],

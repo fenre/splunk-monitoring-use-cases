@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Infoblox DNS NXDOMAIN Rate Trending for Recursive Clients (Infoblox)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_infoblox_dns_nxdomain_rate_trending_for_recursiv` (UC-5.15.10), SOC dashboard panel \"Operations — Infoblox DNS NXDOMAIN Rate Trending for Recursive Clients (Infoblox)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dns` sourcetype='infoblox:dns' that satisfy the UC-5.15.10 SPL filters for 'Infoblox DNS NXDOMAIN Rate Trending for Recursive Clients (Infoblox)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dns` / `infoblox:dns` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.15.10."
+    "positiveScenario": "Ingest synthetic events into `index=dns` sourcetype='infoblox:dns' where `_time` satisfies `nx_rate` >= 35 for UC-5.15.10 ('Infoblox DNS NXDOMAIN Rate Trending for Recursive Clients (Infoblox)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dns` / `infoblox:dns` events where `_time` stays below `nx_rate` >= 35, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.15.10."
   },
   "dataSources": "`index=dns` `sourcetype=infoblox:dns` query/response logs containing response codes (`rcode`, `response_code`, or embedded `NXDOMAIN` tokens depending on TA version); sampling policies documented because verbose logging affects Grid CPU.",
   "app": "Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)",
   "spl": "index=dns sourcetype=\"infoblox:dns\" earliest=-7d@h latest=now\n| eval rcode_norm=upper(trim(coalesce(rcode,rcode_str,\"\")))\n| eval is_nx=if(rcode_norm=\"NXDOMAIN\" OR match(_raw,\"(?i)\\\\bNXDOMAIN\\\\b\") OR rcode=\"3\" OR rcode=3, 1, 0)\n| bin _time span=1h\n| stats count as queries sum(is_nx) as nx_count by _time src_ip host\n| eval nx_rate=round(100*nx_count/queries,2)\n| eventstats median(nx_rate) as med by src_ip\n| where nx_rate >= 35 AND queries>=200\n| sort - nx_rate\n| head 200",
   "description": "Hourly aggregation compares NXDOMAIN responses to total DNS queries per internal client IP so sudden hikes—often tied to malware DGAs or misconfigured applications—stand out against historical medians.",
-  "value": "Risk teams gain a lightweight complementary indicator to full PCAP inspection, guiding containment decisions while application owners receive evidence for fixing fat-fingered suffix searches or broken automation.",
+  "value": "Hourly aggregation compares NXDOMAIN responses to total DNS queries per internal client IP so sudden hikes—.... Timely UC-5.15.10 alerting on 'Infoblox DNS NXDOMAIN Rate Trending for Recursive Clients (Infoblox)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Normalize rcode fields via eval, exclude authoritative-only members if splits exist using `host` tags, baseline per building, alert when nx_rate exceeds adaptive percentile with minimum query floor.",
   "visualization": "Timechart nx_rate for top talkers, geographic site facet, reference line at organizational threshold.",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Infoblox DNS NXDOMAIN Rate Trending for Recursive Clients (Infoblox)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `dns` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `dns`** — Planned work for 'Infoblox DNS NXDOMAIN Rate Trending for Recursive Clients (Infoblox)' shifts `sum` over `span=1h` while `_time` remains in-scope for UC-5.15.10. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `infoblox:dns`** — Scheduled automation elevates `src_ip` without crossing `nx_rate` >= 35. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `dns` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `infoblox:dns`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1071.004"
   ],

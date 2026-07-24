@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Forcepoint User Risk Score Changes Over Time (`forcepoint:one`)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_forcepoint_user_risk_score_changes_over_time_for` (UC-17.5.8), SOC dashboard panel \"Network — Forcepoint User Risk Score Changes Over Time (`forcepoint:one`)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=sase` sourcetype='forcepoint:one' that satisfy the UC-17.5.8 SPL filters for 'Forcepoint User Risk Score Changes Over Time (`forcepoint:one`)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `sase` / `forcepoint:one` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.5.8."
+    "positiveScenario": "Ingest synthetic events into `index=sase` sourcetype='forcepoint:one' where `user` satisfies `delta` >= 20 for UC-17.5.8 ('Forcepoint User Risk Score Changes Over Time (`forcepoint:one`)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `sase` / `forcepoint:one` events where `user` stays below `delta` >= 20, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.5.8."
   },
   "dataSources": "Forcepoint cloud SSE (`forcepoint:one`), on-prem Web Security (`websense:cg:kv`), Email (`forcepoint:email:kv`), DLP (`forcepoint:dlp`)",
   "app": "Forcepoint Insights SIEM App (Splunkbase 8053); Forcepoint Web Security TA (`websense:cg:kv`); Email Security KV (`forcepoint:email:kv`)",
   "spl": "index=sase sourcetype=\"forcepoint:one\" earliest=-7d\n| where isnotnull(user_risk_score)\n| bin _time span=1h\n| stats latest(user_risk_score) as risk by user, _time\n| streamstats window=2 global=f latest(risk) as prev by user\n| eval delta=risk-prev\n| where delta>=20",
-  "description": "Step changes in risk score often precede account compromise or policy violations.",
-  "value": "Security teams track user risk score trajectories over time, catching behavioral shifts that indicate compromised accounts or insider threats through early-warning risk escalation before actual data loss occurs.",
+  "description": "Step changes in risk score often precede account compromise or policy violations. Searches `index=sase` with sourcetype `forcepoint:one` for UC-17.5.8, aggregating `count` by `user` over `1h`. Alerts when grouped results cross `delta` >= 20 in the saved search. Gives Network operators a repeatable signal for 'Forcepoint User Risk Score Changes Over Time (`forcepoint:one`)' without manual log review.",
+  "value": "Step changes in risk score often precede account compromise or policy violations. Timely UC-17.5.8 alerting on 'Forcepoint User Risk Score Changes Over Time (`forcepoint:one`)' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Install the Insights SIEM app, configure HEC inputs per product line, and align indexes (`proxy`, `email`, `dlp`, `sase`). Normalize usernames to enterprise SAMAccountName.",
   "visualization": "Line chart (risk trajectory), alert on delta.",
   "cimModels": [],
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Forcepoint User Risk Score Changes Over Time (`forcepoint:one`)'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `sase`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `forcepoint:one` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `sase`** — Planned work for 'Forcepoint User Risk Score Changes Over Time (`forcepoint:one`)' shifts `count` over `span=1h` while `user` remains in-scope for UC-17.5.8. Cross-check CMDB CHG.\n\n2. **Batch `count` on `forcepoint:one`** — Scheduled automation elevates `_time` without crossing `delta` >= 20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`** — Health checks in `sase` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `forcepoint:one`** — First 48h baseline for `user` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "forcepoint"

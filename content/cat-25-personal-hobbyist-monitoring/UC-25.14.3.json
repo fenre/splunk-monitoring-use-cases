@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Closest-Approach Aircraft of the Day' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_closest_approach_aircraft_of_the_day` (UC-25.14.3), SOC dashboard panel \"Personal — Closest-Approach Aircraft of the Day\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='adsb:aircraft' that satisfy the UC-25.14.3 SPL filters for 'Closest-Approach Aircraft of the Day'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `adsb:aircraft` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.3."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='adsb:aircraft' where `callsign` satisfies detection threshold for UC-25.14.3 ('Closest-Approach Aircraft of the Day'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `adsb:aircraft` events where `callsign` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.3."
   },
   "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home ADS-B receiver (dump1090 / readsb / tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=adsb:aircraft\n| stats min(distance_km) as closest_km, min(altitude_ft) as low_alt by callsign type\n| sort closest_km\n| head 10",
-  "description": "Finds which aircraft passed nearest to your receiver each day, ranked by distance, for the plane-spotters among us.",
-  "value": "A daily closest-approach leaderboard makes casual plane-spotting a game and helps you time a look outside for a low pass.",
+  "description": "Finds which aircraft passed nearest to your receiver each day, ranked by distance, for the plane-spotters among us. Searches `index=personal` with sourcetype `adsb:aircraft` for UC-25.14.3, aggregating `min` by `callsign` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Closest-Approach Aircraft of the Day' without manual log review.",
+  "value": "Finds which aircraft passed nearest to your receiver each day, ranked by distance, for the plane-spotters a.... Timely UC-25.14.3 alerting on 'Closest-Approach Aircraft of the Day' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest ADS-B position data with a computed distance field; schedule daily and review the ten nearest passes.",
   "visualization": "Ranked table of the ten closest aircraft with distance and altitude.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Closest-Approach Aircraft of the Day'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `adsb:aircraft`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Closest-Approach Aircraft of the Day' stops polling `adsb:aircraft`; stale `callsign` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `min` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `adsb:aircraft`. Dedup with `stats latest(*) by callsign`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Commvault Auxiliary Copy Job Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_commvault_auxiliary_copy_job_failures` (UC-6.2.14), SOC dashboard panel \"Operations — Commvault Auxiliary Copy Job Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='commvault:job' that satisfy the UC-6.2.14 SPL filters for 'Commvault Auxiliary Copy Job Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `backup` / `commvault:job` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.14."
+    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='commvault:job' where `job_name` satisfies detection threshold for UC-6.2.14 ('Commvault Auxiliary Copy Job Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `backup` / `commvault:job` events where `job_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.14."
   },
   "dataSources": "Commvault Splunk App plugin or syslog/HEC feed with `sourcetype=commvault:job` (job history including auxiliary copy operations)",
   "app": "Commvault Splunk App (Splunkbase 5718)",
   "spl": "index=backup sourcetype=\"commvault:job\" earliest=-48h\n| eval jt=lower(coalesce(job_type, operation, job_type_name))\n| eval st=lower(coalesce(status, job_status, Status))\n| where match(jt,\"(?i)aux\") OR match(job_name,\"(?i)auxiliary\")\n| where st!=\"completed\" AND st!=\"success\"\n| stats latest(st) as status latest(error_code) as err latest(_time) as last_run by job_name subclient_name\n| sort - last_run",
   "description": "Auxiliary copies move data to secondary disk, tape, or cloud libraries; failures break 3-2-1 strategies and leave only primary copies during ransomware or site disasters.",
-  "value": "Ensures air-gapped and offsite copies actually exist—catching library mount issues, network auth failures, and throttling before audit or insurance reviews find gaps.",
+  "value": "Auxiliary copies move data to secondary disk, tape, or cloud libraries; failures break 3-2-1 strategies and.... Timely UC-6.2.14 alerting on 'Commvault Auxiliary Copy Job Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Complete the Commvault Splunk integration wizard so finished jobs stream with consistent `status` tokens. If your export uses different field names, add aliases in `props.conf`. Correlate with media agent uptime (UC can be cloned) when errors reference `Error Mount Path`.",
   "visualization": "Table (aux copy job, subclient, status, error), timeline of failures.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Commvault Auxiliary Copy Job Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `backup` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `backup`** — Planned work for 'Commvault Auxiliary Copy Job Failures' shifts `count` over `span=1h` while `job_name` remains in-scope for UC-6.2.14. Cross-check CMDB CHG.\n\n2. **Batch `count` on `commvault:job`** — Scheduled automation elevates `subclient_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job_name`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `commvault:job`** — First 48h baseline for `job_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "commvault",
     "hashicorp",

@@ -89,17 +89,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "A SQL dump of 250k customer records is written to an S3 bucket in a non-adequate jurisdiction; the UC fires within 10 min.",
-    "negativeScenario": "A bulk export to an adequacy-listed or SCC-covered jurisdiction does NOT fire.",
-    "fixtureRef": "",
-    "attackTechnique": "T1567",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=db_audit` sourcetype='target_sourcetype' where `entity` satisfies `bytes` > 1073741824 for UC-22.38.5 ('Bulk regulated-data export targeting non-adequate jurisdiction'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `db_audit` / `target_sourcetype` events where `entity` stays below `bytes` > 1073741824, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.38.5."
   },
   "dataSources": "DB export audit logs, cloud storage PUT events, DLP bulk-operation classifications, sanctioned_transfer_jurisdictions.csv.",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=db_audit action=export OR (index=cloud_storage action=PutObject bytes>1073741824) earliest=-10m\n| lookup data_classification.csv object_key OUTPUT classification regulated_scope\n| where isnotnull(regulated_scope)\n| `get_geolocation(dest_ip)`\n| lookup sanctioned_transfer_jurisdictions.csv country as dest_country OUTPUT scc_active adequacy_decision\n| where isnull(scc_active) AND isnull(adequacy_decision)\n| table _time user object_key classification regulated_scope dest_country bytes",
   "description": "Intersects bulk export operations (DB dumps, large cloud uploads) with destination geolocation and the sanctioned-transfer catalogue. Bulk exports targeting non-adequate jurisdictions without SCCs are a category of breach that requires immediate executive escalation.",
-  "value": "Turns post-hoc 'where did our customer dataset go?' incident forensics into real-time prevention.",
+  "value": "Intersects bulk export operations (DB dumps, large cloud uploads) with destination geolocation and the sanc.... Timely UC-22.38.5 alerting on 'Bulk regulated-data export targeting non-adequate jurisdiction' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Ensure DB and cloud storage layers emit size + destination; (2) maintain classification and jurisdiction lookups; (3) schedule every 10 min; (4) SOAR auto-blocks destination if exception policy permits. Indexes required: `index=cloud_storage`, `index=db_audit`.",
   "visualization": "World-map of bulk exports, table of findings with destination geography, single-value 'bulk exports within sanctioned geographies'. Key fields: `bytes`, `classification`, `dest_country`, `object_key`, `regulated_scope`, `user`.",
   "cimModels": [],
@@ -124,7 +121,7 @@
       "title": "EDPB — Guidelines & Recommendations"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised GDPR control testing** — Internal audit exercises 'Bulk regulated-data export targeting non-adequate jurisdiction' (UC-22.38.5) on `entity` during scheduled clause Art.44 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=db_audit` `configured sourcetype` without crossing `bytes` > 1073741824. Cross-check engagement letter in `gdpr_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `db_audit` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `gdpr_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1567"
   ],

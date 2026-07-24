@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Reorder Bundling Opportunity' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_reorder_bundling_opportunity` (UC-25.36.12), SOC dashboard panel \"Personal — Reorder Bundling Opportunity\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='supply:level' that satisfy the UC-25.36.12 SPL filters for 'Reorder Bundling Opportunity'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `supply:level` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.36.12."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='supply:level' where `vendor` satisfies `days_left` <= 14 for UC-25.36.12 ('Reorder Bundling Opportunity'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `supply:level` events where `vendor` stays below `days_left` <= 14, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.36.12."
   },
   "dataSources": "Consumable levels (`supply:level`), parcels (`delivery:parcel`), bin collections (`bincollection:event`), gift-card balances (`giftcard:balance`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Household logistics feeds — smart-scale consumable trackers, parcel/delivery tracking APIs, council bin-collection calendars, and gift-card balance logs — sent to Splunk HEC via scripted inputs and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=supply:level\n| eval days_left=round(level_pct/daily_use_pct,1)\n| where days_left<=14\n| stats values(item) as items min(days_left) as soonest by vendor\n| sort soonest",
-  "description": "Highlights low-stock items that can be reordered together instead of one emergency purchase at a time.",
-  "value": "Bundling planned reorders saves delivery fees, time, and the cognitive tax of constant replenishment.",
+  "description": "Highlights low-stock items that can be reordered together instead of one emergency purchase at a time. Searches `index=personal` with sourcetype `supply:level` for UC-25.36.12, aggregating `values` by `vendor` over `the scheduled window`. Alerts when grouped results cross `days_left` <= 14 in the saved search. Gives Personal operators a repeatable signal for 'Reorder Bundling Opportunity' without manual log review.",
+  "value": "Highlights low-stock items that can be reordered together instead of one emergency purchase at a time. Timely UC-25.36.12 alerting on 'Reorder Bundling Opportunity' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Track consumable levels and preferred vendor in `index=personal`; group items that will run low in the same window.",
   "visualization": "Vendor table of low-stock items and soonest days-left value.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Reorder Bundling Opportunity'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `supply:level`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Reorder Bundling Opportunity' stops polling `supply:level`; stale `vendor` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `values` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `supply:level`. Dedup with `stats latest(*) by vendor`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_left` <= 14. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

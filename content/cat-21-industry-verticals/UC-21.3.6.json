@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Lab Information System Result Turnaround Time' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_lab_information_system_result_turnaround_time` (UC-21.3.6), SOC dashboard panel \"Operations — Lab Information System Result Turnaround Time\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=healthcare` sourcetype='lis:result' that satisfy the UC-21.3.6 SPL filters for 'Lab Information System Result Turnaround Time'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `healthcare` / `lis:result` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.3.6."
+    "positiveScenario": "Ingest synthetic events into `index=healthcare` sourcetype='lis:result' where `test_type` satisfies `tat_min` > 0 for UC-21.3.6 ('Lab Information System Result Turnaround Time'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `healthcare` / `lis:result` events where `test_type` stays below `tat_min` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.3.6."
   },
   "dataSources": "`index=healthcare` `sourcetype=\"lis:result\"` fields `order_id`, `test_type`, `collected_time`, `resulted_time` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "LIS integration via HL7 or HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=healthcare sourcetype=\"lis:result\"\n| eval tat_min=round((resulted_time-collected_time)/60,1)\n| where tat_min > 0\n| stats avg(tat_min) as avg_tat, perc95(tat_min) as p95_tat, count by test_type\n| sort - p95_tat\n| table test_type, avg_tat, p95_tat, count",
   "description": "Lab TAT directly impacts clinical decision-making and patient throughput. Tracking TAT by test type identifies bottlenecks in specimen processing and analysis.",
-  "value": "Service and risk leaders use signals from Lab Information System Result Turnaround Time to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "Service and risk leaders use signals from Lab Information System Result Turnaround Time to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Parse HL7 ORM/ORU messages or LIS exports for specimen collection and result times. Track by test type and priority. Alert on stat tests exceeding critical TAT thresholds. **Domain context:** CAP / CLIA programs often set TAT expectations by test class; stat vs routine must be modeled separately. **Splunk:** `collected_time`/`resulted_time` must be epoch seconds or coerced with `strptime`—HL7 timestamps are often local time with timezone.",
   "visualization": "Bar chart (TAT by test type), Line chart (TAT trend), Table (tests exceeding target).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Lab Information System Result Turnaround Time'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `healthcare` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `healthcare`** — Planned work for 'Lab Information System Result Turnaround Time' shifts `avg` over `span=1h` while `test_type` remains in-scope for UC-21.3.6. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `lis:result`** — Scheduled automation elevates `tat_min` without crossing `tat_min` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `test_type`** — Health checks in `healthcare` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `lis:result`** — First 48h baseline for `test_type` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `test_type`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'LSASS Memory Access (Credential Dumping)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_lsass_memory_access_credential_dumping` (UC-1.2.30), SOC dashboard panel \"Linux — LSASS Memory Access (Credential Dumping)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Microsoft-Windows-Sysmon/Operational' EventCode=10 that satisfy the UC-1.2.30 SPL filters for 'LSASS Memory Access (Credential Dumping)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Microsoft-Windows-Sysmon/Operational` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.30."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Microsoft-Windows-Sysmon/Operational' EventCode=10 where `entity` satisfies detection threshold for UC-1.2.30 ('LSASS Memory Access (Credential Dumping)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Microsoft-Windows-Sysmon/Operational` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.30."
   },
   "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 10) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows`, Sysmon required — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-Sysmon/Operational\" EventCode=10\n  TargetImage=\"*\\\\lsass.exe\"\n  GrantedAccess IN (\"0x1010\",\"0x1410\",\"0x1438\",\"0x143a\",\"0x1fffff\")\n| where NOT match(SourceImage, \"(?i)(MsMpEng|csrss|wininit|svchost|mrt\\.exe)\")\n| table _time, host, SourceImage, GrantedAccess, SourceUser\n| sort -_time",
   "description": "Accessing LSASS process memory is the primary technique for credential theft (Mimikatz, ProcDump). Detection is critical to stopping lateral movement.",
-  "value": "Credential dumping is a key step in many breaches—an early, explainable view shortens the IR clock.",
+  "value": "Accessing LSASS process memory is the primary technique for credential theft (Mimikatz, ProcDump). Timely UC-1.2.30 alerting on 'LSASS Memory Access (Credential Dumping)' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Deploy Sysmon with ProcessAccess (EventCode 10) monitoring. Filter out legitimate LSASS accessors (AV engines, csrss, wininit). The GrantedAccess mask 0x1010 (PROCESS_VM_READ + PROCESS_QUERY_LIMITED_INFORMATION) is the Mimikatz signature. Alert immediately with critical priority. Enable Credential Guard (Windows 10+) as a complementary defense.",
   "visualization": "Table (LSASS access events), Single value (count — target: 0), Alert with MITRE ATT&CK T1003 reference.",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'LSASS Memory Access (Credential Dumping)'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `WinEventLog:Microsoft-Windows-Sysmon/Operational`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'LSASS Memory Access (Credential Dumping)'. Correlate with apt/yum logs in the same `WinEventLog:Microsoft-Windows-Sysmon/Operational` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Microsoft-Windows-Sysmon/Operational`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hardware_bmc",
     "windows"

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Artifact Registry Push/Pull and Vulnerability Scan' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_artifact_registry_push_pull_and_vulnerability_sc` (UC-4.3.16), SOC dashboard panel \"Operations — Artifact Registry Push/Pull and Vulnerability Scan\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='google:gcp:pubsub:message' that satisfy the UC-4.3.16 SPL filters for 'Artifact Registry Push/Pull and Vulnerability Scan'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `gcp` / `google:gcp:pubsub:message` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.16."
+    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='google:gcp:pubsub:message' where `method` satisfies detection threshold for UC-4.3.16 ('Artifact Registry Push/Pull and Vulnerability Scan'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `gcp` / `google:gcp:pubsub:message` events where `method` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.16."
   },
   "dataSources": "Audit logs (Artifact Registry API), Container Analysis (vulnerability occurrences) Collected via Splunk Add-on for Google Cloud Platform (Splunkbase 3084) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_google-cloudplatform` — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
   "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"artifactregistry.googleapis.com\"\n| spath output=method path=protoPayload.methodName\n| stats count by method resource.labels.repository\n| sort -count",
-  "description": "Unusual push/pull may indicate abuse. Vulnerability scan findings in images require remediation before deployment.",
+  "description": "Unusual push/pull may indicate abuse. Vulnerability scan findings in images require remediation before deployment. Searches `index=gcp` with sourcetype `google:gcp:pubsub:message` for UC-4.3.16, aggregating `count` by `method` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Artifact Registry Push/Pull and Vulnerability Scan' without manual log review.",
   "value": "Early 'Artifact Registry Push/Pull and Vulnerability Scan' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Forward Artifact Registry audit logs via Pub/Sub. Ingest Container Analysis for CVE findings. Alert on critical/high in production repos. Baseline push/pull by principal; alert on anomalies.",
   "visualization": "Table (repo, method, count), Bar chart (top push/pull), Table (image, CVE, severity).",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Artifact Registry Push/Pull and Vulnerability Scan'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `gcp` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `gcp`** — Planned work for 'Artifact Registry Push/Pull and Vulnerability Scan' shifts `count` over `span=1h` while `method` remains in-scope for UC-4.3.16. Cross-check CMDB CHG.\n\n2. **Batch `count` on `google:gcp:pubsub:message`** — Scheduled automation elevates `resource.labels.repository` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `method`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `google:gcp:pubsub:message`** — First 48h baseline for `method` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `method`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1610",
     "T1613"

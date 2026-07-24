@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Espresso Shot Extraction Consistency' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_espresso_shot_extraction_consistency` (UC-25.15.7), SOC dashboard panel \"Personal — Espresso Shot Extraction Consistency\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='espresso:shot' that satisfy the UC-25.15.7 SPL filters for 'Espresso Shot Extraction Consistency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `espresso:shot` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.15.7."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='espresso:shot' where `bean` satisfies `time_sd` < 3 for UC-25.15.7 ('Espresso Shot Extraction Consistency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `espresso:shot` events where `bean` stays below `time_sd` < 3, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.15.7."
   },
   "dataSources": "Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), kombucha brew (`kombucha:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=espresso:shot\n| eval ratio=round(yield_g/dose_g,2)\n| stats avg(shot_time_s) as avg_time, stdev(shot_time_s) as time_sd, avg(ratio) as avg_ratio by bean\n| eval consistency=if(time_sd<3,\"dialed in\",\"variable\")\n| sort - avg_ratio",
   "description": "Tracks your espresso shot time and brew ratio per bean so you can tell when a coffee is dialed in versus all over the place.",
-  "value": "Great espresso is repeatable espresso; measuring shot-time variation shows whether your grind is dialed in or still guesswork.",
+  "value": "Tracks your espresso shot time and brew ratio per bean so you can tell when a coffee is dialed in versus al.... Timely UC-25.15.7 alerting on 'Espresso Shot Extraction Consistency' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log each shot's dose, yield, and time to `index=personal`; review consistency per bean to fine-tune the grinder.",
   "visualization": "Table of beans with average shot time, ratio, and a consistency label.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Espresso Shot Extraction Consistency'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `espresso:shot`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Espresso Shot Extraction Consistency' stops polling `espresso:shot`; stale `bean` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `espresso:shot`. Dedup with `stats latest(*) by bean`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `time_sd` < 3. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

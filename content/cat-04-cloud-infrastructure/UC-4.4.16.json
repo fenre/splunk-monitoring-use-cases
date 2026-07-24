@@ -12,8 +12,8 @@
   "exclusions": "Covers the detection logic documented for 'Cross-Region Replication and Backup Verification' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cross_region_replication_and_backup_verification` (UC-4.4.16), SOC dashboard panel \"Operations — Cross-Region Replication and Backup Verification\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch:metric' that satisfy the UC-4.4.16 SPL filters for 'Cross-Region Replication and Backup Verification'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch:metric` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.4.16."
+    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch:metric' where `dimension.BucketName` satisfies `lag_seconds` > 900 for UC-4.4.16 ('Cross-Region Replication and Backup Verification'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch:metric` events where `dimension.BucketName` stays below `lag_seconds` > 900, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.4.16."
   },
   "dataSources": "S3 replication metrics, RDS cross-region replica lag, Azure Backup job status, GCP snapshot schedule Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws`, Azure Monitor, GCP operations — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cross-Region Replication and Backup Verification'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `aws` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Cross-Region Replication and Backup Verification' shifts `count` over `span=1h` while `dimension.BucketName` remains in-scope for UC-4.4.16. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch:metric`** — Scheduled automation elevates `dimension.DestinationBucket` without crossing `lag_seconds` > 900. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dimension.BucketName`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch:metric`** — First 48h baseline for `dimension.BucketName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dimension.BucketName`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1578.001",
     "T1537"

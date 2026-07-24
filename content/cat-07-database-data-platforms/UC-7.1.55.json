@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'ClickHouse Distributed Query Inter-Shard Latency' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_clickhouse_distributed_query_inter_shard_latency` (UC-7.1.55), SOC dashboard panel \"Operations — ClickHouse Distributed Query Inter-Shard Latency\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='clickhouse:query_log' that satisfy the UC-7.1.55 SPL filters for 'ClickHouse Distributed Query Inter-Shard Latency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `clickhouse:query_log` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.55."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='clickhouse:query_log' where `root_id` satisfies `cluster_max` > 0 for UC-7.1.55 ('ClickHouse Distributed Query Inter-Shard Latency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `clickhouse:query_log` events where `root_id` stays below `cluster_max` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.55."
   },
   "dataSources": "`system.query_log` rows for distributed queries (`is_initial_query`, `initial_query_id`, host) as `clickhouse:query_log` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "HEC/DB Connect export of `system.query_log` with distributed query fields preserved — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"clickhouse:query_log\"\n| where (is_initial_query==1 OR is_initial_query==\"true\") AND query_kind=\"Select\"\n| eval root_id=coalesce(initial_query_id, query_id)\n| stats max(query_duration_ms) as max_leaf_ms by root_id, host\n| eventstats max(max_leaf_ms) as cluster_max by root_id\n| eval skew_ratio=if(cluster_max>0, round(max_leaf_ms/cluster_max,3), null())\n| where skew_ratio < 0.2 AND max_leaf_ms > 10000\n| stats values(host) as slow_shards dc(root_id) as affected_queries",
   "description": "Skewed shard execution shows up as some nodes finishing far slower than the cluster max for the same `initial_query_id`, which inflates end-to-end latency for distributed tables. Finding those slow shards guides network, disk, and hot-part investigations.",
-  "value": "Prevents long-running analytics queries from starving business dashboards when one replica or shard is unhealthy.",
+  "value": "Skewed shard execution shows up as some nodes finishing far slower than the cluster max for the same `initi.... Timely UC-7.1.55 alerting on 'ClickHouse Distributed Query Inter-Shard Latency' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ensure `query_log` retains `initial_query_id`, `query_id`, `host`, `is_initial_query`, and `query_duration_ms`. For sharded clusters, include the emitting node's hostname in each event. Schedule search every 15 minutes; validate `initial_query_id` population on your ClickHouse version and adjust `is_initial_query` filter accordingly.",
   "visualization": "Table (root_id, slow_shards, max_leaf_ms), Sankey or chord optional if enriched with cluster topology.",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'ClickHouse Distributed Query Inter-Shard Latency'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'ClickHouse Distributed Query Inter-Shard Latency' shifts `max` over `span=1h` while `root_id` remains in-scope for UC-7.1.55. Cross-check CMDB CHG.\n\n2. **Batch `max` on `clickhouse:query_log`** — Scheduled automation elevates `host` without crossing `cluster_max` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `root_id`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `clickhouse:query_log`** — First 48h baseline for `root_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `root_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "clickhouse",
     "db_connect"

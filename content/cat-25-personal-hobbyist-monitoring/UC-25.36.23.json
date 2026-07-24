@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Pharmacy Refill Lead Time Before Empty' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_pharmacy_refill_lead_time_before_empty` (UC-25.36.23), SOC dashboard panel \"Personal — Pharmacy Refill Lead Time Before Empty\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='pharmacy:refill' that satisfy the UC-25.36.23 SPL filters for 'Pharmacy Refill Lead Time Before Empty'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `pharmacy:refill` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.36.23."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='pharmacy:refill' where `med_name` satisfies detection threshold for UC-25.36.23 ('Pharmacy Refill Lead Time Before Empty'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `pharmacy:refill` events where `med_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.36.23."
   },
   "dataSources": "Amazon order records (`amazon:order`), meal-plan inventory (`mealplan:item`), and pharmacy refill events (`pharmacy:refill`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Household logistics telemetry from Amazon order history, meal-plan inventory tools, and pharmacy refill portals sent to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=pharmacy:refill\n| search refill_status=\"submitted\"\n| stats latest(_time) as last_seen count as events by med_name\n| eval days_since=round((now()-last_seen)/86400,1)\n| sort - days_since",
   "description": "Shows which medicationss have gone quiet for pharmacy refills before empty. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Lead time before empty is a practical safety buffer metric for any recurring medication.",
+  "value": "Shows which medicationss have gone quiet for pharmacy refills before empty. Timely UC-25.36.23 alerting on 'Pharmacy Refill Lead Time Before Empty' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send pharmacy refills before empty events to `index=personal` and alert when the gap since the last event grows beyond the expected cadence.",
   "visualization": "Table of medicationss with time since last event.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Pharmacy Refill Lead Time Before Empty'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pharmacy:refill`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Pharmacy Refill Lead Time Before Empty' stops polling `pharmacy:refill`; stale `med_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pharmacy:refill`. Dedup with `stats latest(*) by med_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

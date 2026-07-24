@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Pharmacy Pickup Weekly Days Since Fill Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_pharmacy_pickup_weekly_days_since_fill_trend` (UC-25.110.20), SOC dashboard panel \"Personal — Pharmacy Pickup Weekly Days Since Fill Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='pharmacy:pickup' that satisfy the UC-25.110.20 SPL filters for 'Pharmacy Pickup Weekly Days Since Fill Trend'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `pharmacy:pickup` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.110.20."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='pharmacy:pickup' where `_time` satisfies detection threshold for UC-25.110.20 ('Pharmacy Pickup Weekly Days Since Fill Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `pharmacy:pickup` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.110.20."
   },
   "dataSources": "GoodRx prices (`goodrx:price`), CVS refills (`cvs:refill`), pharmacy pickups (`pharmacy:pickup`), and prescription adherence logs (`prescription:adherence`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "GoodRx price lookups, CVS refill confirmations, pharmacy pickup logs, and prescription adherence trackers streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=pharmacy:pickup days_since_fill=*\n| bin _time span=1w\n| stats avg(days_since_fill) as avg_duration, max(days_since_fill) as worst_duration by _time\n| sort _time",
-  "description": "Trends the average and worst days since fill for pharmacy pickup events each week.",
-  "value": "Weekly timing trends show whether a process is becoming slower, more erratic, or healthier over time.",
+  "description": "Trends the average and worst days since fill for pharmacy pickup events each week. Searches `index=personal` with sourcetype `pharmacy:pickup` for UC-25.110.20, aggregating `avg` by `_time` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Pharmacy Pickup Weekly Days Since Fill Trend' without manual log review.",
+  "value": "Trends the average and worst days since fill for pharmacy pickup events each week. Timely UC-25.110.20 alerting on 'Pharmacy Pickup Weekly Days Since Fill Trend' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture days_since_fill on each event and review weekly averages plus worst cases during your personal ops review.",
   "visualization": "Line chart of weekly average days since fill with markers for the worst week.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Pharmacy Pickup Weekly Days Since Fill Trend'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pharmacy:pickup`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Pharmacy Pickup Weekly Days Since Fill Trend' stops polling `pharmacy:pickup`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pharmacy:pickup`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "snmp"
   ],

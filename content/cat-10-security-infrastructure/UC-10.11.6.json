@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'FortiSandbox Analysis Results' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_fortisandbox_analysis_results` (UC-10.11.6), SOC dashboard panel \"Security Infra — FortiSandbox Analysis Results\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='fortinet:fortisandbox' that satisfy the UC-10.11.6 SPL filters for 'FortiSandbox Analysis Results'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `security` / `fortinet:fortisandbox` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.11.6."
+    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='fortinet:fortisandbox' where `verdict` satisfies detection threshold for UC-10.11.6 ('FortiSandbox Analysis Results'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `security` / `fortinet:fortisandbox` events where `verdict` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.11.6."
   },
   "dataSources": "`sourcetype=fortinet:fortisandbox` Collected via Splunk Add-on for Fortinet FortiGate (Splunkbase 2846) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_fortinet` — Splunk Add-on for Fortinet FortiGate (Splunkbase 2846)",
   "spl": "index=security sourcetype=\"fortinet:fortisandbox\"\n| stats count by verdict, file_type, sha256\n| search verdict IN (\"Malicious\",\"Suspicious\")",
-  "description": "Sandbox verdicts surface zero-day and unknown files before they execute broadly in the environment.",
+  "description": "Sandbox verdicts surface zero-day and unknown files before they execute broadly in the environment. Searches `index=security` with sourcetype `fortinet:fortisandbox` for UC-10.11.6, aggregating `count` by `verdict` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'FortiSandbox Analysis Results' without manual log review.",
   "value": "Early 'FortiSandbox Analysis Results' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Forward FortiSandbox JSON or syslog to Splunk. Track verdict distribution and alert on malicious with destination context from related traffic logs.",
   "visualization": "Pie chart (verdicts), Table (malicious files with hash), Line chart (submissions).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'FortiSandbox Analysis Results'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=security` `fortinet:fortisandbox`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `security`** — Planned work for 'FortiSandbox Analysis Results' shifts `count` over `span=1h` while `verdict` remains in-scope for UC-10.11.6. Cross-check CMDB CHG.\n\n2. **Batch `count` on `fortinet:fortisandbox`** — Scheduled automation elevates `file_type` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `verdict`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `fortinet:fortisandbox`** — First 48h baseline for `verdict` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `verdict`, `exception_reason`, `valid_until`.",
   "detectionType": "TTP",
   "securityDomain": "threat",
   "equipment": [

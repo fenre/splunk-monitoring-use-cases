@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'PHP-FPM Status Endpoint Self-Monitoring Response Time' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_php_fpm_status_endpoint_self_monitoring_response` (UC-8.4.47), SOC dashboard panel \"Operations — PHP-FPM Status Endpoint Self-Monitoring Response Time\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='phpfpm:status' that satisfy the UC-8.4.47 SPL filters for 'PHP-FPM Status Endpoint Self-Monitoring Response Time'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `phpfpm:status` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.4.47."
+    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='phpfpm:status' where `host` satisfies detection threshold for UC-8.4.47 ('PHP-FPM Status Endpoint Self-Monitoring Response Time'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `web` / `phpfpm:status` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.4.47."
   },
   "dataSources": "If polling the status page becomes slow, the node is likely overloaded or network path degraded. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder; optional Splunk Add-on for Unix and Linux (`Splunk_TA_nix`); custom `props.conf`/`transforms.conf` for `phpfpm:*` sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"phpfpm:status\"\n| eval poll_duration_ms=tonumber(poll_duration_ms)\n| where isnotnull(poll_duration_ms)\n| timechart span=5m perc95(poll_duration_ms) as poller_p95_ms by host",
   "description": "The status endpoint should answer quickly on a healthy node. Slow polls imply CPU starvation, syscall issues, or overloaded loopback.",
-  "value": "Catches observer bias where synthetic checks fail before user traffic alarms. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "The status endpoint should answer quickly on a healthy node. Timely UC-8.4.47 alerting on 'PHP-FPM Status Endpoint Self-Monitoring Response Time' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Add `poll_duration_ms` in your collector script (time curl). Alert when poller_p95_ms > 500ms.",
   "visualization": "Time series (pool utilization, queue, latency percentiles), single value alerts, top charts for scripts and methods.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'PHP-FPM Status Endpoint Self-Monitoring Response Time'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `web` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'PHP-FPM Status Endpoint Self-Monitoring Response Time' shifts `count` over `span=5m` while `host` remains in-scope for UC-8.4.47. Cross-check CMDB CHG.\n\n2. **Batch `count` on `phpfpm:status`** — Scheduled automation elevates `poll_duration_ms` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `phpfpm:status`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "linux",
     "phpfpm"

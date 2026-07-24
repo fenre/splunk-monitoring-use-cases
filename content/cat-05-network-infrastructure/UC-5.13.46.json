@@ -37,7 +37,7 @@
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+. Requires SUPER-ADMIN-ROLE.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:audit:logs\" isSystemEvent=false auditRequestType IN (\"PUT\",\"POST\",\"DELETE\")\n| table _time, auditUserName, auditRequestType, auditDescription\n| sort -_time",
   "description": "Isolates configuration change events (PUT/POST/DELETE operations) from the full audit log, providing a dedicated change audit trail that shows every template push, policy modification, device provisioning action, and setting change — the evidence trail that change management and compliance auditors require for NIST CM-3 and SOX ITGC.",
-  "value": "The full audit log (UC-5.13.45) includes read operations (GETs) that are noise for change management. This UC filters to state-changing operations only, producing a clean change trail that answers the three questions auditors always ask: 'What was changed?' (auditDescription), 'Who changed it?' (auditUserName), 'When was it changed?' (_time). For SOX ITGC, each row in this report should map to an approved change ticket — rows without tickets are potential ITGC findings that require documentation and corrective action.",
+  "value": "Isolates configuration change events (PUT/POST/DELETE operations) from the full audit log, providing a dedi.... Timely UC-5.13.46 alerting on 'Configuration Change Audit Trail' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Same `audit_logs` input as UC-5.13.45. Filter to `auditRequestType IN (\"PUT\",\"POST\",\"DELETE\")` for state-changing operations only. Schedule daily for change management review. Monthly CSV export for SOX evidence.",
   "visualization": "(1) Table: _time, auditUserName, auditRequestType, auditDescription — the change trail. (2) Timechart: `| timechart span=1d count by auditRequestType` over 30 days. (3) Bar chart: changes per user for accountability. (4) Correlation column: join with ITSM change records to flag unapproved changes.",
   "references": [
@@ -58,7 +58,7 @@
       "url": "https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_0/home?element=CM-3"
     }
   ],
-  "knownFalsePositives": "**Automated Catalyst Center operations appearing as changes.** Catalyst Center may perform automated configuration adjustments (RRM optimisation, certificate renewal) that show as PUT operations. Distinguish by checking `isSystemEvent` — automated operations should be `true`. The default SPL filters `isSystemEvent=false`, which excludes these.\n\n**Bulk template push generating many change events.** A single approved change (push template to 100 devices) generates 100+ audit events. Distinguish by checking whether they share the same `auditParentId` (parent operation). For SOX evidence, document the bulk operation as one approved change covering all generated events.\n\n**TA configuration changes appearing in the trail.** Modifying the TA's input settings (changing poll interval, adding new inputs) generates audit events on the Catalyst Center side. Distinguish by checking `auditDescription` for TA-related operations. These are legitimate Splunk-side changes, not network configuration changes.\n\n**Same change logged multiple times.** Some Catalyst Center operations involve multiple API calls that each generate a separate audit event. Distinguish by checking `auditParentId` — related events share a parent ID. Group by `auditParentId` for a one-row-per-operation view.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Configuration Change Audit Trail' shifts `count` over `span=1h` while `host` remains in-scope for UC-5.13.46. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:audit:logs`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:audit:logs`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -77,5 +77,9 @@
   "prerequisiteUseCases": [
     "UC-5.13.45"
   ],
-  "wave": "crawl"
+  "wave": "crawl",
+  "controlTest": {
+    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:audit:logs' where `entity` satisfies detection threshold for UC-5.13.46 ('Configuration Change Audit Trail'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:audit:logs` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.46."
+  }
 }

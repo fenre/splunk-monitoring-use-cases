@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'Duplicate CI Name Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_duplicate_ci_name_detection` (UC-16.2.17), SOC dashboard panel \"Operations — Duplicate CI Name Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:cmdb_ci' that satisfy the UC-16.2.17 SPL filters for 'Duplicate CI Name Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:cmdb_ci` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.2.17."
+    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:cmdb_ci' where `norm_name` satisfies `distinct_ids` > 1 for UC-16.2.17 ('Duplicate CI Name Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `itsm` / `snow:cmdb_ci` events where `norm_name` stays below `distinct_ids` > 1, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.2.17."
   },
   "dataSources": "`index=itsm` `sourcetype=\"snow:cmdb_ci\"` (`name`, `sys_id`, `ci_class`, `serial_number`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Duplicate CI Name Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `itsm` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Duplicate CI Name Detection' shifts `values` over `span=1h` while `norm_name` remains in-scope for UC-16.2.17. Cross-check CMDB CHG.\n\n2. **Batch `values` on `snow:cmdb_ci`** — Scheduled automation elevates `norm_name` without crossing `distinct_ids` > 1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `norm_name`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:cmdb_ci`** — First 48h baseline for `norm_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `norm_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

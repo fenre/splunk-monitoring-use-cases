@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Backlog Burn-Down of Unfinished Games' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_backlog_burn_down_of_unfinished_games` (UC-25.29.2), SOC dashboard panel \"Personal — Backlog Burn-Down of Unfinished Games\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='game:session' that satisfy the UC-25.29.2 SPL filters for 'Backlog Burn-Down of Unfinished Games'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `game:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.29.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='game:session' where `title` satisfies `played` > 0 for UC-25.29.2 ('Backlog Burn-Down of Unfinished Games'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `game:session` events where `title` stays below `played` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.29.2."
   },
   "dataSources": "Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=game:session\n| stats sum(minutes) as played, latest(status) as status by title\n| where status!=\"completed\" AND played>0\n| eval hours=round(played/60,1)\n| sort - hours",
-  "description": "Lists the games you have started but never finished, ranked by how much time you have already sunk into each.",
-  "value": "The pile of half-played games is real; seeing the sunk hours nudges you to finish one before buying the next.",
+  "description": "Lists the games you have started but never finished, ranked by how much time you have already sunk into each. Searches `index=personal` with sourcetype `game:session` for UC-25.29.2, aggregating `sum` by `title` over `the scheduled window`. Alerts when grouped results cross `played` > 0 in the saved search. Gives Personal operators a repeatable signal for 'Backlog Burn-Down of Unfinished Games' without manual log review.",
+  "value": "Lists the games you have started but never finished, ranked by how much time you have already sunk into each. Timely UC-25.29.2 alerting on 'Backlog Burn-Down of Unfinished Games' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest per-title playtime and completion status; schedule weekly and surface the unfinished pile.",
   "visualization": "Bar chart of hours invested in unfinished games.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Backlog Burn-Down of Unfinished Games'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `game:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Backlog Burn-Down of Unfinished Games' stops polling `game:session`; stale `title` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `game:session`. Dedup with `stats latest(*) by title`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `played` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

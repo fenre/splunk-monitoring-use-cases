@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Diameter Signaling Health Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_diameter_signaling_health_monitoring` (UC-5.10.1), SOC dashboard panel \"Operations — Diameter Signaling Health Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='stream:diameter' that satisfy the UC-5.10.1 SPL filters for 'Diameter Signaling Health Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `target_index` / `stream:diameter` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.10.1."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='stream:diameter' where `command_code` satisfies `failed` > 0 for UC-5.10.1 ('Diameter Signaling Health Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `stream:diameter` events where `command_code` stays below `failed` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.10.1."
   },
   "dataSources": "`sourcetype=stream:diameter` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk App for Stream` (Splunkbase #1809) — Universal Forwarder (Splunkbase 617)",
   "spl": "sourcetype=\"stream:diameter\"\n| stats count by command_code, result_code, origin_host, application_id\n| eval status=if(result_code==2001, \"Success\", \"Failure\")\n| stats sum(eval(if(status==\"Success\", 1, 0))) as successful, sum(eval(if(status==\"Failure\", 1, 0))) as failed by command_code, application_id\n| eval success_rate=round(successful*100/(successful+failed), 2)\n| where failed>0 OR success_rate<99",
   "description": "Tracks the success and failure rates of Diameter signaling messages (authentication, authorization, accounting) in the mobile core, essential for maintaining service availability and subscriber experience.",
-  "value": "Operators detect Diameter signaling degradation — authentication failures, routing errors, or peer disconnects — before the volume of affected subscribers triggers a service incident, cutting mean time to detect from minutes to seconds.",
+  "value": "Tracks the success and failure rates of Diameter signaling messages (authentication, authorization, account.... Timely UC-5.10.1 alerting on 'Diameter Signaling Health Monitoring' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Install Splunk App for Stream and configure it to capture Diameter protocol traffic on the core network. Enable the Diameter protocol for full field extraction. Monitor `command_code` and `result_code` to detect signaling issues. Create alerts for sustained drops in success rate or spikes in failure codes such as DIAMETER_AUTHENTICATION_REJECTED (5003) or DIAMETER_UNABLE_TO_DELIVER (3002).",
   "visualization": "Single value (overall Diameter success rate with color-coded threshold: green >99%, yellow 95-99%, red <95%), Pie chart (failure breakdown by command_code), Table (origin_host, command_code, result_code, count — sortable), Line chart (success rate trend over 24h with 15-min buckets).",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Diameter Signaling Health Monitoring'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `target index` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index`** — Planned work for 'Diameter Signaling Health Monitoring' shifts `sum` over `span=1h` while `command_code` remains in-scope for UC-5.10.1. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `stream:diameter`** — Scheduled automation elevates `result_code` without crossing `failed` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `command_code`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `stream:diameter`** — First 48h baseline for `command_code` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `command_code`, `exception_reason`, `valid_until`.",
   "equipment": [
     "stream"
   ],

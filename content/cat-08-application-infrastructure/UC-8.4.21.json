@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'HAProxy Frontend Session Rate Versus ulimit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_haproxy_frontend_session_rate_versus_ulimit` (UC-8.4.21), SOC dashboard panel \"Operations — HAProxy Frontend Session Rate Versus ulimit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=haproxy` sourcetype='haproxy:stats' that satisfy the UC-8.4.21 SPL filters for 'HAProxy Frontend Session Rate Versus ulimit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `haproxy` / `haproxy:stats` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.4.21."
+    "positiveScenario": "Ingest synthetic events into `index=haproxy` sourcetype='haproxy:stats' where `entity` satisfies `slim` > 0 for UC-8.4.21 ('HAProxy Frontend Session Rate Versus ulimit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `haproxy` / `haproxy:stats` events where `entity` stays below `slim` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.4.21."
   },
   "dataSources": "`index=haproxy` `sourcetype=haproxy:stats` (`rate`, `scur`, `slim`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "HAProxy stats CSV scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=haproxy sourcetype=\"haproxy:stats\" type=frontend\n| eval sess_pct=if(slim>0, round(100*scur/slim,1), null())\n| where sess_pct > 85\n| table _time, pxname, scur, slim, sess_pct",
-  "description": "`scur` approaching `slim` on a frontend signals connection limits or ulimit pressure during campaigns.",
-  "value": "Informs tuning of `maxconn`, kernel limits, and cloud LB pairing. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "`scur` approaching `slim` on a frontend signals connection limits or ulimit pressure during campaigns. Searches `index=haproxy` with sourcetype `haproxy:stats` for UC-8.4.21, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `slim` > 0 in the saved search. Gives Operations operators a repeatable signal for 'HAProxy Frontend Session Rate Versus ulimit' without manual log review.",
+  "value": "`scur` approaching `slim` on a frontend signals connection limits or ulimit pressure during campaigns. Timely UC-8.4.21 alerting on 'HAProxy Frontend Session Rate Versus ulimit' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll stats frequently; `slim` may be 0 if unlimited—handle with `eval`.",
   "visualization": "Line chart (scur vs slim), single value alert.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'HAProxy Frontend Session Rate Versus ulimit'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `haproxy` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `haproxy`** — Planned work for 'HAProxy Frontend Session Rate Versus ulimit' shifts `count` over `span=1h` while `host` remains in-scope for UC-8.4.21. Cross-check CMDB CHG.\n\n2. **Batch `count` on `haproxy:stats`** — Scheduled automation elevates `sess_pct` without crossing `slim` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `haproxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `haproxy:stats`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "haproxy"
   ],

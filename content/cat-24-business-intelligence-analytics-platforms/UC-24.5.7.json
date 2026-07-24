@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Superset Alert and Report Delivery Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_superset_alert_and_report_delivery_failures` (UC-24.5.7), SOC dashboard panel \"Operations — Superset Alert and Report Delivery Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='superset:app' that satisfy the UC-24.5.7 SPL filters for 'Superset Alert and Report Delivery Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `superset:app` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.5.7."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='superset:app' where `schedule` satisfies `failures` > 0 for UC-24.5.7 ('Superset Alert and Report Delivery Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `superset:app` events where `schedule` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.5.7."
   },
   "dataSources": "Superset logs (`superset:app`), Metabase logs (`metabase:app`), Redash logs (`redash:app`), and embed client events (`bi:embed:client`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Superset/Metabase/Redash application and Celery worker logs via Universal Forwarder; application REST APIs and embed-SDK client telemetry via HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=superset:app logger=\"superset.tasks.scheduler\" (\"alert\" OR \"report\") (\"error\" OR \"failed\")\n| rex \"(alert|report) '(?<schedule>[^']+)'\"\n| stats count as failures by schedule\n| where failures>0\n| sort - failures",
   "description": "Detects Apache Superset scheduled alert and report delivery failures raised by the Celery beat scheduler, which otherwise fail without notifying recipients.",
-  "value": "Superset alerts and reports are the platform's proactive layer; catching delivery failures keeps automated notifications reliable.",
+  "value": "Detects Apache Superset scheduled alert and report delivery failures raised by the Celery beat scheduler, w.... Timely UC-24.5.7 alerting on 'Superset Alert and Report Delivery Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest Superset scheduler logs; schedule hourly and alert on repeated failures per schedule. Verify the Celery worker and SMTP config on spikes.",
   "visualization": "Table of schedule by failures, timechart.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Superset Alert and Report Delivery Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Superset Alert and Report Delivery Failures' shifts `count` over `span=1h` while `schedule` remains in-scope for UC-24.5.7. Cross-check CMDB CHG.\n\n2. **Batch `count` on `superset:app`** — Scheduled automation elevates `src` without crossing `failures` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `schedule`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `superset:app`** — First 48h baseline for `schedule` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `schedule`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache"
   ],

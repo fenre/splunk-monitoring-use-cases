@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'HomeKit Secure Video Activity Clip Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_homekit_secure_video_activity_clip_gap` (UC-25.18.40), SOC dashboard panel \"Personal — HomeKit Secure Video Activity Clip Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='homekit:securevideo' that satisfy the UC-25.18.40 SPL filters for 'HomeKit Secure Video Activity Clip Gap'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `homekit:securevideo` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.40."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='homekit:securevideo' where `camera_name` satisfies `hours_since` > 24 for UC-25.18.40 ('HomeKit Secure Video Activity Clip Gap'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `homekit:securevideo` events where `camera_name` stays below `hours_since` > 24, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.40."
   },
   "dataSources": "NVR object-detection (`frigate:event`), camera health (`camera:health`), alarm arm/disarm and life-safety (`alarm:event`), lock access (`lock:access`), plate recognition (`plate:detection`), doorbell (`doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Frigate / Blue Iris NVR object-detection events, camera health, alarm and smart-lock logs, and licence-plate recognition via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=homekit:securevideo\n| stats max(_time) as last_clip by camera_name\n| eval hours_since=(now()-last_clip)/3600\n| where hours_since>24",
   "description": "Alerts when HomeKit Secure Video stops uploading clips. Runs scheduled SPL against `index=personal` to surface **HomeKit Secure Video Activity Clip Gap** so you can spot drift before it becomes a habit.",
-  "value": "Surfacing homekit secure video activity clip gap helps you act before small issues become habits.",
+  "value": "Surfacing homekit secure video activity clip gap helps you act before small issues become habits reduces missed training goals, stale hobby data, and connector failures by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Ingest the relevant home security & surveillance export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'HomeKit Secure Video Activity Clip Gap'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homekit:securevideo`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'HomeKit Secure Video Activity Clip Gap' stops polling `homekit:securevideo`; stale `camera_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homekit:securevideo`. Dedup with `stats latest(*) by camera_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 24. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "cctv",
     "mqtt"

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Top Targeted Hosts' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_top_targeted_hosts` (UC-10.2.2), SOC dashboard panel \"Security Infra — Top Targeted Hosts\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ids` sourcetype='snort:alert' that satisfy the UC-10.2.2 SPL filters for 'Top Targeted Hosts'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ids` / `snort:alert` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.2.2."
+    "positiveScenario": "Ingest synthetic events into `index=ids` sourcetype='snort:alert' where `dest` satisfies `priority` <= 2 for UC-10.2.2 ('Top Targeted Hosts'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ids` / `snort:alert` events where `dest` stays below `priority` <= 2, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.2.2."
   },
   "dataSources": "IDS/IPS alert logs (destination host) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "IDS/IPS TA — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ids sourcetype=\"snort:alert\" priority<=2\n| stats count, dc(signature) as unique_sigs by dest\n| sort 20 -count\n| head 20",
-  "description": "Identifies the most-attacked internal hosts, prioritizing vulnerability remediation and incident investigation.",
+  "description": "Identifies the most-attacked internal hosts, prioritizing vulnerability remediation and incident investigation. Searches `index=ids` with sourcetype `snort:alert` for UC-10.2.2, aggregating `dc` by `dest` over `the scheduled window`. Alerts when grouped results cross `priority` <= 2 in the saved search. Gives Security Infra operators a repeatable signal for 'Top Targeted Hosts' without manual log review.",
   "value": "Early 'Top Targeted Hosts' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Parse destination IP from IDS alerts. Aggregate by target host. Enrich with CMDB data (asset owner, criticality). Alert when a single host receives multiple high-severity alerts. Trigger vulnerability scan for top targets.",
   "visualization": "Table (top targeted hosts), Bar chart (alerts by host), Geo map (source attackers).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Top Targeted Hosts'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=ids` `snort:alert`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `ids`** — Planned work for 'Top Targeted Hosts' shifts `dc` over `span=1h` while `dest` remains in-scope for UC-10.2.2. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `snort:alert`** — Scheduled automation elevates `src` without crossing `priority` <= 2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dest`** — Health checks in `ids` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snort:alert`** — First 48h baseline for `dest` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `dest`, `exception_reason`, `valid_until`.",
   "equipment": [
     "suricata"
   ],

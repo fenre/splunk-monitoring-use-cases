@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Running Pace Improvement Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_running_pace_improvement_trend` (UC-25.1.2), SOC dashboard panel \"Personal — Running Pace Improvement Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='strava:activity' that satisfy the UC-25.1.2 SPL filters for 'Running Pace Improvement Trend'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `strava:activity` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='strava:activity' where `entity` satisfies `distance_km` > 3 for UC-25.1.2 ('Running Pace Improvement Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `strava:activity` events where `entity` stays below `distance_km` > 3, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.2."
   },
   "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as file inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=strava:activity type=Run distance_km>3\n| eval pace_min_km=round((moving_time_s/60)/distance_km,2)\n| timechart span=1w avg(pace_min_km) as avg_pace\n| eventstats avg(avg_pace) as season_avg\n| eval faster_than_season=if(avg_pace<season_avg,1,0)",
   "description": "Calculates your average minutes-per-kilometre pace each week and trends it so you can see whether your training is actually making you faster.",
-  "value": "Weekly pace trending separates real fitness progress from a single good or bad run, showing whether a training block is paying off before a race.",
+  "value": "Calculates your average minutes-per-kilometre pace each week and trends it so you can see whether your trai.... Timely UC-25.1.2 alerting on 'Running Pace Improvement Trend' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Strava runs with distance and moving time; schedule weekly and review the pace line against your season average before planning the next block.",
   "visualization": "Line chart of weekly average pace (lower is better) with a season-average band.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Running Pace Improvement Trend'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `strava:activity`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Running Pace Improvement Trend' stops polling `strava:activity`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `strava:activity`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `distance_km` > 3. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

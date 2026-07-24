@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Kegerator Pour Count and Keg-Level Forecast' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_kegerator_pour_count_and_keg_level_forecast` (UC-25.16.4), SOC dashboard panel \"Personal — Kegerator Pour Count and Keg-Level Forecast\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='kegerator:pour' that satisfy the UC-25.16.4 SPL filters for 'Kegerator Pour Count and Keg-Level Forecast'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `kegerator:pour` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.16.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='kegerator:pour' where `keg` satisfies detection threshold for UC-25.16.4 ('Kegerator Pour Count and Keg-Level Forecast'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `kegerator:pour` events where `keg` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.16.4."
   },
   "dataSources": "Fermentation gravity/temperature (`brew:fermentation`), kegerator pours (`kegerator:pour`), wine-cellar climate (`winecellar:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Fermentation sensors (Tilt/iSpindel hydrometer, temperature), kegerator flow meters and scales, and wine-cellar climate sensors via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=kegerator:pour\n| stats sum(volume_ml) as poured_ml, count as pours by keg\n| eval keg_ml=19000, remaining_ml=keg_ml-poured_ml, pints_left=round(remaining_ml/473,1)\n| sort remaining_ml",
-  "description": "Counts pours from each keg and estimates the pints remaining so a keg never runs dry mid-party.",
-  "value": "Nothing kills a gathering like a keg blowing unexpectedly; a running pints-left estimate tells you when to chill the next one.",
+  "description": "Counts pours from each keg and estimates the pints remaining so a keg never runs dry mid-party. Searches `index=personal` with sourcetype `kegerator:pour` for UC-25.16.4, aggregating `sum` by `keg` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Kegerator Pour Count and Keg-Level Forecast' without manual log review.",
+  "value": "Counts pours from each keg and estimates the pints remaining so a keg never runs dry mid-party. Timely UC-25.16.4 alerting on 'Kegerator Pour Count and Keg-Level Forecast' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Feed a flow meter on the beer line into `index=personal`; track cumulative pours and estimate remaining volume per keg.",
   "visualization": "Gauge of estimated pints remaining per keg.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Kegerator Pour Count and Keg-Level Forecast'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `kegerator:pour`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Kegerator Pour Count and Keg-Level Forecast' stops polling `kegerator:pour`; stale `keg` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `kegerator:pour`. Dedup with `stats latest(*) by keg`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

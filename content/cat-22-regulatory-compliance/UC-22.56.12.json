@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Inject synthetic Cisco ASA flow from airside-OT zone to landside-IT zone matching no allow-list rule. UC-22.56.12 MUST flag within 4 hours.",
-    "negativeScenario": "Pin compensating control with `effective_until` future. UC-22.56.12 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='pan:traffic' where `src_ip` satisfies detection threshold for UC-22.56.12 ('TSA-SD Aviation CIP Control Family 1 — airport / airline IT-OT segmentation surveillance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `pan:traffic` events where `src_ip` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.56.12."
   },
   "dataSources": "Cisco firewall + Palo Alto Aviation Firewall (`pan:traffic`). Aviation network zone register (KV Store `aviation_network_zone_lookup`). Airside-OT detection (Claroty / Dragos / Nozomi covering BHS, DCS, aerobridge controllers).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Splunk Add-on for Cisco ASA (Splunkbase 1620), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "(sourcetype=pan:traffic OR sourcetype=cisco:asa) action=allowed\n| lookup aviation_network_zone_lookup src_ip AS src_ip OUTPUT src_zone\n| lookup aviation_network_zone_lookup src_ip AS dest_ip OUTPUT dest_zone\n| eval zone_pair = src_zone . \"->\" . dest_zone\n| where (src_zone IN (\"AIRSIDE_OT\",\"BHS_OT\",\"DCS\",\"AEROBRIDGE\") AND dest_zone IN (\"LANDSIDE_IT\",\"GUEST_WIFI\")) OR (dest_zone IN (\"AIRSIDE_OT\",\"BHS_OT\",\"DCS\",\"AEROBRIDGE\") AND src_zone IN (\"LANDSIDE_IT\",\"GUEST_WIFI\"))\n| lookup aviation_seg_exception_lookup src_ip AS src_ip dest_ip AS dest_ip dest_port AS dest_port OUTPUT exception_id exception_until\n| eval drift = if(isnull(exception_id) OR exception_until < now(), \"violation\", \"approved\")\n| where drift=\"violation\"\n| stats count as flows values(src_zone) as src_zone values(dest_zone) as dest_zone values(zone_pair) as zone_pair by src_ip dest_ip dest_port\n| table src_ip dest_ip dest_port zone_pair flows",
   "description": "Surveys airport/airline firewall flow logs for crossing of airside-OT boundary into landside-IT (or guest WiFi), reconciles against approved-bridge register, and flags violations.",
-  "value": "Airside-OT segmentation breach is the single highest-impact path for an aviation cyber incident.",
+  "value": "Surveys airport/airline firewall flow logs for crossing of airside-OT boundary into landside-IT (or guest W.... Timely UC-22.56.12 alerting on 'TSA-SD Aviation CIP Control Family 1 — airport / airline IT-OT segmentation surveillance' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `aviation_network_zone_lookup`. (2) Populate `aviation_seg_exception_lookup` from approved firewall change tickets. (3) Schedule UC-22.56.12 every 4 hours. (4) Build the `TSA Aviation Segmentation Health` dashboard.",
   "visualization": "(Panel 1) Violation count by zone-pair. (Panel 2) Top-10 violating src→dst flow pairs. (Panel 3) 30-day drift trend. (Panel 4) Approved-bridge expiry heat-map.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **BHS maintenance windows** — baggage-handling-system vendor updates need approved bridges during maintenance.\n2. **Aerobridge vendor remote access** — covered by vendor-management UC-22.56.16; if the access is approved, the bridge appears in the exception register.\n3. **Pre-flight ramp/DCS integration** — DCS bridges to airline systems are common; pin in exception register with explicit allow-list.\n\n**Suppression mechanism**: KV Store `aviation_seg_exception_lookup`.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD Aviation CIP Control Family 1 — airport / airline IT-OT segmentation surveillance' (UC-22.56.12) on `src_ip` during scheduled clause TSA-SD-1582-21-01-s3.1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `pan:traffic` without crossing evidence threshold. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `src_ip`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `src_ip` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `src_ip`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1542",
     "T0858"

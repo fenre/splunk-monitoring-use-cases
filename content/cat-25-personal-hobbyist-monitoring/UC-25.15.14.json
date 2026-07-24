@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Bread Proofing Temperature Drift' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_bread_proofing_temperature_drift` (UC-25.15.14), SOC dashboard panel \"Personal — Bread Proofing Temperature Drift\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='sourdough:reading' that satisfy the UC-25.15.14 SPL filters for 'Bread Proofing Temperature Drift'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `sourdough:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.15.14."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='sourdough:reading' where `batch_id` satisfies `avg_temp` < 23 for UC-25.15.14 ('Bread Proofing Temperature Drift'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `sourdough:reading` events where `batch_id` stays below `avg_temp` < 23, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.15.14."
   },
   "dataSources": "Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), kombucha brew (`kombucha:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=sourdough:reading\n| bin _time span=1h\n| stats avg(temp_c) as avg_temp, stdev(temp_c) as temp_sd by batch_id _time\n| where avg_temp<23 OR avg_temp>28 OR temp_sd>1.5\n| sort - temp_sd",
   "description": "Checks whether the proofing environment stayed in the warm, stable range your dough expects instead of swinging wildly with the kitchen.",
-  "value": "Fermentation quality depends heavily on temperature consistency; a drift alert turns better bread into a repeatable process rather than a lucky one.",
+  "value": "Checks whether the proofing environment stayed in the warm, stable range your dough expects instead of swin.... Timely UC-25.15.14 alerting on 'Bread Proofing Temperature Drift' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward proofing-box or kitchen-sensor temperature into Splunk; review batches with unstable or off-target temperature windows.",
   "visualization": "Hourly trend of proofing temperature with variance markers.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Bread Proofing Temperature Drift'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sourdough:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Bread Proofing Temperature Drift' stops polling `sourdough:reading`; stale `batch_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1h` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sourdough:reading`. Dedup with `stats latest(*) by batch_id`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `avg_temp` < 23. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

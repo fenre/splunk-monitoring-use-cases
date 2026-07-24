@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Generate a test badge access event for a restricted area at an unauthorised time (3 AM on a non-scheduled day) for a user without after-hours authorisation; verify the physical security alert fires within 5 minutes.",
-    "negativeScenario": "Generate a test badge access event for a restricted area during authorised hours for a user with documented access approval; verify no physical security alert fires."
+    "positiveScenario": "Ingest synthetic events into `index=physical` sourcetype='pacs:access' where `location` satisfies detection threshold for UC-22.6.21 ('Physical Perimeter — After-Hours Badge Swipes Without Matching Shift'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `physical` / `pacs:access` events where `location` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.6.21."
   },
   "dataSources": "`pacs:access` (Splunkbase 1621 — Splunk CIM Add-on)",
   "app": "PACS sourcetype",
   "spl": "index=physical sourcetype=pacs:access earliest=-30d result=granted\n| lookup shift_schedule.csv badge_id day_of_week OUTPUT shift_start, shift_end\n| eval tod=strftime(_time,\"%H:%M\")\n| where tod < shift_start OR tod > shift_end\n| stats count by location, badge_id",
-  "description": "Flags access to secured areas outside scheduled shift windows for perimeter control monitoring.",
-  "value": "Gives the responsible team auditor-ready evidence for ISO 27001 compliance by automating regulatory compliance evidence using indexes physical and sourcetypes pacs:access. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
+  "description": "Flags access to secured areas outside scheduled shift windows for perimeter control monitoring. Searches `index=physical` with sourcetype `pacs:access` for UC-22.6.21, aggregating `count` by `location` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'Physical Perimeter — After-Hours Badge Swipes Without Matching Shift' without manual log review.",
+  "value": "Flags access to secured areas outside scheduled shift windows for perimeter control monitoring. Timely UC-22.6.21 alerting on 'Physical Perimeter — After-Hours Badge Swipes Without Matching Shift' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate shift schedules; (2) guard tour exceptions; (3) SOC physical security watchlist. Indexes required: `index=physical`; Sourcetypes: `sourcetype=pacs:access`; Lookups: `shift_schedule`, `shift_schedule.csv`.",
   "visualization": "Heatmap, Table. Key fields: `badge_id`, `location`, `tod`.",
   "cimModels": [],
@@ -52,7 +52,7 @@
       "url": "https://docs.splunk.com/Documentation/ES/latest/User/Overview"
     }
   ],
-  "knownFalsePositives": "1. **Authorised after-hours access** — Staff with documented after-hours authorisation (on-call, operations) generating access events outside business hours per approved rosters.\n\n2. **Maintenance contractor access** — Facilities maintenance personnel with scheduled access during documented maintenance windows and visitor management records.\n\n3. **Emergency response activities** — Access events during fire drills, medical emergencies, or facilities emergencies documented in the incident log.\n\n4. **Seasonal patterns** — Access pattern changes during office events, holiday periods, or building configuration changes documented in facilities management.\n\n5. **Tailgating vs. multiple-person entry** — Access control systems detecting multiple persons per badge swipe in lobby areas designed for high throughput.\n\n**Operational suppression:** Maintain a lookup table (`iso27001_approved_exceptions.csv`) mapping known legitimate activities by control owner, risk acceptance reference, and expiry date. Filter the SPL results against this lookup to suppress documented exceptions and reduce alert fatigue. Review and rotate entries at each ISMS management review cycle.",
+  "knownFalsePositives": "1. **Authorised ISO 27001 control testing** — Internal audit exercises 'Physical Perimeter — After-Hours Badge Swipes Without Matching Shift' (UC-22.6.21) on `location` during scheduled clause A.7.1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=physical` `pacs:access` without crossing evidence threshold. Cross-check engagement letter in `iso_27001_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `physical` for `location`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `location` during normal service delivery.\n\n**Suppression mechanism:** `iso_27001_exception_register.csv` keyed on `location`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "requiredFields": [
     "badge_id",
     "location",

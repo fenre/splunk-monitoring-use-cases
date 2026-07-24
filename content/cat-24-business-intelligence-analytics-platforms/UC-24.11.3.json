@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Cube API Latency' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cube_api_latency` (UC-24.11.3), SOC dashboard panel \"Operations — Cube API Latency\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='cube:api' that satisfy the UC-24.11.3 SPL filters for 'Cube API Latency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `cube:api` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.11.3."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='cube:api' where `endpoint` satisfies `p95_s` > 3 for UC-24.11.3 ('Cube API Latency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `cube:api` events where `endpoint` stays below `p95_s` > 3, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.11.3."
   },
   "dataSources": "dbt Semantic Layer / MetricFlow query logs, Cube API request logs and pre-aggregation build metrics (`cube:api`), AtScale engine query logs, LookML validation and metric-definition change events. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "dbt Semantic Layer / MetricFlow and Cube query logs and APIs via HEC scripted inputs; AtScale engine logs; LookML content-validator output. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=cube:api event=query\n| eval duration_ms=response_time_ms\n| stats count as queries, p95(duration_ms) as p95_ms by endpoint\n| eval p95_s=round(p95_ms/1000,2)\n| where p95_s>3\n| sort - p95_s",
   "description": "Measures Cube API response latency per endpoint and flags slow endpoints that degrade every embedded dashboard and application relying on the metrics API.",
-  "value": "The metrics API sits on the hot path of many apps; per-endpoint latency shows where to add pre-aggregations or scale before users feel it.",
+  "value": "Measures Cube API response latency per endpoint and flags slow endpoints that degrade every embedded dashbo.... Timely UC-24.11.3 alerting on 'Cube API Latency' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest Cube API logs; schedule daily; review slow endpoints; add rollups or cache. Correlate with pre-aggregation coverage.",
   "visualization": "Table by p95 latency, latency trend per endpoint.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cube API Latency'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Cube API Latency' shifts `count` over `span=1h` while `endpoint` remains in-scope for UC-24.11.3. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cube:api`** — Scheduled automation elevates `duration_ms` without crossing `p95_s` > 3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `endpoint`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cube:api`** — First 48h baseline for `endpoint` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `endpoint`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

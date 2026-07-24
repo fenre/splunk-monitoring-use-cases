@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Smoker Fuel Refill Timing Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_smoker_fuel_refill_timing_alert` (UC-25.15.15), SOC dashboard panel \"Personal — Smoker Fuel Refill Timing Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='bbq:probe' that satisfy the UC-25.15.15 SPL filters for 'Smoker Fuel Refill Timing Alert'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `bbq:probe` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.15.15."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='bbq:probe' where `cook_id` satisfies `fuel_pct` < 20 for UC-25.15.15 ('Smoker Fuel Refill Timing Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `bbq:probe` events where `cook_id` stays below `fuel_pct` < 20, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.15.15."
   },
   "dataSources": "Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), kombucha brew (`kombucha:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=bbq:probe\n| stats latest(pit_temp_c) as pit_temp, latest(fuel_pct) as fuel_pct by cook_id\n| where fuel_pct<20 AND pit_temp<110\n| sort fuel_pct",
   "description": "Pairs falling pit temperature with low fuel level to tell you when a long smoke is about to need intervention before the stall becomes a failure.",
-  "value": "Good barbecue is mostly patience plus timely intervention; this alert helps you add fuel before dinner timing starts slipping.",
+  "value": "Pairs falling pit temperature with low fuel level to tell you when a long smoke is about to need interventi.... Timely UC-25.15.15 alerting on 'Smoker Fuel Refill Timing Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward smoker probe and hopper or fuel-sensor data; alert when low remaining fuel coincides with a cooling pit.",
   "visualization": "Cook table of current pit temperature and remaining fuel percentage.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Smoker Fuel Refill Timing Alert'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `bbq:probe`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Smoker Fuel Refill Timing Alert' stops polling `bbq:probe`; stale `cook_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `bbq:probe`. Dedup with `stats latest(*) by cook_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `fuel_pct` < 20. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

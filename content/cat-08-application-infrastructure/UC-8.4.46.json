@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'PHP-FPM PHP Fatal Error Rate from php error_log' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_php_fpm_php_fatal_error_rate_from_php_error_log` (UC-8.4.46), SOC dashboard panel \"Operations — PHP-FPM PHP Fatal Error Rate from php error_log\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='phpfpm:log' that satisfy the UC-8.4.46 SPL filters for 'PHP-FPM PHP Fatal Error Rate from php error_log'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `phpfpm:log` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.4.46."
+    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='phpfpm:log' where `host` satisfies `count` > 10 for UC-8.4.46 ('PHP-FPM PHP Fatal Error Rate from php error_log'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `web` / `phpfpm:log` events where `host` stays below `count` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.4.46."
   },
   "dataSources": "`index=web` `sourcetype=phpfpm:log` (pool stderr / `catch_workers_output` lines containing PHP fatal errors) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder; optional Splunk Add-on for Unix and Linux (`Splunk_TA_nix`); custom `props.conf`/`transforms.conf` for `phpfpm:*` sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"phpfpm:log\"\n| regex _raw=\"(?i)PHP Fatal error\"\n| bin _time span=5m\n| stats count by host, pool, _time\n| where count > 10",
   "description": "PHP fatal errors stop request handling for that worker and often return 500 to users. Spikes correlate with bad deploys or missing dependencies.",
-  "value": "Speeds rollback decisions with objective error rates. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "PHP fatal errors stop request handling for that worker and often return 500 to users. Timely UC-8.4.46 alerting on 'PHP-FPM PHP Fatal Error Rate from php error_log' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Forward FPM pool logs with `catch_workers_output=yes` or aggregate `php-fpm.d/*.log` via UF. Tune threshold per environment; suppress known vendor stack traces with lookup.",
   "visualization": "Time series (pool utilization, queue, latency percentiles), single value alerts, top charts for scripts and methods.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'PHP-FPM PHP Fatal Error Rate from php error_log'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `web` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'PHP-FPM PHP Fatal Error Rate from php error_log' shifts `count` over `span=5m` while `host` remains in-scope for UC-8.4.46. Cross-check CMDB CHG.\n\n2. **Batch `count` on `phpfpm:log`** — Scheduled automation elevates `pool` without crossing `count` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `phpfpm:log`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "linux",
     "phpfpm"

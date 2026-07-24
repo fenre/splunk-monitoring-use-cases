@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Museum & Archive Climate Control Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_museum_archive_climate_control_compliance` (UC-14.3.10), SOC dashboard panel \"Operations — Museum & Archive Climate Control Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' that satisfy the UC-14.3.10 SPL filters for 'Museum & Archive Climate Control Compliance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.3.10."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `host` satisfies `temp` >= 18 for UC-14.3.10 ('Museum & Archive Climate Control Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `host` stays below `temp` >= 18, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.3.10."
   },
   "dataSources": "`index=edge-hub-data` metric_name=temperature OR metric_name=humidity, `sourcetype=edge_hub` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Edge Hub (temperature + humidity dual sensor), Splunk OT Intelligence — Universal Forwarder (Splunkbase 617)",
   "spl": "| mstats avg(temperature) as temp, avg(humidity) as rh by host, _time span=10m\n| eval temp_compliant=if(temp>=18 AND temp<=21, 1, 0), rh_compliant=if(rh>=35 AND rh<=45, 1, 0)\n| eval compliance_score=((temp_compliant + rh_compliant) / 2) * 100\n| stats avg(compliance_score) as avg_compliance, count as hours by host\n| where avg_compliance < 95",
-  "description": "Documents preservation requirements (typically 18-21°C, 35-45% RH) for regulatory compliance and insurance.",
+  "description": "Documents preservation requirements (typically 18-21°C, 35-45% RH) for regulatory compliance and insurance. Searches `index=target_index` with sourcetype `configured sourcetype` for UC-14.3.10, aggregating `avg` by `host` over `10m`. Alerts when grouped results cross `temp` >= 18 in the saved search. Gives Operations operators a repeatable signal for 'Museum & Archive Climate Control Compliance' without manual log review.",
   "value": "Early 'Museum & Archive Climate Control Compliance' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Mount Edge Hub in archival vault with sensors in passive airflow zone. Configure 10-minute polling intervals via Advanced Settings → Sensor Polling for daily compliance reporting. Use edge-hub-health index to track sensor drift (humidity can drift ±5% annually). Maintain audit trail in edge-hub-logs for regulatory documentation.",
   "visualization": "Compliance scorecard, historical trend, excursion timeline.",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Museum & Archive Climate Control Compliance'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `target index` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index`** — Planned work for 'Museum & Archive Climate Control Compliance' shifts `avg` over `span=10m` while `host` remains in-scope for UC-14.3.10. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `_time` without crossing `temp` >= 18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub",
     "hashicorp"

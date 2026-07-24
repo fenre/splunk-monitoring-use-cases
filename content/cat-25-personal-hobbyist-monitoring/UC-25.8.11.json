@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'VM Memory Ballooning Pressure' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_vm_memory_ballooning_pressure` (UC-25.8.11), SOC dashboard panel \"Personal — VM Memory Ballooning Pressure\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='proxmox:metric' that satisfy the UC-25.8.11 SPL filters for 'VM Memory Ballooning Pressure'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `proxmox:metric` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.11."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='proxmox:metric' where `vm_name` satisfies `mem_pct` > 90 for UC-25.8.11 ('VM Memory Ballooning Pressure'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `proxmox:metric` events where `vm_name` stays below `mem_pct` > 90, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.11."
   },
   "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`), uptime probes (`uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=proxmox:metric\n| stats max(mem_pct) as mem_pct, avg(swap_pct) as swap_pct by vm_name\n| where mem_pct>90 AND swap_pct>10\n| sort - mem_pct",
   "description": "Surfaces virtual machines that look fine at a glance but are actually spending time starved for memory and leaning on swap.",
-  "value": "When a small VM starts ballooning or swapping, every app layered on top feels sluggish; this query catches pressure before users complain.",
+  "value": "Surfaces virtual machines that look fine at a glance but are actually spending time starved for memory and.... Timely UC-25.8.11 alerting on 'VM Memory Ballooning Pressure' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward Proxmox guest memory and swap metrics; review weekly and resize or rebalance the noisy VMs.",
   "visualization": "VM table of peak memory usage and average swap percentage.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'VM Memory Ballooning Pressure'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `proxmox:metric`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'VM Memory Ballooning Pressure' stops polling `proxmox:metric`; stale `vm_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `proxmox:metric`. Dedup with `stats latest(*) by vm_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `mem_pct` > 90. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "proxmox",

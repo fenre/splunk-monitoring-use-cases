@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Vaultwarden Failed Login Burst' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_vaultwarden_failed_login_burst` (UC-25.8.21), SOC dashboard panel \"Personal — Vaultwarden Failed Login Burst\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='vaultwarden:event' that satisfy the UC-25.8.21 SPL filters for 'Vaultwarden Failed Login Burst'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `vaultwarden:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.21."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='vaultwarden:event' where `ip` satisfies `failed_logins` > 5 for UC-25.8.21 ('Vaultwarden Failed Login Burst'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `vaultwarden:event` events where `ip` stays below `failed_logins` > 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.21."
   },
   "dataSources": "Homelab services (`kubernetes:pod`, `proxmox:metric`, `vaultwarden:event`, `paperless:document`, `immich:job`, `adguard:query`, `docker:stats`, `truenas:pool`, `nut:ups`, `uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Kubernetes homelab clusters, Proxmox, Vaultwarden, Paperless-ngx, Immich, AdGuard Home, Docker, TrueNAS, and NUT metrics via APIs, logs, Telegraf, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=vaultwarden:event event=login result=failed\n| bin _time span=1h\n| stats count as failed_logins by ip _time\n| where failed_logins>5\n| sort - failed_logins",
-  "description": "Uses Vaultwarden login events telemetry to monitor failed-login bursts by source IP in index=personal.",
-  "value": "Splunk turns the feed into an operational check for password-manager probing or automation mistakes, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses Vaultwarden login events telemetry to monitor failed-login bursts by source IP in index=personal. Searches `index=personal` with sourcetype `vaultwarden:event` for UC-25.8.21, aggregating `count` by `ip` over `1h`. Alerts when grouped results cross `failed_logins` > 5 in the saved search. Gives Personal operators a repeatable signal for 'Vaultwarden Failed Login Burst' without manual log review.",
+  "value": "Uses Vaultwarden login events telemetry to monitor failed-login bursts by source IP in index=personal. Timely UC-25.8.21 alerting on 'Vaultwarden Failed Login Burst' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Vaultwarden login events data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Hourly table of failed logins by IP.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Vaultwarden Failed Login Burst'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vaultwarden:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Vaultwarden Failed Login Burst' stops polling `vaultwarden:event`; stale `ip` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1h` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vaultwarden:event`. Dedup with `stats latest(*) by ip`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `failed_logins` > 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "hashicorp",

@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Stop the syslog forwarder on a TSA-critical asset. UC-22.56.20 MUST flag `source_status=silent` within 24h.",
-    "negativeScenario": "Restart forwarder; source resumes. UC-22.56.20 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `source]` satisfies detection threshold for UC-22.56.20 ('TSA-SD multi-modal log-retention, source-availability and audit_evidence retention surveillance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `source]` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.56.20."
   },
   "dataSources": "Splunk metadata (`| metadata type=hosts`, `| metadata type=sources`). TSA logging asset register (KV Store `tsa_log_source_lookup`). Splunk Distributed Management Console (DMC) for forwarder health.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup tsa_log_source_lookup\n| where tsa_in_scope=true\n| join type=left source [| metadata type=sources | stats latest(lastTime) as latest_event_time by source]\n| eval hours_since_event = round((now() - latest_event_time) / 3600, 1)\n| eval source_status = case(\n    isnull(latest_event_time), \"never_seen\",\n    hours_since_event > expected_silence_hours * 2, \"silent\",\n    hours_since_event > expected_silence_hours, \"degraded\",\n    1=1, \"healthy\")\n| where source_status IN (\"never_seen\",\"silent\",\"degraded\")\n| table facility_id source modality expected_silence_hours hours_since_event source_status owner",
-  "description": "Surveys TSA-regulated log sources for silence/degradation against per-source expected-silence baselines.",
-  "value": "TSA inspectors expect functioning log sources for the preservation window. Silent sources are findings.",
+  "description": "Surveys TSA-regulated log sources for silence/degradation against per-source expected-silence baselines. Searches `index=target_index` with sourcetype `configured sourcetype` for UC-22.56.20, aggregating `count` by `source]` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'TSA-SD multi-modal log-retention, source-availability and audit_evidence retention surveillance' without manual log review.",
+  "value": "Surveys TSA-regulated log sources for silence/degradation against per-source expected-silence baselines. Timely UC-22.56.20 alerting on 'TSA-SD multi-modal log-retention, source-availability and audit_evidence retention surveillance' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `tsa_log_source_lookup` with every TSA-relevant source and expected silence interval. (2) Schedule UC-22.56.20 daily. (3) Build the `TSA Log Source Health` dashboard.",
   "visualization": "(Panel 1) Status by modality. (Panel 2) Silent-trend. (Panel 3) Owner-attribution. (Panel 4) Audit_evidence index lag.",
   "cimModels": [
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance windows**: scheduled maintenance produces silence. Pin via `tsa_22_56_20_exceptions` with `effective_until`.\n2. **Asset decommission lag**: ensure decommission updates the register.\n\n**Suppression mechanism**: KV Store `tsa_22_56_20_exceptions`.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD multi-modal log-retention, source-availability and audit_evidence retention surveillance' (UC-22.56.20) on `source]` during scheduled clause TSA-SCAS-log-retention sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `source]`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `source]` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `source]`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1562.008",
     "T1070"

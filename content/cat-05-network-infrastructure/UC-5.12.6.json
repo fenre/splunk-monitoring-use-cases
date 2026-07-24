@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Signaling Storm Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_signaling_storm_detection` (UC-5.12.6), SOC dashboard panel \"Operations — Signaling Storm Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=signaling` sourcetype='stream:sip' that satisfy the UC-5.12.6 SPL filters for 'Signaling Storm Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `signaling` / `stream:sip` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.12.6."
+    "positiveScenario": "Ingest synthetic events into `index=signaling` sourcetype='stream:sip' where `method` satisfies detection threshold for UC-5.12.6 ('Signaling Storm Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `signaling` / `stream:sip` events where `method` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.12.6."
   },
   "dataSources": "`sourcetype=\"stream:sip\"`, `sourcetype=\"diameter:cap\"` — context: `cisco:ucm:cdr`, `asterisk:cdr`, `stream:sip` (Stream), `ims:cscf` (IMS) as deployed Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk App for Stream, STP/Diameter capture — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=signaling (sourcetype=\"stream:sip\" OR sourcetype=\"diameter:cap\")\n| bin _time span=1m\n| stats count by method, cmd_code, _time\n| eventstats avg(count) as mu, stdev(count) as s by method\n| where count > mu+5*s\n| sort -count",
   "description": "Bursts of SIP OPTIONS, REGISTER, or diameter requests can indicate reflection DDoS or misconfigured endpoints — complements UC-5.10.5 with cross-layer view.",
-  "value": "NOC teams detect cross-protocol signaling storms — SIP OPTIONS/REGISTER floods, Diameter reconnect loops, DDoS attacks — before they overwhelm control-plane infrastructure and cause cascading IMS/voice outages.",
+  "value": "Bursts of SIP OPTIONS, REGISTER, or diameter requests can indicate reflection DDoS or misconfigured endpoin.... Timely UC-5.12.6 alerting on 'Signaling Storm Detection' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Whitelist health-check sources; coordinate with peer ops when storm targets upstream interconnect.",
   "visualization": "Timeline (spike detection), Table (method × source ASN), Single value (peak RPS).",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Signaling Storm Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `signaling` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `signaling`** — Planned work for 'Signaling Storm Detection' shifts `avg` over `span=1m` while `method` remains in-scope for UC-5.12.6. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `stream:sip`** — Scheduled automation elevates `cmd_code` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `method`** — Health checks in `signaling` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `stream:sip`** — First 48h baseline for `method` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `method`, `exception_reason`, `valid_until`.",
   "equipment": [
     "asterisk",
     "cisco",

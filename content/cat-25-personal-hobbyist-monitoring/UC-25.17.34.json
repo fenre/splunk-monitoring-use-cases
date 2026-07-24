@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'SimplyPrint Failure Rate by Printer Model' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_simplyprint_failure_rate_by_printer_model` (UC-25.17.34), SOC dashboard panel \"Personal — SimplyPrint Failure Rate by Printer Model\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='simplyprint:job' that satisfy the UC-25.17.34 SPL filters for 'SimplyPrint Failure Rate by Printer Model'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `simplyprint:job` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.17.34."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='simplyprint:job' where `printer_name` satisfies detection threshold for UC-25.17.34 ('SimplyPrint Failure Rate by Printer Model'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `simplyprint:job` events where `printer_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.17.34."
   },
   "dataSources": "Print jobs (`octoprint:job`), printer firmware telemetry (`printer:telemetry`), filament spools (`filament:spool`), CNC/laser jobs (`cnc:job`), workshop air (`workshop:air`), cordless tool batteries (`tool:battery`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "OctoPrint / Klipper (Moonraker) print servers, printer firmware telemetry, filament spool tracking, CNC/laser job logs, and workshop air/tool sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=simplyprint:job\n| stats avg(success_flag) as success_rate by printer_name",
   "description": "Ranks SimplyPrint printers by job success rate. Runs scheduled SPL against `index=personal` to surface **SimplyPrint Failure Rate by Printer Model** so you can spot drift before it becomes a habit.",
-  "value": "Surfacing simplyprint failure rate by printer model helps you act before small issues become habits.",
+  "value": "Surfacing simplyprint failure rate by printer model helps you act before small issues become habits reduces missed training goals, stale hobby data, and connector failures by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Ingest the relevant making, 3d printing & workshop export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'SimplyPrint Failure Rate by Printer Model'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `simplyprint:job`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'SimplyPrint Failure Rate by Printer Model' stops polling `simplyprint:job`; stale `printer_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `simplyprint:job`. Dedup with `stats latest(*) by printer_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

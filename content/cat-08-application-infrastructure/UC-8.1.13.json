@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'IIS Worker Process Recycling' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_iis_worker_process_recycling` (UC-8.1.13), SOC dashboard panel \"Operations — IIS Worker Process Recycling\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:System' EventCode=5074 that satisfy the UC-8.1.13 SPL filters for 'IIS Worker Process Recycling'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:System` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.13."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:System' EventCode=5074 where `ComputerName` satisfies `recycles` > 3 for UC-8.1.13 ('IIS Worker Process Recycling'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:System` events where `ComputerName` stays below `recycles` > 3, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.13."
   },
   "dataSources": "System/Application Event Log (WAS, W3SVC) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'IIS Worker Process Recycling'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `wineventlog` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `wineventlog`** — Planned work for 'IIS Worker Process Recycling' shifts `count` over `span=5m` while `ComputerName` remains in-scope for UC-8.1.13. Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:System` (EventCode=5074)** — Scheduled automation elevates `AppPoolName` without crossing `recycles` > 3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ComputerName`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:System`** — First 48h baseline for `ComputerName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ComputerName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "windows"
   ],

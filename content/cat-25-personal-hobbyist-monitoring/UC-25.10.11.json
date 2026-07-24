@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Heat Index Safety Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_heat_index_safety_alert` (UC-25.10.11), SOC dashboard panel \"Personal — Heat Index Safety Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ecowitt:obs' that satisfy the UC-25.10.11 SPL filters for 'Heat Index Safety Alert'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `ecowitt:obs` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.11."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ecowitt:obs' where `station` satisfies `heat_index_c` > 32 for UC-25.10.11 ('Heat Index Safety Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `ecowitt:obs` events where `station` stays below `heat_index_c` > 32, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.11."
   },
   "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture and greenhouse sensors (`plant:sensor`), aquarium controllers (`aquarium:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=ecowitt:obs\n| stats latest(temp_c) as temp_c, latest(humidity_pct) as humidity by station\n| eval heat_index_c=round(temp_c+(humidity/100*6)-4,1)\n| where heat_index_c>32\n| sort - heat_index_c",
   "description": "Combines temperature and humidity into a simple heat-index proxy so you know when outdoor conditions have shifted from warm to genuinely risky.",
-  "value": "Raw temperature misses how oppressive humid heat feels; a safety-focused composite is better for outdoor work, pets, and exercise decisions.",
+  "value": "Combines temperature and humidity into a simple heat-index proxy so you know when outdoor conditions have s.... Timely UC-25.10.11 alerting on 'Heat Index Safety Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward weather-station temperature and humidity; alert when the calculated heat index enters your danger zone.",
   "visualization": "Current-condition panel of temperature, humidity, and heat-index proxy.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Heat Index Safety Alert'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ecowitt:obs`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Heat Index Safety Alert' stops polling `ecowitt:obs`; stale `station` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ecowitt:obs`. Dedup with `stats latest(*) by station`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `heat_index_c` > 32. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

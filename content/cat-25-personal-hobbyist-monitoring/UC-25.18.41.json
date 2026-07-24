@@ -12,8 +12,8 @@
   "exclusions": "Covers personal hobby monitoring for 'Scylla False Person Detection Hot Camera' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_scylla_false_person_detection_hot_camera` (UC-25.18.41), SOC dashboard panel \"Personal — Scylla False Person Detection Hot Camera\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='scylla:detection' that satisfy the UC-25.18.41 SPL filters for 'Scylla False Person Detection Hot Camera'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `scylla:detection` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.41."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='scylla:detection' where `camera_name` satisfies `confidence_pct` < 60 for UC-25.18.41 ('Scylla False Person Detection Hot Camera'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `scylla:detection` events where `camera_name` stays below `confidence_pct` < 60, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.41."
   },
   "dataSources": "NVR object-detection (`frigate:event`), camera health (`camera:health`), alarm arm/disarm and life-safety (`alarm:event`), lock access (`lock:access`), plate recognition (`plate:detection`), doorbell (`doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Frigate / Blue Iris NVR object-detection events, camera health, alarm and smart-lock logs, and licence-plate recognition via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Scylla False Person Detection Hot Camera'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `scylla:detection`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Scylla False Person Detection Hot Camera' stops polling `scylla:detection`; stale `camera_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `scylla:detection`. Dedup with `stats latest(*) by camera_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `confidence_pct` < 60. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "cctv",
     "mqtt"

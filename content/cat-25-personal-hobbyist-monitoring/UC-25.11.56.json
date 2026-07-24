@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Barkio Bark Log Failure Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_barkio_bark_log_failure_rate` (UC-25.11.56), SOC dashboard panel \"Personal — Barkio Bark Log Failure Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='barkio:bark' that satisfy the UC-25.11.56 SPL filters for 'Barkio Bark Log Failure Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `barkio:bark` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.11.56."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='barkio:bark' where `dog_name` satisfies detection threshold for UC-25.11.56 ('Barkio Bark Log Failure Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `barkio:bark` events where `dog_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.11.56."
   },
   "dataSources": "Pet tracker location/activity (`tractive:position`, `whistle:activity`), smart feeder events (`petfeeder:event`), litter-box usage (`litterrobot:cycle`), bird-feeder cam detections, plant/soil sensors (`plant:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Pet GPS/activity trackers (Tractive/Fi/Whistle), smart feeders and litter boxes, bird feeders/cams, and plant sensors via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=barkio:bark\n| eval status_value=lower(coalesce(log_status,\"unknown\"))\n| eval failed=if(match(status_value,\"error|fail|alert|overdue|late|stale|breach\"),1,0)\n| stats count as events, sum(failed) as failed_events by dog_name\n| eval failure_pct=round(100*failed_events/events,1)\n| sort - failure_pct - failed_events",
-  "description": "Measures how often Barkio bark log records land in an unhealthy or exception state for each dog.",
-  "value": "A plain failure-rate view highlights noisy devices, flaky automations, and habits that repeatedly slip.",
+  "description": "Measures how often Barkio bark log records land in an unhealthy or exception state for each dog. Searches `index=personal` with sourcetype `barkio:bark` for UC-25.11.56, aggregating `sum` by `dog_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Barkio Bark Log Failure Rate' without manual log review.",
+  "value": "Measures how often Barkio bark log records land in an unhealthy or exception state for each dog. Timely UC-25.11.56 alerting on 'Barkio Bark Log Failure Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Normalize log_status values into good or bad states and review the failure percentage per dog.",
   "visualization": "Bar chart of failure percentage by entity.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Barkio Bark Log Failure Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `barkio:bark`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Barkio Bark Log Failure Rate' stops polling `barkio:bark`; stale `dog_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `barkio:bark`. Dedup with `stats latest(*) by dog_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

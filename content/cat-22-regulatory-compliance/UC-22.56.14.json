@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Disable EDR on a DCS workstation. UC-22.56.14 MUST flag within 6 hours.",
-    "negativeScenario": "Re-enable EDR or pin compensating control. UC-22.56.14 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='crowdstrike:falcon:event' where `host_id` satisfies detection threshold for UC-22.56.14 ('TSA-SD Aviation CIP Control Family 3 — DCS / BHS / AOC continuous-monitoring detection-coverage heat-map'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `crowdstrike:falcon:event` events where `host_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.56.14."
   },
   "dataSources": "Aviation asset register (KV Store `aviation_facility_asset_lookup`). EDR coverage feed (Microsoft Defender for Endpoint, CrowdStrike Falcon). Claroty CTD aviation extension. Honeywell building-systems telemetry (`honeywell:bms:metric`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for CrowdStrike FDR (Splunkbase 5573), Splunk Add-on for Microsoft Defender ATP (Splunkbase 4824).",
   "spl": "| inputlookup aviation_facility_asset_lookup\n| eval needs_detection = if(aviation_in_scope=true AND (criticality IN (\"critical\",\"high\")), \"true\", \"false\")\n| where needs_detection=\"true\"\n| join type=left asset_id [search (sourcetype=\"crowdstrike:falcon:event\" OR sourcetype=\"mscs:wd:atp:device\") | stats latest(_time) as last_telemetry by host_id | rename host_id as asset_id]\n| lookup aviation_detection_risk_lookup asset_id AS asset_id OUTPUT risk_id risk_until\n| eval detection_status = case(\n    isnotnull(last_telemetry) AND last_telemetry > now()-86400, \"covered\",\n    isnotnull(risk_id) AND risk_until > now(), \"risk_accepted\",\n    1=1, \"gap\")\n| where detection_status=\"gap\"\n| table facility_id asset_id aviation_zone criticality detection_status",
-  "description": "Reconciles aviation asset register with EDR/Falcon/Defender coverage; surfaces detection gaps.",
-  "value": "TSA inspectors expect documented detection coverage for every aviation-critical asset.",
+  "description": "Reconciles aviation asset register with EDR/Falcon/Defender coverage; surfaces detection gaps. Searches `index=target_index` with sourcetype `crowdstrike:falcon:event` for UC-22.56.14, aggregating `count` by `host_id` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'TSA-SD Aviation CIP Control Family 3 — DCS / BHS / AOC continuous-monitoring detection-coverage heat-map' without manual log review.",
+  "value": "Reconciles aviation asset register with EDR/Falcon/Defender coverage; surfaces detection gaps. Timely UC-22.56.14 alerting on 'TSA-SD Aviation CIP Control Family 3 — DCS / BHS / AOC continuous-monitoring detection-coverage heat-map' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `aviation_facility_asset_lookup`. (2) Populate `aviation_detection_risk_lookup`. (3) Schedule UC-22.56.14 every 6 hours. (4) Build the `TSA Aviation Detection Coverage` dashboard.",
   "visualization": "(Panel 1) Coverage by facility. (Panel 2) Gap-trend (30 days). (Panel 3) Risk-accepted expiry. (Panel 4) Top-10 facilities with gaps.",
   "cimModels": [
@@ -67,7 +67,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **BHS embedded controllers** — many BHS PLCs lack EDR support; pin in risk-accepted with compensating network monitoring.\n2. **Aerobridge HMI panels** — vendor-locked; pin with compensating Claroty CTD passive monitoring.\n\n**Suppression mechanism**: KV Store `aviation_detection_risk_lookup`.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD Aviation CIP Control Family 3 — DCS / BHS / AOC continuous-monitoring detection-coverage heat-map' (UC-22.56.14) on `host_id` during scheduled clause TSA-SD-1582-21-01-s3.3 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `crowdstrike:falcon:event` without crossing evidence threshold. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `host_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `host_id` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `host_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1562",
     "T0814"

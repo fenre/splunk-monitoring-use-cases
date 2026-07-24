@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Flo Automatic Shutoff Event Summary' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_flo_automatic_shutoff_event_summary` (UC-25.19.23), SOC dashboard panel \"Personal — Flo Automatic Shutoff Event Summary\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flo:event' that satisfy the UC-25.19.23 SPL filters for 'Flo Automatic Shutoff Event Summary'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `flo:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.19.23."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flo:event' where `home` satisfies `auto_shutoffs` > 0 for UC-25.19.23 ('Flo Automatic Shutoff Event Summary'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `flo:event` events where `home` stays below `auto_shutoffs` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.19.23."
   },
   "dataSources": "Water telemetry (`watermeter:flow`, `flo:event`, `rachio:zone`, `maytronics:robot`, `watersoftener:status`, `pool:chemistry`, `irrigation:zone`, `waterpressure:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Flo by Moen, Rachio, Flume, Maytronics Dolphin, pool sensors, water softener sensors, and irrigation controllers via vendor APIs, MQTT, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=flo:event event=auto_shutoff\n| bin _time span=1mon\n| stats count as auto_shutoffs by home _time\n| where auto_shutoffs>0\n| sort - auto_shutoffs",
-  "description": "Uses Flo shutoff events telemetry to monitor automatic shutoffs by month in index=personal.",
-  "value": "Splunk turns the feed into an operational check for whether leak protection is frequently intervening, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses Flo shutoff events telemetry to monitor automatic shutoffs by month in index=personal. Searches `index=personal` with sourcetype `flo:event` for UC-25.19.23, aggregating `count` by `home` over `1m`. Alerts when grouped results cross `auto_shutoffs` > 0 in the saved search. Gives Personal operators a repeatable signal for 'Flo Automatic Shutoff Event Summary' without manual log review.",
+  "value": "Uses Flo shutoff events telemetry to monitor automatic shutoffs by month in index=personal. Timely UC-25.19.23 alerting on 'Flo Automatic Shutoff Event Summary' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Flo shutoff events data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Monthly chart of Flo automatic shutoffs.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Flo Automatic Shutoff Event Summary'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flo:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Flo Automatic Shutoff Event Summary' stops polling `flo:event`; stale `home` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flo:event`. Dedup with `stats latest(*) by home`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew `auto_shutoffs` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

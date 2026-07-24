@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'APC InRow Cooling SNMP Fan Speed and Airflow Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_apc_inrow_cooling_snmp_fan_speed_and_airflow_tre` (UC-15.4.7), SOC dashboard panel \"Operations — APC InRow Cooling SNMP Fan Speed and Airflow Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cooling` sourcetype='snmp:apc:cooling' that satisfy the UC-15.4.7 SPL filters for 'APC InRow Cooling SNMP Fan Speed and Airflow Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cooling` / `snmp:apc:cooling` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.4.7."
+    "positiveScenario": "Ingest synthetic events into `index=cooling` sourcetype='snmp:apc:cooling' where `unit_name` satisfies detection threshold for UC-15.4.7 ('APC InRow Cooling SNMP Fan Speed and Airflow Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cooling` / `snmp:apc:cooling` events where `unit_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.4.7."
   },
   "dataSources": "`index=power|cooling|environment` · `sourcetype=\"snmp:apc:cooling\"` (APC PowerNet / AirIR / ATS / NetBotz OIDs per deployment) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cooling sourcetype=\"snmp:apc:cooling\" earliest=-24h\n| eval fan_pct=tonumber(coalesce(airIRFanSpeed, fan_speed_pct, \"\"))\n| eval airflow=tonumber(coalesce(airIRFanAirflow, airflow_cfm, \"\"))\n| timechart span=1h avg(fan_pct) avg(airflow) by unit_name",
-  "description": "Creeping fan demand with flat IT load warns of filter fouling or under-filled racks breaking airflow paths.",
-  "value": "Schedules proactive filter changeouts and commissioning checks. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Creeping fan demand with flat IT load warns of filter fouling or under-filled racks breaking airflow paths. Searches `index=cooling` with sourcetype `snmp:apc:cooling` for UC-15.4.7, aggregating `avg` by `unit_name` over `1h`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'APC InRow Cooling SNMP Fan Speed and Airflow Trending' without manual log review.",
+  "value": "Creeping fan demand with flat IT load warns of filter fouling or under-filled racks breaking airflow paths. Timely UC-15.4.7 alerting on 'APC InRow Cooling SNMP Fan Speed and Airflow Trending' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "(1) Baseline per season. (2) Alert when fan_pct rises 20 points at same load.",
   "visualization": "Dual axis fan % and CFM.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'APC InRow Cooling SNMP Fan Speed and Airflow Trending'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `cooling` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `cooling`** — Planned work for 'APC InRow Cooling SNMP Fan Speed and Airflow Trending' shifts `avg` over `span=1h` while `unit_name` remains in-scope for UC-15.4.7. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `snmp:apc:cooling`** — Scheduled automation elevates `fan_pct` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `unit_name`** — Health checks in `cooling` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:apc:cooling`** — First 48h baseline for `unit_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `unit_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apc_dc",
     "snmp"

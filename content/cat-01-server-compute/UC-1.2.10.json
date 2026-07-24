@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Scheduled Task Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_scheduled_task_failures` (UC-1.2.10), SOC dashboard panel \"Linux — Scheduled Task Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Microsoft-Windows-TaskScheduler/Operational' EventCode=201 that satisfy the UC-1.2.10 SPL filters for 'Scheduled Task Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Microsoft-Windows-TaskScheduler/Operational` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.10."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Microsoft-Windows-TaskScheduler/Operational' EventCode=201 where `entity` satisfies detection threshold for UC-1.2.10 ('Scheduled Task Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Microsoft-Windows-TaskScheduler/Operational` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.10."
   },
   "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-TaskScheduler/Operational`, EventCode=201 Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-TaskScheduler/Operational\" EventCode=201\n| where ActionName!=\"0\" AND ResultCode!=\"0\"\n| table _time host TaskName ResultCode ActionName\n| sort -_time",
   "description": "Failed scheduled tasks break batch jobs, cleanup scripts, and automated processes. Often goes unnoticed until downstream effects appear.",
-  "value": "Failed tasks often mean skipped backups or drift—fixing the task before data loss beats discovering it at restore time.",
+  "value": "Failed scheduled tasks break batch jobs, cleanup scripts, and automated processes. Timely UC-1.2.10 alerting on 'Scheduled Task Failures' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Enable Task Scheduler operational log collection. Alert on non-zero ResultCode values. Maintain a lookup of critical tasks per server role.",
   "visualization": "Table of failures, Single value (failures last 24h), Bar chart by task name.",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Scheduled Task Failures'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `WinEventLog:Microsoft-Windows-TaskScheduler/Operational`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Scheduled Task Failures'. Correlate with apt/yum logs in the same `WinEventLog:Microsoft-Windows-TaskScheduler/Operational` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Microsoft-Windows-TaskScheduler/Operational`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

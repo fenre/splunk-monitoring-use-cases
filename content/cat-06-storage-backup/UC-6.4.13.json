@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'NFS Export Capacity and Client Load' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_nfs_export_capacity_and_client_load` (UC-6.4.13), SOC dashboard panel \"Operations — NFS Export Capacity and Client Load\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='nas:nfs_export' that satisfy the UC-6.4.13 SPL filters for 'NFS Export Capacity and Client Load'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `nas:nfs_export` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.4.13."
+    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='nas:nfs_export' where `export_path` satisfies `pct` > 85 for UC-6.4.13 ('NFS Export Capacity and Client Load'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `storage` / `nas:nfs_export` events where `export_path` stays below `pct` > 85, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.4.13."
   },
   "dataSources": "Per-export bytes used, NFS op counters Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "NetApp/Isilon API, Linux `nfsstat`, `exportfs -v` metrics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"nas:nfs_export\"\n| eval used_pct=round(used_bytes/capacity_bytes*100,1)\n| timechart span=5m sum(ops_per_sec) as ops, avg(used_pct) as pct by export_path, host\n| where pct > 85 OR ops > 10000",
-  "description": "Export-level capacity and NFS operations/sec highlight hot exports and approaching full filesystems on NAS heads.",
+  "description": "Export-level capacity and NFS operations/sec highlight hot exports and approaching full filesystems on NAS heads. Searches `index=storage` with sourcetype `nas:nfs_export` for UC-6.4.13, aggregating `sum` by `export_path` over `5m`. Alerts when grouped results cross `pct` > 85 in the saved search. Gives Operations operators a repeatable signal for 'NFS Export Capacity and Client Load' without manual log review.",
   "value": "Early 'NFS Export Capacity and Client Load' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Poll export statistics from NAS API or aggregated nfsd metrics. Alert on high used % or abnormal ops vs baseline.",
   "visualization": "Table (export, used %, ops/s), Line chart (ops and capacity trend), Bar chart (top exports by ops).",
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'NFS Export Capacity and Client Load'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `storage` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'NFS Export Capacity and Client Load' shifts `sum` over `span=5m` while `export_path` remains in-scope for UC-6.4.13. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `nas:nfs_export`** — Scheduled automation elevates `host` without crossing `pct` > 85. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `export_path`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nas:nfs_export`** — First 48h baseline for `export_path` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `export_path`, `exception_reason`, `valid_until`.",
   "equipment": [
     "dell_emc",
     "hardware_bmc",

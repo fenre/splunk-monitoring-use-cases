@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Mark a component with `cr_achieved_sl=1` against `cr_target_sl=3`. UC-22.55.9 MUST flag `cr_status=\"sl_gap\"`.",
-    "negativeScenario": "Record vendor attestation with `cr_achieved_sl=3` for `cr_target_sl=3` and signed attestation document. UC-22.55.9 MUST record `cr_status=\"compliant\"`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-22.55.9 ('CLC/TS 50701 Component Security Requirements (CRs) — IEC 62443-4-2 alignment for every commissioned component'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.55.9."
   },
   "dataSources": "KV Store `rail_cr_compliance_lookup`. Vendor attestation documents stored with signed metadata. Cross-reference to `rail_asset_inventory_lookup` (UC-22.55.3) for asset-to-component linkage.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_cr_compliance_lookup\n| where component_status=\"commissioned\"\n| eval cr_status = case(\n    isnull(vendor_attestation_signed_at), \"vendor_attestation_missing\",\n    isnull(cr_achieved_sl), \"cr_unmeasured\",\n    cr_achieved_sl < cr_target_sl, \"sl_gap\",\n    cr_iec_4_2_compliance=\"non_compliant\", \"non_compliant\",\n    1=1, \"compliant\")\n| where cr_status != \"compliant\"\n| table component_id asset_id cr_target_sl cr_achieved_sl cr_iec_4_2_compliance vendor_attestation_signed_at vendor_attestation_signed_by cr_status",
-  "description": "Verifies every commissioned cyber-relevant component has vendor attestation and CR achievement against IEC 62443-4-2.",
-  "value": "Component-level CR is where supplier accountability meets operator verification. NB will inspect the attestation chain during assessment.",
+  "description": "Verifies every commissioned cyber-relevant component has vendor attestation and CR achievement against IEC 62443-4-2. Searches `index=target_index` with sourcetype `configured sourcetype` for UC-22.55.9, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'CLC/TS 50701 Component Security Requirements (CRs) — IEC 62443-4-2 alignment for every commissioned component' without manual log review.",
+  "value": "Verifies every commissioned cyber-relevant component has vendor attestation and CR achievement against IEC.... Timely UC-22.55.9 alerting on 'CLC/TS 50701 Component Security Requirements (CRs) — IEC 62443-4-2 alignment for every commissioned component' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Procurement gathers vendor attestations during purchase. (2) `rail_cr_compliance_lookup` is populated at commissioning. (3) Schedule UC-22.55.9 weekly Monday 05:30.",
   "visualization": "(Panel 1) CR-status by component type. (Panel 2) SL-gap queue. (Panel 3) Vendor-attestation-missing queue. (Panel 4) Vendor SL distribution.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Vendor in IEC certification process** — vendor may have ISA Secure / TUV certification in progress. Suppression: `cr_status_override=certification_pending`.\n\n**Suppression mechanism**: KV Store `clc_22_55_9_exceptions` with documented Procurement-Cybersecurity-Lead approval and 180-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Component Security Requirements (CRs) — IEC 62443-4-2 alignment for every commissioned component' (UC-22.55.9) on `entity` during scheduled clause CLC-TS-50701-c7-3 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (component-security-requirement governance)"
   ],

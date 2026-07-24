@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Prescription Supply Gap Before Refill' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_prescription_supply_gap_before_refill` (UC-25.104.4), SOC dashboard panel \"Personal — Prescription Supply Gap Before Refill\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='curology:prescription' that satisfy the UC-25.104.4 SPL filters for 'Prescription Supply Gap Before Refill'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `curology:prescription` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.104.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='curology:prescription' where `entity` satisfies `days_remaining` <= 5 for UC-25.104.4 ('Prescription Supply Gap Before Refill'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `curology:prescription` events where `entity` stays below `days_remaining` <= 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.104.4."
   },
   "dataSources": "Curology prescriptions (`curology:prescription`), skin diaries (`skin:diary`), dermatology appointments (`derm:appointment`), and UV exposure logs (`uv:exposure`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Curology prescription shipments, daily skin diary entries, dermatology appointment exports, and UV exposure tracker logs ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=curology:prescription bottle_days_supply=* days_since_ship=*\n| eval days_remaining=bottle_days_supply-days_since_ship\n| where days_remaining<=5 AND rx_status!=\"shipped\"\n| sort days_remaining\n| table formula_name days_remaining rx_status",
-  "description": "Lists Curology prescriptions with five or fewer days of supply remaining before the next shipment.",
-  "value": "Running out of active ingredients mid-routine can trigger breakouts that take weeks to calm down.",
+  "description": "Lists Curology prescriptions with five or fewer days of supply remaining before the next shipment. Searches `index=personal` with sourcetype `curology:prescription` for UC-25.104.4, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `days_remaining` <= 5 in the saved search. Gives Personal operators a repeatable signal for 'Prescription Supply Gap Before Refill' without manual log review.",
+  "value": "Lists Curology prescriptions with five or fewer days of supply remaining before the next shipment. Timely UC-25.104.4 alerting on 'Prescription Supply Gap Before Refill' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Track `bottle_days_supply` and `days_since_ship` on each bottle and alert before the supply gap.",
   "visualization": "Table of formulas sorted by days remaining.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Prescription Supply Gap Before Refill'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `curology:prescription`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Prescription Supply Gap Before Refill' stops polling `curology:prescription`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `curology:prescription`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_remaining` <= 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

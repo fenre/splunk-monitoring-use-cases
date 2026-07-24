@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Cognos Content Store Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cognos_content_store_health` (UC-24.6.8), SOC dashboard panel \"Operations — Cognos Content Store Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='cognos:audit' that satisfy the UC-24.6.8 SPL filters for 'Cognos Content Store Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `cognos:audit` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.6.8."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='cognos:audit' where `component` satisfies `events` > 0 for UC-24.6.8 ('Cognos Content Store Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `cognos:audit` events where `component` stays below `events` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.6.8."
   },
   "dataSources": "MicroStrategy DSS logs (`microstrategy:dsserror`), Cognos audit (`cognos:audit`), BusinessObjects audit (`businessobjects:audit`), Oracle Analytics usage (`oracle:analytics:usage`), ThoughtSpot audit (`thoughtspot:audit`), QuickSight CloudTrail (`aws:cloudtrail`). Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=bi sourcetype=cognos:audit (\"content store\" OR \"CM-SYS\") (\"error\" OR \"warning\")\n| stats count as events, values(message) as messages by component\n| where events>0\n| sort - events",
   "description": "Monitors IBM Cognos Content Manager for content-store errors and warnings that precede report-server instability and save/schedule failures.",
-  "value": "The content store is Cognos's system of record; early warnings here prevent a full reporting outage.",
+  "value": "Monitors IBM Cognos Content Manager for content-store errors and warnings that precede report-server instab.... Timely UC-24.6.8 alerting on 'Cognos Content Store Health' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest Cognos audit and CM logs; schedule every 30 minutes and alert on content-store errors.",
   "visualization": "Table of component by events with messages, timechart.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cognos Content Store Health'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Cognos Content Store Health' shifts `values` over `span=1h` while `component` remains in-scope for UC-24.6.8. Cross-check CMDB CHG.\n\n2. **Batch `values` on `cognos:audit`** — Scheduled automation elevates `src` without crossing `events` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `component`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cognos:audit`** — First 48h baseline for `component` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `component`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "oracle"

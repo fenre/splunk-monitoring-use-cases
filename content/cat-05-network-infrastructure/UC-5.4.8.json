@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'RADIUS Authentication Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_radius_authentication_failures` (UC-5.4.8), SOC dashboard panel \"Operations — RADIUS Authentication Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:ise:syslog' that satisfy the UC-5.4.8 SPL filters for 'RADIUS Authentication Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `cisco:ise:syslog` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.4.8."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:ise:syslog' where `reason` satisfies detection threshold for UC-5.4.8 ('RADIUS Authentication Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `cisco:ise:syslog` events where `reason` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.4.8."
   },
   "dataSources": "`sourcetype=cisco:wlc:syslog`, `sourcetype=cisco:ise:syslog` Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "Cisco WLC syslog, `Splunk_TA_cisco-ise` — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=\"cisco:ise:syslog\" \"Authentication failed\"\n| rex \"UserName=(?<username>\\S+).*?FailureReason=(?<reason>[^;]+)\"\n| stats count by reason, username | sort -count\n| head 20",
   "description": "Mass RADIUS failures prevent wireless users from connecting. Distinguishing between user errors and server issues drives faster resolution.",
-  "value": "Network operations teams analyze RADIUS authentication failures by category (certificate, credential, server, policy) to rapidly distinguish between infrastructure issues affecting all users and individual user problems.",
+  "value": "Network operations teams analyze RADIUS authentication failures by category (certificate, credential, server, policy) to rapidly distinguish between infrastructure issues affecting all users and individual user problems reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Forward ISE/RADIUS logs to Splunk. Alert when failure rate exceeds 20% of attempts. Distinguish between bad credentials, expired certificates, and server timeouts.",
   "visualization": "Bar chart (failure reasons), Table (username, reason, count), Timechart (failure rate).",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'RADIUS Authentication Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'RADIUS Authentication Failures' shifts `count` over `span=1h` while `reason` remains in-scope for UC-5.4.8. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ise:syslog`** — Scheduled automation elevates `username` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `reason`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ise:syslog`** — First 48h baseline for `reason` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `reason`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"

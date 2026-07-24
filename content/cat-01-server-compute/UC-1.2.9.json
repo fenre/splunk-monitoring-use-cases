@@ -79,14 +79,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:System' EventCode=19 that satisfy the UC-1.2.9 SPL filters for 'Windows Update Compliance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:System` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.9."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:System' EventCode=19 where `host` satisfies `days_since_update` > 30 for UC-1.2.9 ('Windows Update Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:System` events where `host` stays below `days_since_update` > 30, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.9."
   },
   "dataSources": "`sourcetype=WinEventLog:System` (Event ID 19/20/43), WSUS logs, or scripted input Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows`, custom scripted input — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:System\" EventCode=19\n| rex \"(?<kb_article>KB\\d+)\"\n| stats latest(_time) as last_update, count as updates_installed by host\n| eval days_since_update = round((now() - last_update) / 86400, 0)\n| where days_since_update > 30\n| sort -days_since_update",
   "description": "Unpatched systems are primary attack vectors. Tracking patch compliance across the fleet supports vulnerability management and regulatory requirements.",
-  "value": "Patch evidence supports security and audit conversations with a defensible per-host view, not a dashboard guess.",
+  "value": "Unpatched systems are primary attack vectors. Timely UC-1.2.9 alerting on 'Windows Update Compliance' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Forward System event logs. EventCode 19 = successful update install. Create scripted input running `Get-HotFix` for comprehensive view. Dashboard showing days since last patch per host, flagging >30 days.",
   "visualization": "Table (host, last update, days since), Bar chart (compliance %), Heatmap by team/location.",
   "cimModels": [
@@ -117,7 +117,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Windows Update Compliance'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `WinEventLog:System`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Windows Update Compliance'. Correlate with apt/yum logs in the same `WinEventLog:System` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:System`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `days_since_update` > 30.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

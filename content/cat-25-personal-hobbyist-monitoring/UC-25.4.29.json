@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Matter Firmware Lag Inventory' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_matter_firmware_lag_inventory` (UC-25.4.29), SOC dashboard panel \"Personal — Matter Firmware Lag Inventory\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='matter:event' that satisfy the UC-25.4.29 SPL filters for 'Matter Firmware Lag Inventory'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `matter:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.4.29."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='matter:event' where `device_model` satisfies `firmware_variants` > 1 for UC-25.4.29 ('Matter Firmware Lag Inventory'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `matter:event` events where `device_model` stays below `firmware_variants` > 1, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.4.29."
   },
   "dataSources": "Home automation orchestration (`homeassistant:event`, `matter:event`, `thread:router`, `alexa:routine`, `googlehome:event`, `zigbee2mqtt:bridge`, `smartthings:event`, `nodered:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home Assistant, Matter and Thread border routers, Alexa routine logs, Google Home automations, Zigbee2MQTT bridges, SmartThings, Node-RED, and webhooks streamed to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=matter:event\n| stats latest(firmware_version) as firmware_version by device_model device_id\n| eventstats dc(firmware_version) as firmware_variants by device_model\n| where firmware_variants>1\n| sort - firmware_variants",
-  "description": "Uses Matter inventory events telemetry to monitor firmware skew inside the same device model in index=personal.",
-  "value": "Splunk turns the feed into an operational check for households where upgrades did not land consistently, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses Matter inventory events telemetry to monitor firmware skew inside the same device model in index=personal. Searches `index=personal` with sourcetype `matter:event` for UC-25.4.29, aggregating `dc` by `device_model` over `the scheduled window`. Alerts when grouped results cross `firmware_variants` > 1 in the saved search. Gives Personal operators a repeatable signal for 'Matter Firmware Lag Inventory' without manual log review.",
+  "value": "Uses Matter inventory events telemetry to monitor firmware skew inside the same device model in index=personal. Timely UC-25.4.29 alerting on 'Matter Firmware Lag Inventory' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Matter inventory events data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Inventory table of firmware variants by model.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Matter Firmware Lag Inventory'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `matter:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Matter Firmware Lag Inventory' stops polling `matter:event`; stale `device_model` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `dc` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `matter:event`. Dedup with `stats latest(*) by device_model`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `firmware_variants` > 1. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

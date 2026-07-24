@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Appointment Escort Coordination Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_appointment_escort_coordination_gap` (UC-25.52.29), SOC dashboard panel \"Personal — Appointment Escort Coordination Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='care:ops' that satisfy the UC-25.52.29 SPL filters for 'Appointment Escort Coordination Gap'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `care:ops` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.52.29."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='care:ops' where `appointment_type` satisfies `backlog` > 0 for UC-25.52.29 ('Appointment Escort Coordination Gap'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `care:ops` events where `appointment_type` stays below `backlog` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.52.29."
   },
   "dataSources": "Pendant alerts (`care:pendant`), medication adherence (`care:medication`), wandering alerts (`care:geofence`), check-ins (`care:checkin`), care-plan follow-up (`care:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Elder-care and accessibility telemetry — PERS pendant alerts, medication blister-pack reminders, and wandering geofence signals — streamed to Splunk HEC via caregiver apps, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=care:ops appointment_type=* escort_state=*\n| stats sum(eval(if(escort_state!=\"assigned\",1,0))) as backlog, count as total by appointment_type\n| where backlog>0\n| sort - backlog",
-  "description": "Lists pending escort assignments backlog by appointment type for appointment coordination.",
-  "value": "Backlog counts expose where small unfinished tasks accumulate and create hidden drag inside appointment coordination.",
+  "description": "Lists pending escort assignments backlog by appointment type for appointment coordination. Searches `index=personal` with sourcetype `care:ops` for UC-25.52.29, aggregating `sum` by `appointment_type` over `the scheduled window`. Alerts when grouped results cross `backlog` > 0 in the saved search. Gives Personal operators a repeatable signal for 'Appointment Escort Coordination Gap' without manual log review.",
+  "value": "Lists pending escort assignments backlog by appointment type for appointment coordination. Timely UC-25.52.29 alerting on 'Appointment Escort Coordination Gap' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Mark each `care:ops` record with a pending-state flag and summarize backlog totals by `appointment_type`.",
   "visualization": "Table of appointment type with pending escort assignments counts.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Appointment Escort Coordination Gap'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `care:ops`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Appointment Escort Coordination Gap' stops polling `care:ops`; stale `appointment_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `care:ops`. Dedup with `stats latest(*) by appointment_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `backlog` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

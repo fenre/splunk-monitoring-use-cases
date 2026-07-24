@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Disk SMART Health Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_disk_smart_health_monitoring` (UC-1.1.41), SOC dashboard panel \"Linux — Disk SMART Health Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='custom:smartctl' that satisfy the UC-1.1.41 SPL filters for 'Disk SMART Health Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `custom:smartctl` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.41."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='custom:smartctl' where `host` satisfies `realloc` > 100 for UC-1.1.41 ('Disk SMART Health Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `custom:smartctl` events where `host` stays below `realloc` > 100, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.41."
   },
   "dataSources": "`sourcetype=custom:smartctl, smartmontools output` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix, custom scripted input` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:smartctl host=*\n| stats latest(smart_health) as health, latest(reallocated_sectors) as realloc by host, device\n| where health!=\"PASSED\" OR realloc > 100",
-  "description": "SMART errors predict disk failure, enabling proactive replacement before data loss occurs.",
+  "description": "SMART errors predict disk failure, enabling proactive replacement before data loss occurs. Searches `index=os` with sourcetype `custom:smartctl` for UC-1.1.41, aggregating `count` by `host` over `the scheduled window`. Alerts when grouped results cross `realloc` > 100 in the saved search. Gives Linux operators a repeatable signal for 'Disk SMART Health Monitoring' without manual log review.",
   "value": "Early 'Disk SMART Health Monitoring' detection reduces capacity incidents, patch regressions, and service outages by giving Linux operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Create a scripted input running 'smartctl' on all disks and parsing output. Monitor SMART attributes including reallocated sectors, pending sectors, and CRC errors. Alert on any non-PASSED status immediately.",
   "visualization": "Alert, Table",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Disk SMART Health Monitoring'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `custom:smartctl`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Disk SMART Health Monitoring'. Correlate with apt/yum logs in the same `custom:smartctl` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:smartctl`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `realloc` > 100.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hardware_bmc",
     "linux"

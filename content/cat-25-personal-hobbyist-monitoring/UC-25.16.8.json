@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Wine Cellar Inventory and Drink-By Window' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_wine_cellar_inventory_and_drink_by_window` (UC-25.16.8), SOC dashboard panel \"Personal — Wine Cellar Inventory and Drink-By Window\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='winecellar:reading' that satisfy the UC-25.16.8 SPL filters for 'Wine Cellar Inventory and Drink-By Window'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `winecellar:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.16.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='winecellar:reading' where `wine` satisfies detection threshold for UC-25.16.8 ('Wine Cellar Inventory and Drink-By Window'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `winecellar:reading` events where `wine` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.16.8."
   },
   "dataSources": "Fermentation gravity/temperature (`brew:fermentation`), kegerator pours (`kegerator:pour`), wine-cellar climate (`winecellar:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Fermentation sensors (Tilt/iSpindel hydrometer, temperature), kegerator flow meters and scales, and wine-cellar climate sensors via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=winecellar:reading event=inventory\n| stats latest(bottles) as bottles, latest(drink_by_year) as drink_by by wine\n| eval years_left=drink_by-strftime(now(),\"%Y\")\n| sort years_left\n| head 20",
-  "description": "Lists your cellared wines by how many years remain in their ideal drinking window so none is forgotten past its prime.",
-  "value": "A collection is wasted if bottles slip past their peak unnoticed; a drink-by ranking makes sure the right bottle is opened in time.",
+  "description": "Lists your cellared wines by how many years remain in their ideal drinking window so none is forgotten past its prime. Searches `index=personal` with sourcetype `winecellar:reading` for UC-25.16.8, aggregating `count` by `wine` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Wine Cellar Inventory and Drink-By Window' without manual log review.",
+  "value": "Lists your cellared wines by how many years remain in their ideal drinking window so none is forgotten past.... Timely UC-25.16.8 alerting on 'Wine Cellar Inventory and Drink-By Window' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Record bottle counts and drinking windows; schedule monthly and surface wines nearing the end of their window.",
   "visualization": "Table of wines sorted by years left in the drinking window.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Wine Cellar Inventory and Drink-By Window'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `winecellar:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Wine Cellar Inventory and Drink-By Window' stops polling `winecellar:reading`; stale `wine` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `winecellar:reading`. Dedup with `stats latest(*) by wine`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

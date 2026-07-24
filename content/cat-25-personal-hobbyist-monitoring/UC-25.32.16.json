@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Relationship Check-In Drift After Busy Weeks' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_relationship_check_in_drift_after_busy_weeks` (UC-25.32.16), SOC dashboard panel \"Personal — Relationship Check-In Drift After Busy Weeks\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='relationship:checkin' that satisfy the UC-25.32.16 SPL filters for 'Relationship Check-In Drift After Busy Weeks'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `relationship:checkin` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.32.16."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='relationship:checkin' where `_time` satisfies detection threshold for UC-25.32.16 ('Relationship Check-In Drift After Busy Weeks'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `relationship:checkin` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.32.16."
   },
   "dataSources": "Relationship check-ins (`relationship:checkin`), date nights (`datenight:log`), gift ideas (`giftidea:item`), keep-in-touch contacts (`keptintouch:contact`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Relationship and togetherness logs — shared check-in apps, date-night and gift-idea lists, and stay-in-touch reminders — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=relationship:checkin\n| bin _time span=1w\n| stats count as checkins, avg(score) as avg_score by _time\n| streamstats window=4 avg(checkins) as trailing_checkins\n| eval low_contact=if(checkins<trailing_checkins*0.5,1,0)\n| sort - _time",
-  "description": "Flags weeks where relationship check-ins dropped sharply compared with your recent norm.",
-  "value": "A sudden fall in check-ins is often the first sign that coordination and emotional maintenance are slipping.",
+  "description": "Flags weeks where relationship check-ins dropped sharply compared with your recent norm. Searches `index=personal` with sourcetype `relationship:checkin` for UC-25.32.16, aggregating `avg` by `_time` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Relationship Check-In Drift After Busy Weeks' without manual log review.",
+  "value": "Flags weeks where relationship check-ins dropped sharply compared with your recent norm. Timely UC-25.32.16 alerting on 'Relationship Check-In Drift After Busy Weeks' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Track check-ins in `index=personal`; compare each week with the trailing four-week baseline.",
   "visualization": "Weekly chart of check-in volume with anomaly highlighting.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Relationship Check-In Drift After Busy Weeks'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `relationship:checkin`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Relationship Check-In Drift After Busy Weeks' stops polling `relationship:checkin`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `relationship:checkin`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

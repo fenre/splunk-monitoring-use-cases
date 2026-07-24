@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'AntennaPod Episode Playback Seconds Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_antennapod_episode_playback_seconds_leaderboard` (UC-25.100.9), SOC dashboard panel \"Personal — AntennaPod Episode Playback Seconds Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='antennapod:episode' that satisfy the UC-25.100.9 SPL filters for 'AntennaPod Episode Playback Seconds Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `antennapod:episode` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.100.9."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='antennapod:episode' where `podcast_name` satisfies detection threshold for UC-25.100.9 ('AntennaPod Episode Playback Seconds Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `antennapod:episode` events where `podcast_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.100.9."
   },
   "dataSources": "AntennaPod episodes (`antennapod:episode`), Audible listening sessions (`audible:listen`), Goodreads audiobooks (`goodreads:audiobook`), podcast queues (`podcast:queue`), and listening streaks (`listen:streak`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "AntennaPod listening exports, Audible progress logs, Goodreads audiobook shelves, podcast queue snapshots, and listening streak counters ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=antennapod:episode playback_seconds=*\n| stats sum(playback_seconds) as total_value, avg(playback_seconds) as avg_value by podcast_name\n| sort - total_value",
-  "description": "Ranks podcast values by total and average playback seconds across AntennaPod episode events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks podcast values by total and average playback seconds across AntennaPod episode events. Searches `index=personal` with sourcetype `antennapod:episode` for UC-25.100.9, aggregating `sum` by `podcast_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'AntennaPod Episode Playback Seconds Leaderboard' without manual log review.",
+  "value": "Ranks podcast values by total and average playback seconds across AntennaPod episode events. Timely UC-25.100.9 alerting on 'AntennaPod Episode Playback Seconds Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `playback_seconds` values for each AntennaPod episode event and review total and average playback seconds by podcast.",
   "visualization": "Table of entities ranked by total playback seconds.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'AntennaPod Episode Playback Seconds Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `antennapod:episode`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'AntennaPod Episode Playback Seconds Leaderboard' stops polling `antennapod:episode`; stale `podcast_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `antennapod:episode`. Dedup with `stats latest(*) by podcast_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

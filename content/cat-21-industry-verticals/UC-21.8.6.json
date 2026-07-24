@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'OSS/BSS System Integration Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_oss_bss_system_integration_health` (UC-21.8.6), SOC dashboard panel \"Operations — OSS/BSS System Integration Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=telecom` sourcetype='ossbss:integration' that satisfy the UC-21.8.6 SPL filters for 'OSS/BSS System Integration Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `telecom` / `ossbss:integration` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.8.6."
+    "positiveScenario": "Ingest synthetic events into `index=telecom` sourcetype='ossbss:integration' where `interface_id` satisfies `http_status` >= 500 for UC-21.8.6 ('OSS/BSS System Integration Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `telecom` / `ossbss:integration` events where `interface_id` stays below `http_status` >= 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.8.6."
   },
   "dataSources": "`index=telecom` `sourcetype=\"ossbss:integration\"` (interface_id, http_status, latency_ms, error_code) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "API gateway / ESB logs via HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=telecom sourcetype=\"ossbss:integration\"\n| eval fail=if(http_status>=500 OR isnotnull(error_code),1,0)\n| bin _time span=5m\n| stats count as calls, sum(fail) as fails, avg(latency_ms) as avg_ms by interface_id, _time\n| eval fail_pct=round(100*fails/nullif(calls,0),2)\n| where fail_pct > 2 OR avg_ms > 3000\n| table _time, interface_id, calls, fails, fail_pct, avg_ms",
   "description": "API and message bus integrations between CRM, inventory, and activation systems fail silently under load; HTTP error rates and timeout counts isolate brittle adapters before orders stall.",
-  "value": "Service and risk leaders use signals from OSS/BSS System Integration Health to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "Service and risk leaders use signals from OSS/BSS System Integration Health to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Tag interfaces in the gateway; exclude health-check paths. Add optional `partner_system` field for drilldown. Pair with synthetic probes where logs alone miss silent drops. **Domain context:** TM Forum Open APIs and eTOM-style process boundaries (CRM → OSS) help name `interface_id` for runbooks—timeouts often indicate partner capacity, not your gateway. **Splunk:** `error_code` may be sparse—use `http_status>=500 OR isnotnull(error_code)` but add `http_status=0` or connection reset patterns if logged.",
   "visualization": "Time chart (fail % and latency), Bar chart (worst interfaces), Table (error_code top values).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'OSS/BSS System Integration Health'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `telecom` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `telecom`** — Planned work for 'OSS/BSS System Integration Health' shifts `sum` over `span=5m` while `interface_id` remains in-scope for UC-21.8.6. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `ossbss:integration`** — Scheduled automation elevates `_time` without crossing `http_status` >= 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `interface_id`** — Health checks in `telecom` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ossbss:integration`** — First 48h baseline for `interface_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `interface_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

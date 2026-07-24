@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Economizer Mode Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_economizer_mode_utilization` (UC-15.2.15), SOC dashboard panel \"Operations — Economizer Mode Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cooling` sourcetype='bms:economizer' that satisfy the UC-15.2.15 SPL filters for 'Economizer Mode Utilization'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cooling` / `bms:economizer` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.2.15."
+    "positiveScenario": "Ingest synthetic events into `index=cooling` sourcetype='bms:economizer' where `ahu_id` satisfies `econ_hours` < 4 for UC-15.2.15 ('Economizer Mode Utilization'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cooling` / `bms:economizer` events where `ahu_id` stays below `econ_hours` < 4, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.2.15."
   },
   "dataSources": "`sourcetype=\"bms:economizer\"` (mode, oa_temp_f, enthalpy_ok) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "BMS — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cooling sourcetype=\"bms:economizer\"\n| timechart span=1d sum(eval(if(mode=\"economizer\",1,0))) as econ_hours by ahu_id\n| where econ_hours < 4",
-  "description": "Low economizer hours may indicate stuck dampers or bad enthalpy programming—wasting energy.",
+  "description": "Low economizer hours may indicate stuck dampers or bad enthalpy programming—wasting energy. Searches `index=cooling` with sourcetype `bms:economizer` for UC-15.2.15, aggregating `sum` by `ahu_id` over `1d`. Alerts when grouped results cross `econ_hours` < 4 in the saved search. Gives Operations operators a repeatable signal for 'Economizer Mode Utilization' without manual log review.",
   "value": "Early 'Economizer Mode Utilization' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Compare economizer hours to weather bin data. Investigate AHU with low free-cooling in mild weather.",
   "visualization": "Bar chart (econ hours by month), Line chart (OA temp vs mode), Table (AHUs underutilizing economizer).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Economizer Mode Utilization'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `cooling` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `cooling`** — Planned work for 'Economizer Mode Utilization' shifts `sum` over `span=1d` while `ahu_id` remains in-scope for UC-15.2.15. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `bms:economizer`** — Scheduled automation elevates `src` without crossing `econ_hours` < 4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ahu_id`** — Health checks in `cooling` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bms:economizer`** — First 48h baseline for `ahu_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ahu_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

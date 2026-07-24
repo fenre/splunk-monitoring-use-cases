@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Webhook Delivery Failure Tracking (Meraki)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_webhook_delivery_failure_tracking_meraki` (UC-5.8.21), SOC dashboard panel \"Operations — Webhook Delivery Failure Tracking (Meraki)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=meraki` sourcetype='meraki:webhook' that satisfy the UC-5.8.21 SPL filters for 'Webhook Delivery Failure Tracking (Meraki)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `meraki` / `meraki:webhook` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.8.21."
+    "positiveScenario": "Ingest synthetic events into `index=meraki` sourcetype='meraki:webhook' where `webhook_id` satisfies `failure_count` > 5 for UC-5.8.21 ('Webhook Delivery Failure Tracking (Meraki)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `meraki` / `meraki:webhook` events where `webhook_id` stays below `failure_count` > 5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.8.21."
   },
   "dataSources": "`sourcetype=meraki:webhook status=\"failure\" OR status=\"error\"`; Meraki API (`meraki:devices` etc.) and optional organization syslog/HTTPS",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580, webhooks)",
   "spl": "index=meraki sourcetype=\"meraki:webhook\" (status=\"failure\" OR status=\"error\")\n| stats count as failure_count, latest(error_message) as last_error by webhook_id, organization\n| where failure_count > 5",
   "description": "Ensures webhook notifications reach integrations and alerts don't get lost. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Network operations teams monitor Meraki webhook delivery health to Splunk, detecting failed deliveries that create gaps in real-time alerting and diagnosing HEC endpoint or authentication issues.",
+  "value": "Ensures webhook notifications reach integrations and alerts don't get lost. Timely UC-5.8.21 alerting on 'Webhook Delivery Failure Tracking (Meraki)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Log webhook delivery attempts. Alert on sustained failures.",
   "visualization": "Webhook failure timeline; failure cause breakdown; affected org list.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Webhook Delivery Failure Tracking (Meraki)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `meraki` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki`** — Planned work for 'Webhook Delivery Failure Tracking (Meraki)' shifts `count` over `span=1h` while `webhook_id` remains in-scope for UC-5.8.21. Cross-check CMDB CHG.\n\n2. **Batch `count` on `meraki:webhook`** — Scheduled automation elevates `organization` without crossing `failure_count` > 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `webhook_id`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:webhook`** — First 48h baseline for `webhook_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `webhook_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"

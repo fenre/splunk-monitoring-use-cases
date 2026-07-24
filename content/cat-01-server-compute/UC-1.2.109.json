@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Windows Time Service (W32Time) Drift' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_windows_time_service_w32time_drift` (UC-1.2.109), SOC dashboard panel \"Linux — Windows Time Service (W32Time) Drift\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=134 that satisfy the UC-1.2.109 SPL filters for 'Windows Time Service (W32Time) Drift'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.109."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=134 where `host` satisfies detection threshold for UC-1.2.109 ('Windows Time Service (W32Time) Drift'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.109."
   },
   "dataSources": "`sourcetype=WinEventLog:System` (Source=Microsoft-Windows-Time-Service) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog source=\"WinEventLog:System\" SourceName=\"Microsoft-Windows-Time-Service\" EventCode IN (134, 142, 129)\n| eval Issue=case(EventCode=134,\"Time_Provider_Error\", EventCode=142,\"Time_Skew_Too_Large\", EventCode=129,\"NTP_Unreachable\", 1=1,\"Warning\")\n| stats count latest(_time) as LastSeen by host, Issue, EventCode\n| sort -count",
   "description": "Kerberos authentication fails when clock skew exceeds 5 minutes. Time drift breaks authentication, log correlation, and forensic timelines.",
-  "value": "Clock skew breaks Kerberos and TLS in hard-to-debug ways. Tracking w32time stability on member servers and DCs avoids mystery auth failures and duplicate log entries across the estate.",
+  "value": "Kerberos authentication fails when clock skew exceeds 5 minutes. Timely UC-1.2.109 alerting on 'Windows Time Service (W32Time) Drift' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Monitor W32Time events for time provider errors (134), skew warnings (142), and NTP unreachable (129). On DCs, the PDC Emulator must sync to an external NTP source — all other DCs sync to the domain hierarchy. Alert on any DC time skew >2 minutes. Monitor w32tm /query /status output via scripted input for continuous drift tracking. Time-critical for Kerberos (5-min max skew) and forensic log correlation.",
   "visualization": "Timechart (time offset), Table (time errors), Alert on >2min drift.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Windows Time Service (W32Time) Drift'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `configured sourcetype`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Windows Time Service (W32Time) Drift'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Junos Chassis Alarm Monitoring (Juniper)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_junos_chassis_alarm_monitoring_juniper` (UC-5.1.56), SOC dashboard panel \"Operations — Junos Chassis Alarm Monitoring (Juniper)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='juniper:junos:structured' that satisfy the UC-5.1.56 SPL filters for 'Junos Chassis Alarm Monitoring (Juniper)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `juniper:junos:structured` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.56."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='juniper:junos:structured' where `host` satisfies `alarm_events` > 0 for UC-5.1.56 ('Junos Chassis Alarm Monitoring (Juniper)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `juniper:junos:structured` events where `host` stays below `alarm_events` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.56."
   },
   "dataSources": "`sourcetype=juniper:junos:structured` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_juniper`, syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"juniper:junos:structured\"\n| search CHASSISD OR \"*chassis*\" OR ALARM OR \"*alarm*\"\n| search \"*Major*\" OR \"*Minor*\" OR severity=major OR severity=minor OR \"class major\" OR \"class minor\"\n| rex field=_raw max_match=0 \"(?i)fru\\s*type:\\s*(?<fru_type>[^,\\n]+)\"\n| stats count as alarm_events, values(_raw) as sample_messages by host, fru_type\n| where alarm_events > 0\n| sort -alarm_events",
   "description": "Junos raises chassis alarms for power supply loss, fan failure, FPC or PIC offline, and temperature exceedances—conditions that often need on-site hardware work before service is fully restored. Ignoring these events lets a single failed component escalate into switch-wide thermal shutdown or loss of redundancy. A clear Splunk view of major and minor chassis alarms speeds dispatch to facilities and vendor support and shortens mean time to repair for edge and campus fabrics.",
-  "value": "NOC teams monitor Junos chassis alarms (major/minor) across FPC, PEM, fan, and routing engine components, detecting hardware conditions requiring immediate attention.",
+  "value": "Junos raises chassis alarms for power supply loss, fan failure, FPC or PIC offline, and temperature exceeda.... Timely UC-5.1.56 alerting on 'Junos Chassis Alarm Monitoring (Juniper)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Forward Junos structured syslog to Splunk; install `Splunk_TA_juniper` for field normalization. Tune `search` terms to your facility naming (CHASSISD, craftd). Alert on first major alarm and on minor alarms that repeat on the same FRU within 24h. Enrich with CMDB site and rack for dispatch.",
   "visualization": "Chassis alarm table by host and FRU; timeline of major vs minor; single-value panel for open major alarms.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Junos Chassis Alarm Monitoring (Juniper)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Junos Chassis Alarm Monitoring (Juniper)' shifts `values` over `span=1h` while `host` remains in-scope for UC-5.1.56. Cross-check CMDB CHG.\n\n2. **Batch `values` on `juniper:junos:structured`** — Scheduled automation elevates `fru_type` without crossing `alarm_events` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `juniper:junos:structured`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog"
   ],

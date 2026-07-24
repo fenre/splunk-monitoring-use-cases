@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Sourcetype Breakdown Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_sourcetype_breakdown_trending` (UC-13.1.13), SOC dashboard panel \"Operations — Sourcetype Breakdown Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=_internal` sourcetype='splunkd' that satisfy the UC-13.1.13 SPL filters for 'Sourcetype Breakdown Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `_internal` / `splunkd` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.13."
+    "positiveScenario": "Ingest synthetic events into `index=_internal` sourcetype='splunkd' where `st` satisfies detection threshold for UC-13.1.13 ('Sourcetype Breakdown Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `_internal` / `splunkd` events where `st` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.13."
   },
   "dataSources": "`_internal` (license_usage.log) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Monitoring Console — Universal Forwarder (Splunkbase 617)",
   "spl": "index=_internal sourcetype=splunkd group=license_usage\n| stats sum(b) as bytes by st\n| eval gb=round(bytes/1024/1024/1024,2)\n| sort -gb\n| head 20",
-  "description": "Understanding data volume per sourcetype enables cost optimization, retention tuning, and unexpected growth detection.",
+  "description": "Understanding data volume per sourcetype enables cost optimization, retention tuning, and unexpected growth detection. Searches `index=_internal` with sourcetype `splunkd` for UC-13.1.13, aggregating `sum` by `st` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Sourcetype Breakdown Trending' without manual log review.",
   "value": "Early 'Sourcetype Breakdown Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Track daily volume per sourcetype. Identify top consumers. Alert on sourcetypes with unexpected growth (>20% week-over-week). Use for license optimization and retention policy tuning.",
   "visualization": "Bar chart (top sourcetypes by volume), Pie chart (volume distribution), Line chart (growth trend for top sourcetypes).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Sourcetype Breakdown Trending'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `_internal` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `_internal`** — Planned work for 'Sourcetype Breakdown Trending' shifts `sum` over `span=1h` while `st` remains in-scope for UC-13.1.13. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `splunkd`** — Scheduled automation elevates `gb` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `st`** — Health checks in `_internal` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `splunkd`** — First 48h baseline for `st` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `st`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Aircraft Turnaround Time Monitoring (A-CDM)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_aircraft_turnaround_time_monitoring_a_cdm` (UC-21.7.3), SOC dashboard panel \"Operations — Aircraft Turnaround Time Monitoring (A-CDM)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=airport` sourcetype='acdm:turnaround' that satisfy the UC-21.7.3 SPL filters for 'Aircraft Turnaround Time Monitoring (A-CDM)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `airport` / `acdm:turnaround` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.7.3."
+    "positiveScenario": "Ingest synthetic events into `index=airport` sourcetype='acdm:turnaround' where `stand_id` satisfies `variance_sec` > 900 for UC-21.7.3 ('Aircraft Turnaround Time Monitoring (A-CDM)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `airport` / `acdm:turnaround` events where `stand_id` stays below `variance_sec` > 900, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.7.3."
   },
   "dataSources": "`index=airport` `sourcetype=\"acdm:turnaround\"` (flight_id, stand_id, block_on, target_off, actual_off, milestone_name, milestone_time) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "A-CDM feed via HEC, Airport CIM for Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=airport sourcetype=\"acdm:turnaround\" milestone_name=\"ACTUAL_OFF_BLOCK\"\n| eval turnaround_sec=actual_off-block_on\n| eval target_turn_sec=target_off-block_on\n| eval variance_sec=turnaround_sec-target_turn_sec\n| where variance_sec > 900\n| stats avg(variance_sec) as avg_var, count as late_turns by stand_id\n| eval avg_var_min=round(avg_var/60,1)\n| sort - avg_var\n| table stand_id, late_turns, avg_var_min",
   "description": "A-CDM milestones expose ground-handling delays that compress departure slots; tracking block-on to off-block variance improves OTP and stand utilization.",
-  "value": "Service and risk leaders use signals from Aircraft Turnaround Time Monitoring to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "A-CDM milestones expose ground-handling delays that compress departure slots; tracking block-on to off-bloc.... Timely UC-21.7.3 alerting on 'Aircraft Turnaround Time Monitoring (A-CDM)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Normalize all timestamps to UTC with clear time zone fields in raw data. Join to airline handler codes if present for accountability. Use for operational review; validate calculations against the airport CDM tool of record. **Domain context:** IATA A-CDM milestones (TOBT/TSAT/ASAT/ATOT) define turnaround—ensure field mapping matches your airport’s CDM implementation. **Splunk:** `block_on`/`actual_off` must be epoch-consistent; `milestone_name` filter should match vendor strings exactly.",
   "visualization": "Gantt-style timeline (per flight), Histogram (turnaround distribution), Table (stands with chronic variance).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Aircraft Turnaround Time Monitoring (A-CDM)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `airport` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `airport`** — Planned work for 'Aircraft Turnaround Time Monitoring (A-CDM)' shifts `avg` over `span=1h` while `stand_id` remains in-scope for UC-21.7.3. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `acdm:turnaround`** — Scheduled automation elevates `turnaround_sec` without crossing `variance_sec` > 900. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `stand_id`** — Health checks in `airport` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `acdm:turnaround`** — First 48h baseline for `stand_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `stand_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

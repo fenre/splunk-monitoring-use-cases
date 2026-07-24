@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Start a maintenance session without authenticated technician or skipping security-posture validation. UC-22.55.23 MUST flag `maintenance_status=\"posture_validation_skipped\"`.",
-    "negativeScenario": "Authenticate technician, validate posture, log session; UC-22.55.23 MUST record `maintenance_status=\"compliant\"`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-22.55.23 ('CLC/TS 50701 Rail-OT Maintenance Cybersecurity — every depot, workshop, and on-board maintenance session secured'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.55.23."
   },
   "dataSources": "Rail-OT maintenance station audit logs (`rail:maintenance:audit`, depot programming-tool audit logs). KV Store `rail_maintenance_lookup`. CyberArk PAM session records (`cyberark:session`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for CyberArk (Splunkbase 2891), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_maintenance_lookup\n| where session_completed=\"true\"\n| eval maintenance_status = case(\n    isnull(technician_authenticated_at) OR technician_authenticated_at < session_start - 86400, \"technician_unauthenticated\",\n    security_posture_validated != \"true\", \"posture_validation_skipped\",\n    session_logging_active != \"true\", \"session_unlogged\",\n    1=1, \"compliant\")\n| where maintenance_status != \"compliant\"\n| table maintenance_session_id vehicle_id depot_id technician_id session_start session_end maintenance_status",
-  "description": "Tracks rail-OT maintenance sessions for technician authentication, security-posture validation, and session logging.",
-  "value": "Maintenance sessions on rail-OT are a high-risk vector for malicious code introduction; tight controls are required.",
+  "description": "Tracks rail-OT maintenance sessions for technician authentication, security-posture validation, and session logging. Searches `index=target_index` with sourcetype `configured sourcetype` for UC-22.55.23, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'CLC/TS 50701 Rail-OT Maintenance Cybersecurity — every depot, workshop, and on-board maintenance session secured' without manual log review.",
+  "value": "Tracks rail-OT maintenance sessions for technician authentication, security-posture validation, and session.... Timely UC-22.55.23 alerting on 'CLC/TS 50701 Rail-OT Maintenance Cybersecurity — every depot, workshop, and on-board maintenance session secured' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Depot maintenance stations forward audit logs to Splunk. (2) Technician auth via CyberArk PAM. (3) Schedule UC-22.55.23 weekly Monday 09:00.",
   "visualization": "(Panel 1) Maintenance posture. (Panel 2) Anomaly queue. (Panel 3) Top depots by deviation.",
   "cimModels": [
@@ -77,7 +77,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Emergency-recovery maintenance** — emergency may need to bypass full posture validation. Suppression: post-event review and remediation, documented exception.\n\n**Suppression mechanism**: KV Store `clc_22_55_23_exceptions` with documented Head of Maintenance approval and 7-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Rail-OT Maintenance Cybersecurity — every depot, workshop, and on-board maintenance session secured' (UC-22.55.23) on `entity` during scheduled clause CLC-TS-50701-c8-3 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1078"
   ],

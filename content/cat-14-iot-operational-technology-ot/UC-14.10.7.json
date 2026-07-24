@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Aranet Battery Level Predictive Replacement Windows' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_aranet_battery_level_predictive_replacement_wind` (UC-14.10.7), SOC dashboard panel \"Operations — Aranet Battery Level Predictive Replacement Windows\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=environment` sourcetype='aranet:sensor' that satisfy the UC-14.10.7 SPL filters for 'Aranet Battery Level Predictive Replacement Windows'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `environment` / `aranet:sensor` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.10.7."
+    "positiveScenario": "Ingest synthetic events into `index=environment` sourcetype='aranet:sensor' where `sensor_id` satisfies detection threshold for UC-14.10.7 ('Aranet Battery Level Predictive Replacement Windows'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `environment` / `aranet:sensor` events where `sensor_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.10.7."
   },
   "dataSources": "`index=environment` · `sourcetype=\"aranet:sensor\"` (co2_ppm, temp_c, humidity_pct, pressure_hpa, battery_pct, rssi_dbm) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom HEC or scripted input from Aranet Cloud API / Aranet PRO base station — Universal Forwarder (Splunkbase 617)",
   "spl": "index=environment sourcetype=\"aranet:sensor\" earliest=-60d\n| eval batt=tonumber(coalesce(battery_pct, battery, \"\"))\n| where isnotnull(batt)\n| timechart span=1d min(batt) as min_battery_pct by sensor_id",
-  "description": "Wireless sensors fail when batteries fade; trending minima schedules bulk replacement before winter heating season.",
-  "value": "Cuts emergency site visits and prevents data gaps during audits. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Wireless sensors fail when batteries fade; trending minima schedules bulk replacement before winter heating season. Searches `index=environment` with sourcetype `aranet:sensor` for UC-14.10.7, aggregating `min` by `sensor_id` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Aranet Battery Level Predictive Replacement Windows' without manual log review.",
+  "value": "Wireless sensors fail when batteries fade; trending minima schedules bulk replacement before winter heating.... Timely UC-14.10.7 alerting on 'Aranet Battery Level Predictive Replacement Windows' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "(1) Confirm percentage field. (2) Alert below 20%. (3) Export monthly work orders.",
   "visualization": "Line per sensor; forecast optional.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Aranet Battery Level Predictive Replacement Windows'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `environment` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `environment`** — Planned work for 'Aranet Battery Level Predictive Replacement Windows' shifts `min` over `span=1d` while `sensor_id` remains in-scope for UC-14.10.7. Cross-check CMDB CHG.\n\n2. **Batch `min` on `aranet:sensor`** — Scheduled automation elevates `batt` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sensor_id`** — Health checks in `environment` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aranet:sensor`** — First 48h baseline for `sensor_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sensor_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aranet"
   ],

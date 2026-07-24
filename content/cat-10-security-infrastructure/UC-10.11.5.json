@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'FortiGate Application Control Violations' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_fortigate_application_control_violations` (UC-10.11.5), SOC dashboard panel \"Security Infra — FortiGate Application Control Violations\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=firewall` sourcetype='fortinet:fortigate_appctrl' that satisfy the UC-10.11.5 SPL filters for 'FortiGate Application Control Violations'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `firewall` / `fortinet:fortigate_appctrl` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.11.5."
+    "positiveScenario": "Ingest synthetic events into `index=firewall` sourcetype='fortinet:fortigate_appctrl' where `app_name` satisfies `count` > 5 for UC-10.11.5 ('FortiGate Application Control Violations'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `firewall` / `fortinet:fortigate_appctrl` events where `app_name` stays below `count` > 5, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.11.5."
   },
   "dataSources": "`sourcetype=fortinet:fortigate_appctrl` Collected via Splunk Add-on for Fortinet FortiGate (Splunkbase 2846) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_fortinet` — Splunk Add-on for Fortinet FortiGate (Splunkbase 2846)",
   "spl": "index=firewall sourcetype=\"fortinet:fortigate_appctrl\" action=deny\n| stats count by app_name, src, dst_ip\n| where count>5",
-  "description": "Application denials indicate shadow IT, policy violations, or evasive protocols.",
+  "description": "Application denials indicate shadow IT, policy violations, or evasive protocols. Searches `index=firewall` with sourcetype `fortinet:fortigate_appctrl` for UC-10.11.5, aggregating `count` by `app_name` over `the scheduled window`. Alerts when grouped results cross `count` > 5 in the saved search. Gives Security Infra operators a repeatable signal for 'FortiGate Application Control Violations' without manual log review.",
   "value": "Early 'FortiGate Application Control Violations' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Enable application control with deny logging. Correlate app IDs with business-approved lists. Alert on repeated denials from single hosts.",
   "visualization": "Bar chart (denied apps), Table (src, app, count), Timeline.",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'FortiGate Application Control Violations'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=firewall` `fortinet:fortigate_appctrl`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `firewall`** — Planned work for 'FortiGate Application Control Violations' shifts `count` over `span=1h` while `app_name` remains in-scope for UC-10.11.5. Cross-check CMDB CHG.\n\n2. **Batch `count` on `fortinet:fortigate_appctrl`** — Scheduled automation elevates `src` without crossing `count` > 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `app_name`** — Health checks in `firewall` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `fortinet:fortigate_appctrl`** — First 48h baseline for `app_name` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `app_name`, `exception_reason`, `valid_until`.",
   "detectionType": "TTP",
   "securityDomain": "network",
   "equipment": [

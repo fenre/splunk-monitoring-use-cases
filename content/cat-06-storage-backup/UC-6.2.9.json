@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Pre-Signed URL Abuse Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_pre_signed_url_abuse_detection` (UC-6.2.9), SOC dashboard panel \"Operations — Pre-Signed URL Abuse Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:s3:accesslogs' that satisfy the UC-6.2.9 SPL filters for 'Pre-Signed URL Abuse Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:s3:accesslogs` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.9."
+    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:s3:accesslogs' where `bucket_name` satisfies detection threshold for UC-6.2.9 ('Pre-Signed URL Abuse Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `aws` / `aws:s3:accesslogs` events where `bucket_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.9."
   },
   "dataSources": "S3 server access logs with `queryString` containing `X-Amz-`, `Signature` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` (S3 access logs), CloudTrail data events — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:s3:accesslogs\"\n| search query_string=\"*X-Amz-*\" OR query_string=\"*Signature*\"\n| stats count by bucket_name, requester, remote_ip\n| eventstats avg(count) as avg_c, stdev(count) as stdev_c by bucket_name\n| where count > avg_c + 3*stdev_c",
-  "description": "Unusual volume of pre-signed GET/PUT or access from unexpected IPs may indicate credential theft or insider abuse.",
+  "description": "Unusual volume of pre-signed GET/PUT or access from unexpected IPs may indicate credential theft or insider abuse. Searches `index=aws` with sourcetype `aws:s3:accesslogs` for UC-6.2.9, aggregating `avg` by `bucket_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Pre-Signed URL Abuse Detection' without manual log review.",
   "value": "Early 'Pre-Signed URL Abuse Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Parse query string for presigned parameters. Baseline requests per requester/IP. Alert on spikes or geo anomalies. Correlate with IAM changes.",
   "visualization": "Table (top presigned requesters), Line chart (presigned request rate), Map (remote_ip).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Pre-Signed URL Abuse Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `aws` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Pre-Signed URL Abuse Detection' shifts `avg` over `span=1h` while `bucket_name` remains in-scope for UC-6.2.9. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `aws:s3:accesslogs`** — Scheduled automation elevates `requester` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `bucket_name`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:s3:accesslogs`** — First 48h baseline for `bucket_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `bucket_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

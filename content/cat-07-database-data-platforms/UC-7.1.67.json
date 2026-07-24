@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Cassandra Compaction Backlog and Pending Tasks' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cassandra_compaction_backlog_and_pending_tasks` (UC-7.1.67), SOC dashboard panel \"Operations — Cassandra Compaction Backlog and Pending Tasks\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='cassandra:compaction' that satisfy the UC-7.1.67 SPL filters for 'Cassandra Compaction Backlog and Pending Tasks'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `cassandra:compaction` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.67."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='cassandra:compaction' where `host` satisfies `pending` > 100 for UC-7.1.67 ('Cassandra Compaction Backlog and Pending Tasks'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `cassandra:compaction` events where `host` stays below `pending` > 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.67."
   },
   "dataSources": "`nodetool compactionstats` JSON/CSV ingested as `cassandra:compaction` Indexes: database. Sourcetypes: cassandra:compaction. Key fields: _time, cluster_name, host, max_pending, pending. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Add-on for JMX (Splunkbase 2647) for `org.apache.cassandra.metrics:type=Compaction` or scripted nodetool forwarder",
   "spl": "index=database sourcetype=\"cassandra:compaction\"\n| eval pending=tonumber(pending_tasks)\n| where pending > 100\n| bin _time span=15m\n| stats max(pending) as max_pending latest(bytes_total_in_progress) as bytes_in_progress by host, cluster_name, _time\n| where max_pending > 150",
   "description": "A monotonically growing pending compaction count means the node cannot rewrite SSTables fast enough for the write load, which soon shows up as read latency and repair failures. Early detection avoids disk-full and timeout incidents during peak traffic.",
-  "value": "Keeps OLTP and analytics paths on Cassandra responsive by triggering throttling, compaction strategy reviews, or capacity adds before timeouts cascade.",
+  "value": "A monotonically growing pending compaction count means the node cannot rewrite SSTables fast enough for the.... Timely UC-7.1.67 alerting on 'Cassandra Compaction Backlog and Pending Tasks' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Run `nodetool compactionstats` every 60–120s via scripted input; parse `pending tasks`, `id`, `keyspace`, `table`, `progress`, `total`. Alternatively enable JMX `CompactionExecutor` pending metric via TA-JMX `inputs.conf` with `sourcetype=cassandra:compaction`. Baseline per cluster class; suppress during repairs via maintenance lookup.",
   "visualization": "Line chart (max_pending), Table (keyspace, table, bytes_in_progress).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cassandra Compaction Backlog and Pending Tasks'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Cassandra Compaction Backlog and Pending Tasks' shifts `max` over `span=15m` while `host` remains in-scope for UC-7.1.67. Cross-check CMDB CHG.\n\n2. **Batch `max` on `cassandra:compaction`** — Scheduled automation elevates `cluster_name` without crossing `pending` > 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cassandra:compaction`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "cassandra"

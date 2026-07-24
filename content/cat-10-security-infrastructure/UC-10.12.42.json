@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'CAC Authentication Monitoring' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_cac_authentication_monitoring` (UC-10.12.42), SOC dashboard panel \"Security Infra — CAC Authentication Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ad` sourcetype='WinEventLog:Security' that satisfy the UC-10.12.42 SPL filters for 'CAC Authentication Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ad` / `WinEventLog:Security` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.42."
+    "positiveScenario": "Ingest synthetic events into `index=ad` sourcetype='WinEventLog:Security' where `entity` satisfies `attempts` > 0.1 for UC-10.12.42 ('CAC Authentication Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ad` / `WinEventLog:Security` events where `entity` stays below `attempts` > 0.1, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.42."
   },
   "dataSources": "`sourcetype=\"WinEventLog:Security\"` EventCode=4768,4769 Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "Windows Security, PKI — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=ad sourcetype=\"WinEventLog:Security\" EventCode IN (4768,4769,4776)\n| search Certificate_Information=\"*\"\n| eval fail=if(match(Status,\"0x[1-9a-f]\"),1,0)\n| timechart span=15m sum(fail) as card_failures, count as attempts\n| where card_failures/attempts > 0.1",
-  "description": "Tracks smart card logon failures, PIN lockouts, and certificate issues for DOD/IC access.",
+  "description": "Tracks smart card logon failures, PIN lockouts, and certificate issues for DOD/IC access. Searches `index=ad` with sourcetype `WinEventLog:Security` for UC-10.12.42, aggregating `sum` by `entity` over `15m`. Alerts when grouped results cross `attempts` > 0.1 in the saved search. Gives Security Infra operators a repeatable signal for 'CAC Authentication Monitoring' without manual log review.",
   "value": "Early 'CAC Authentication Monitoring' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Correlate with HSM and CRL availability; help desk runbooks for YubiKey/CAC readers.",
   "visualization": "Line chart (failure rate), Table (users with lockouts), Timeline (PKI events).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'CAC Authentication Monitoring'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=ad` `wineventlog:security`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `ad`** — Planned work for 'CAC Authentication Monitoring' shifts `sum` over `span=15m` while `host` remains in-scope for UC-10.12.42. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `WinEventLog:Security`** — Scheduled automation elevates `fail` without crossing `attempts` > 0.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ad` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

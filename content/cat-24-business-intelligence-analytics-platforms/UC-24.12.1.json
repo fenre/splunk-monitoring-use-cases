@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Hightouch Sync Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_hightouch_sync_failures` (UC-24.12.1), SOC dashboard panel \"Operations — Hightouch Sync Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='hightouch:sync' that satisfy the UC-24.12.1 SPL filters for 'Hightouch Sync Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dataops` / `hightouch:sync` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.12.1."
+    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='hightouch:sync' where `sync_name` satisfies `failures` > 0 for UC-24.12.1 ('Hightouch Sync Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dataops` / `hightouch:sync` events where `sync_name` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.12.1."
   },
   "dataSources": "Hightouch sync run events (`hightouch:sync`), Census sync history (`census:sync`), Segment/RudderStack destination delivery and error events, audience-refresh latency metrics via REST. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Hightouch / Census sync webhooks and REST APIs via HEC; Segment/RudderStack delivery events via HEC scripted inputs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops sourcetype=hightouch:sync event=sync_completed\n| stats count as syncs, sum(eval(status=\"failed\")) as failures by sync_name, destination\n| eval failure_rate=round(100*failures/syncs,1)\n| where failures>0\n| sort - failure_rate",
   "description": "Tracks Hightouch reverse-ETL syncs that push warehouse data into operational tools and flags failures, which starve CRM, ads, and support systems of fresh data.",
-  "value": "Reverse-ETL failures mean sales, marketing, and support act on stale data in their own tools; catching them protects revenue-facing workflows.",
+  "value": "Tracks Hightouch reverse-ETL syncs that push warehouse data into operational tools and flags failures, whic.... Timely UC-24.12.1 alerting on 'Hightouch Sync Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Configure a Hightouch webhook to HEC (or poll the API); schedule every 15 minutes; alert on failures for revenue-critical syncs.",
   "visualization": "Table by failure rate, timechart of sync failures, alert.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Hightouch Sync Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `dataops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `dataops`** — Planned work for 'Hightouch Sync Failures' shifts `sum` over `span=1h` while `sync_name` remains in-scope for UC-24.12.1. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `hightouch:sync`** — Scheduled automation elevates `destination` without crossing `failures` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sync_name`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `hightouch:sync`** — First 48h baseline for `sync_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sync_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

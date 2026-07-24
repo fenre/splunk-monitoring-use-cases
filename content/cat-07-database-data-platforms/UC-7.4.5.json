@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Warehouse Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_warehouse_utilization` (UC-7.4.5), SOC dashboard panel \"Operations — Warehouse Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:warehouse_load' that satisfy the UC-7.4.5 SPL filters for 'Warehouse Utilization'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `datawarehouse` / `snowflake:warehouse_load` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.4.5."
+    "positiveScenario": "Ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:warehouse_load' where `WAREHOUSE_NAME` satisfies `avg_queued` > 1 for UC-7.4.5 ('Warehouse Utilization'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `datawarehouse` / `snowflake:warehouse_load` events where `WAREHOUSE_NAME` stays below `avg_queued` > 1, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.4.5."
   },
   "dataSources": "Snowflake `WAREHOUSE_LOAD_HISTORY`, Redshift `WLM_QUEUE_STATE`, BigQuery reservation utilization Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom API input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=datawarehouse sourcetype=\"snowflake:warehouse_load\"\n| timechart span=15m avg(AVG_RUNNING) as avg_queries, avg(AVG_QUEUED_LOAD) as avg_queued by WAREHOUSE_NAME\n| where avg_queued > 1",
-  "description": "Right-sizing warehouses reduces cost while maintaining performance. Utilization data drives scaling policy decisions.",
+  "description": "Right-sizing warehouses reduces cost while maintaining performance. Utilization data drives scaling policy decisions. Searches `index=datawarehouse` with sourcetype `snowflake:warehouse_load` for UC-7.4.5, aggregating `avg` by `WAREHOUSE_NAME` over `15m`. Alerts when grouped results cross `avg_queued` > 1 in the saved search. Gives Operations operators a repeatable signal for 'Warehouse Utilization' without manual log review.",
   "value": "Early 'Warehouse Utilization' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Poll warehouse utilization metrics every 15 minutes. Track running vs queued queries. Alert when queuing occurs consistently (indicates undersized warehouse). Identify idle warehouses for auto-suspend policy adjustment.",
   "visualization": "Line chart (running vs queued queries), Heatmap (warehouse × hour utilization), Table (underutilized warehouses), Bar chart (utilization by warehouse).",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Warehouse Utilization'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `datawarehouse` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `datawarehouse`** — Planned work for 'Warehouse Utilization' shifts `avg` over `span=15m` while `WAREHOUSE_NAME` remains in-scope for UC-7.4.5. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `snowflake:warehouse_load`** — Scheduled automation elevates `src` without crossing `avg_queued` > 1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `WAREHOUSE_NAME`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snowflake:warehouse_load`** — First 48h baseline for `WAREHOUSE_NAME` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `WAREHOUSE_NAME`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow",
     "snowflake"

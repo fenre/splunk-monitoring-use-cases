@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Commvault deduplication savings ratio declining trend on storage policies' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_commvault_deduplication_savings_ratio_declining_` (UC-6.4.25), SOC dashboard panel \"Operations — Commvault deduplication savings ratio declining trend on storage policies\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='commvault:storage' that satisfy the UC-6.4.25 SPL filters for 'Commvault deduplication savings ratio declining trend on storage policies'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `backup` / `commvault:storage` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.4.25."
+    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='commvault:storage' where `pol` satisfies `drop_pct` > 15 for UC-6.4.25 ('Commvault deduplication savings ratio declining trend on storage policies'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `backup` / `commvault:storage` events where `pol` stays below `drop_pct` > 15, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.4.25."
   },
   "dataSources": "Deduplication engine stats in `commvault:storage` or policy summaries in `commvault:job` with `dedup_ratio` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Commvault Add-on for Splunk or HEC from Commvault Analytics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=backup (sourcetype=\"commvault:storage\" OR sourcetype=\"commvault:job\")\n| eval dr=coalesce(dedup_ratio, dedupe_ratio, space_saved_ratio, global_savings_ratio)\n| eval pol=coalesce(storage_policy, policy_name)\n| timechart span=1d latest(dr) as dedup_ratio by pol\n| streamstats window=7 global=f current(dr) as dr_now earliest(dr) as dr_7dago\n| eval drop_pct=round((dr_7dago-dr_now)/dr_7dago*100,1)\n| where drop_pct > 15",
   "description": "A falling deduplication ratio often signals new encrypted or already-compressed data sources, misaligned block size, or engine fragmentation. It directly raises backend storage costs.",
-  "value": "Gives backup admins early warning before library purchases accelerate and cloud tier bills spike.",
+  "value": "A falling deduplication ratio often signals new encrypted or already-compressed data sources, misaligned bl.... Timely UC-6.4.25 alerting on 'Commvault deduplication savings ratio declining trend on storage policies' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Normalize percentage fields (50 vs 0.5) in `props.conf`. Use summary indexing for 90-day trends. Join `policy` to business unit for chargeback conversations.",
   "visualization": "Line chart (dedup ratio), table (policy, week drop %).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Commvault deduplication savings ratio declining trend on storage policies'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `backup` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `backup`** — Planned work for 'Commvault deduplication savings ratio declining trend on storage policies' shifts `count` over `span=1d` while `pol` remains in-scope for UC-6.4.25. Cross-check CMDB CHG.\n\n2. **Batch `count` on `commvault:storage`** — Scheduled automation elevates `dr` without crossing `drop_pct` > 15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pol`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `commvault:storage`** — First 48h baseline for `pol` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pol`, `exception_reason`, `valid_until`.",
   "equipment": [
     "commvault",
     "hashicorp"

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Pollinator Visit Count by Plant' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_pollinator_visit_count_by_plant` (UC-25.26.8), SOC dashboard panel \"Personal — Pollinator Visit Count by Plant\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='pollinator:count' that satisfy the UC-25.26.8 SPL filters for 'Pollinator Visit Count by Plant'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `pollinator:count` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.26.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='pollinator:count' where `plant` satisfies detection threshold for UC-25.26.8 ('Pollinator Visit Count by Plant'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `pollinator:count` events where `plant` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.26.8."
   },
   "dataSources": "BirdNET detections (`birdnet:detection`), trail-cam detections (`trailcam:detection`), moth-trap captures (`mothtrap:capture`), bat-detector passes (`batdetector:pass`), pollinator counts (`pollinator:count`), wildlife-cam visits (`wildlifecam:visit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Backyard wildlife monitoring — BirdNET acoustic bird ID, trail cameras with object detection, camera moth traps, ultrasonic bat detectors, and pollinator counts — streamed to Splunk HEC via MQTT and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=pollinator:count\n| stats sum(visits) as visits by plant pollinator\n| sort - visits",
-  "description": "Counts bee and butterfly visits to different flowers so you learn which plants best support pollinators in your garden.",
-  "value": "Choosing pollinator-friendly plants is guesswork without data; visit counts show which flowers actually earn their place.",
+  "description": "Counts bee and butterfly visits to different flowers so you learn which plants best support pollinators in your garden. Searches `index=personal` with sourcetype `pollinator:count` for UC-25.26.8, aggregating `sum` by `plant` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Pollinator Visit Count by Plant' without manual log review.",
+  "value": "Counts bee and butterfly visits to different flowers so you learn which plants best support pollinators in.... Timely UC-25.26.8 alerting on 'Pollinator Visit Count by Plant' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log pollinator observations into `index=personal`; review visits by plant and pollinator type.",
   "visualization": "Bar chart of pollinator visits by plant.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Pollinator Visit Count by Plant'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pollinator:count`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Pollinator Visit Count by Plant' stops polling `pollinator:count`; stale `plant` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pollinator:count`. Dedup with `stats latest(*) by plant`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Clear-Sky Hours vs Observing Time' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_clear_sky_hours_vs_observing_time` (UC-25.22.11), SOC dashboard panel \"Personal — Clear-Sky Hours vs Observing Time\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='astronomy:session' that satisfy the UC-25.22.11 SPL filters for 'Clear-Sky Hours vs Observing Time'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `astronomy:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.22.11."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='astronomy:session' where `_time` satisfies detection threshold for UC-25.22.11 ('Clear-Sky Hours vs Observing Time'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `astronomy:session` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.22.11."
   },
   "dataSources": "Observing sessions (`astronomy:session`), sky quality (`skyquality:reading`), mount telemetry (`mount:session`), focus metrics (`focus:metric`), observatory roof state (`observatory:roof`), sub-frame results (`astroimage:sub`), and all-sky detections (`allsky:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Astronomy telemetry from N.I.N.A., KStars/Ekos, Sky Quality Meters, all-sky cameras, focus routines, roof controllers, and image-rejection logs streamed to Splunk HEC via APIs and scripted exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=astronomy:session\n| bin _time span=1d\n| stats sum(clear_hours) as clear_hours sum(observing_hours) as observing_hours by _time\n| eval utilisation_pct=round(100*observing_hours/clear_hours,1)",
-  "description": "Compares the number of clear-sky hours available with the number you actually spent observing or imaging.",
-  "value": "This turns good-weather guilt into a measurable signal and helps explain whether missed nights are weather-driven or workflow-driven.",
+  "description": "Compares the number of clear-sky hours available with the number you actually spent observing or imaging. Searches `index=personal` with sourcetype `astronomy:session` for UC-25.22.11, aggregating `sum` by `_time` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Clear-Sky Hours vs Observing Time' without manual log review.",
+  "value": "Compares the number of clear-sky hours available with the number you actually spent observing or imaging. Timely UC-25.22.11 alerting on 'Clear-Sky Hours vs Observing Time' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Record each night's estimated clear window alongside actual session duration from your planner or automation stack.",
   "visualization": "Line chart of clear hours, observing hours, and utilization percent by night.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Clear-Sky Hours vs Observing Time'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `astronomy:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Clear-Sky Hours vs Observing Time' stops polling `astronomy:session`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `astronomy:session`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

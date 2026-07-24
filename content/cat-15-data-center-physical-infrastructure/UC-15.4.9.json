@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'APC NetBotz Environmental SNMP Temperature Threshold Breach' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_apc_netbotz_environmental_snmp_temperature_thres` (UC-15.4.9), SOC dashboard panel \"Operations — APC NetBotz Environmental SNMP Temperature Threshold Breach\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=environment` sourcetype='snmp:apc:envmon' that satisfy the UC-15.4.9 SPL filters for 'APC NetBotz Environmental SNMP Temperature Threshold Breach'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `environment` / `snmp:apc:envmon` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.4.9."
+    "positiveScenario": "Ingest synthetic events into `index=environment` sourcetype='snmp:apc:envmon' where `entity` satisfies `temp` > 30 for UC-15.4.9 ('APC NetBotz Environmental SNMP Temperature Threshold Breach'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `environment` / `snmp:apc:envmon` events where `entity` stays below `temp` > 30, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.4.9."
   },
   "dataSources": "`index=power|cooling|environment` · `sourcetype=\"snmp:apc:envmon\"` (APC PowerNet / AirIR / ATS / NetBotz OIDs per deployment) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions — Universal Forwarder (Splunkbase 617)",
   "spl": "index=environment sourcetype=\"snmp:apc:envmon\" earliest=-4h\n| eval temp=tonumber(coalesce(tempSensorTemperature, probeTemp, temp_c, \"\"))\n| eval probe=coalesce(probeName, sensor_name, \"\")\n| where temp>30 OR temp<10\n| table _time rack probe temp",
-  "description": "Hot spots at cabinet intakes precede thermal shutdowns; cold breaches matter for condensation in humid climates.",
-  "value": "Extends monitoring beyond BMS zones into cabinet granularity. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Hot spots at cabinet intakes precede thermal shutdowns; cold breaches matter for condensation in humid climates. Searches `index=environment` with sourcetype `snmp:apc:envmon` for UC-15.4.9, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `temp` > 30 in the saved search. Gives Operations operators a repeatable signal for 'APC NetBotz Environmental SNMP Temperature Threshold Breach' without manual log review.",
+  "value": "Hot spots at cabinet intakes precede thermal shutdowns; cold breaches matter for condensation in humid clim.... Timely UC-15.4.9 alerting on 'APC NetBotz Environmental SNMP Temperature Threshold Breach' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "(1) Calibrate offsets per probe. (2) Map probes to U positions.",
   "visualization": "Heatmap by rack; sparkline.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'APC NetBotz Environmental SNMP Temperature Threshold Breach'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `environment` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `environment`** — Planned work for 'APC NetBotz Environmental SNMP Temperature Threshold Breach' shifts `count` over `span=1h` while `host` remains in-scope for UC-15.4.9. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:apc:envmon`** — Scheduled automation elevates `temp` without crossing `temp` > 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `environment` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:apc:envmon`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apc_dc",
     "snmp"

@@ -50,14 +50,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' that satisfy the UC-17.1.74 SPL filters for 'ISE iPSK / MAB / 802.1X Mode Distribution by SSID and Mixed-Mode Anomaly Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `nac` / `cisco:ise:syslog` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.74."
+    "positiveScenario": "Ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `ssid` satisfies `pct` < 100 for UC-17.1.74 ('ISE iPSK / MAB / 802.1X Mode Distribution by SSID and Mixed-Mode Anomaly Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `nac` / `cisco:ise:syslog` events where `ssid` stays below `pct` < 100, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.74."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Authentication* — events with SSID and AuthenticationMethod. Field: `ssid`, `AuthenticationMethod` (PSK, iPSK, MAB, EAP-TLS, PEAP, EAP-FAST, EAP-TEAP), `authentication_protocol`. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=5200\n| stats count by ssid, AuthenticationMethod\n| eventstats sum(count) as total by ssid\n| eval pct=round(count/total*100, 2)\n| where pct < 100 AND pct > 0",
   "description": "Tracks the distribution of authentication modes per SSID. Detects unexpected mixed-mode usage — e.g., a corporate SSID accepting both 802.1X and MAB (MAB is weaker; should not coexist on a strong-auth SSID), or a guest SSID seeing certificate-based auth (suggests misconfigured supplicant).",
-  "value": "Mixed-mode SSID config is a common security regression — typically the result of operations staff adding MAB exceptions to handle problem devices. Tracking distribution exposes drift and lets the security team enforce policy.",
+  "value": "Tracks the distribution of authentication modes per SSID. Timely UC-17.1.74 alerting on 'ISE iPSK / MAB / 802.1X Mode Distribution by SSID and Mixed-Mode Anomaly Detection' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Schedule the search every 1 hour over the last 4 hours; trigger on count > 0; throttle on `wlc_name`/`ssid` for 1 hour.",
   "visualization": "Per-SSID auth-mode pie; per-SSID mode trend over 30d.",
   "cimModels": [

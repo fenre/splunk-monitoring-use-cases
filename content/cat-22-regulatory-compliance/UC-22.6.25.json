@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Disable a test log forwarder on a security-relevant host; verify the monitoring search detects the forwarding gap within 30 minutes and generates an alert with hostname, expected data, and last-received timestamp.",
-    "negativeScenario": "Confirm all test log forwarders are active and sending data within expected intervals; verify no forwarding gap alert fires and the monitoring dashboard shows all sources as healthy."
+    "positiveScenario": "Ingest synthetic events into `index=mdm` sourcetype='intune:device_compliance' where `device_name` satisfies `critical_updates_pending` > 0 for UC-22.6.25 ('User Endpoint Patch Latency Beyond SLA'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `mdm` / `intune:device_compliance` events where `device_name` stays below `critical_updates_pending` > 0, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.6.25."
   },
   "dataSources": "`intune:device_compliance` (Splunkbase 1621 — Splunk CIM Add-on)",
   "app": "Microsoft Intune or Tanium",
   "spl": "index=mdm sourcetype=intune:device_compliance earliest=-7d\n| where critical_updates_pending>0 AND days_since_contact<3\n| stats sum(critical_updates_pending) as pending by device_name, os",
-  "description": "Tracks missing critical patches on user endpoints to evidence endpoint hardening for user devices.",
-  "value": "Gives the responsible team auditor-ready evidence for ISO 27001 compliance by automating regulatory compliance evidence using indexes mdm and sourcetypes intune:device_compliance. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
+  "description": "Tracks missing critical patches on user endpoints to evidence endpoint hardening for user devices. Searches `index=mdm` with sourcetype `intune:device_compliance` for UC-22.6.25, aggregating `sum` by `device_name` over `the scheduled window`. Alerts when grouped results cross `critical_updates_pending` > 0 in the saved search. Gives Compliance operators a repeatable signal for 'User Endpoint Patch Latency Beyond SLA' without manual log review.",
+  "value": "Tracks missing critical patches on user endpoints to evidence endpoint hardening for user devices. Timely UC-22.6.25 alerting on 'User Endpoint Patch Latency Beyond SLA' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Define SLA days; (2) auto-ticket top offenders; (3) executive patch scorecard. Indexes required: `index=mdm`; Sourcetypes: `sourcetype=intune:device_compliance`.",
   "visualization": "Bar chart, Table. Key fields: `device_name`, `os`, `pending`.",
   "cimModels": [
@@ -55,7 +55,7 @@
       "url": "https://docs.splunk.com/Documentation/ES/latest/User/Overview"
     }
   ],
-  "knownFalsePositives": "1. **SIEM maintenance and upgrades** — Monitoring gaps during planned SIEM upgrades, parser updates, or search head restarts documented in the maintenance schedule.\n\n2. **Data source onboarding baseline** — New data sources generating unfamiliar patterns during the initial baselining period before detection rules are tuned.\n\n3. **Alert rule tuning periods** — Elevated false positive rates during detection rule refinement cycles that are part of the continuous improvement process.\n\n4. **Analyst capacity constraints** — Queue depth increases during known capacity gaps (training, conferences) with documented risk acceptance for the period.\n\n5. **Automated triage resolution** — Events resolved by SOAR playbooks without human queue entry are properly handled but not visible in manual review metrics.\n\n**Operational suppression:** Maintain a lookup table (`iso27001_approved_exceptions.csv`) mapping known legitimate activities by control owner, risk acceptance reference, and expiry date. Filter the SPL results against this lookup to suppress documented exceptions and reduce alert fatigue. Review and rotate entries at each ISMS management review cycle.",
+  "knownFalsePositives": "1. **Authorised ISO 27001 control testing** — Internal audit exercises 'User Endpoint Patch Latency Beyond SLA' (UC-22.6.25) on `device_name` during scheduled clause A.8.1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=mdm` `intune:device_compliance` without crossing `critical_updates_pending` > 0. Cross-check engagement letter in `iso_27001_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `mdm` for `device_name`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `device_name` during normal service delivery.\n\n**Suppression mechanism:** `iso_27001_exception_register.csv` keyed on `device_name`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "requiredFields": [
     "device_name",
     "os",

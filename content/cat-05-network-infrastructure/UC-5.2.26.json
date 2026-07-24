@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Client VPN Connections and Remote Access Patterns (Meraki MX)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_client_vpn_connections_and_remote_access_pattern` (UC-5.2.26), SOC dashboard panel \"Operations — Client VPN Connections and Remote Access Patterns (Meraki MX)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=meraki` sourcetype='meraki' that satisfy the UC-5.2.26 SPL filters for 'Client VPN Connections and Remote Access Patterns (Meraki MX)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `meraki` / `meraki` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.2.26."
+    "positiveScenario": "Ingest synthetic events into `index=meraki` sourcetype='meraki' where `user_id` satisfies `connection_count` > 10 for UC-5.2.26 ('Client VPN Connections and Remote Access Patterns (Meraki MX)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `meraki` / `meraki` events where `user_id` stays below `connection_count` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.2.26."
   },
   "dataSources": "`sourcetype=meraki type=events (\"client_vpn_connect\" OR \"client_vpn_disconnect\")` | Alternate ingest: Splunk Connect for Syslog (SC4S) Meraki vendor pack — points the Meraki dashboard at an SC4S receiver and produces sourcetype=\"meraki\" syslog events (free-form text extracted with rex). Use when you don't want to deploy the polling API TA.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA).",
   "spl": "index=meraki sourcetype=\"meraki\" type=events (\"client_vpn_connect\" OR \"client_vpn_disconnect\")\n| stats count as connection_count, avg(duration) as avg_session_length by user_id, src\n| where connection_count > 10",
-  "description": "Tracks client VPN usage patterns for remote workers and identifies problematic connections.",
-  "value": "Security teams monitor Meraki MX Client VPN connections and authentication failures, detecting brute force attempts and tracking remote access patterns.",
+  "description": "Tracks client VPN usage patterns for remote workers and identifies problematic connections. Searches `index=meraki` with sourcetype `meraki` for UC-5.2.26, aggregating `avg` by `user_id` over `the scheduled window`. Alerts when grouped results cross `connection_count` > 10 in the saved search. Gives Operations operators a repeatable signal for 'Client VPN Connections and Remote Access Patterns (Meraki MX)' without manual log review.",
+  "value": "Tracks client VPN usage patterns for remote workers and identifies problematic connections. Timely UC-5.2.26 alerting on 'Client VPN Connections and Remote Access Patterns (Meraki MX)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Filter VPN logs for client connections. Track by user and source IP.",
   "visualization": "Connected users timeline; session duration histogram; geography map of remote users.",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Client VPN Connections and Remote Access Patterns (Meraki MX)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `meraki` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki`** — Planned work for 'Client VPN Connections and Remote Access Patterns (Meraki MX)' shifts `avg` over `span=1h` while `user_id` remains in-scope for UC-5.2.26. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `meraki`** — Scheduled automation elevates `src` without crossing `connection_count` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user_id`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki`** — First 48h baseline for `user_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"

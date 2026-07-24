@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Container Escape Attempt Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_container_escape_attempt_detection` (UC-1.1.88), SOC dashboard panel \"Linux — Container Escape Attempt Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='syslog' that satisfy the UC-1.1.88 SPL filters for 'Container Escape Attempt Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `syslog` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.88."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='syslog' where `host` satisfies `count` > 5 for UC-1.1.88 ('Container Escape Attempt Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `syslog` events where `host` stays below `count` > 5, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.88."
   },
   "dataSources": "`sourcetype=syslog` (SELinux/AppArmor denials mentioning containers, or runtime logs) Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=syslog (\"AppArmor\" OR \"SELinux\") \"container\" (\"denied\" OR \"DENIED\")\n| stats count by host, container_id\n| where count>5",
   "description": "Counts combined **AppArmor**/**SELinux** style denials whose text also references a **container** id or the word **container**, and pages when a **host**+**container** pair crosses a small floor.",
-  "value": "These log lines are rare in healthy microservice estates; even a handful can be the first hint of a breakout tool hitting **policy** before it succeeds.",
+  "value": "Counts combined **AppArmor**/**SELinux** style denials whose text also references a **container** id or the.... Timely UC-1.1.88 alerting on 'Container Escape Attempt Detection' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "If `container_id` is not extracted, start with `by host` only and add **REX** for **k8s** **namespace**/**pod** once you standardize logging. Raise `>5` in **dev** clusters that are always noisy.",
   "visualization": "Alert, Table",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Container Escape Attempt Detection'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `syslog`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Container Escape Attempt Detection'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 5.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "syslog"

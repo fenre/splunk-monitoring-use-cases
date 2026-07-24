@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Packing-List Reuse Accuracy' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_packing_list_reuse_accuracy` (UC-25.49.18), SOC dashboard panel \"Personal — Packing-List Reuse Accuracy\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='outfit:wear' that satisfy the UC-25.49.18 SPL filters for 'Packing-List Reuse Accuracy'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `outfit:wear` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.49.18."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='outfit:wear' where `trip_name` satisfies detection threshold for UC-25.49.18 ('Packing-List Reuse Accuracy'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `outfit:wear` events where `trip_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.49.18."
   },
   "dataSources": "Wardrobe items (`wardrobe:item`), outfit wears (`outfit:wear`), skincare routines (`skincare:routine`), laundry cycles (`laundry:cycle`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Wardrobe and grooming logs — closet apps (Whering, Stylebook), cost-per-wear trackers, skincare-routine logs, and smart-laundry cycles — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=outfit:wear trip_name=*\n| stats dc(planned_item) as planned_items, dc(item_name) as worn_items by trip_name\n| eval reuse_accuracy=round(100*worn_items/planned_items,1)\n| sort - reuse_accuracy",
-  "description": "Compares what you planned to pack for a trip with what you actually wore, improving future packing lists.",
-  "value": "Packing data quickly shows what was optimistic, unnecessary, or repeatedly forgotten on similar trips.",
+  "description": "Compares what you planned to pack for a trip with what you actually wore, improving future packing lists. Searches `index=personal` with sourcetype `outfit:wear` for UC-25.49.18, aggregating `dc` by `trip_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Packing-List Reuse Accuracy' without manual log review.",
+  "value": "Compares what you planned to pack for a trip with what you actually wore, improving future packing lists. Timely UC-25.49.18 alerting on 'Packing-List Reuse Accuracy' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture trip-specific outfit use with planned versus worn item fields and calculate reuse accuracy per trip.",
   "visualization": "Table of trips with planned versus worn item accuracy.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Packing-List Reuse Accuracy'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `outfit:wear`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Packing-List Reuse Accuracy' stops polling `outfit:wear`; stale `trip_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `dc` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `outfit:wear`. Dedup with `stats latest(*) by trip_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

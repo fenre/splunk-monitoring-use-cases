@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Mopeka Propane Tank Failure Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_mopeka_propane_tank_failure_rate` (UC-25.65.25), SOC dashboard panel \"Personal — Mopeka Propane Tank Failure Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mopeka:tank' that satisfy the UC-25.65.25 SPL filters for 'Mopeka Propane Tank Failure Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `mopeka:tank` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.65.25."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mopeka:tank' where `tank_name` satisfies detection threshold for UC-25.65.25 ('Mopeka Propane Tank Failure Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `mopeka:tank` events where `tank_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.65.25."
   },
   "dataSources": "Victron telemetry (`victron:telemetry`), iOverlander place logs (`ioverlander:place`), Garmin inReach messages (`inreach:message`), and Mopeka propane readings (`mopeka:tank`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Victron Cerbo GX telemetry, iOverlander place exports, Garmin inReach check-ins, and Mopeka propane sensors streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=mopeka:tank\n| eval status_value=lower(coalesce(tank_status,\"unknown\"))\n| eval failed=if(match(status_value,\"error|fail|alert|overdue|late|stale|breach\"),1,0)\n| stats count as events, sum(failed) as failed_events by tank_name\n| eval failure_pct=round(100*failed_events/events,1)\n| sort - failure_pct - failed_events",
-  "description": "Measures how often Mopeka propane tank records land in an unhealthy or exception state for each tank name.",
-  "value": "A plain failure-rate view highlights noisy devices, flaky automations, and habits that repeatedly slip.",
+  "description": "Measures how often Mopeka propane tank records land in an unhealthy or exception state for each tank name. Searches `index=personal` with sourcetype `mopeka:tank` for UC-25.65.25, aggregating `sum` by `tank_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Mopeka Propane Tank Failure Rate' without manual log review.",
+  "value": "Measures how often Mopeka propane tank records land in an unhealthy or exception state for each tank name. Timely UC-25.65.25 alerting on 'Mopeka Propane Tank Failure Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Normalize tank_status values into good or bad states and review the failure percentage per tank name.",
   "visualization": "Bar chart of failure percentage by entity.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Mopeka Propane Tank Failure Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mopeka:tank`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Mopeka Propane Tank Failure Rate' stops polling `mopeka:tank`; stale `tank_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mopeka:tank`. Dedup with `stats latest(*) by tank_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

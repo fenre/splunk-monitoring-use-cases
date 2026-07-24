@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Dell EMC PowerMax RDF/A Replication Lag' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dell_emc_powermax_rdf_a_replication_lag` (UC-6.1.40), SOC dashboard panel \"Operations — Dell EMC PowerMax RDF/A Replication Lag\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='dellemc:vmax:rest' that satisfy the UC-6.1.40 SPL filters for 'Dell EMC PowerMax RDF/A Replication Lag'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `dellemc:vmax:rest` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.40."
+    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='dellemc:vmax:rest' where `array_id` satisfies `lag_sec` > 300 for UC-6.1.40 ('Dell EMC PowerMax RDF/A Replication Lag'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `storage` / `dellemc:vmax:rest` events where `array_id` stays below `lag_sec` > 300, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.40."
   },
   "dataSources": "Unisphere for PowerMax REST metrics ingested as `sourcetype=dellemc:vmax:rest` with RDF/A group performance enabled",
   "app": "Dell EMC PowerMax Add-on for Splunk (Splunkbase 3416)",
   "spl": "index=storage sourcetype=\"dellemc:vmax:rest\" r1_r2_lag_time=*\n| stats latest(r1_r2_lag_time) as lag_sec by array_id rdf_group_name\n| where lag_sec > 300\n| eval lag_min=round(lag_sec/60,1)\n| sort - lag_sec",
   "description": "`r1_r2_lag_time` tracks how far asynchronous RDF mirrors fall behind; sustained lag breaches RPO commitments for mainframe and open-systems DR pairs on PowerMax.",
-  "value": "Surfaces WAN compression issues, RDF director faults, or workload spikes before remote sites are too stale for failover approvals.",
+  "value": "`r1_r2_lag_time` tracks how far asynchronous RDF mirrors fall behind; sustained lag breaches RPO commitment.... Timely UC-6.1.40 alerting on 'Dell EMC PowerMax RDF/A Replication Lag' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "In the TA input, enable RDF Group (or RDF/A) KPI/custom metrics including `R1_R2_Lag_Time`. Confirm events include `reporting_level` and `array_id`. Set thresholds from the business RPO (e.g., 5 minutes warn, 15 minutes critical) and exclude maintenance windows with a lookup.",
   "visualization": "Line chart (lag trend), table (RDF group, lag minutes), single value (worst lag).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Dell EMC PowerMax RDF/A Replication Lag'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `storage` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'Dell EMC PowerMax RDF/A Replication Lag' shifts `count` over `span=1h` while `array_id` remains in-scope for UC-6.1.40. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dellemc:vmax:rest`** — Scheduled automation elevates `rdf_group_name` without crossing `lag_sec` > 300. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `array_id`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dellemc:vmax:rest`** — First 48h baseline for `array_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `array_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "dell_emc"
   ],

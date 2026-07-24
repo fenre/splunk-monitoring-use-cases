@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Lost Sub-Frames by Cause' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_lost_sub_frames_by_cause` (UC-25.22.17), SOC dashboard panel \"Personal — Lost Sub-Frames by Cause\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='astroimage:sub' that satisfy the UC-25.22.17 SPL filters for 'Lost Sub-Frames by Cause'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `astroimage:sub` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.22.17."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='astroimage:sub' where `reject_reason` satisfies detection threshold for UC-25.22.17 ('Lost Sub-Frames by Cause'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `astroimage:sub` events where `reject_reason` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.22.17."
   },
   "dataSources": "Observing sessions (`astronomy:session`), sky quality (`skyquality:reading`), mount telemetry (`mount:session`), focus metrics (`focus:metric`), observatory roof state (`observatory:roof`), sub-frame results (`astroimage:sub`), and all-sky detections (`allsky:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Astronomy telemetry from N.I.N.A., KStars/Ekos, Sky Quality Meters, all-sky cameras, focus routines, roof controllers, and image-rejection logs streamed to Splunk HEC via APIs and scripted exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=astroimage:sub\n| stats count as subs by reject_reason\n| sort - subs",
-  "description": "Counts rejected sub-frames by reason so clouds, guiding errors, dew, and focus problems are easier to prioritize.",
-  "value": "Rejected frames are lost time, and breaking them down by cause points directly at the next improvement to make.",
+  "description": "Counts rejected sub-frames by reason so clouds, guiding errors, dew, and focus problems are easier to prioritize. Searches `index=personal` with sourcetype `astroimage:sub` for UC-25.22.17, aggregating `count` by `reject_reason` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Lost Sub-Frames by Cause' without manual log review.",
+  "value": "Counts rejected sub-frames by reason so clouds, guiding errors, dew, and focus problems are easier to prior.... Timely UC-25.22.17 alerting on 'Lost Sub-Frames by Cause' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log every accepted and rejected sub-frame with a normalized rejection reason from your stacking or capture pipeline.",
   "visualization": "Bar chart of rejected sub-frame count by reason.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Lost Sub-Frames by Cause'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `astroimage:sub`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Lost Sub-Frames by Cause' stops polling `astroimage:sub`; stale `reject_reason` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `astroimage:sub`. Dedup with `stats latest(*) by reject_reason`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

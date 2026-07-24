@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Snowflake Query Spill to Remote Storage Ratio' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_snowflake_query_spill_to_remote_storage_ratio` (UC-7.1.80), SOC dashboard panel \"Operations — Snowflake Query Spill to Remote Storage Ratio\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:query_history' that satisfy the UC-7.1.80 SPL filters for 'Snowflake Query Spill to Remote Storage Ratio'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `datawarehouse` / `snowflake:query_history` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.80."
+    "positiveScenario": "Ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:query_history' where `USER_NAME` satisfies `scanned` > 0 for UC-7.1.80 ('Snowflake Query Spill to Remote Storage Ratio'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `datawarehouse` / `snowflake:query_history` events where `USER_NAME` stays below `scanned` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.80."
   },
   "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY` spill bytes fields on `snowflake:query_history`",
   "app": "Splunk Add-on for Snowflake (Splunkbase 5390)",
   "spl": "index=datawarehouse sourcetype=\"snowflake:query_history\"\n| eval remote_spill=tonumber(BYTES_SPILLED_TO_REMOTE_STORAGE)\n| eval local_spill=tonumber(BYTES_SPILLED_TO_LOCAL_STORAGE)\n| eval scanned=tonumber(BYTES_SCANNED)\n| eval spill_ratio=if(scanned>0, round((remote_spill+local_spill)/scanned*100,2), null())\n| where remote_spill > 1073741824 AND spill_ratio > 5\n| stats sum(remote_spill) as total_remote sum(scanned) as total_scanned values(QUERY_TEXT) as sample_sql by USER_NAME, WAREHOUSE_NAME\n| sort -total_remote",
   "description": "Remote spill is particularly expensive and slow compared with in-memory execution; a high spill-to-scan ratio flags queries that need warehouse sizing, clustering, or predicate fixes before they become recurring credit burners.",
-  "value": "Cuts Snowflake cost and latency by targeting the worst remote spill offenders with engineering fixes.",
+  "value": "Remote spill is particularly expensive and slow compared with in-memory execution; a high spill-to-scan rat.... Timely UC-7.1.80 alerting on 'Snowflake Query Spill to Remote Storage Ratio' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Verify spill columns exist in your Snowflake edition export. Null-safe `tonumber()` in SPL. Exclude ETL service accounts with known wide aggregates via lookup. Dashboard top 20 queries weekly; alert when any single execution exceeds 1GB remote spill and 5% ratio.",
   "visualization": "Bar chart (total_remote by user), Table (sample_sql truncated).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Snowflake Query Spill to Remote Storage Ratio'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `datawarehouse` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `datawarehouse`** — Planned work for 'Snowflake Query Spill to Remote Storage Ratio' shifts `sum` over `span=1h` while `USER_NAME` remains in-scope for UC-7.1.80. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snowflake:query_history`** — Scheduled automation elevates `WAREHOUSE_NAME` without crossing `scanned` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `USER_NAME`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snowflake:query_history`** — First 48h baseline for `USER_NAME` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `USER_NAME`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow",
     "snowflake"

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Daily Hydration and Nutrition Rollup' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_daily_hydration_and_nutrition_rollup` (UC-25.2.8), SOC dashboard panel \"Personal — Daily Hydration and Nutrition Rollup\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='apple:health' that satisfy the UC-25.2.8 SPL filters for 'Daily Hydration and Nutrition Rollup'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `apple:health` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='apple:health' where `_time` satisfies detection threshold for UC-25.2.8 ('Daily Hydration and Nutrition Rollup'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `apple:health` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.8."
   },
   "dataSources": "Apple Health metrics (`apple:health`), Oura Ring readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings measurements (`withings:measure`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Apple Health / Apple Watch exports (Health Auto Export or Shortcuts) via HEC; Oura, Whoop, Withings, and Dexcom APIs via scripted REST inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=apple:health (metric=water OR metric=dietary_energy)\n| bin _time span=1d\n| stats sum(eval(if(metric=\"water\",value,0))) as water_ml, sum(eval(if(metric=\"dietary_energy\",value,0))) as kcal by _time\n| sort - _time",
   "description": "Rolls up your logged water intake and calories per day so you can spot the days you forgot to drink or drastically under-ate.",
-  "value": "Seeing hydration and calories side by side each day catches the patterns that single meal logs miss, like chronic under-eating on busy days.",
+  "value": "Rolls up your logged water intake and calories per day so you can spot the days you forgot to drink or dras.... Timely UC-25.2.8 alerting on 'Daily Hydration and Nutrition Rollup' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Apple Health nutrition and water metrics; schedule daily and review the rollup weekly.",
   "visualization": "Dual-axis chart of daily water and calories.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Daily Hydration and Nutrition Rollup'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `apple:health`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Daily Hydration and Nutrition Rollup' stops polling `apple:health`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `apple:health`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

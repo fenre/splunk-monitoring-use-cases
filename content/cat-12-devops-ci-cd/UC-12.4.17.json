@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'GitLab Environment Tier Production Promotion Without Protected Pipeline' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_gitlab_environment_tier_production_promotion_wit` (UC-12.4.17), SOC dashboard panel \"Operations — GitLab Environment Tier Production Promotion Without Protected Pipeline\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='gitlab:pipeline' that satisfy the UC-12.4.17 SPL filters for 'GitLab Environment Tier Production Promotion Without Protected Pipeline'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `devops` / `gitlab:pipeline` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.4.17."
+    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='gitlab:pipeline' where `entity` satisfies detection threshold for UC-12.4.17 ('GitLab Environment Tier Production Promotion Without Protected Pipeline'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `devops` / `gitlab:pipeline` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.4.17."
   },
   "dataSources": "`sourcetype=gitlab:pipeline` deployment events with environment and branch metadata",
   "app": "GitLab Add-on for Splunk (Splunkbase 6848); GitLab audit optional (`gitlab:audit`)",
   "spl": "index=devops sourcetype=\"gitlab:pipeline\" environment=production OR environment_name=production OR deployment_tier=production\n| eval protected_pipeline=if(match(lower(_raw),\"protected\") OR protected_environment=\"true\" OR only_protected_branches=\"true\",1,0)\n| where protected_pipeline=0 AND status=\"success\"\n| table _time, project_path, user_name, ref, status, environment\n| sort -_time",
-  "description": "Production deploys should run only from protected branches and protected environments.",
-  "value": "Reduces risk of unreviewed configuration reaching production GitOps targets. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Production deploys should run only from protected branches and protected environments. Searches `index=devops` with sourcetype `gitlab:pipeline` for UC-12.4.17, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'GitLab Environment Tier Production Promotion Without Protected Pipeline' without manual log review.",
+  "value": "Production deploys should run only from protected branches and protected environments. Timely UC-12.4.17 alerting on 'GitLab Environment Tier Production Promotion Without Protected Pipeline' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ensure deployment JSON includes environment tier; join to `gitlab:audit` for approval if available. Alert on any successful prod deploy missing protection flags.",
   "visualization": "Table (recent prod deploys), Pie chart (protected vs unprotected).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'GitLab Environment Tier Production Promotion Without Protected Pipeline'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `devops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `devops`** — Planned work for 'GitLab Environment Tier Production Promotion Without Protected Pipeline' shifts `count` over `span=1h` while `host` remains in-scope for UC-12.4.17. Cross-check CMDB CHG.\n\n2. **Batch `count` on `gitlab:pipeline`** — Scheduled automation elevates `protected_pipeline` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gitlab:pipeline`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "gitlab"
   ],

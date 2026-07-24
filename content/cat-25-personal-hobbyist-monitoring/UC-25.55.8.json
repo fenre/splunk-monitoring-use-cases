@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Living-Relative Contact Log' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_living_relative_contact_log` (UC-25.55.8), SOC dashboard panel \"Personal — Living-Relative Contact Log\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='genealogy:record' that satisfy the UC-25.55.8 SPL filters for 'Living-Relative Contact Log'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `genealogy:record` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.55.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='genealogy:record' where `relative` satisfies `months_since` > 12 for UC-25.55.8 ('Living-Relative Contact Log'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `genealogy:record` events where `relative` stays below `months_since` > 12, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.55.8."
   },
   "dataSources": "Tree records (`genealogy:record`), DNA matches (`dna:match`), ancestor events (`ancestor:event`), archive documents (`archive:document`), tree nodes (`familytree:node`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Genealogy and family-history research — tree platforms (Ancestry, FamilySearch), DNA match exports (23andMe, MyHeritage), and document / archive catalogues — streamed to Splunk HEC via GEDCOM and CSV exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=genealogy:record type=interview\n| stats max(_time) as last_contact by relative\n| eval months_since=round((now()-last_contact)/2629800,1)\n| where months_since>12\n| sort - months_since",
-  "description": "Tracks when you last interviewed each living relative for their memories and nudges you before those stories are lost.",
-  "value": "Older relatives hold irreplaceable memories; a gentle reminder ensures you capture them in time.",
+  "description": "Tracks when you last interviewed each living relative for their memories and nudges you before those stories are lost. Searches `index=personal` with sourcetype `genealogy:record` for UC-25.55.8, aggregating `max` by `relative` over `the scheduled window`. Alerts when grouped results cross `months_since` > 12 in the saved search. Gives Personal operators a repeatable signal for 'Living-Relative Contact Log' without manual log review.",
+  "value": "Tracks when you last interviewed each living relative for their memories and nudges you before those storie.... Timely UC-25.55.8 alerting on 'Living-Relative Contact Log' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest interview logs into `index=personal`; flag relatives not spoken to recently.",
   "visualization": "Table of relatives by time since last interview.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Living-Relative Contact Log'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `genealogy:record`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Living-Relative Contact Log' stops polling `genealogy:record`; stale `relative` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `genealogy:record`. Dedup with `stats latest(*) by relative`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `months_since` > 12. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

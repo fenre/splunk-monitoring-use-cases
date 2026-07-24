@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set the latest tabletop date to 14 months ago; UC-22.54.24 MUST flag `tabletop_status=\"annual_overdue\"` within 7 days.",
-    "negativeScenario": "Conduct a tabletop within the last 11 months with ≥3 executives present and ≥5 findings tracked to closure; UC-22.54.24 MUST record `tabletop_status=\"current\"`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `tabletop_id` satisfies `tabletop_age_days` > 365 for UC-22.54.24 ('CIRCIA Annual Tabletop — evidence end-to-end 72-hour / 24-hour reporting workflow exercised with executive participation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `tabletop_id` stays below `tabletop_age_days` > 365, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.54.24."
   },
   "dataSources": "KV Store `circia_tabletop_lookup` (tabletop register). KV Store `circia_tabletop_finding_lookup` (per-finding remediation register). ServiceNow GRC for finding tracking. Calendar integration for upcoming tabletop scheduling.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup circia_tabletop_lookup\n| eval now_ts = now()\n| eval tabletop_age_days = round((now_ts - tabletop_date) / 86400, 0)\n| join type=left tabletop_id [\n    | inputlookup circia_tabletop_finding_lookup\n    | stats count AS findings_count count(eval(finding_status=\"remediated\")) AS findings_remediated_count by tabletop_id\n]\n| eval tabletop_status = case(\n    tabletop_age_days > 365, \"annual_overdue\",\n    attendees_executive_count < 3, \"insufficient_executive_engagement\",\n    findings_count = 0, \"no_findings\",\n    findings_count > 0 AND findings_remediated_count / findings_count < 0.8, \"findings_remediation_lagging\",\n    1=1, \"current\")\n| where tabletop_status != \"current\"\n| table tabletop_id tabletop_date attendees_count attendees_executive_count scenario findings_count findings_remediated_count next_tabletop_due_at tabletop_status",
   "description": "Tracks tabletop cadence (annual), executive engagement (≥3 executives), and finding-remediation rate (≥80% closed). Surfaces overdue tabletops, insufficient engagement, and lagging remediation.",
-  "value": "A tabletop without follow-through is just theatre. This UC ensures the tabletop is meaningful: senior leadership are present, findings are real, and findings are closed.",
+  "value": "Tracks tabletop cadence (annual), executive engagement (≥3 executives), and finding-remediation rate (≥80%.... Timely UC-22.54.24 alerting on 'CIRCIA Annual Tabletop — evidence end-to-end 72-hour / 24-hour reporting workflow exercised with executive participation' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Conduct annual CIRCIA tabletop with realistic scenario (e.g., ransomware + cloud provider compromise). (2) Capture attendees and executives. (3) Document findings in `circia_tabletop_finding_lookup` and track to remediation. (4) Schedule UC-22.54.24 weekly Monday 05:00.",
   "visualization": "(Panel 1) Tabletop cadence calendar. (Panel 2) Finding-closure rate by tabletop. (Panel 3) Executive engagement trend. (Panel 4) Next-tabletop-due countdown.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Recent acquisition** — a newly-acquired covered entity may not yet have run a tabletop. Suppression: 90-day onboarding grace.\n\n2. **Multi-entity org structure** — a parent may run one tabletop covering multiple entities; the lookup supports this.\n\n**Suppression mechanism**: KV Store `circia_22_54_24_exceptions` with per-tabletop grants requiring documented CISO approval and a 90-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CIRCIA control testing** — Internal audit exercises 'CIRCIA Annual Tabletop — evidence end-to-end 72-hour / 24-hour reporting workflow exercised with executive participation' (UC-22.54.24) on `tabletop_id` during scheduled clause CIRCIA-CISA-tabletop sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `tabletop_age_days` > 365. Cross-check engagement letter in `circia_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `tabletop_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `tabletop_id` during normal service delivery.\n\n**Suppression mechanism:** `circia_exception_register.csv` keyed on `tabletop_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (exercise-and-remediation governance)"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Wanderlog Trip Stop Status Mix' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_wanderlog_trip_stop_status_mix` (UC-25.14.59), SOC dashboard panel \"Personal — Wanderlog Trip Stop Status Mix\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='wanderlog:stop' that satisfy the UC-25.14.59 SPL filters for 'Wanderlog Trip Stop Status Mix'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `wanderlog:stop` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.59."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='wanderlog:stop' where `status_value` satisfies detection threshold for UC-25.14.59 ('Wanderlog Trip Stop Status Mix'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `wanderlog:stop` events where `status_value` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.59."
   },
   "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home ADS-B receiver (dump1090/readsb/tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=wanderlog:stop\n| eval status_value=lower(coalesce(stop_status,\"unknown\"))\n| stats count as events by status_value\n| sort - events",
   "description": "Breaks down the current mix of states reported by the Wanderlog trip stop feed. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "A status-mix panel provides quick at-a-glance context before you investigate specific outliers.",
+  "value": "Breaks down the current mix of states reported by the Wanderlog trip stop feed. Timely UC-25.14.59 alerting on 'Wanderlog Trip Stop Status Mix' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Map the source's `stop_status` values into a small set of clear labels and chart the resulting counts.",
   "visualization": "Donut or bar chart of event count by status.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Wanderlog Trip Stop Status Mix'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `wanderlog:stop`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Wanderlog Trip Stop Status Mix' stops polling `wanderlog:stop`; stale `status_value` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `wanderlog:stop`. Dedup with `stats latest(*) by status_value`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

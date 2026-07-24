@@ -58,15 +58,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When a data object tagged regulated_scope=EU,CH,UK is observed in a cloud storage bucket whose region is outside the allowed_regions list for that scope, the UC fires naming the bucket, region, and classification.",
-    "negativeScenario": "Objects that match the allowed-regions list do NOT fire.",
-    "fixtureRef": "sample-data/uc-22.38.3-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=cloud_storage` sourcetype='aws:s3:objectaccess' where `entity` satisfies detection threshold for UC-22.38.3 ('Data localization enforcement — regulated-data must-stay-in-region'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cloud_storage` / `aws:s3:objectaccess` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.38.3."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=cloud_storage sourcetype=aws:s3:objectaccess OR sourcetype=azure:blob:access earliest=-1h\n| lookup data_classification.csv key=object_key OUTPUT classification regulated_scope\n| lookup localization_policy.csv regulated_scope OUTPUT allowed_regions\n| where isnotnull(regulated_scope) AND NOT match(bucket_region, allowed_regions)\n| table _time bucket bucket_region object_key classification regulated_scope allowed_regions",
   "description": "Evaluates data-localization commitments at the object-access layer. A regulated object that appears in the wrong region is a hard policy breach — and the cloud storage audit log is the definitive evidence.",
-  "value": "Replaces 'we think the bucket is in eu-west-1' with 'we proved every access was in-region for the full audit period'.",
+  "value": "Evaluates data-localization commitments at the object-access layer. Timely UC-22.38.3 alerting on 'Data localization enforcement — regulated-data must-stay-in-region' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Tag objects with data-classification via the cloud provider's object metadata; (2) maintain localization_policy.csv keyed by regulated_scope; (3) run hourly; (4) escalate breaches via SOAR. Indexes required: `index=cloud_storage`; Sourcetypes: `sourcetype=aws:s3:objectaccess`, `sourcetype=azure:blob:access`.",
   "visualization": "Table of breaches by bucket, bar chart of breaches by scope, single-value '% of accesses in sanctioned region'.",
   "cimModels": [],
@@ -90,7 +89,7 @@
       "title": "ICO — GDPR Guidance"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised GDPR control testing** — Internal audit exercises 'Data localization enforcement — regulated-data must-stay-in-region' (UC-22.38.3) on `entity` during scheduled clause Art.44 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=cloud_storage` `aws:s3:objectaccess` without crossing evidence threshold. Cross-check engagement letter in `gdpr_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `cloud_storage` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `gdpr_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "audit",
   "requiredFields": [

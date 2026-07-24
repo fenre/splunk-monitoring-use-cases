@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Test Coverage Regression' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_test_coverage_regression` (UC-12.2.26), SOC dashboard panel \"Operations — Test Coverage Regression\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='test_coverage' that satisfy the UC-12.2.26 SPL filters for 'Test Coverage Regression'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cicd` / `test_coverage` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.26."
+    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='test_coverage' where `project` satisfies `delta` < -1 for UC-12.2.26 ('Test Coverage Regression'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cicd` / `test_coverage` events where `project` stays below `delta` < -1, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.26."
   },
   "dataSources": "`coverage_pct` per branch, PR number Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Cobertura/JaCoCo XML to HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cicd sourcetype=\"test_coverage\" branch=main\n| eventstats latest(coverage_pct) as main_cov by project\n| join max=1 project [search index=cicd sourcetype=\"test_coverage\" branch!=main | fields project, coverage_pct, pr]\n| eval delta=coverage_pct-main_cov\n| where delta < -1\n| table project, pr, coverage_pct, main_cov, delta",
-  "description": "PRs that reduce line coverage vs main branch—visibility for governance (pair with CI gates).",
+  "description": "PRs that reduce line coverage vs main branch—visibility for governance (pair with CI gates). Searches `index=cicd` with sourcetype `test_coverage` for UC-12.2.26, aggregating `count` by `project` over `the scheduled window`. Alerts when grouped results cross `delta` < -1 in the saved search. Gives Operations operators a repeatable signal for 'Test Coverage Regression' without manual log review.",
   "value": "Early 'Test Coverage Regression' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Compare PR coverage to main on each build. Alert on >1% drop. Block merge in CI when integrated.",
   "visualization": "Table (regressions), Bar chart (delta by project), Line chart (main coverage trend).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Test Coverage Regression'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `cicd` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `cicd`** — Planned work for 'Test Coverage Regression' shifts `count` over `span=1h` while `project` remains in-scope for UC-12.2.26. Cross-check CMDB CHG.\n\n2. **Batch `count` on `test_coverage`** — Scheduled automation elevates `delta` without crossing `delta` < -1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `project`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `test_coverage`** — First 48h baseline for `project` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `project`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

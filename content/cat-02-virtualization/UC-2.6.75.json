@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'End-to-End Citrix Session Launch Time' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_end_to_end_citrix_session_launch_time` (UC-2.6.75), SOC dashboard panel \"Linux — End-to-End Citrix Session Launch Time\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=xd` sourcetype='citrix:broker:events' that satisfy the UC-2.6.75 SPL filters for 'End-to-End Citrix Session Launch Time'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `xd` / `citrix:broker:events` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.6.75."
+    "positiveScenario": "Ingest synthetic events into `index=xd` sourcetype='citrix:broker:events' where `_time` satisfies `p95` > 90000 for UC-2.6.75 ('End-to-End Citrix Session Launch Time'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `xd` / `citrix:broker:events` events where `_time` stays below `p95` > 90000, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.6.75."
   },
   "dataSources": "`index=xd` `sourcetype=\"citrix:broker:events\"` (`event_type=SessionLogon` with `logon_duration_ms` and sub-phase fields); `sourcetype=\"uberAgent:Logon:LogonDetail\"` for VDA phase breakdown; `sourcetype=\"citrix:hdx:connect\"` for client-to-session handshake timing; Director OData exports if used Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
   "app": "uberAgent UXM (Splunkbase 1448) for phase insight; Template for Citrix XenDesktop 7 (TA-XD7-Broker) and Citrix Monitor Service OData; optional ITSI for service aggregation",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'End-to-End Citrix Session Launch Time'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `xd` `citrix:broker:events`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `xd`** — Package managers spike `_time` metrics for 'End-to-End Citrix Session Launch Time'. Correlate with apt/yum logs in the same `citrix:broker:events` window.\n\n2. **Nightly backup I/O on `_time`** — Predictable `median` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `citrix:broker:events`** — Nagios/Zabbix polls `_time` and mimics sustained load without crossing `p95` > 90000.\n\n4. **New host onboarding** — `_time` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `_time`, `valid_until`.",
   "equipment": [
     "citrix",
     "hyperv",

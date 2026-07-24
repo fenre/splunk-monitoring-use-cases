@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'PoE Switch Port Power Draw Monitoring for CCTV Cameras' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_poe_switch_port_power_draw_monitoring_for_cctv_c` (UC-15.5.8), SOC dashboard panel \"Operations — PoE Switch Port Power Draw Monitoring for CCTV Cameras\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=physical` sourcetype='nvr:diagnostic' that satisfy the UC-15.5.8 SPL filters for 'PoE Switch Port Power Draw Monitoring for CCTV Cameras'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `physical` / `nvr:diagnostic` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.5.8."
+    "positiveScenario": "Ingest synthetic events into `index=physical` sourcetype='nvr:diagnostic' where `port` satisfies `poe_w` > 25 for UC-15.5.8 ('PoE Switch Port Power Draw Monitoring for CCTV Cameras'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `physical` / `nvr:diagnostic` events where `port` stays below `poe_w` > 25, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.5.8."
   },
   "dataSources": "`index=physical` · `sourcetype=\"nvr:diagnostic\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom TA (NVR REST/syslog), ONVIF pull, Hikvision ISAPI HEC, or Milestone connector mapped to listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=physical sourcetype=\"nvr:diagnostic\" earliest=-24h\n| eval poe_w=tonumber(coalesce(poe_power_w, port_power_draw_w, \"\"))\n| eval port=coalesce(switch_port, ifDescr, \"\")\n| where poe_w>25\n| timechart span=1h max(poe_w) by port switch_name",
-  "description": "IR-cut heaters and long cable runs spike PoE; tracking watts prevents budget overruns and shutdowns.",
-  "value": "Validates switch upgrades before adding 4K heads. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "IR-cut heaters and long cable runs spike PoE; tracking watts prevents budget overruns and shutdowns. Searches `index=physical` with sourcetype `nvr:diagnostic` for UC-15.5.8, aggregating `max` by `port` over `1h`. Alerts when grouped results cross `poe_w` > 25 in the saved search. Gives Operations operators a repeatable signal for 'PoE Switch Port Power Draw Monitoring for CCTV Cameras' without manual log review.",
+  "value": "IR-cut heaters and long cable runs spike PoE; tracking watts prevents budget overruns and shutdowns. Timely UC-15.5.8 alerting on 'PoE Switch Port Power Draw Monitoring for CCTV Cameras' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "(1) SNMP or VMS-supplied PoE telemetry. (2) Compare to class budget.",
   "visualization": "Stacked area power; threshold line.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'PoE Switch Port Power Draw Monitoring for CCTV Cameras'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `physical` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `physical`** — Planned work for 'PoE Switch Port Power Draw Monitoring for CCTV Cameras' shifts `max` over `span=1h` while `port` remains in-scope for UC-15.5.8. Cross-check CMDB CHG.\n\n2. **Batch `max` on `nvr:diagnostic`** — Scheduled automation elevates `switch_name` without crossing `poe_w` > 25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `port`** — Health checks in `physical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nvr:diagnostic`** — First 48h baseline for `port` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `port`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cctv",
     "snmp",

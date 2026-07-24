@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Azure Front Door / CDN Origin Errors and Cache Hit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_azure_front_door_cdn_origin_errors_and_cache_hit` (UC-4.2.19), SOC dashboard panel \"Operations — Azure Front Door / CDN Origin Errors and Cache Hit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=azure` sourcetype='mscs:azure:metrics' that satisfy the UC-4.2.19 SPL filters for 'Azure Front Door / CDN Origin Errors and Cache Hit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `azure` / `mscs:azure:metrics` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.2.19."
+    "positiveScenario": "Ingest synthetic events into `index=azure` sourcetype='mscs:azure:metrics' where `entity` satisfies `average` < 100 for UC-4.2.19 ('Azure Front Door / CDN Origin Errors and Cache Hit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `azure` / `mscs:azure:metrics` events where `entity` stays below `average` < 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.2.19."
   },
   "dataSources": "Azure Monitor Front Door metrics (BackendHealthPercentage, RequestCount, BackendRequestCount) Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=azure sourcetype=\"mscs:azure:metrics\" namespace=\"Microsoft.Cdn/profiles\" metricName=\"BackendHealthPercentage\"\n| where average < 100\n| table _time resourceId endpoint average",
-  "description": "Origin errors and low cache hit ratio impact latency and origin load. Essential for CDN and global app performance.",
+  "description": "Origin errors and low cache hit ratio impact latency and origin load. Essential for CDN and global app performance. Searches `index=azure` with sourcetype `mscs:azure:metrics` for UC-4.2.19, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `average` < 100 in the saved search. Gives Operations operators a repeatable signal for 'Azure Front Door / CDN Origin Errors and Cache Hit' without manual log review.",
   "value": "Early 'Azure Front Door / CDN Origin Errors and Cache Hit' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Collect Front Door/CDN metrics. Alert when BackendHealthPercentage < 100%. Track RequestCount vs BackendRequestCount for cache hit ratio. Enable diagnostic logs for request-level analysis.",
   "visualization": "Line chart (origin health, request count), Table (endpoint, health %, cache hit), Gauge (cache hit %).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Azure Front Door / CDN Origin Errors and Cache Hit'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `azure` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `azure`** — Planned work for 'Azure Front Door / CDN Origin Errors and Cache Hit' shifts `count` over `span=1h` while `host` remains in-scope for UC-4.2.19. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mscs:azure:metrics`** — Scheduled automation elevates `src` without crossing `average` < 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:metrics`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure",
     "m365"

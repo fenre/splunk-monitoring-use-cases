@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Analytics Platform Incident Volume Trend' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_analytics_platform_incident_volume_trend` (UC-24.13.8), SOC dashboard panel \"Operations — Analytics Platform Incident Volume Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi_platform_summary` sourcetype='target_sourcetype' that satisfy the UC-24.13.8 SPL filters for 'Analytics Platform Incident Volume Trend'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi_platform_summary` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.13.8."
+    "positiveScenario": "Ingest synthetic events into `index=bi_platform_summary` sourcetype='target_sourcetype' where `platform` satisfies detection threshold for UC-24.13.8 ('Analytics Platform Incident Volume Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi_platform_summary` / `target_sourcetype` events where `platform` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.13.8."
   },
   "dataSources": "All cat-24 sourcetypes summarised into a `bi_platform_summary` index via scheduled saved searches. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Cross-platform rollup built from the cat-24 sourcetypes already ingested (BI tools, orchestration, ELT, data quality, governance) via saved-search summary indexing. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi_platform_summary metric=\"incident_count\"\n| timechart span=1w sum(incidents) as incidents by platform\n| untable _time platform incidents\n| eventstats avg(incidents) as avg_inc by platform\n| where incidents>avg_inc*1.5",
   "description": "Trends the weekly count of failures and data-quality incidents per platform and flags platforms whose incident volume climbs well above their own baseline.",
-  "value": "A rising incident trend for a platform signals underlying decay (capacity, tech debt) before it becomes an outage; trend-based alerting is more actionable than single events.",
+  "value": "Trends the weekly count of failures and data-quality incidents per platform and flags platforms whose incid.... Timely UC-24.13.8 alerting on 'Analytics Platform Incident Volume Trend' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Aggregate incident counts across the cat-24 sources into the rollup index; schedule weekly and review climbing platforms with owners.",
   "visualization": "Timechart of incidents per platform, trend markers.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Analytics Platform Incident Volume Trend'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi_platform_summary` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi_platform_summary`** — Planned work for 'Analytics Platform Incident Volume Trend' shifts `sum` over `span=1w` while `platform` remains in-scope for UC-24.13.8. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `platform`** — Health checks in `bi_platform_summary` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `platform` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `platform`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

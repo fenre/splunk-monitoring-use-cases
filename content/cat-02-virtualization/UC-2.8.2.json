@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'oVirt Host Activation and Maintenance Mode State Changes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_ovirt_host_activation_and_maintenance_mode_state` (UC-2.8.2), SOC dashboard panel \"Linux — oVirt Host Activation and Maintenance Mode State Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ovirt` sourcetype='ovirt:host' that satisfy the UC-2.8.2 SPL filters for 'oVirt Host Activation and Maintenance Mode State Changes'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ovirt` / `ovirt:host` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.8.2."
+    "positiveScenario": "Ingest synthetic events into `index=ovirt` sourcetype='ovirt:host' where `host_name` satisfies detection threshold for UC-2.8.2 ('oVirt Host Activation and Maintenance Mode State Changes'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ovirt` / `ovirt:host` events where `host_name` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.8.2."
   },
   "dataSources": "`index=ovirt` `sourcetype=\"ovirt:host\"` — host status events: `host_name`, `host_id`, `prev_status`, `new_status`, `user` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Engine audit stream or REST poller writing `ovirt:host` JSON lines — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ovirt sourcetype=\"ovirt:host\" earliest=-24h\n| eval ns=lower(coalesce(new_status, status))\n| where match(ns, \"(?i)maintenance|nonoperational|up|active\")\n| stats earliest(_time) as first_t, latest(_time) as last_t, values(ns) as statuses by host_name, user\n| sort - last_t",
   "description": "Unexpected host activations or maintenance exits change scheduler capacity and can violate change windows. A clear audit of who moved hosts prevents shadow operations.",
-  "value": "Strengthens change governance and speeds incident correlation when capacity drops suddenly.",
+  "value": "Unexpected host activations or maintenance exits change scheduler capacity and can violate change windows. Timely UC-2.8.2 alerting on 'oVirt Host Activation and Maintenance Mode State Changes' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Ingest host lifecycle events from Engine audit. Build lookups for approved maintenance windows. Alert on transitions outside the window.",
   "visualization": "Timeline per host; table of recent users; single value hosts in maintenance.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'oVirt Host Activation and Maintenance Mode State Changes'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `ovirt` `ovirt:host`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `ovirt`** — Package managers spike `host_name` metrics for 'oVirt Host Activation and Maintenance Mode State Changes'. Correlate with apt/yum logs in the same `ovirt:host` window.\n\n2. **Nightly backup I/O on `host_name`** — Predictable `values` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ovirt:host`** — Nagios/Zabbix polls `host_name` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host_name` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host_name`, `valid_until`.",
   "equipment": [
     "ovirt"
   ],

@@ -26,13 +26,13 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cui` sourcetype='o365:audit' that satisfy the UC-10.12.40 SPL filters for 'CMMC Compliance Assessment'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cui` / `o365:audit` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.40."
+    "positiveScenario": "Ingest synthetic events into `index=cui` sourcetype='o365:audit' where `UserId` satisfies detection threshold for UC-10.12.40 ('CMMC Compliance Assessment'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cui` / `o365:audit` events where `UserId` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.40."
   },
   "dataSources": "`sourcetype=\"o365:audit\"`, `sourcetype=\"dlp:cui\"` Collected via Splunk Add-on for Microsoft Office 365 (Splunkbase 4054) modular input or scripted poll into the index named in the SPL.",
   "app": "Microsoft 365 GCC High, endpoint DLP — Splunk Add-on for Microsoft Office 365 (Splunkbase 4054)",
   "spl": "index=cui sourcetype=\"o365:audit\" Workload=SharePoint\n| search CUI_label=\"true\" AND SharingScope=\"Anyone\"\n| stats count by UserId, SiteUrl, ObjectId\n| sort -count",
-  "description": "Tracks DFARS 7012 logging, FCI/CUI handling, and practice maturity for CMMC L2/L3.",
+  "description": "Tracks DFARS 7012 logging, FCI/CUI handling, and practice maturity for CMMC L2/L3. Searches `index=cui` with sourcetype `o365:audit` for UC-10.12.40, aggregating `count` by `UserId` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'CMMC Compliance Assessment' without manual log review.",
   "value": "Early 'CMMC Compliance Assessment' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Encrypt CUI at rest; block personal email domains; SSP alignment to CMMC domains.",
   "visualization": "Table (policy violations), Bar chart (practices), Heatmap (domain × status).",
@@ -62,7 +62,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'CMMC Compliance Assessment'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=cui` `o365:audit`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `cui`** — Planned work for 'CMMC Compliance Assessment' shifts `count` over `span=1h` while `UserId` remains in-scope for UC-10.12.40. Cross-check CMDB CHG.\n\n2. **Batch `count` on `o365:audit`** — Scheduled automation elevates `SiteUrl` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `UserId`** — Health checks in `cui` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `o365:audit`** — First 48h baseline for `UserId` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `UserId`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365",
     "sharepoint"

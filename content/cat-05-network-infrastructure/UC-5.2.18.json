@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Threat Prevention Signature Coverage' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_threat_prevention_signature_coverage` (UC-5.2.18), SOC dashboard panel \"Operations — Threat Prevention Signature Coverage\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='pan:system' that satisfy the UC-5.2.18 SPL filters for 'Threat Prevention Signature Coverage'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `pan:system` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.2.18."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='pan:system' where `dvc` satisfies `days_since_update` > 7 for UC-5.2.18 ('Threat Prevention Signature Coverage'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `pan:system` events where `dvc` stays below `days_since_update` > 7, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.2.18."
   },
   "dataSources": "`sourcetype=pan:system`, `sourcetype=fgt_event` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"pan:system\" \"threat version\" OR \"content update\"\n| rex \"installed (?<content_type>threats|antivirus|wildfire) version (?<version>\\S+)\"\n| stats latest(version) as current_version, latest(_time) as last_update by dvc, content_type\n| eval days_since_update=round((now()-last_update)/86400,0)\n| where days_since_update > 7",
   "description": "Outdated threat signatures leave the firewall blind to new attacks. Monitoring signature versions ensures security posture is current.",
-  "value": "Security teams track firewall threat prevention signature update freshness across all devices, detecting stale databases and failed updates that leave the network exposed to new threats.",
+  "value": "Outdated threat signatures leave the firewall blind to new attacks. Timely UC-5.2.18 alerting on 'Threat Prevention Signature Coverage' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Forward system logs. Alert when signature updates are >7 days old. Compare across firewalls to detect update failures. Schedule weekly compliance reports.",
   "visualization": "Table (firewall, content type, version, days since update), Single value (outdated count).",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Threat Prevention Signature Coverage'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Threat Prevention Signature Coverage' shifts `count` over `span=1h` while `dvc` remains in-scope for UC-5.2.18. Cross-check CMDB CHG.\n\n2. **Batch `count` on `pan:system`** — Scheduled automation elevates `content_type` without crossing `days_since_update` > 7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dvc`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pan:system`** — First 48h baseline for `dvc` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dvc`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "fortinet",

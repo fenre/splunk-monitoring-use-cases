@@ -52,17 +52,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "An operator with the correct capability deletes a dispatch job folder; the _audit event survives but the artifact is gone — the UC fires within the next 15-minute interval.",
-    "negativeScenario": "Normal dispatch TTL expiry (configured window) cleans dispatch folders without producing a finding because the _audit event is beyond the retention window.",
-    "fixtureRef": "",
-    "attackTechnique": "T1070.006",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=_audit` sourcetype='target_sourcetype' where `search_id` satisfies detection threshold for UC-22.35.5 ('Search-head audit-trail completeness — deleted or rewritten search jobs'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `_audit` / `target_sourcetype` events where `search_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.35.5."
   },
   "dataSources": "_audit (action=search), /services/search/jobs REST for current artifacts, dispatch directory state via Splunk REST.",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=_audit action=search info=completed earliest=-24h\n| stats values(artifact_id) as artifact_ids earliest(_time) as first_seen latest(_time) as last_seen by search_id user\n| mvexpand artifact_ids\n| join type=outer artifact_ids [| rest /services/search/jobs splunk_server=* | fields sid dispatchState | rename sid as artifact_ids]\n| where isnull(dispatchState) AND (now()-last_seen)<86400\n| table user search_id artifact_ids first_seen last_seen",
   "description": "Reconciles search-head _audit events against the current dispatch artifact state to detect search jobs that were recorded as completed but whose artifacts have since been removed outside the normal dispatch TTL. Mass deletion of dispatch artefacts is a classic post-incident tampering pattern.",
-  "value": "Gives the Splunk admin team a defensible 'every search run is accounted for' control rather than the weaker 'we have search logging enabled'.",
+  "value": "Reconciles search-head _audit events against the current dispatch artifact state to detect search jobs that.... Timely UC-22.35.5 alerting on 'Search-head audit-trail completeness — deleted or rewritten search jobs' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Ensure _audit is retained for ≥90 days on the evidence cluster; (2) adjust dispatch_ttl per risk tier; (3) schedule every 15 min; (4) on hit, SOAR opens a P2 for the Splunk admin team. Indexes required: `index=_audit`.",
   "visualization": "Time chart of job-vs-artifact reconciliation, table of missing artifacts by user, single-value 'search jobs with artifact present (7d)'.",
   "cimModels": [],
@@ -88,7 +85,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised HIPAA SECURITY control testing** — Internal audit exercises 'Search-head audit-trail completeness — deleted or rewritten search jobs' (UC-22.35.5) on `search_id` during scheduled clause §164.312(b) sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=_audit` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `hipaa_security_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `_audit` for `search_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `search_id` during normal service delivery.\n\n**Suppression mechanism:** `hipaa_security_exception_register.csv` keyed on `search_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1070.006"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Renovation Budget vs Actual' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_renovation_budget_vs_actual` (UC-25.54.1), SOC dashboard panel \"Personal — Renovation Budget vs Actual\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reno:budget' that satisfy the UC-25.54.1 SPL filters for 'Renovation Budget vs Actual'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `reno:budget` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.54.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reno:budget' where `phase` satisfies detection threshold for UC-25.54.1 ('Renovation Budget vs Actual'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `reno:budget` events where `phase` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.54.1."
   },
   "dataSources": "Renovation tasks (`reno:task`), budget and receipts (`reno:budget`), material orders (`reno:material`), inspections (`reno:inspection`), contractor logs (`reno:contractor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home-renovation project management — task boards (Trello, Notion), budget and receipt trackers, material orders, and inspection / permit logs — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=reno:budget\n| stats sum(estimated) as estimated, sum(actual) as actual by phase\n| eval variance=actual-estimated, variance_pct=round(100*(actual-estimated)/estimated,1)\n| sort - variance",
-  "description": "Compares estimated versus actual spend for each renovation phase so overruns are obvious as they happen.",
-  "value": "Renovations almost always run over; phase-level variance lets you find and control the culprit early.",
+  "description": "Compares estimated versus actual spend for each renovation phase so overruns are obvious as they happen. Searches `index=personal` with sourcetype `reno:budget` for UC-25.54.1, aggregating `sum` by `phase` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Renovation Budget vs Actual' without manual log review.",
+  "value": "Compares estimated versus actual spend for each renovation phase so overruns are obvious as they happen. Timely UC-25.54.1 alerting on 'Renovation Budget vs Actual' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest estimates and receipts into `index=personal`; compute variance per phase.",
   "visualization": "Bar chart of estimated versus actual spend by phase.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Renovation Budget vs Actual'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reno:budget`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Renovation Budget vs Actual' stops polling `reno:budget`; stale `phase` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reno:budget`. Dedup with `stats latest(*) by phase`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

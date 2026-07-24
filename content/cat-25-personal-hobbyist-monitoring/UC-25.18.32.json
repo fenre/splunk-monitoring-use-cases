@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Reolink Night Bitrate Under-Run' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_reolink_night_bitrate_under_run` (UC-25.18.32), SOC dashboard panel \"Personal — Reolink Night Bitrate Under-Run\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reolink:event' that satisfy the UC-25.18.32 SPL filters for 'Reolink Night Bitrate Under-Run'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `reolink:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.32."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reolink:event' where `camera` satisfies `hour` >= 20 for UC-25.18.32 ('Reolink Night Bitrate Under-Run'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `reolink:event` events where `camera` stays below `hour` >= 20, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.32."
   },
   "dataSources": "Home security telemetry (`reolink:event`, `unifiprotect:event`, `ring:event`, `nestprotect:event`, `frigate:event`, `camera:health`, `alarm:event`, `doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Reolink, UniFi Protect, Ring, Nest Protect, Frigate, and Home Assistant security integrations streamed to Splunk HEC via MQTT, webhooks, and vendor APIs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=reolink:event event=stream_health\n| eval hour=tonumber(strftime(_time,\"%H\"))\n| where hour>=20 OR hour<6\n| stats avg(bitrate_mbps) as avg_bitrate_mbps, min(bitrate_mbps) as min_bitrate_mbps by camera\n| where avg_bitrate_mbps<2 OR min_bitrate_mbps<1\n| sort avg_bitrate_mbps",
   "description": "Uses Reolink stream bitrate telemetry to monitor how much bitrate drops at night when scenes get harder in index=personal.",
-  "value": "Splunk turns the feed into an operational check for cameras that may be under-recording critical night detail, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Reolink stream bitrate telemetry to monitor how much bitrate drops at night when scenes get harder in.... Timely UC-25.18.32 alerting on 'Reolink Night Bitrate Under-Run' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Reolink stream bitrate data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Nighttime bitrate table by camera.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Reolink Night Bitrate Under-Run'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reolink:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Reolink Night Bitrate Under-Run' stops polling `reolink:event`; stale `camera` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reolink:event`. Dedup with `stats latest(*) by camera`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hour` >= 20. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

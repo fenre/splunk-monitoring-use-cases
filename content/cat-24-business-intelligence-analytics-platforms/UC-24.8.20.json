@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Matillion Job and Component Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_matillion_job_and_component_failures` (UC-24.8.20), SOC dashboard panel \"Operations — Matillion Job and Component Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='matillion:task' that satisfy the UC-24.8.20 SPL filters for 'Matillion Job and Component Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `matillion:task` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.8.20."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='matillion:task' where `job_name` satisfies `failures` > 0 for UC-24.8.20 ('Matillion Job and Component Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `matillion:task` events where `job_name` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.8.20."
   },
   "dataSources": "Matillion task API (`matillion:task`), component logs, and Informatica/Talend session logs (`informatica:session`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Matillion API (`/rest/v1/group/.../task`) and Matillion task logs via HEC scripted inputs; Informatica/Talend session logs where present. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=matillion:task state=\"FAILED\" OR success=\"false\"\n| stats count as failures, values(message) as messages by job_name, component_name\n| where failures>0\n| sort - failures",
   "description": "Counts failed Matillion orchestration/transformation tasks down to the failing component so engineers land directly on the broken step.",
-  "value": "Component-level failure detail cuts triage time on Matillion ELT jobs that feed cloud warehouses.",
+  "value": "Counts failed Matillion orchestration/transformation tasks down to the failing component so engineers land.... Timely UC-24.8.20 alerting on 'Matillion Job and Component Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll the Matillion task API into HEC; schedule every 15 minutes and alert on failures for production jobs.",
   "visualization": "Table of job/component by failures with messages.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Matillion Job and Component Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Matillion Job and Component Failures' shifts `values` over `span=1h` while `job_name` remains in-scope for UC-24.8.20. Cross-check CMDB CHG.\n\n2. **Batch `values` on `matillion:task`** — Scheduled automation elevates `component_name` without crossing `failures` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `matillion:task`** — First 48h baseline for `job_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

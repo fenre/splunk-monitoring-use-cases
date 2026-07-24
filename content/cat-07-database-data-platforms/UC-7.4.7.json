@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Elasticsearch Index Size and Document Count Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_elasticsearch_index_size_and_document_count_tren` (UC-7.4.7), SOC dashboard panel \"Operations — Elasticsearch Index Size and Document Count Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='elasticsearch:indices' that satisfy the UC-7.4.7 SPL filters for 'Elasticsearch Index Size and Document Count Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `elasticsearch:indices` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.4.7."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='elasticsearch:indices' where `index` satisfies detection threshold for UC-7.4.7 ('Elasticsearch Index Size and Document Count Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `elasticsearch:indices` events where `index` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.4.7."
   },
   "dataSources": "`_cat/indices`, `_stats` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (ES REST API) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"elasticsearch:indices\"\n| eval size_gb=round(store.size_in_bytes/1073741824, 2)\n| timechart span=1d sum(size_gb) as total_gb, sum(docs.count) as doc_count by index\n| predict total_gb as predicted_gb future_timespan=30",
-  "description": "Growth forecasting for indices enables proactive storage provisioning and index lifecycle management (ILM) tuning.",
+  "description": "Growth forecasting for indices enables proactive storage provisioning and index lifecycle management (ILM) tuning. Searches `index=database` with sourcetype `elasticsearch:indices` for UC-7.4.7, aggregating `sum` by `index` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Elasticsearch Index Size and Document Count Trending' without manual log review.",
   "value": "Early 'Elasticsearch Index Size and Document Count Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Poll `GET _cat/indices?v&h=index,docs.count,store.size&bytes=b` or `GET _stats` every 6–24 hours. Parse index name, document count, store size. Track per-index and cluster-wide growth. Use `predict` for 30-day forecast. Alert when projected size exceeds available storage. Support ILM policy tuning based on growth rate.",
   "visualization": "Line chart (index size and doc count with prediction), Table (indices by size and growth rate), Bar chart (top growing indices).",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Elasticsearch Index Size and Document Count Trending'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Elasticsearch Index Size and Document Count Trending' shifts `sum` over `span=1d` while `index` remains in-scope for UC-7.4.7. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `elasticsearch:indices`** — Scheduled automation elevates `size_gb` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `index`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `elasticsearch:indices`** — First 48h baseline for `index` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `index`, `exception_reason`, `valid_until`.",
   "equipment": [
     "elasticsearch"
   ],

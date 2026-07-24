@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Snowflake Schema Object DDL from Query History' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_snowflake_schema_object_ddl_from_query_history` (UC-7.5.22), SOC dashboard panel \"Operations — Snowflake Schema Object DDL from Query History\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:query_history' that satisfy the UC-7.5.22 SPL filters for 'Snowflake Schema Object DDL from Query History'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `datawarehouse` / `snowflake:query_history` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.5.22."
+    "positiveScenario": "Ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:query_history' where `QUERY_ID` satisfies detection threshold for UC-7.5.22 ('Snowflake Schema Object DDL from Query History'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `datawarehouse` / `snowflake:query_history` events where `QUERY_ID` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.5.22."
   },
   "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY` (`QUERY_TEXT`, `QUERY_TYPE`, `USER_NAME`, `ROLE_NAME`, `START_TIME`)",
   "app": "Splunk DB Connect, DBX Add-on for Snowflake JDBC (Splunkbase 6153)",
   "spl": "index=datawarehouse sourcetype=\"snowflake:query_history\"\n| search QUERY_TYPE=\"DDL\" OR match(QUERY_TEXT,\"(?i)^(create|alter|drop)\\s+(table|view|schema|warehouse|pipe|stage|task|stream)\")\n| stats earliest(_time) as first_seen latest(QUERY_TEXT) as ddl latest(USER_NAME) as actor by QUERY_ID\n| table first_seen actor ddl",
   "description": "Tracking DDL executed in Snowflake supports change governance: who created pipes, stages, or tables outside CAB windows. ACCOUNT_USAGE query history is the standard audit source.",
-  "value": "Improves forensic reconstruction after incidents and enforces separation-of-duties on production accounts.",
+  "value": "Tracking DDL executed in Snowflake supports change governance: who created pipes, stages, or tables outside.... Timely UC-7.5.22 alerting on 'Snowflake Schema Object DDL from Query History' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Replicate QUERY_HISTORY on a schedule (note ACCOUNT_USAGE latency). Filter to production roles. Join QUERY_ID to ACCESS_HISTORY if column-level detail is required. Archive results to a restricted index.",
   "visualization": "Table (time, actor, statement), Timeline (DDL volume), Top users.",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Snowflake Schema Object DDL from Query History'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `datawarehouse` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `datawarehouse`** — Planned work for 'Snowflake Schema Object DDL from Query History' shifts `count` over `span=1h` while `QUERY_ID` remains in-scope for UC-7.5.22. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snowflake:query_history`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `QUERY_ID`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snowflake:query_history`** — First 48h baseline for `QUERY_ID` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `QUERY_ID`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "servicenow",

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'WAN Upload Saturation During Backup Window' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_wan_upload_saturation_during_backup_window` (UC-25.9.16), SOC dashboard panel \"Personal — WAN Upload Saturation During Backup Window\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='unifi:event' that satisfy the UC-25.9.16 SPL filters for 'WAN Upload Saturation During Backup Window'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `unifi:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.16."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='unifi:event' where `wan_interface` satisfies `hour` >= 1 for UC-25.9.16 ('WAN Upload Saturation During Backup Window'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `unifi:event` events where `wan_interface` stays below `hour` >= 1, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.16."
   },
   "dataSources": "UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog, ISP uptime probes (`uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=unifi:event\n| eval hour=strftime(_time,\"%H\")\n| where hour>=1 AND hour<=5\n| bin _time span=1d\n| stats max(tx_mbps) as peak_upload by wan_interface _time\n| where peak_upload>80\n| sort - peak_upload",
   "description": "Looks for overnight backup windows where upload demand gets close to saturating the WAN link and potentially starves everything else.",
-  "value": "Home backups, camera uploads, and cloud sync jobs all compete for the same narrow upstream; seeing the worst spikes helps you schedule them sanely.",
+  "value": "Looks for overnight backup windows where upload demand gets close to saturating the WAN link and potentiall.... Timely UC-25.9.16 alerting on 'WAN Upload Saturation During Backup Window' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward WAN interface throughput from UniFi or router logs; review the overnight peak-upload window and stagger the chattiest jobs.",
   "visualization": "Daily chart of overnight peak upload throughput by WAN interface.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'WAN Upload Saturation During Backup Window'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifi:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'WAN Upload Saturation During Backup Window' stops polling `unifi:event`; stale `wan_interface` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifi:event`. Dedup with `stats latest(*) by wan_interface`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `hour` >= 1. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "syslog"
   ],

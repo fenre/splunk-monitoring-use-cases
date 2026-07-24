@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'NVR Recording Segment Gap Detection vs Expected FPS' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_nvr_recording_segment_gap_detection_vs_expected_` (UC-15.3.42), SOC dashboard panel \"Operations — NVR Recording Segment Gap Detection vs Expected FPS\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=physical` sourcetype='nvr:recording_health' that satisfy the UC-15.3.42 SPL filters for 'NVR Recording Segment Gap Detection vs Expected FPS'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `physical` / `nvr:recording_health` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.3.42."
+    "positiveScenario": "Ingest synthetic events into `index=physical` sourcetype='nvr:recording_health' where `camera_id` satisfies `gap_sec` > 15 for UC-15.3.42 ('NVR Recording Segment Gap Detection vs Expected FPS'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `physical` / `nvr:recording_health` events where `camera_id` stays below `gap_sec` > 15, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.3.42."
   },
   "dataSources": "`index=physical` `sourcetype=nvr:recording_health` JSON or CSV from Milestone, Genetec, or Hikvision SDK exports with `segment_start_epoch`, `segment_end_epoch`, `camera_id` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted export via NVR REST API + HEC, or VMS SIEM connector — Universal Forwarder (Splunkbase 617)",
   "spl": "index=physical sourcetype=nvr:recording_health camera_id=*\n| sort 0 camera_id segment_start_epoch\n| streamstats window=1 global=f last(segment_end_epoch) as prev_end by camera_id\n| eval gap_sec=segment_start_epoch-prev_end\n| where isnotnull(prev_end) AND gap_sec > 15\n| table camera_id, prev_end, segment_start_epoch, gap_sec\n| sort - gap_sec",
   "description": "Regulators and prosecutors ask whether video exists for a full timeline. Comparing contiguous recording segments per camera surfaces silent gaps longer than motion-mask explanations—often disk stalls, RAID degradation, or timezone skew after DST.",
-  "value": "Produces defensible proof that continuous recording obligations are met, or flags gaps while footage might still be recovered from buffer.",
+  "value": "Regulators and prosecutors ask whether video exists for a full timeline. Timely UC-15.3.42 alerting on 'NVR Recording Segment Gap Detection vs Expected FPS' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Export segment metadata every 5 minutes; do not index full video in Splunk. Ensure epoch times are UTC. `gap_sec > 15` matches many jurisdictions' tolerance—tighten for high-security sites. Handle multiplexed streams by `camera_id`+`stream` key. Join with storage latency metrics.",
   "visualization": "Gantt-style (custom viz) or Table (gaps), Line chart (gap count per site).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'NVR Recording Segment Gap Detection vs Expected FPS'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `physical` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `physical`** — Planned work for 'NVR Recording Segment Gap Detection vs Expected FPS' shifts `count` over `span=1h` while `camera_id` remains in-scope for UC-15.3.42. Cross-check CMDB CHG.\n\n2. **Batch `count` on `nvr:recording_health`** — Scheduled automation elevates `gap_sec` without crossing `gap_sec` > 15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `camera_id`** — Health checks in `physical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nvr:recording_health`** — First 48h baseline for `camera_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `camera_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cctv"
   ],

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Splunk Web UI Errors (_internal)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_splunk_web_ui_errors_internal` (UC-13.1.27), SOC dashboard panel \"Operations — Splunk Web UI Errors (_internal)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=_internal` sourcetype='target_sourcetype' that satisfy the UC-13.1.27 SPL filters for 'Splunk Web UI Errors (_internal)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `_internal` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.27."
+    "positiveScenario": "Ingest synthetic events into `index=_internal` sourcetype='target_sourcetype' where `status` satisfies `status` >= 500 for UC-13.1.27 ('Splunk Web UI Errors (_internal)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `_internal` / `target_sourcetype` events where `status` stays below `status` >= 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.27."
   },
   "dataSources": "`index=_internal` `sourcetype=splunk_web_access` / `splunkd_ui` / `splunkd` Web UI Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Monitoring Console — Universal Forwarder (Splunkbase 617)",
   "spl": "index=_internal sourcetype IN (\"splunk_web_access\",\"splunkd_ui\",\"splunkd\") uri_path=\"*\"\n| search status>=500 OR match(_raw,\"(?i)(error|exception|timeout)\")\n| stats count by status, uri_path, clientip\n| sort -count",
-  "description": "Web UI 5xx/timeout errors block analysts during incidents. Tracking errors isolates SHC vs load balancer vs app issues.",
+  "description": "Web UI 5xx/timeout errors block analysts during incidents. Tracking errors isolates SHC vs load balancer vs app issues. Searches `index=_internal` with sourcetype `configured sourcetype` for UC-13.1.27, aggregating `count` by `status` over `the scheduled window`. Alerts when grouped results cross `status` >= 500 in the saved search. Gives Operations operators a repeatable signal for 'Splunk Web UI Errors (_internal)' without manual log review.",
   "value": "Early 'Splunk Web UI Errors (_internal)' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ensure access logs include HTTP status. Alert on 5xx rate above baseline. Correlate with KV Store and SHC captain during UI-wide failures.",
   "visualization": "Line chart (5xx rate), Table (top failing URIs).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Splunk Web UI Errors (_internal)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `_internal` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `_internal`** — Planned work for 'Splunk Web UI Errors (_internal)' shifts `count` over `span=1h` while `status` remains in-scope for UC-13.1.27. Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `uri_path` without crossing `status` >= 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `status`** — Health checks in `_internal` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `status` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `status`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

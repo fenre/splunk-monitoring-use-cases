@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Open Port Changes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_open_port_changes` (UC-1.1.78), SOC dashboard panel \"Linux — Open Port Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='openPorts' that satisfy the UC-1.1.78 SPL filters for 'Open Port Changes'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `openPorts` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.78."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='openPorts' where `host` satisfies detection threshold for UC-1.1.78 ('Open Port Changes'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `openPorts` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.78."
   },
   "dataSources": "`sourcetype=openPorts` (Splunk_TA_nix listener inventory) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=openPorts host=*\n| streamstats window=2 global=f last(port_list) as prev_ports by host\n| where isnotnull(prev_ports) AND port_list!=prev_ports",
   "description": "Compares the latest **port_list** string from each `openPorts` sample to the immediately previous sample for the same **host**, surfacing new listening-port shapes when the list changes (requires two polls per host).",
-  "value": "A port that was not in yesterday’s `openPorts` window is a fast second opinion before you reach for a live **packet** capture—especially for unexpected **LISTEN** on high-numbered or database ports.",
+  "value": "Compares the latest **port_list** string from each `openPorts` sample to the immediately previous sample fo.... Timely UC-1.1.78 alerting on 'Open Port Changes' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "If your TA uses multi-value **port** fields instead of a single `port_list` string, replace the `!=` with `mvdiff` / `setdiff` logic on **mv** fields. Seed a **lookup** of `approved_ports` for noise control.",
   "visualization": "Alert, Table",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Open Port Changes'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `openPorts`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Open Port Changes'. Correlate with apt/yum logs in the same `openPorts` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `openPorts`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],

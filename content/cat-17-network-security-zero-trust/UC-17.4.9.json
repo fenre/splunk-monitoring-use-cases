@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Cloudflare DNS Query Volume and NXDOMAIN Ratio (`cloudflare:json`)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_cloudflare_dns_query_volume_and_nxdomain_ratio_c` (UC-17.4.9), SOC dashboard panel \"Network — Cloudflare DNS Query Volume and NXDOMAIN Ratio (`cloudflare:json`)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dns` sourcetype='cloudflare:json' that satisfy the UC-17.4.9 SPL filters for 'Cloudflare DNS Query Volume and NXDOMAIN Ratio (`cloudflare:json`)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dns` / `cloudflare:json` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.4.9."
+    "positiveScenario": "Ingest synthetic events into `index=dns` sourcetype='cloudflare:json' where `_time` satisfies `nx_pct` > 15 for UC-17.4.9 ('Cloudflare DNS Query Volume and NXDOMAIN Ratio (`cloudflare:json`)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dns` / `cloudflare:json` events where `_time` stays below `nx_pct` > 15, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.4.9."
   },
   "dataSources": "Cloudflare Logpush JSON delivered to Splunk HEC/S3 with `sourcetype=cloudflare:json` (HTTP requests, firewall, Workers, DNS, Access as configured)",
   "app": "Cloudflare App for Splunk (Splunkbase 4501) + Logpush JSON (`cloudflare:json`)",
   "spl": "index=dns sourcetype=\"cloudflare:json\" earliest=-24h\n| where match(_raw,\"(?i)DNS\")\n| spath QueryType\n| spath ResponseCode\n| bin _time span=15m\n| stats count count(eval(ResponseCode=\"NXDOMAIN\")) as nx by _time\n| eval nx_pct=round(100*nx/count,2)\n| where nx_pct>15",
-  "description": "NXDOMAIN storms often precede DGA malware or misconfigured applications hammering bad suffixes.",
-  "value": "Security teams detect DGA malware and DNS-based data exfiltration attempts targeting authoritative zones, while operations teams catch misconfigured applications generating NXDOMAIN storms that waste resolver capacity.",
+  "description": "NXDOMAIN storms often precede DGA malware or misconfigured applications hammering bad suffixes. Searches `index=dns` with sourcetype `cloudflare:json` for UC-17.4.9, aggregating `count` by `_time` over `15m`. Alerts when grouped results cross `nx_pct` > 15 in the saved search. Gives Network operators a repeatable signal for 'Cloudflare DNS Query Volume and NXDOMAIN Ratio (`cloudflare:json`)' without manual log review.",
+  "value": "NXDOMAIN storms often precede DGA malware or misconfigured applications hammering bad suffixes. Timely UC-17.4.9 alerting on 'Cloudflare DNS Query Volume and NXDOMAIN Ratio (`cloudflare:json`)' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Configure Logpush jobs per dataset; route all into a unified `cloudflare:json` sourcetype or use transforms to normalize. Use `spath` for PascalCase fields. Create macros per zone name.",
   "visualization": "Timechart (QPS vs NXDOMAIN %), table (query name samples).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Cloudflare DNS Query Volume and NXDOMAIN Ratio (`cloudflare:json`)'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `dns`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `cloudflare:json` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `dns`** — Planned work for 'Cloudflare DNS Query Volume and NXDOMAIN Ratio (`cloudflare:json`)' shifts `count` over `span=15m` while `_time` remains in-scope for UC-17.4.9. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cloudflare:json`** — Scheduled automation elevates `nx_pct` without crossing `nx_pct` > 15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `dns` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cloudflare:json`** — First 48h baseline for `_time` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "securityDomain": "cloud",
   "equipment": [
     "cloudflare"

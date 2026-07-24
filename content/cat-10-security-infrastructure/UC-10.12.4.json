@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'Account Takeover Indicators' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_account_takeover_indicators` (UC-10.12.4), SOC dashboard panel \"Security Infra — Account Takeover Indicators\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=identity` sourcetype='okta:systemlog' that satisfy the UC-10.12.4 SPL filters for 'Account Takeover Indicators'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `identity` / `okta:systemlog` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.4."
+    "positiveScenario": "Ingest synthetic events into `index=identity` sourcetype='okta:systemlog' where `entity` satisfies `risk_score` > 70 for UC-10.12.4 ('Account Takeover Indicators'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `identity` / `okta:systemlog` events where `entity` stays below `risk_score` > 70, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.4."
   },
   "dataSources": "`sourcetype=\"okta:systemlog\"`, `sourcetype=\"banking:session\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "IdP logs, mobile banking SDK, SIEM correlation — Universal Forwarder (Splunkbase 617)",
   "spl": "index=identity OR index=banking (sourcetype=\"okta:systemlog\" OR sourcetype=\"banking:session\")\n| search (eventType=\"user.session.start\" OR event=\"new_device\") OR (risk_score>70)\n| transaction user_id maxspan=1h maxpause=10m\n| where mvcount(device_id)>2 OR mvcount(geo_country)>2\n| table _time, user_id, device_id, geo_country, risk_score",
-  "description": "Combines login, device, and session signals to catch ATO before fraudulent transfers.",
+  "description": "Combines login, device, and session signals to catch ATO before fraudulent transfers. Searches `index=identity` with sourcetype `okta:systemlog` for UC-10.12.4, aggregating `count` by `entity` over `1h`. Alerts when grouped results cross `risk_score` > 70 in the saved search. Gives Security Infra operators a repeatable signal for 'Account Takeover Indicators' without manual log review.",
   "value": "Early 'Account Takeover Indicators' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Require device fingerprint and step-up auth on risk score. Correlate password reset + wire initiation within short windows.",
   "visualization": "Timeline (user journey), Table (risky sessions), Sankey (device → action).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Account Takeover Indicators'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=identity` `okta:systemlog`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `identity`** — Planned work for 'Account Takeover Indicators' shifts `count` over `span=1h` while `host` remains in-scope for UC-10.12.4. Cross-check CMDB CHG.\n\n2. **Batch `count` on `okta:systemlog`** — Scheduled automation elevates `src` without crossing `risk_score` > 70. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `identity` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `okta:systemlog`** — First 48h baseline for `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "okta"
   ],

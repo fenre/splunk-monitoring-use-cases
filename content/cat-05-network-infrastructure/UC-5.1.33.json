@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Half-Duplex Negotiation Anomaly' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_half_duplex_negotiation_anomaly` (UC-5.1.33), SOC dashboard panel \"Operations — Half-Duplex Negotiation Anomaly\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:ios' that satisfy the UC-5.1.33 SPL filters for 'Half-Duplex Negotiation Anomaly'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `cisco:ios` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.33."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:ios' where `host` satisfies detection threshold for UC-5.1.33 ('Half-Duplex Negotiation Anomaly'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `cisco:ios` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.33."
   },
   "dataSources": "IF-MIB (ifSpeed), EtherLike-MIB (dot3StatsDuplexStatus), syslog Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=snmp:interface OR sourcetype=\"cisco:ios\") (\"duplex\" OR \"Duplex\" OR \"dot3StatsDuplexStatus\" OR \"halfDuplex\" OR \"fullDuplex\")\n| rex \"duplex mismatch|(?<duplex_status>halfDuplex|fullDuplex|unknown)\"\n| where match(_raw,\"mismatch|halfDuplex\") OR duplex_status=\"halfDuplex\"\n| stats count by host, ifDescr, duplex_status\n| table host ifDescr duplex_status count",
   "description": "Half/full duplex mismatches causing performance degradation. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Network engineers detect half-duplex negotiation anomalies on active interfaces, a condition that should not exist in modern networks and causes collisions and poor performance.",
+  "value": "Half/full duplex mismatches causing performance degradation. Timely UC-5.1.33 alerting on 'Half-Duplex Negotiation Anomaly' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll EtherLike-MIB dot3StatsDuplexStatus; ingest syslog for duplex mismatch messages. Alert on half-duplex on gigabit uplinks or explicit mismatch events.",
   "visualization": "Table (host, interface, duplex), Status grid, Single value.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Half-Duplex Negotiation Anomaly'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Half-Duplex Negotiation Anomaly' shifts `count` over `span=1h` while `host` remains in-scope for UC-5.1.33. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `ifDescr` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp",

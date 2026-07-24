@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'RabbitMQ Management Login and Access Denied Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_rabbitmq_management_login_and_access_denied_even` (UC-8.3.34), SOC dashboard panel \"Operations — RabbitMQ Management Login and Access Denied Events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='rabbitmq:log' that satisfy the UC-8.3.34 SPL filters for 'RabbitMQ Management Login and Access Denied Events'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `messaging` / `rabbitmq:log` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.3.34."
+    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='rabbitmq:log' where `host` satisfies `count` >= 5 for UC-8.3.34 ('RabbitMQ Management Login and Access Denied Events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `messaging` / `rabbitmq:log` events where `host` stays below `count` >= 5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.3.34."
   },
   "dataSources": "RabbitMQ node log (`rabbit@*.log`) ingested as `sourcetype=rabbitmq:log` Indexes: messaging. Sourcetypes: rabbitmq:log. Key fields: host, user. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Universal Forwarder file monitor on RabbitMQ nodes; AMQP Messaging Modular Input (Splunkbase 1812) is complementary for message-plane visibility",
   "spl": "index=messaging sourcetype=\"rabbitmq:log\"\n| search \"access denied\" OR \"LOGIN refused\" OR \"failed to authenticate\" OR \"HTTP access denied\"\n| stats count by host, user\n| where count >= 5",
   "description": "Failed management logins and HTTP access denials expose credential stuffing, misconfigured monitoring accounts, or accidental exposure of the management port.",
-  "value": "Provides an auditable trail for authentication abuse investigations and catches broken automation before it locks production accounts.",
+  "value": "Failed management logins and HTTP access denials expose credential stuffing, misconfigured monitoring accou.... Timely UC-8.3.34 alerting on 'RabbitMQ Management Login and Access Denied Events' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Forward `rabbit@*.log` from each cluster node. Extract `user` when present. Suppress known scanner subnets via a lookup. Alert on burst counts per 15 minutes; lower thresholds for management-tier hosts.",
   "visualization": "Timeline (failed logins), Table (host, user, count), Single value (failed attempts).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'RabbitMQ Management Login and Access Denied Events'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `messaging` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging`** — Planned work for 'RabbitMQ Management Login and Access Denied Events' shifts `count` over `span=1h` while `host` remains in-scope for UC-8.3.34. Cross-check CMDB CHG.\n\n2. **Batch `count` on `rabbitmq:log`** — Scheduled automation elevates `user` without crossing `count` >= 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `rabbitmq:log`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "rabbitmq"
   ],

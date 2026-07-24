@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Opsgenie Heartbeat Miss Correlated with Alert Spike' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_opsgenie_heartbeat_miss_correlated_with_alert_sp` (UC-16.2.27), SOC dashboard panel \"Operations — Opsgenie Heartbeat Miss Correlated with Alert Spike\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=alerts` sourcetype='opsgenie:heartbeat' that satisfy the UC-16.2.27 SPL filters for 'Opsgenie Heartbeat Miss Correlated with Alert Spike'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `alerts` / `opsgenie:heartbeat` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.2.27."
+    "positiveScenario": "Ingest synthetic events into `index=alerts` sourcetype='opsgenie:heartbeat' where `host` satisfies `misses` > 0 for UC-16.2.27 ('Opsgenie Heartbeat Miss Correlated with Alert Spike'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `alerts` / `opsgenie:heartbeat` events where `host` stays below `misses` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.2.27."
   },
   "dataSources": "Opsgenie heartbeat + alert feeds in one index Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Opsgenie for Splunk (3759) with heartbeat integration — Universal Forwarder (Splunkbase 617)",
   "spl": "index=alerts (sourcetype=\"opsgenie:heartbeat\" OR sourcetype=\"opsgenie:alert\")\n| eval hb_miss=if(sourcetype=\"opsgenie:heartbeat\" AND status=\"expired\",1,0)\n| stats sum(hb_miss) as misses, sum(eval(if(sourcetype=\"opsgenie:alert\",1,0))) as alerts by host\n| where misses>0 AND alerts>5\n| sort -alerts",
-  "description": "Heartbeat loss plus alert storms indicate monitoring agent or network partitions.",
-  "value": "Correlates synthetic monitor gaps with downstream noise. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Heartbeat loss plus alert storms indicate monitoring agent or network partitions. Searches `index=alerts` with sourcetype `opsgenie:heartbeat` for UC-16.2.27, aggregating `sum` by `host` over `the scheduled window`. Alerts when grouped results cross `misses` > 0 in the saved search. Gives Operations operators a repeatable signal for 'Opsgenie Heartbeat Miss Correlated with Alert Spike' without manual log review.",
+  "value": "Heartbeat loss plus alert storms indicate monitoring agent or network partitions. Timely UC-16.2.27 alerting on 'Opsgenie Heartbeat Miss Correlated with Alert Spike' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Normalize `host` from heartbeat name; join CMDB for owner.",
   "visualization": "Scatter (misses vs alerts), Table (host).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Opsgenie Heartbeat Miss Correlated with Alert Spike'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `alerts` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `alerts`** — Planned work for 'Opsgenie Heartbeat Miss Correlated with Alert Spike' shifts `sum` over `span=1h` while `host` remains in-scope for UC-16.2.27. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `opsgenie:heartbeat`** — Scheduled automation elevates `hb_miss` without crossing `misses` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `alerts` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `opsgenie:heartbeat`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "pagerduty"
   ],

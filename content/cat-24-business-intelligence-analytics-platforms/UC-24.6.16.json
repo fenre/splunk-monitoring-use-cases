@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'MicroStrategy Resource Saturation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_microstrategy_resource_saturation` (UC-24.6.16), SOC dashboard panel \"Operations — MicroStrategy Resource Saturation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='microstrategy:dsserror' that satisfy the UC-24.6.16 SPL filters for 'MicroStrategy Resource Saturation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `microstrategy:dsserror` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.6.16."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='microstrategy:dsserror' where `host` satisfies `max_cpu` > 85 for UC-24.6.16 ('MicroStrategy Resource Saturation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `microstrategy:dsserror` events where `host` stays below `max_cpu` > 85, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.6.16."
   },
   "dataSources": "MicroStrategy logs (`microstrategy:dsserror`), Enterprise Manager statistics. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "MicroStrategy Enterprise Manager / DSSErrors logs via UF; Library and Intelligence Server statistics via DB Connect/HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=microstrategy:dsserror\n| stats max(cpu_pct) as max_cpu, avg(cpu_pct) as avg_cpu, max(mem_pct) as max_mem by host\n| where max_cpu>85 OR max_mem>85\n| sort - max_cpu",
   "description": "Tracks CPU and memory utilisation on MicroStrategy nodes and flags hosts running hot, which throttle every workload on the node and precede hard failures.",
-  "value": "A saturated MicroStrategy node degrades all its users at once; catching saturation early drives autoscaling or workload rebalancing before an outage.",
+  "value": "Tracks CPU and memory utilisation on MicroStrategy nodes and flags hosts running hot, which throttle every.... Timely UC-24.6.16 alerting on 'MicroStrategy Resource Saturation' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest MicroStrategy host metrics; schedule every 10 minutes and alert when a node sustains high CPU or memory.",
   "visualization": "Table of host by peak resource use, heat map.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'MicroStrategy Resource Saturation'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'MicroStrategy Resource Saturation' shifts `max` over `span=1h` while `host` remains in-scope for UC-24.6.16. Cross-check CMDB CHG.\n\n2. **Batch `max` on `microstrategy:dsserror`** — Scheduled automation elevates `src` without crossing `max_cpu` > 85. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `microstrategy:dsserror`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],

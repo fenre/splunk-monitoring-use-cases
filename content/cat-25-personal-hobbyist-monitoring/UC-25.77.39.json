@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Garmin Golf Field Completeness Score' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_garmin_golf_field_completeness_score` (UC-25.77.39), SOC dashboard panel \"Personal — Garmin Golf Field Completeness Score\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='garmin:golf' that satisfy the UC-25.77.39 SPL filters for 'Garmin Golf Field Completeness Score'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `garmin:golf` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.77.39."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='garmin:golf' where `entity` satisfies detection threshold for UC-25.77.39 ('Garmin Golf Field Completeness Score'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `garmin:golf` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.77.39."
   },
   "dataSources": "Golf rounds (`golf:round`), Garmin golf telemetry (`garmin:golf`), UDisc rounds (`udisc:round`), launch-monitor shots (`launchmonitor:shot`), handicap-index updates (`handicap:index`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Arccos and Garmin S62 round telemetry, UDisc round exports, launch-monitor CSVs, and handicap-index updates streamed to Splunk HEC via APIs and scripted imports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=garmin:golf\n| eval complete=if(isnotnull(value) AND isnotnull(duration_min),1,0)\n| stats sum(complete) as complete_rows, count as total\n| eval completeness_pct=round(100*complete_rows/total,1)",
   "description": "Measures how often garmin golf events include both value and duration. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Incomplete exports break joins and dashboards; completeness scoring catches schema drift early.",
+  "value": "Measures how often garmin golf events include both value and duration. Timely UC-25.77.39 alerting on 'Garmin Golf Field Completeness Score' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Require `value` and `duration_min` on garmin golf events and track completeness percentage.",
   "visualization": "Single-value gauge of field completeness percent.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Garmin Golf Field Completeness Score'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `garmin:golf`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Garmin Golf Field Completeness Score' stops polling `garmin:golf`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `garmin:golf`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

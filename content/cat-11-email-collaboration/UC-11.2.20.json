@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'SharePoint Online Site and Web Creation Activity' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_sharepoint_online_site_and_web_creation_activity` (UC-11.2.20), SOC dashboard panel \"Operations — SharePoint Online Site and Web Creation Activity\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=o365` sourcetype='o365:management:activity' that satisfy the UC-11.2.20 SPL filters for 'SharePoint Online Site and Web Creation Activity'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `o365` / `o365:management:activity` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.2.20."
+    "positiveScenario": "Ingest synthetic events into `index=o365` sourcetype='o365:management:activity' where `actor` satisfies detection threshold for UC-11.2.20 ('SharePoint Online Site and Web Creation Activity'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `o365` / `o365:management:activity` events where `actor` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.2.20."
   },
   "dataSources": "Office 365 Management Activity `sourcetype=o365:management:activity` with `Workload=SharePoint`",
   "app": "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055)",
   "spl": "index=o365 sourcetype=\"o365:management:activity\" Workload=SharePoint earliest=-7d\n| where match(Operation, \"(?i)site.*creat|new.*site|create.*web\")\n| eval actor=coalesce(UserId, UserPrincipalName, userId, \"\")\n| eval site=coalesce(SiteUrl, ObjectId, \"\")\n| stats count values(Operation) as ops by actor, site\n| sort -count",
   "description": "New site or web creation events in SharePoint Online highlight shadow IT, partner onboarding, or attacker persistence through new collaboration surfaces.",
-  "value": "Lets governance teams reconcile sprawl against approved site provisioning workflows and gives security teams early visibility when creation spikes follow account compromise.",
+  "value": "New site or web creation events in SharePoint Online highlight shadow IT, partner onboarding, or attacker p.... Timely UC-11.2.20 alerting on 'SharePoint Online Site and Web Creation Activity' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Enable SharePoint workload in the Office 365 Management Activity input. `Operation` strings evolve—maintain a lookup of approved operations or site templates. Exclude known automation service principals via `UserId`. Forward notable clusters to GRC for records management.",
   "visualization": "Table (actor × site), timechart of creations, single value (distinct creators).",
   "dataModelAcceleration": "Not applicable; primary SPL uses raw or vendor-normalized event fields.",
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'SharePoint Online Site and Web Creation Activity'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `o365` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `o365`** — Planned work for 'SharePoint Online Site and Web Creation Activity' shifts `values` over `span=1h` while `actor` remains in-scope for UC-11.2.20. Cross-check CMDB CHG.\n\n2. **Batch `values` on `o365:management:activity`** — Scheduled automation elevates `site` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `actor`** — Health checks in `o365` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `o365:management:activity`** — First 48h baseline for `actor` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `actor`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365",
     "sharepoint"

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Windows Time Service (W32Time) Issues' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_windows_time_service_w32time_issues` (UC-1.2.45), SOC dashboard panel \"Linux — Windows Time Service (W32Time) Issues\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:System' EventCode=129 that satisfy the UC-1.2.45 SPL filters for 'Windows Time Service (W32Time) Issues'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:System` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.45."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:System' EventCode=129 where `entity` satisfies detection threshold for UC-1.2.45 ('Windows Time Service (W32Time) Issues'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:System` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.45."
   },
   "dataSources": "`sourcetype=WinEventLog:System` (Source=Microsoft-Windows-Time-Service, EventCode 129, 134, 142, 36) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:System\" Source=\"Microsoft-Windows-Time-Service\"\n  EventCode IN (129, 134, 142, 36)\n| eval issue=case(EventCode=129,\"NTP unreachable\",EventCode=134,\"Time difference too large\",EventCode=142,\"Time service stopped\",EventCode=36,\"Time not synced for 24h\")\n| table _time, host, issue, EventCode\n| sort -_time",
   "description": "Time synchronization failures break Kerberos authentication (5-minute tolerance), cause log correlation issues, and invalidate audit trails.",
-  "value": "Time drift is a silent multiplier for auth, PKI, and correlation—treat it as infrastructure health, not a footnote.",
+  "value": "Time synchronization failures break Kerberos authentication (5-minute tolerance), cause log correlation iss.... Timely UC-1.2.45 alerting on 'Windows Time Service (W32Time) Issues' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "W32Time events log automatically. EventCode 129=NTP server unreachable, 134=time difference >5 seconds (Kerberos risk), 142=time service stopped, 36=not synced in 24 hours. Domain-joined machines sync to DC; DCs sync to PDC emulator; PDC syncs to external NTP. Alert on any DC time sync failures (Kerberos impact). Monitor non-DC servers for EventCode 36.",
   "visualization": "Table (time sync issues), Status grid (host × sync status), Single value (unsynced hosts).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Windows Time Service (W32Time) Issues'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `WinEventLog:System`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Windows Time Service (W32Time) Issues'. Correlate with apt/yum logs in the same `WinEventLog:System` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:System`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

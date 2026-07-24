@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Personal Attack-Surface Scorecard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_personal_attack_surface_scorecard` (UC-25.38.18), SOC dashboard panel \"Personal — Personal Attack-Surface Scorecard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='breach:alert' that satisfy the UC-25.38.18 SPL filters for 'Personal Attack-Surface Scorecard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `breach:alert` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.38.18."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='breach:alert' where `sourcetype` satisfies `days_left` < 14 for UC-25.38.18 ('Personal Attack-Surface Scorecard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `breach:alert` events where `sourcetype` stays below `days_left` < 14, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.38.18."
   },
   "dataSources": "Breach alerts (`breach:alert`), inbox stats (`inbox:stats`), cloud-drive usage (`clouddrive:usage`), certificate expiry (`certexpiry:check`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal cybersecurity feeds — Have-I-Been-Pwned breach alerts, personal email/inbox stats, cloud-storage usage APIs, and personal TLS-certificate expiry checks — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal (sourcetype=breach:alert OR sourcetype=certexpiry:check OR sourcetype=inbox:stats OR sourcetype=clouddrive:usage)\n| eval risk_points=case(sourcetype=\"breach:alert\",5,sourcetype=\"certexpiry:check\" AND days_left<14,3,sourcetype=\"inbox:stats\" AND unread_count>1000,2,sourcetype=\"clouddrive:usage\" AND used_pct>90,2,true(),0)\n| stats sum(risk_points) as risk_score by sourcetype\n| sort - risk_score",
   "description": "Rolls several personal-cyber weak signals into a simple scorecard. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "A single score does not replace details, but it helps you decide when your personal digital hygiene needs attention now rather than later.",
+  "value": "Rolls several personal-cyber weak signals into a simple scorecard. Timely UC-25.38.18 alerting on 'Personal Attack-Surface Scorecard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Use consistent fields across personal-cyber feeds in `index=personal`; derive a lightweight scorecard from breach, certificate, inbox, and storage signals.",
   "visualization": "Table of personal-cyber sourcetypes with their current risk-point contribution.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Personal Attack-Surface Scorecard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `breach:alert`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Personal Attack-Surface Scorecard' stops polling `breach:alert`; stale `sourcetype` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `breach:alert`. Dedup with `stats latest(*) by sourcetype`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_left` < 14. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

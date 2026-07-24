@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Bathroom Visit Gap After Fluid Cutoff' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_bathroom_visit_gap_after_fluid_cutoff` (UC-25.35.24), SOC dashboard panel \"Personal — Bathroom Visit Gap After Fluid Cutoff\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='bathroom:visit' that satisfy the UC-25.35.24 SPL filters for 'Bathroom Visit Gap After Fluid Cutoff'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `bathroom:visit` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.35.24."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='bathroom:visit' where `_time` satisfies detection threshold for UC-25.35.24 ('Bathroom Visit Gap After Fluid Cutoff'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `bathroom:visit` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.35.24."
   },
   "dataSources": "Allergy symptoms (`allergy:entry`), migraine records (`migraine:entry`), bathroom visits (`bathroom:visit`), and sleep-talking events (`sleeptalk:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Symptom telemetry for allergy diaries, migraine aura tracking, bathroom frequency logging, and sleep-talking review sent to Splunk HEC via apps and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=bathroom:visit\n| search minutes_since_cutoff=*\n| bin _time span=1w\n| stats avg(minutes_since_cutoff) as avg_minutes_since_cutoff count as visits by _time after_cutoff\n| sort - _time",
-  "description": "Tracks bathroom visits after fluid cutoff over time and breaks it out by after-cutoff flag.",
-  "value": "The gap after a fluid cutoff helps test whether the routine is making any real difference.",
+  "description": "Tracks bathroom visits after fluid cutoff over time and breaks it out by after-cutoff flag. Searches `index=personal` with sourcetype `bathroom:visit` for UC-25.35.24, aggregating `avg` by `_time` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Bathroom Visit Gap After Fluid Cutoff' without manual log review.",
+  "value": "Tracks bathroom visits after fluid cutoff over time and breaks it out by after-cutoff flag. Timely UC-25.35.24 alerting on 'Bathroom Visit Gap After Fluid Cutoff' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send bathroom visits after fluid cutoff events to `index=personal` with the fields used in the breakdown and review the resulting trend at 1w granularity.",
   "visualization": "Stacked time chart of bathroom visits after fluid cutoff by after-cutoff flag.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Bathroom Visit Gap After Fluid Cutoff'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `bathroom:visit`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Bathroom Visit Gap After Fluid Cutoff' stops polling `bathroom:visit`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `bathroom:visit`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

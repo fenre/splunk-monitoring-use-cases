@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'macOS Filesystem Capacity from Splunk TA df' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_macos_filesystem_capacity_from_splunk_ta_df` (UC-1.1.134), SOC dashboard panel \"Linux — macOS Filesystem Capacity from Splunk TA df\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='df' that satisfy the UC-1.1.134 SPL filters for 'macOS Filesystem Capacity from Splunk TA df'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `df` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.134."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='df' where `entity` satisfies `use_pct` > 90 for UC-1.1.134 ('macOS Filesystem Capacity from Splunk TA df'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `df` events where `entity` stays below `use_pct` > 90, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.134."
   },
   "dataSources": "`index=os` `sourcetype=df` from Splunk Add-on for Unix and Linux (per-host filesystem inventory) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase #833) with Universal Forwarder on macOS — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=df host=*\n| where MountedOn=\"/\" OR match(MountedOn, \"^/System/Volumes/Data$\")\n| eval use_pct=coalesce(tonumber(UsePct), tonumber(PercentUsed), round((UsedKB/SizeKB)*100,2))\n| where use_pct > 90\n| table _time, host, Filesystem, MountedOn, SizeKB, AvailKB, use_pct\n| sort - use_pct",
   "description": "macOS endpoints exhaust `/System/Volumes/Data` quickly with local Time Machine snapshots, Xcode caches, and mail attachments. The TA `df` input already exposes per-mount utilization; scoping to root and Data volumes catches impending fullness before logging and MDM operations fail.",
-  "value": "Prevents OS instability and failed security tooling updates by alerting on critical mount points before they hit 100% utilization.",
+  "value": "macOS endpoints exhaust `/System/Volumes/Data` quickly with local Time Machine snapshots, Xcode caches, and.... Timely UC-1.1.134 alerting on 'macOS Filesystem Capacity from Splunk TA df' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Enable the `df` scripted input in `Splunk_TA_nix` on macOS UF installs (Darwin is supported for many collectors). Confirm field extractions: prefer `UsePct`; if your build emits `UsedKB`/`SizeKB`, derive percent as in the SPL. Poll every 5–15 minutes. Exclude network mounts with a `where NOT match(Filesystem, \"^//\")` clause if noisy. Alert above 90% on `/` and `/System/Volumes/Data` (adjust for Silicon vs Intel layout).",
   "visualization": "Table (host, mount, use_pct), Line chart (use_pct trend for Data volume), Single value (count of hosts over threshold).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'macOS Filesystem Capacity from Splunk TA df'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `df`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'macOS Filesystem Capacity from Splunk TA df'. Correlate with apt/yum logs in the same `df` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `df`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `use_pct` > 90.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "macos"

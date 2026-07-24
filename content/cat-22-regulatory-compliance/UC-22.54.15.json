@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Add a CIRCIA Agreement row with `agreement_valid_until=yesterday`; UC-22.54.15 MUST flag the row with `agreement_status=\"expired\"` within 7 days.",
-    "negativeScenario": "Renew the agreement, set `agreement_valid_until=12 months from now`; UC-22.54.15 MUST record `agreement_status=\"active\"`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-22.54.15 ('CIRCIA Agreement Inventory — evidence every sectoral-bridge agreement (NRC, FCC, FDA, FAA, FERC, SEC, EPA) is current and operationalised'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.54.15."
   },
   "dataSources": "KV Store `circia_agreement_lookup` populated by General Counsel intake. ServiceNow Legal-Matter records. Cross-reference to sectoral agency portals (NRC iCMARS, FCC NORS, FDA MedWatch, FAA SMS, FERC ePAC, SEC EDGAR, EPA WaterISAC) for current bridge status.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup circia_agreement_lookup\n| eval now_ts = now()\n| eval agreement_status = case(\n    agreement_signed_at = 0 OR isnull(agreement_signed_at), \"never_signed\",\n    agreement_valid_until > now_ts, \"active\",\n    agreement_valid_until < now_ts AND agreement_valid_until > (now_ts - 30 * 86400), \"recently_expired\",\n    agreement_valid_until < now_ts, \"expired\",\n    1=1, \"unknown\")\n| where agreement_status != \"active\"\n| table agreement_id agreement_party agency_party agreement_signed_at agreement_signed_by agreement_scope agreement_valid_until exchange_mechanism agreement_status",
   "description": "Inventory and status check for CIRCIA Agreements that bridge CISA reporting to sectoral reporting obligations. Surfaces expired agreements and unsigned agreements.",
-  "value": "Without an instrumented inventory, the General Counsel cannot reliably tell whether a CISA report also discharges a sectoral obligation (e.g., NERC CIP-008-6 or SEC Form 8-K Item 1.05). This UC ensures every agreement is current.",
+  "value": "Inventory and status check for CIRCIA Agreements that bridge CISA reporting to sectoral reporting obligations. Timely UC-22.54.15 alerting on 'CIRCIA Agreement Inventory — evidence every sectoral-bridge agreement (NRC, FCC, FDA, FAA, FERC, SEC, EPA) is current and operationalised' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `circia_agreement_lookup` with all known CIRCIA Agreements; for new bridges, General Counsel intake adds rows. (2) Schedule UC-22.54.15 weekly Monday 02:00; route expired or never-signed to General-Counsel notable. (3) Annual review verifies the bridges remain in force.",
   "visualization": "(Panel 1) Active-agreement inventory. (Panel 2) Expiring-within-90-days warning queue. (Panel 3) Sectoral-agency coverage map. (Panel 4) Recent agreement changes log.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Recently-expired agreement under renewal** — the agreement may have lapsed for days while renewal is in progress. Suppression: `recently_expired` is shown as a 30-day warning, not an alert; only `expired` (>30 days) triggers a P2 notable.\n\n2. **Pre-signing review** — a draft agreement may be in legal review with `agreement_signed_at=null`. Suppression: legitimate drafts are excluded by tagging `agreement_status_override=drafting`.\n\n**Suppression mechanism**: KV Store `circia_22_54_15_exceptions` with per-agreement grants requiring documented General Counsel approval and a 90-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CIRCIA control testing** — Internal audit exercises 'CIRCIA Agreement Inventory — evidence every sectoral-bridge agreement (NRC, FCC, FDA, FAA, FERC, SEC, EPA) is current and operationalised' (UC-22.54.15) on `entity` during scheduled clause CIRCIA-NPRM-cisa-agreement sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `circia_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `circia_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (governance and inter-agency coordination)"
   ],

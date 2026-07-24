@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Run Cadence Consistency Warning' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_run_cadence_consistency_warning` (UC-25.1.14), SOC dashboard panel \"Personal — Run Cadence Consistency Warning\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='strava:activity' that satisfy the UC-25.1.14 SPL filters for 'Run Cadence Consistency Warning'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `strava:activity` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.14."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='strava:activity' where `athlete` satisfies `cadence_sd` > 6 for UC-25.1.14 ('Run Cadence Consistency Warning'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `strava:activity` events where `athlete` stays below `cadence_sd` > 6, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.14."
   },
   "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift ride exports (`zwift:activity`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as file inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=strava:activity sport=Run\n| bin _time span=1w\n| stats avg(cadence_spm) as avg_cadence, stdev(cadence_spm) as cadence_sd by athlete _time\n| where cadence_sd>6\n| sort - cadence_sd",
   "description": "Measures weekly spread in running cadence and flags inconsistent form weeks where your stride mechanics are jumping around more than usual.",
-  "value": "Cadence is a cheap proxy for form consistency; watching its variability can reveal fatigue, injury compensation, or sloppy easy runs before they become a habit.",
+  "value": "Measures weekly spread in running cadence and flags inconsistent form weeks where your stride mechanics are.... Timely UC-25.1.14 alerting on 'Run Cadence Consistency Warning' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest cadence from running activities; schedule weekly and review weeks where cadence standard deviation stays elevated.",
   "visualization": "Weekly chart of average cadence with standard-deviation markers.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Run Cadence Consistency Warning'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `strava:activity`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Run Cadence Consistency Warning' stops polling `strava:activity`; stale `athlete` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `strava:activity`. Dedup with `stats latest(*) by athlete`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `cadence_sd` > 6. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

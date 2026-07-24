@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'GitLab Container Registry Garbage Collection and Blob Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_gitlab_container_registry_garbage_collection_and` (UC-12.1.24), SOC dashboard panel \"Operations — GitLab Container Registry Garbage Collection and Blob Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='gitlab:registry' that satisfy the UC-12.1.24 SPL filters for 'GitLab Container Registry Garbage Collection and Blob Errors'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `devops` / `gitlab:registry` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.1.24."
+    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='gitlab:registry' where `host` satisfies detection threshold for UC-12.1.24 ('GitLab Container Registry Garbage Collection and Blob Errors'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `devops` / `gitlab:registry` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.1.24."
   },
   "dataSources": "GitLab Registry or Rails logs with registry component (`sourcetype=gitlab:registry` normalized) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "GitLab Omnibus logs via Universal Forwarder; Registry stdout JSON if containerized — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"gitlab:registry\" OR (sourcetype=\"gitlab:application\" component=\"registry\")\n| search \"blob\" AND (\"delete\" OR \"gc\" OR \"garbage\" OR \"manifest unknown\" OR \"unknown blob\")\n| stats count, latest(_time) as last_seen by host, message_snippet\n| sort -count",
-  "description": "GC and blob errors risk storage exhaustion and failed image pulls for production clusters.",
-  "value": "Catches registry maintenance failures that would break image pulls during deploys.",
+  "description": "GC and blob errors risk storage exhaustion and failed image pulls for production clusters. Searches `index=devops` with sourcetype `gitlab:registry` for UC-12.1.24, aggregating `count` by `host` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'GitLab Container Registry Garbage Collection and Blob Errors' without manual log review.",
+  "value": "GC and blob errors risk storage exhaustion and failed image pulls for production clusters. Timely UC-12.1.24 alerting on 'GitLab Container Registry Garbage Collection and Blob Errors' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ship registry logs to Splunk; truncate `message_snippet` at ingest. Page on sustained error bursts correlated with disk alerts.",
   "visualization": "Bar chart (error categories), Timeline of registry errors.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'GitLab Container Registry Garbage Collection and Blob Errors'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `devops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `devops`** — Planned work for 'GitLab Container Registry Garbage Collection and Blob Errors' shifts `count` over `span=1h` while `host` remains in-scope for UC-12.1.24. Cross-check CMDB CHG.\n\n2. **Batch `count` on `gitlab:registry`** — Scheduled automation elevates `message_snippet` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gitlab:registry`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "gitlab"
   ],

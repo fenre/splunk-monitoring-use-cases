@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Production Batch Yield Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_production_batch_yield_tracking` (UC-21.2.3), SOC dashboard panel \"Operations — Production Batch Yield Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=mfg` sourcetype='mes:production' that satisfy the UC-21.2.3 SPL filters for 'Production Batch Yield Tracking'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `mfg` / `mes:production` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.2.3."
+    "positiveScenario": "Ingest synthetic events into `index=mfg` sourcetype='mes:production' where `sku` satisfies `yield_jitter` > 5 for UC-21.2.3 ('Production Batch Yield Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `mfg` / `mes:production` events where `sku` stays below `yield_jitter` > 5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.2.3."
   },
   "dataSources": "`index=mfg` `sourcetype=\"mes:production\"` (batch_id, sku, input_kg, good_kg, scrap_kg) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom HEC (MES) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=mfg sourcetype=\"mes:production\"\n| eval yield_pct=if((good_kg+scrap_kg)>0, 100*good_kg/(good_kg+scrap_kg), null), loss_pct=100-yield_pct\n| bin _time span=1d\n| stats avg(yield_pct) as avg_yield, stdev(yield_pct) as yield_jitter by sku, batch_id, _time\n| eventstats median(avg_yield) as sku_median by sku\n| where avg_yield < sku_median*0.95 OR yield_jitter>5\n| table _time, sku, batch_id, avg_yield, sku_median, yield_jitter",
   "description": "Batch yield ties material usage to quality outcomes; sustained loss trends trigger recipe or supplier investigations before customer rejects accumulate.",
-  "value": "Service and risk leaders use signals from Production Batch Yield Tracking to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "Service and risk leaders use signals from Production Batch Yield Tracking to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "MES batch completion records to HEC with weights from scales integrated via OPC if needed. Maintain golden batch yield per SKU in a lookup for static targets. Alert on statistically significant drops; integrate with QMS for hold codes. **Domain context:** Yield is central to IATF 16949 / food & pharma traceability—tie `batch_id` to lot genealogy in QMS when required. **Splunk:** `good_kg` + `scrap_kg` should reconcile to total material; if not, fix extraction before trusting `yield_pct`.",
   "visualization": "Line chart (yield by batch), Bar chart (yield by SKU), Table (worst batches), Control chart (yield with limits).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Production Batch Yield Tracking'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `mfg` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `mfg`** — Planned work for 'Production Batch Yield Tracking' shifts `avg` over `span=1d` while `sku` remains in-scope for UC-21.2.3. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `mes:production`** — Scheduled automation elevates `batch_id` without crossing `yield_jitter` > 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sku`** — Health checks in `mfg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mes:production`** — First 48h baseline for `sku` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sku`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365"
   ],

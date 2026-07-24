@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'NOAA Weather-Satellite Pass Capture Log' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_noaa_weather_satellite_pass_capture_log` (UC-25.21.4), SOC dashboard panel \"Personal — NOAA Weather-Satellite Pass Capture Log\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='noaa:apt' that satisfy the UC-25.21.4 SPL filters for 'NOAA Weather-Satellite Pass Capture Log'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `noaa:apt` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.21.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='noaa:apt' where `satellite` satisfies detection threshold for UC-25.21.4 ('NOAA Weather-Satellite Pass Capture Log'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `noaa:apt` events where `satellite` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.21.4."
   },
   "dataSources": "APRS packets (`aprs:packet`), WSPR spots (`wspr:spot`), satellite passes (`satpass:prediction`), NOAA APT captures (`noaa:apt`), meteor-scatter pings (`meteorscatter:ping`), SSTV images (`sstv:image`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Software-defined radio and ham-radio stations — APRS igate, WSPR beacon, NOAA weather-satellite (APT) receiver, meteor-scatter monitor, and SSTV decoder — logging to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=noaa:apt\n| stats count as captures, avg(max_elevation) as avg_elev, sum(eval(if(quality=\"good\",1,0))) as good by satellite\n| eval success_pct=round(100*good/captures,1)\n| sort - captures",
-  "description": "Logs each weather-satellite image capture and how many came out clean, so you can tune your antenna and timing.",
-  "value": "APT reception is finicky; tracking capture success per satellite tells you whether an antenna change actually improved your images.",
+  "description": "Logs each weather-satellite image capture and how many came out clean, so you can tune your antenna and timing. Searches `index=personal` with sourcetype `noaa:apt` for UC-25.21.4, aggregating `avg` by `satellite` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'NOAA Weather-Satellite Pass Capture Log' without manual log review.",
+  "value": "Logs each weather-satellite image capture and how many came out clean, so you can tune your antenna and timing. Timely UC-25.21.4 alerting on 'NOAA Weather-Satellite Pass Capture Log' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest capture metadata from your NOAA APT receiver; schedule daily and review success rate per satellite.",
   "visualization": "Bar chart of capture success rate by satellite.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'NOAA Weather-Satellite Pass Capture Log'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `noaa:apt`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'NOAA Weather-Satellite Pass Capture Log' stops polling `noaa:apt`; stale `satellite` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `noaa:apt`. Dedup with `stats latest(*) by satellite`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

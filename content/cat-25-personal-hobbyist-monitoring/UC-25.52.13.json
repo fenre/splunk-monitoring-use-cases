@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Bathroom Routine Deviation Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_bathroom_routine_deviation_alert` (UC-25.52.13), SOC dashboard panel \"Personal — Bathroom Routine Deviation Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='eldercare:activity' that satisfy the UC-25.52.13 SPL filters for 'Bathroom Routine Deviation Alert'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `eldercare:activity` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.52.13."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='eldercare:activity' where `_time` satisfies detection threshold for UC-25.52.13 ('Bathroom Routine Deviation Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `eldercare:activity` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.52.13."
   },
   "dataSources": "Daily activity (`eldercare:activity`), fall alerts (`fall:alert`), medication reminders (`medreminder:event`), check-in calls (`checkin:call`), wandering alerts (`wandering:alert`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Elder-care and accessibility telemetry — activity and fall sensors (Apple Watch fall detection, motion mats), medication dispensers, and check-in / video-call logs — streamed to Splunk HEC via APIs and smart-home hubs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=eldercare:activity activity_type=bathroom_visit\n| bin _time span=1d\n| stats count as visits by _time resident\n| eventstats avg(visits) as baseline by resident\n| where abs(visits-baseline)>2\n| sort - visits",
-  "description": "Flags days where bathroom-visit frequency deviates sharply from a resident's baseline pattern.",
-  "value": "Routine deviations can be one of the first observable signs that something physical or cognitive has changed.",
+  "description": "Flags days where bathroom-visit frequency deviates sharply from a resident's baseline pattern. Searches `index=personal` with sourcetype `eldercare:activity` for UC-25.52.13, aggregating `avg` by `_time` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Bathroom Routine Deviation Alert' without manual log review.",
+  "value": "Flags days where bathroom-visit frequency deviates sharply from a resident's baseline pattern. Timely UC-25.52.13 alerting on 'Bathroom Routine Deviation Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Tag bathroom visits in `eldercare:activity`; compare daily counts with each resident's average baseline.",
   "visualization": "Table of outlier days with bathroom-visit deviation.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Bathroom Routine Deviation Alert'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `eldercare:activity`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Bathroom Routine Deviation Alert' stops polling `eldercare:activity`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `eldercare:activity`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

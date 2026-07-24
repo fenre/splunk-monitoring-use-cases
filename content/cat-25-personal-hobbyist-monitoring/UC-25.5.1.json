@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Zigbee Sensor Low-Battery Roundup' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_zigbee_sensor_low_battery_roundup` (UC-25.5.1), SOC dashboard panel \"Personal — Zigbee Sensor Low-Battery Roundup\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='zigbee2mqtt:device' that satisfy the UC-25.5.1 SPL filters for 'Zigbee Sensor Low-Battery Roundup'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `zigbee2mqtt:device` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='zigbee2mqtt:device' where `friendly_name` satisfies `battery` < 20 for UC-25.5.1 ('Zigbee Sensor Low-Battery Roundup'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `zigbee2mqtt:device` events where `friendly_name` stays below `battery` < 20, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.1."
   },
   "dataSources": "Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue events (`hue:event`), thermostats (`ecobee:thermostat`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT bridged to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=zigbee2mqtt:device\n| stats latest(battery) as battery, max(_time) as last_seen by friendly_name\n| where battery<20\n| eval battery=battery.\"%\"\n| sort battery",
   "description": "Rounds up every Zigbee sensor whose battery is running low so you can replace them all in one trip instead of one dead sensor at a time.",
-  "value": "Scattered battery warnings are easy to ignore until a critical door or leak sensor dies; a single roundup makes battery care a five-minute chore.",
+  "value": "Rounds up every Zigbee sensor whose battery is running low so you can replace them all in one trip instead.... Timely UC-25.5.1 alerting on 'Zigbee Sensor Low-Battery Roundup' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Bridge Zigbee2MQTT device reports to HEC; schedule daily and alert when any battery drops below 20 percent.",
   "visualization": "Table of sensors by battery percentage, sorted lowest first.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Zigbee Sensor Low-Battery Roundup'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `zigbee2mqtt:device`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Zigbee Sensor Low-Battery Roundup' stops polling `zigbee2mqtt:device`; stale `friendly_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `zigbee2mqtt:device`. Dedup with `stats latest(*) by friendly_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `battery` < 20. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "f5",
     "mqtt"

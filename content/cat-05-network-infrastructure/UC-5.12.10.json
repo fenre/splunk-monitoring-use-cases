@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Toll Fraud Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_toll_fraud_detection` (UC-5.12.10), SOC dashboard panel \"Operations — Toll Fraud Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=voip` sourcetype='cdr:voip' that satisfy the UC-5.12.10 SPL filters for 'Toll Fraud Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `voip` / `cdr:voip` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.12.10."
+    "positiveScenario": "Ingest synthetic events into `index=voip` sourcetype='cdr:voip' where `src` satisfies `cost` > 500 for UC-5.12.10 ('Toll Fraud Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `voip` / `cdr:voip` events where `src` stays below `cost` > 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.12.10."
   },
   "dataSources": "`sourcetype=\"cdr:voip\"` with `rate_class`, `destination` — context: `cisco:ucm:cdr`, `asterisk:cdr`, `stream:sip` (Stream), `ims:cscf` (IMS) as deployed Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "SBC CDR, fraud scoring apps — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=voip sourcetype=\"cdr:voip\"\n| lookup premium_and_high_risk_prefixes called_number OUTPUT risk_tier\n| where risk_tier IN (\"premium\",\"satellite\",\"high_cost_geo\")\n| stats sum(toll_charge) as cost, count, dc(calling_party) as sources by src, hour\n| where cost>500 OR count>100\n| sort -cost",
   "description": "Premium-rate, international, or short-duration high-cost patterns from compromised PBX or SIP credentials — classic CDR analytics use case.",
-  "value": "Fraud teams detect and stop toll fraud attacks — compromised PBX, stolen SIP credentials, Wangiri callbacks — within minutes, preventing financial losses that can reach tens of thousands of dollars per incident.",
+  "value": "Premium-rate, international, or short-duration high-cost patterns from compromised PBX or SIP credentials —.... Timely UC-5.12.10 alerting on 'Toll Fraud Detection' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Hotline to NOC + auto-block high-risk destinations on SBC after threshold; require PIN for international on suspect trunks.",
   "visualization": "Table (top fraud legs), Map (destination countries), Timeline (attack window).",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Toll Fraud Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `voip` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `voip`** — Planned work for 'Toll Fraud Detection' shifts `sum` over `span=1h` while `src` remains in-scope for UC-5.12.10. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cdr:voip`** — Scheduled automation elevates `hour` without crossing `cost` > 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cdr:voip`** — First 48h baseline for `src` is unstable; join `premium_and_high_risk_prefixes` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "asterisk",
     "cisco"

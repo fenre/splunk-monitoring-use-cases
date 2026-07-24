@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'VxRail Cluster Node Add and Remove Operations Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_vxrail_cluster_node_add_and_remove_operations_au` (UC-2.10.7), SOC dashboard panel \"Linux — VxRail Cluster Node Add and Remove Operations Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vxrail` sourcetype='vxrail:system' that satisfy the UC-2.10.7 SPL filters for 'VxRail Cluster Node Add and Remove Operations Audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vxrail` / `vxrail:system` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.10.7."
+    "positiveScenario": "Ingest synthetic events into `index=vxrail` sourcetype='vxrail:system' where `entity` satisfies detection threshold for UC-2.10.7 ('VxRail Cluster Node Add and Remove Operations Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `vxrail` / `vxrail:system` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.10.7."
   },
   "dataSources": "`index=vxrail` `sourcetype=\"vxrail:system\"` — `cluster_id`, `node_serial`, `operation` (add|remove), `status`, `user` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "VxRail Manager audit / vCenter tasks mirrored to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=vxrail sourcetype=\"vxrail:system\" earliest=-30d\n| eval op=lower(operation)\n| where match(op, \"(?i)add|remove|expand|shrink\")\n| table _time, cluster_id, node_serial, op, status, user",
   "description": "Unauthorized or failed node operations change failure domains. A tamper-evident history supports SOX-style change evidence.",
-  "value": "Improves cluster integrity assurance and speeds forensic review. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Unauthorized or failed node operations change failure domains. Timely UC-2.10.7 alerting on 'VxRail Cluster Node Add and Remove Operations Audit' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Forward immutable audit logs. Join users to corporate directory. Alert on remove attempts without change ticket lookup match.",
   "visualization": "Timeline; user pivot; export CSV for CAB.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'VxRail Cluster Node Add and Remove Operations Audit'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `vxrail` `vxrail:system`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `vxrail`** — Package managers spike `host` metrics for 'VxRail Cluster Node Add and Remove Operations Audit'. Correlate with apt/yum logs in the same `vxrail:system` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vxrail:system`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "vmware",
     "vxrail"

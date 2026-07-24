@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Per-Process CPU and Memory Trending (_introspection)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_per_process_cpu_and_memory_trending_introspectio` (UC-13.1.40), SOC dashboard panel \"Operations — Per-Process CPU and Memory Trending (_introspection)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=_introspection` sourcetype='splunk_resource_usage' that satisfy the UC-13.1.40 SPL filters for 'Per-Process CPU and Memory Trending (_introspection)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `_introspection` / `splunk_resource_usage` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.40."
+    "positiveScenario": "Ingest synthetic events into `index=_introspection` sourcetype='splunk_resource_usage' where `data.process_type` satisfies detection threshold for UC-13.1.40 ('Per-Process CPU and Memory Trending (_introspection)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `_introspection` / `splunk_resource_usage` events where `data.process_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.40."
   },
   "dataSources": "`index=_introspection` `sourcetype=splunk_resource_usage` / `splunk_disk_objects` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Monitoring Console — Universal Forwarder (Splunkbase 617)",
   "spl": "index=_introspection sourcetype=splunk_resource_usage\n| timechart span=5m avg(data.cpu_pct) as cpu, avg(data.mem_used) as mem_kb by data.process_type, host",
-  "description": "`splunkd` child processes (search, indexer, pipeline) resource trends predict OOM and slowdown before user impact.",
+  "description": "`splunkd` child processes (search, indexer, pipeline) resource trends predict OOM and slowdown before user impact. Searches `index=_introspection` with sourcetype `splunk_resource_usage` for UC-13.1.40, aggregating `avg` by `data.process_type` over `5m`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Per-Process CPU and Memory Trending (_introspection)' without manual log review.",
   "value": "Early 'Per-Process CPU and Memory Trending (_introspection)' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Enable introspection generators on all tiers. Alert when `cpu_pct` or memory for `search`/`indexing` exceeds baseline. Use `predict` for week-over-week growth.",
   "visualization": "Line chart (CPU/memory by process class), Heatmap (host × process).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Per-Process CPU and Memory Trending (_introspection)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `_introspection` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `_introspection`** — Planned work for 'Per-Process CPU and Memory Trending (_introspection)' shifts `avg` over `span=5m` while `data.process_type` remains in-scope for UC-13.1.40. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `splunk_resource_usage`** — Scheduled automation elevates `host` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `data.process_type`** — Health checks in `_introspection` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `splunk_resource_usage`** — First 48h baseline for `data.process_type` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `data.process_type`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

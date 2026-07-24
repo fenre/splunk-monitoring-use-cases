@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Indoor CO2 Overnight Ventilation Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_indoor_co2_overnight_ventilation_gap` (UC-25.20.21), SOC dashboard panel \"Personal — Indoor CO2 Overnight Ventilation Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='airgradient:sensor' that satisfy the UC-25.20.21 SPL filters for 'Indoor CO2 Overnight Ventilation Gap'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `airgradient:sensor` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.20.21."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='airgradient:sensor' where `room` satisfies `hour` >= 0 for UC-25.20.21 ('Indoor CO2 Overnight Ventilation Gap'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `airgradient:sensor` events where `room` stays below `hour` >= 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.20.21."
   },
   "dataSources": "Citizen-science telemetry (`seismo:reading`, `geiger:cpm`, `lightning:strike`, `airgradient:sensor`, `radon:reading`, `allsky:capture`, `magnetometer:reading`, `weatherstation:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Raspberry Shake, Safecast, Blitzortung-compatible lightning sensors, AirGradient CO2 sensors, radon monitors, allsky cameras, and magnetometers streamed to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=airgradient:sensor\n| eval hour=tonumber(strftime(_time,\"%H\"))\n| where hour>=0 AND hour<6\n| bin _time span=1d\n| stats avg(co2_ppm) as avg_co2_ppm, max(co2_ppm) as max_co2_ppm by room _time\n| where avg_co2_ppm>1200 OR max_co2_ppm>1800\n| sort - avg_co2_ppm",
-  "description": "Uses AirGradient indoor air data telemetry to monitor overnight CO2 buildup in sleeping spaces in index=personal.",
-  "value": "Splunk turns the feed into an operational check for ventilation problems that affect sleep quality and comfort, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses AirGradient indoor air data telemetry to monitor overnight CO2 buildup in sleeping spaces in index=personal. Searches `index=personal` with sourcetype `airgradient:sensor` for UC-25.20.21, aggregating `avg` by `room` over `1d`. Alerts when grouped results cross `hour` >= 0 in the saved search. Gives Personal operators a repeatable signal for 'Indoor CO2 Overnight Ventilation Gap' without manual log review.",
+  "value": "Uses AirGradient indoor air data telemetry to monitor overnight CO2 buildup in sleeping spaces in index=per.... Timely UC-25.20.21 alerting on 'Indoor CO2 Overnight Ventilation Gap' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest AirGradient indoor air data data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Daily room chart of overnight average and max CO2.",
   "cimModels": [],
@@ -60,7 +60,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Indoor CO2 Overnight Ventilation Gap'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `airgradient:sensor`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Indoor CO2 Overnight Ventilation Gap' stops polling `airgradient:sensor`; stale `room` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `airgradient:sensor`. Dedup with `stats latest(*) by room`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `hour` >= 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

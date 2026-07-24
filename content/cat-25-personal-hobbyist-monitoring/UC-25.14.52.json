@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'OpenSky State Vector Baro Altitude Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_opensky_state_vector_baro_altitude_leaderboard` (UC-25.14.52), SOC dashboard panel \"Personal — OpenSky State Vector Baro Altitude Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='opensky:state' that satisfy the UC-25.14.52 SPL filters for 'OpenSky State Vector Baro Altitude Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `opensky:state` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.52."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='opensky:state' where `icao24` satisfies detection threshold for UC-25.14.52 ('OpenSky State Vector Baro Altitude Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `opensky:state` events where `icao24` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.52."
   },
   "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home ADS-B receiver (dump1090/readsb/tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=opensky:state baro_altitude_m=*\n| stats sum(baro_altitude_m) as total_value, avg(baro_altitude_m) as avg_value by icao24\n| sort - total_value",
-  "description": "Ranks aircraft values by total and average baro altitude across OpenSky state vector events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks aircraft values by total and average baro altitude across OpenSky state vector events. Searches `index=personal` with sourcetype `opensky:state` for UC-25.14.52, aggregating `sum` by `icao24` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'OpenSky State Vector Baro Altitude Leaderboard' without manual log review.",
+  "value": "Ranks aircraft values by total and average baro altitude across OpenSky state vector events. Timely UC-25.14.52 alerting on 'OpenSky State Vector Baro Altitude Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `baro_altitude_m` values for each OpenSky state vector event and review total and average baro altitude by aircraft.",
   "visualization": "Table of entities ranked by total baro altitude.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'OpenSky State Vector Baro Altitude Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `opensky:state`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'OpenSky State Vector Baro Altitude Leaderboard' stops polling `opensky:state`; stale `icao24` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `opensky:state`. Dedup with `stats latest(*) by icao24`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

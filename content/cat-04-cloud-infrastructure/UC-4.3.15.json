@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Cloud CDN Cache Hit Ratio and Egress' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cloud_cdn_cache_hit_ratio_and_egress` (UC-4.3.15), SOC dashboard panel \"Operations — Cloud CDN Cache Hit Ratio and Egress\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='google:gcp:monitoring' that satisfy the UC-4.3.15 SPL filters for 'Cloud CDN Cache Hit Ratio and Egress'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `gcp` / `google:gcp:monitoring` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.15."
+    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='google:gcp:monitoring' where `_time` satisfies `hit_ratio` < 0.7 for UC-4.3.15 ('Cloud CDN Cache Hit Ratio and Egress'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `gcp` / `google:gcp:monitoring` events where `_time` stays below `hit_ratio` < 0.7, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.15."
   },
   "dataSources": "Cloud Monitoring (cdn.googleapis.com/cache/hit_ratio, egress) Collected via Splunk Add-on for Google Cloud Platform (Splunkbase 3084) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_google-cloudplatform` — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
   "spl": "index=gcp sourcetype=\"google:gcp:monitoring\" metric.type=\"cdn.googleapis.com/cache/hit_ratio\"\n| bin _time span=1h\n| stats avg(value) as hit_ratio by _time, resource.labels.origin_name\n| where hit_ratio < 0.7",
-  "description": "Cache hit ratio and egress volume impact latency and cost. Low hit ratio increases origin load and egress charges.",
+  "description": "Cache hit ratio and egress volume impact latency and cost. Low hit ratio increases origin load and egress charges. Searches `index=gcp` with sourcetype `google:gcp:monitoring` for UC-4.3.15, aggregating `avg` by `_time` over `1h`. Alerts when grouped results cross `hit_ratio` < 0.7 in the saved search. Gives Operations operators a repeatable signal for 'Cloud CDN Cache Hit Ratio and Egress' without manual log review.",
   "value": "Early 'Cloud CDN Cache Hit Ratio and Egress' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Collect CDN metrics. Calculate hit ratio from cache hits and misses. Alert when hit ratio < 70% or egress spike. Optimize cache TTL and key design based on metrics.",
   "visualization": "Line chart (hit ratio, egress by origin), Table (origin, hit ratio), Gauge (overall hit ratio).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cloud CDN Cache Hit Ratio and Egress'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `gcp` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `gcp`** — Planned work for 'Cloud CDN Cache Hit Ratio and Egress' shifts `avg` over `span=1h` while `_time` remains in-scope for UC-4.3.15. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `google:gcp:monitoring`** — Scheduled automation elevates `resource.labels.origin_name` without crossing `hit_ratio` < 0.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `google:gcp:monitoring`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "gcp"
   ],

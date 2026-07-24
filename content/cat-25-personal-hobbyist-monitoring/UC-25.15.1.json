@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Sourdough Starter Peak-Rise Bake-Now Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_sourdough_starter_peak_rise_bake_now_alert` (UC-25.15.1), SOC dashboard panel \"Personal — Sourdough Starter Peak-Rise Bake-Now Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='sourdough:reading' that satisfy the UC-25.15.1 SPL filters for 'Sourdough Starter Peak-Rise Bake-Now Alert'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `sourdough:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.15.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='sourdough:reading' where `entity` satisfies `rise_pct` >= 80 for UC-25.15.1 ('Sourdough Starter Peak-Rise Bake-Now Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `sourdough:reading` events where `entity` stays below `rise_pct` >= 80, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.15.1."
   },
   "dataSources": "Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), kombucha brew (`kombucha:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=sourdough:reading\n| streamstats current=t max(rise_pct) as peak_so_far\n| eval at_peak=if(rise_pct>=peak_so_far AND rise_pct>=80,1,0)\n| where at_peak=1\n| table _time rise_pct temp_c",
-  "description": "Watches your starter climb after feeding and pings you when it hits its peak rise, the perfect moment to bake.",
-  "value": "A starter at peak makes the best loaf; catching that window automatically beats guessing and staring at the jar.",
+  "description": "Watches your starter climb after feeding and pings you when it hits its peak rise, the perfect moment to bake. Searches `index=personal` with sourcetype `sourdough:reading` for UC-25.15.1, aggregating `max` by `entity` over `the scheduled window`. Alerts when grouped results cross `rise_pct` >= 80 in the saved search. Gives Personal operators a repeatable signal for 'Sourdough Starter Peak-Rise Bake-Now Alert' without manual log review.",
+  "value": "Watches your starter climb after feeding and pings you when it hits its peak rise, the perfect moment to bake. Timely UC-25.15.1 alerting on 'Sourdough Starter Peak-Rise Bake-Now Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Feed sourdough-monitor readings (a distance sensor over the jar) into `index=personal`; alert the moment rise reaches its peak.",
   "visualization": "Line chart of rise percentage over time with the peak marked.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Sourdough Starter Peak-Rise Bake-Now Alert'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sourdough:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Sourdough Starter Peak-Rise Bake-Now Alert' stops polling `sourdough:reading`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sourdough:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `rise_pct` >= 80. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Skip the daily account-audit check; UC-22.55.20 MUST flag `check_status=\"daily_check_overdue\"`.",
-    "negativeScenario": "Execute every check on its cadence; UC-22.55.20 MUST record `check_status=\"compliant\"`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-22.55.20 ('CLC/TS 50701 Operator Continuous Obligations — daily / weekly / monthly CSMS operational checks evidenced'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.55.20."
   },
   "dataSources": "KV Store `rail_operator_check_lookup`. Splunk saved search execution logs (`index=_audit`). SOAR check-execution playbook.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_operator_check_lookup\n| where check_status_in_register=\"active\"\n| eval now_ts = now()\n| eval expected_cadence_seconds = case(\n    expected_frequency=\"daily\", 86400 * 1.2,\n    expected_frequency=\"weekly\", 86400 * 8,\n    expected_frequency=\"monthly\", 86400 * 35,\n    1=1, 86400 * 7)\n| eval time_since_last = if(isnotnull(last_executed_at), now_ts - last_executed_at, null())\n| eval check_status = case(\n    isnull(last_executed_at), \"never_executed\",\n    time_since_last > expected_cadence_seconds, \"cadence_overdue\",\n    1=1, \"compliant\")\n| where check_status != \"compliant\"\n| table check_id check_name expected_frequency last_executed_at last_executed_by time_since_last check_status",
   "description": "Tracks scheduled cyber operational checks against their expected cadence. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Operational discipline is the most-cited weakness in NSA cyber audits. This UC enforces cadence.",
+  "value": "Tracks scheduled cyber operational checks against their expected cadence. Timely UC-22.55.20 alerting on 'CLC/TS 50701 Operator Continuous Obligations — daily / weekly / monthly CSMS operational checks evidenced' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Maintain `rail_operator_check_lookup` with every prescribed check. (2) SOAR `rail-operator-check-runner` runs each check; writes last_executed_at. (3) Schedule UC-22.55.20 daily 03:30.",
   "visualization": "(Panel 1) Check-status table. (Panel 2) Overdue queue. (Panel 3) Cadence-trend trend.",
   "cimModels": [
@@ -71,7 +71,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Check disabled for maintenance** — documented operations note. Suppression: `check_status_override=maintenance_window`.\n\n**Suppression mechanism**: KV Store `clc_22_55_20_exceptions` with documented Ops-Cyber-Lead approval and 7-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Operator Continuous Obligations — daily / weekly / monthly CSMS operational checks evidenced' (UC-22.55.20) on `entity` during scheduled clause CLC-TS-50701-c11-1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (operational-discipline governance)"
   ],

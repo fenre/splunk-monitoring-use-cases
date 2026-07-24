@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'NPS / RADIUS Authentication Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_nps_radius_authentication_monitoring` (UC-1.2.98), SOC dashboard panel \"Linux — NPS / RADIUS Authentication Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=6272 that satisfy the UC-1.2.98 SPL filters for 'NPS / RADIUS Authentication Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.98."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=6272 where `Result` satisfies detection threshold for UC-1.2.98 ('NPS / RADIUS Authentication Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events where `Result` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.98."
   },
   "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 6272, 6273, 6274, 6278) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog EventCode IN (6272, 6273, 6274)\n| eval Result=case(EventCode=6272,\"Access_Granted\", EventCode=6273,\"Access_Denied\", EventCode=6274,\"Discarded\", 1=1,\"Other\")\n| stats count by Result, UserName, CallingStationID, NASIPAddress, AuthenticationProvider\n| where Result=\"Access_Denied\"\n| sort -count",
   "description": "Network Policy Server handles VPN, Wi-Fi, and 802.1X authentication. Monitoring NPS detects brute-force attacks, misconfigured policies, and unauthorized network access.",
-  "value": "Denied and odd RADIUS attempts at the edge often show password spray, mis-set shared secrets, or devices trying the wrong VLAN policy before VPN or office Wi-Fi teams get flooded with tickets.",
+  "value": "Network Policy Server handles VPN, Wi-Fi, and 802. Timely UC-1.2.98 alerting on 'NPS / RADIUS Authentication Monitoring' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "NPS logs authentication events to the Security log. Track granted (6272), denied (6273), and discarded (6274) requests. Alert on high denial rates from specific users (brute-force) or NAS devices (misconfiguration). Monitor for authentication attempts using disabled accounts or from unknown calling station IDs. Correlate with VPN gateway logs.",
   "visualization": "Pie chart (grant vs deny ratio), Table (denied requests), Timechart (auth attempts by hour).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'NPS / RADIUS Authentication Monitoring'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `configured sourcetype`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `Result` metrics for 'NPS / RADIUS Authentication Monitoring'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `Result`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `Result` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `Result` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `Result`, `valid_until`.",
   "equipment": [
     "windows"
   ],

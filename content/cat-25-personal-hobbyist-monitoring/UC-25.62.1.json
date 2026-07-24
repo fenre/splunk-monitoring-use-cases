@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Tea Timer Oversteep Incidents' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_tea_timer_oversteep_incidents` (UC-25.62.1), SOC dashboard panel \"Personal — Tea Timer Oversteep Incidents\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='teatimer:session' that satisfy the UC-25.62.1 SPL filters for 'Tea Timer Oversteep Incidents'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `teatimer:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.62.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='teatimer:session' where `tea_name` satisfies `oversteep_seconds` > 30 for UC-25.62.1 ('Tea Timer Oversteep Incidents'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `teatimer:session` events where `tea_name` stays below `oversteep_seconds` > 30, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.62.1."
   },
   "dataSources": "Beanconqueror brews (`beanconqueror:brew`), Acaia brew sessions (`acaia:brew`), Decent Espresso shots (`decent:shot`), Brewfather coffee recipes (`brewfather:coffee`), and tea-timer sessions (`teatimer:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Beanconqueror brews, Acaia scale sessions, Decent Espresso shot telemetry, Brewfather coffee recipes, and tea-timer app exports forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=teatimer:session tea_name=*\n| eval oversteep_seconds=actual_steep_seconds-target_steep_seconds\n| where oversteep_seconds>30\n| stats count as oversteep_incidents, avg(oversteep_seconds) as avg_oversteep_seconds by tea_name\n| sort - oversteep_incidents",
   "description": "Counts how often tea sessions run materially past their target steep time. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Oversteeping is the easiest way to turn a good tea into a bitter one, so timing drift is worth measuring.",
+  "value": "Counts how often tea sessions run materially past their target steep time. Timely UC-25.62.1 alerting on 'Tea Timer Oversteep Incidents' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Export tea-timer sessions with actual and target steep time, then review oversteep incidents by tea.",
   "visualization": "Bar chart of oversteep incidents by tea name.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Tea Timer Oversteep Incidents'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `teatimer:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Tea Timer Oversteep Incidents' stops polling `teatimer:session`; stale `tea_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `teatimer:session`. Dedup with `stats latest(*) by tea_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `oversteep_seconds` > 30. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

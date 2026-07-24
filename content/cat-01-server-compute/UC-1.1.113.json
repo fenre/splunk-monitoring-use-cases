@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'SETUID Audit and Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_setuid_audit_and_tracking` (UC-1.1.113), SOC dashboard panel \"Linux — SETUID Audit and Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='linux_audit' that satisfy the UC-1.1.113 SPL filters for 'SETUID Audit and Tracking'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `linux_audit` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.113."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='linux_audit' where `host` satisfies detection threshold for UC-1.1.113 ('SETUID Audit and Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `linux_audit` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.113."
   },
   "dataSources": "`sourcetype=linux_audit` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix, custom scripted input` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=linux_audit type=EXECVE exe=\"*\" AND suid\n| stats count by host, exe, user\n| where count > threshold",
-  "description": "SETUID binary execution enables privilege escalation requiring tracking for security monitoring.",
+  "description": "SETUID binary execution enables privilege escalation requiring tracking for security monitoring. Searches `index=os` with sourcetype `linux_audit` for UC-1.1.113, aggregating `count` by `host` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Linux operators a repeatable signal for 'SETUID Audit and Tracking' without manual log review.",
   "value": "Early 'SETUID Audit and Tracking' detection reduces capacity incidents, patch regressions, and service outages by giving Linux operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Configure auditctl rules monitoring EXECVE syscalls with setuid. Create alerts on SETUID binary execution by unexpected users. Baseline expected SETUID usage per host.",
   "visualization": "Table, Alert",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'SETUID Audit and Tracking'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `linux_audit`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'SETUID Audit and Tracking'. Correlate with apt/yum logs in the same `linux_audit` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_audit`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],

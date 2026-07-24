@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Alarm False-Alarm Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_alarm_false_alarm_rate` (UC-25.18.11), SOC dashboard panel \"Personal — Alarm False-Alarm Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='alarm:event' that satisfy the UC-25.18.11 SPL filters for 'Alarm False-Alarm Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `alarm:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.11."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='alarm:event' where `zone` satisfies detection threshold for UC-25.18.11 ('Alarm False-Alarm Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `alarm:event` events where `zone` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.11."
   },
   "dataSources": "NVR object-detection (`frigate:event`), camera health (`camera:health`), alarm arm/disarm and life-safety (`alarm:event`), lock access (`lock:access`), plate recognition (`plate:detection`), doorbell (`doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Frigate / Blue Iris NVR object-detection events, camera health, alarm and smart-lock logs, and licence-plate recognition via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=alarm:event action=trigger\n| stats sum(eval(if(outcome=\"false\",1,0))) as false_alarms, count as triggers by zone\n| eval false_pct=round(100*false_alarms/triggers,1)\n| sort - false_pct",
-  "description": "Measures how often each alarm zone triggers falsely so you can fix the sensor that keeps crying wolf.",
-  "value": "False alarms erode trust and risk fines; pinpointing the worst zone lets you reposition or adjust a single problem sensor.",
+  "description": "Measures how often each alarm zone triggers falsely so you can fix the sensor that keeps crying wolf. Searches `index=personal` with sourcetype `alarm:event` for UC-25.18.11, aggregating `sum` by `zone` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Alarm False-Alarm Rate' without manual log review.",
+  "value": "Measures how often each alarm zone triggers falsely so you can fix the sensor that keeps crying wolf. Timely UC-25.18.11 alerting on 'Alarm False-Alarm Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Tag alarm triggers with their outcome; schedule monthly and rank zones by false-alarm rate.",
   "visualization": "Bar chart of false-alarm rate by zone.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Alarm False-Alarm Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `alarm:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Alarm False-Alarm Rate' stops polling `alarm:event`; stale `zone` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `alarm:event`. Dedup with `stats latest(*) by zone`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "cctv",
     "mqtt"

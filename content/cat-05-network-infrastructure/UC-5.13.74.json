@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Catalyst Center Data Collection Health (Meta)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_catalyst_center_data_collection_health_meta` (UC-5.13.74), SOC dashboard panel \"Operations — Catalyst Center Data Collection Health (Meta)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:*' that satisfy the UC-5.13.74 SPL filters for 'Catalyst Center Data Collection Health (Meta)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:*` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.74."
+    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:*' where `sourcetype` satisfies `hours_since_last` > 2 for UC-5.13.74 ('Catalyst Center Data Collection Health (Meta)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:*` events where `sourcetype` stays below `hours_since_last` > 2, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.74."
   },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:*` (all Catalyst Center sourcetypes) plus `index=_internal sourcetype=splunkd component=ExecProcessor \"TA_cisco_catalyst\"` (TA execution health). This meta use case monitors the health of Catalyst Center data collection itself — checking for event gaps, stale data, TA errors, and API failures across all 15+ sourcetype families.",
   "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:*\" | stats count as event_count latest(_time) as last_event earliest(_time) as first_event by sourcetype | eval hours_since_last=round((now()-last_event)/3600,1) | eval status=if(hours_since_last>2,\"Stale\",\"Active\") | sort -hours_since_last",
   "description": "Monitors the health of the Catalyst Center data collection pipeline by checking event volume and freshness for each sourcetype, detecting collection failures or gaps.",
-  "value": "All other Catalyst Center use cases depend on data flowing reliably. This meta-monitoring UC ensures the pipeline is healthy and catches collection failures early.",
+  "value": "Monitors the health of the Catalyst Center data collection pipeline by checking event volume and freshness.... Timely UC-5.13.74 alerting on 'Catalyst Center Data Collection Health (Meta)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "This UC uses existing TA inputs — no additional configuration needed beyond the standard TA setup. It monitors all `cisco:dnac:*` sourcetypes to verify:\n\n1. **Event volume:** Each sourcetype should have events within the last 2 hours (based on TA polling intervals)\n2. **Expected sourcetypes:** devicehealth, clienthealth, networkhealth, issue, compliance, securityadvisory, client, audit:logs, site:topology\n3. **Freshness:** If any sourcetype's latest event is older than 2 hours, the TA input may have failed\n\nSchedule this search as a daily health check and alert when any sourcetype shows 'Stale' status.",
   "visualization": "Table: sourcetype, event_count, hours_since_last, status; heatmap for Stale vs Active; optional trend of event_count per sourcetype over 7 days.",
   "references": [
@@ -43,7 +43,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Catalyst Center Data Collection Health (Meta)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `catalyst` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Catalyst Center Data Collection Health (Meta)' shifts `count` over `span=1h` while `sourcetype` remains in-scope for UC-5.13.74. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:*`** — Scheduled automation elevates `hours_since_last` without crossing `hours_since_last` > 2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sourcetype`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:*`** — First 48h baseline for `sourcetype` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sourcetype`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

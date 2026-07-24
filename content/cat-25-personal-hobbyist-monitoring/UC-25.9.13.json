@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'ISP Brownout Detection' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_isp_brownout_detection` (UC-25.9.13), SOC dashboard panel \"Personal — ISP Brownout Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='speedtest:result' that satisfy the UC-25.9.13 SPL filters for 'ISP Brownout Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `speedtest:result` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.13."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='speedtest:result' where `_time` satisfies `download` < 100 for UC-25.9.13 ('ISP Brownout Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `speedtest:result` events where `_time` stays below `download` < 100, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.13."
   },
   "dataSources": "UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog, ISP uptime probes (`uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=speedtest:result\n| bin _time span=1h\n| stats avg(download_mbps) as download, avg(latency_ms) as latency by _time\n| where download<100 AND latency>50\n| sort - _time",
   "description": "Identifies brownouts where connectivity still exists but bandwidth and latency are bad enough to ruin real work or streaming.",
-  "value": "Outage detectors miss the frustrating middle state where the line is technically alive and effectively unusable; this query catches that gap.",
+  "value": "Identifies brownouts where connectivity still exists but bandwidth and latency are bad enough to ruin real.... Timely UC-25.9.13 alerting on 'ISP Brownout Detection' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Schedule regular speed tests into `index=personal`; alert on hours with low throughput and elevated latency together.",
   "visualization": "Timeline of speed-test throughput and latency with brownout windows highlighted.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'ISP Brownout Detection'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `speedtest:result`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'ISP Brownout Detection' stops polling `speedtest:result`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1h` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `speedtest:result`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `download` < 100. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "syslog"
   ],

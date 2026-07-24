@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Veeam SureBackup Virtual Lab Verification Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_veeam_surebackup_virtual_lab_verification_failur` (UC-6.2.13), SOC dashboard panel \"Operations — Veeam SureBackup Virtual Lab Verification Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='veeam:backup' that satisfy the UC-6.2.13 SPL filters for 'Veeam SureBackup Virtual Lab Verification Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `backup` / `veeam:backup` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.13."
+    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='veeam:backup' where `jn` satisfies detection threshold for UC-6.2.13 ('Veeam SureBackup Virtual Lab Verification Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `backup` / `veeam:backup` events where `jn` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.13."
   },
   "dataSources": "`veeam:backup` / `veeam:Backup.JobSession` events from Veeam App for Splunk or `veeam_vbr_syslog` from Backup & Replication syslog forwarding",
   "app": "Veeam App for Splunk (Splunkbase 7312)",
   "spl": "index=backup (sourcetype=\"veeam:backup\" OR sourcetype=\"veeam:Backup.JobSession\" OR sourcetype=\"veeam_vbr_syslog\") earliest=-24h\n| eval jn=coalesce(job_name, JobName, JobSessionName)\n| eval res=lower(coalesce(result, Result, status, JobResult))\n| where match(jn,\"(?i)SureBackup\")\n| where res!=\"success\" AND res!=\"none\" AND isnotnull(res)\n| stats latest(res) as outcome latest(_time) as last_run by jn\n| sort - last_run",
   "description": "SureBackup jobs prove that backups are bootable and application-consistent; silent failures mean DR rehearsals would fail exactly when ransomware or datacenter loss demands them.",
-  "value": "Protects leadership confidence in recovery drills by catching verification regressions, networking issues in virtual labs, or guest OS boot errors immediately after each run.",
+  "value": "SureBackup jobs prove that backups are bootable and application-consistent; silent failures mean DR rehears.... Timely UC-6.2.13 alerting on 'Veeam SureBackup Virtual Lab Verification Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Enable Splunk-oriented logging in Veeam Backup & Replication or Enterprise Manager per the Veeam App for Splunk deployment guide. Normalize `result` field casing. Exclude lab jobs under maintenance via a lookup. Treat `Warning` per internal policy—many teams page on `Failed` only but track warnings for trend dashboards.",
   "visualization": "Table (SureBackup job, outcome, last run), pie chart (success vs warning vs failed).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Veeam SureBackup Virtual Lab Verification Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `backup` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `backup`** — Planned work for 'Veeam SureBackup Virtual Lab Verification Failures' shifts `count` over `span=1h` while `jn` remains in-scope for UC-6.2.13. Cross-check CMDB CHG.\n\n2. **Batch `count` on `veeam:backup`** — Scheduled automation elevates `jn` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `jn`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `veeam:backup`** — First 48h baseline for `jn` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `jn`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog",
     "veeam"

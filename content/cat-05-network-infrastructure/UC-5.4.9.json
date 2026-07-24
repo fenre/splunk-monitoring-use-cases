@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Client Roaming Analysis' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_client_roaming_analysis` (UC-5.4.9), SOC dashboard panel \"Operations — Client Roaming Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:wlc:syslog' that satisfy the UC-5.4.9 SPL filters for 'Client Roaming Analysis'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `cisco:wlc:syslog` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.4.9."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:wlc:syslog' where `client_mac` satisfies `avg_roams` > 10 for UC-5.4.9 ('Client Roaming Analysis'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `cisco:wlc:syslog` events where `client_mac` stays below `avg_roams` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.4.9."
   },
   "dataSources": "`sourcetype=cisco:wlc:syslog`, `sourcetype=meraki:devices` Indexes: network. Sourcetypes: cisco:wlc:syslog. Key fields: avg_roams, client_mac, ssid. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk Add-on for Cisco WLC` for WLC syslog, OR `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) + SC4S Meraki vendor pack if running Meraki MR — see implementation note.",
   "spl": "index=network sourcetype=\"cisco:wlc:syslog\" \"roam\" OR \"reassociation\"\n| transaction client_mac maxspan=1h maxpause=5m\n| eval roam_count=eventcount-1\n| stats avg(roam_count) as avg_roams, max(roam_count) as max_roams by client_mac, ssid\n| where avg_roams > 10",
   "description": "Poor roaming causes dropped calls, video freezes, and application timeouts. Analyzing roaming patterns identifies coverage gaps.",
-  "value": "Network operations teams analyze wireless client roaming quality across SSIDs, measuring roam time, method effectiveness (802.11r vs. full re-auth), and failure rates to optimize RF design and ensure seamless mobility for voice and video.",
+  "value": "Poor roaming causes dropped calls, video freezes, and application timeouts. Timely UC-5.4.9 alerting on 'Client Roaming Analysis' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "1. Configure SC4S to receive Cisco WLC syslog. 2. The query uses transaction to group roam events per client_mac and counts roams per client. 3. If you are running Meraki MR instead: use sourcetype=\"meraki\" type=events with type=association / type=disassociation, group by aid (Meraki association id) and look for clients seen across many APs in a short time (see UC-5.4.14 for the canonical Meraki SPL pattern). The Meraki syslog payload does not include the client MAC directly; correlation has to be done via the API-side Wireless Packet Loss by Device input or Meraki Dashboard.",
   "visualization": "Table (client, SSID, roam count), Heatmap (AP-to-AP roaming), Choropleth (floor plan).",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Client Roaming Analysis'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Client Roaming Analysis' shifts `avg` over `span=1h` while `client_mac` remains in-scope for UC-5.4.9. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `cisco:wlc:syslog`** — Scheduled automation elevates `ssid` without crossing `avg_roams` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `client_mac`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:wlc:syslog`** — First 48h baseline for `client_mac` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `client_mac`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"

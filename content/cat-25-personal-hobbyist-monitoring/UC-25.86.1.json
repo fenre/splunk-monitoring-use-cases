@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Withings Vision Score Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_withings_vision_score_trend` (UC-25.86.1), SOC dashboard panel \"Personal — Withings Vision Score Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='withings:eye' that satisfy the UC-25.86.1 SPL filters for 'Withings Vision Score Trend'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `withings:eye` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.86.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='withings:eye' where `entity` satisfies detection threshold for UC-25.86.1 ('Withings Vision Score Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `withings:eye` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.86.1."
   },
   "dataSources": "Open Dental appointments (`opendental:appointment`), Zocdoc bookings (`zocdoc:booking`), vision prescriptions (`vision:prescription`), dental hygiene visits (`dental:hygiene`), and Withings eye-health checks (`withings:eye`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Open Dental appointment exports, Zocdoc booking webhooks, vision prescription sidecars, dental hygiene visit logs, and Withings Vision eye-health readings streamed into Splunk HEC under `index=personal`. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=withings:eye eye_score=*\n| timechart span=1mon avg(eye_score) as avg_score, min(eye_score) as worst_score\n| fillnull value=0",
-  "description": "Trends monthly average and worst Withings Vision eye-health scores from home screening exports.",
-  "value": "Gradual vision-score drift is easier to act on when you see it as a trend instead of one isolated reading.",
+  "description": "Trends monthly average and worst Withings Vision eye-health scores from home screening exports. Searches `index=personal` with sourcetype `withings:eye` for UC-25.86.1, aggregating `avg` by `entity` over `1m`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Withings Vision Score Trend' without manual log review.",
+  "value": "Trends monthly average and worst Withings Vision eye-health scores from home screening exports. Timely UC-25.86.1 alerting on 'Withings Vision Score Trend' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Export Withings Vision results with `eye_score` and schedule a monthly review against your optometrist baseline.",
   "visualization": "Line chart of monthly average and worst eye score.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Withings Vision Score Trend'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `withings:eye`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Withings Vision Score Trend' stops polling `withings:eye`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `withings:eye`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Mood Volatility and Whiplash Days' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_mood_volatility_and_whiplash_days` (UC-25.31.11), SOC dashboard panel \"Personal — Mood Volatility and Whiplash Days\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mood:entry' that satisfy the UC-25.31.11 SPL filters for 'Mood Volatility and Whiplash Days'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `mood:entry` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.31.11."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mood:entry' where `_time` satisfies detection threshold for UC-25.31.11 ('Mood Volatility and Whiplash Days'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `mood:entry` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.31.11."
   },
   "dataSources": "Mood entries (`mood:entry`), meditation sessions (`meditation:session`), journal entries (`journal:entry`), gratitude logs (`gratitude:log`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Mood, mindfulness and journaling apps — Daylio / How We Feel mood exports, Headspace / Insight Timer meditation logs, journaling and gratitude entries — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=mood:entry\n| bin _time span=1d\n| stats avg(mood_score) as mood by _time\n| delta mood as day_change\n| eval swing=if(abs(day_change)>=2,1,0)\n| sort - _time",
-  "description": "Flags days where your mood swung sharply up or down compared with the day before.",
-  "value": "Large mood jumps can be just as informative as low moods because they often reveal stressors, recovery patterns, or inconsistent routines.",
+  "description": "Flags days where your mood swung sharply up or down compared with the day before. Searches `index=personal` with sourcetype `mood:entry` for UC-25.31.11, aggregating `avg` by `_time` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Mood Volatility and Whiplash Days' without manual log review.",
+  "value": "Flags days where your mood swung sharply up or down compared with the day before. Timely UC-25.31.11 alerting on 'Mood Volatility and Whiplash Days' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest daily mood scores into `index=personal`; review daily deltas and alert on unusually large swings.",
   "visualization": "Line chart of daily mood with markers on high-swing days.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Mood Volatility and Whiplash Days'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mood:entry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Mood Volatility and Whiplash Days' stops polling `mood:entry`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mood:entry`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

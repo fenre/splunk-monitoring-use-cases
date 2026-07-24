@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Implement a cyber control change without `en_50126_assessment_at`. UC-22.55.18 MUST flag `coord_status=\"en_50126_missing\"`.",
-    "negativeScenario": "Run EN 50126/8/9/657 assessments per applicability; ISA concurs. UC-22.55.18 MUST record `coord_status=\"compliant\"`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-22.55.18 ('CLC/TS 50701 Safety-Standards Coordination — every cyber control change re-evaluated against EN 50126/8/9/EN 50657'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.55.18."
   },
   "dataSources": "KV Store `rail_safety_coord_lookup`. ServiceNow Change Management. ISA-issued concurrence documents.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_safety_coord_lookup\n| where change_implemented_at IS NOT NULL\n| eval coord_status = case(\n    en_50126_applicable=true AND isnull(en_50126_assessment_at), \"en_50126_missing\",\n    en_50128_applicable=true AND isnull(en_50128_assessment_at), \"en_50128_missing\",\n    en_50129_applicable=true AND isnull(en_50129_assessment_at), \"en_50129_missing\",\n    en_50657_applicable=true AND isnull(en_50657_assessment_at), \"en_50657_missing\",\n    isa_required=true AND isnull(isa_concurrence_at), \"isa_concurrence_missing\",\n    1=1, \"compliant\")\n| where coord_status != \"compliant\"\n| table change_id change_description en_50126_assessment_at en_50128_assessment_at en_50129_assessment_at en_50657_assessment_at isa_concurrence_at coord_status",
-  "description": "Verifies cyber control changes are coordinated with EN 50126/8/9 and EN 50657 safety standards.",
-  "value": "Without safety-standards coordination, cyber changes can compromise rail safety certifications. This UC enforces the linkage.",
+  "description": "Verifies cyber control changes are coordinated with EN 50126/8/9 and EN 50657 safety standards. Searches `index=target_index` with sourcetype `configured sourcetype` for UC-22.55.18, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'CLC/TS 50701 Safety-Standards Coordination — every cyber control change re-evaluated against EN 50126/8/9/EN 50657' without manual log review.",
+  "value": "Verifies cyber control changes are coordinated with EN 50126/8/9 and EN 50657 safety standards. Timely UC-22.55.18 alerting on 'CLC/TS 50701 Safety-Standards Coordination — every cyber control change re-evaluated against EN 50126/8/9/EN 50657' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Maintain `rail_safety_coord_lookup`. (2) Head of Safety + ISA reviewers sign per applicable standard. (3) Schedule UC-22.55.18 weekly Monday 07:00.",
   "visualization": "(Panel 1) Coordination posture per change. (Panel 2) Missing-assessment queue. (Panel 3) ISA-pending queue.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Phased change** — multi-phase change with phased safety assessments. Suppression: track per-phase status.\n\n**Suppression mechanism**: KV Store `clc_22_55_18_exceptions` with documented Head-of-Safety approval and 30-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Safety-Standards Coordination — every cyber control change re-evaluated against EN 50126/8/9/EN 50657' (UC-22.55.18) on `entity` during scheduled clause CLC-TS-50701-c10-1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (safety-standards coordination)"
   ],

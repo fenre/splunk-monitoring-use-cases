@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'DNS Query Volume (CIM)' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_dns_query_volume_cim` (UC-10.13.13), SOC dashboard panel \"Security Infra — DNS Query Volume (CIM)\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' that satisfy the UC-10.13.13 SPL filters for 'DNS Query Volume (CIM)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.13."
+    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' where `src` satisfies detection threshold for UC-10.13.13 ('DNS Query Volume (CIM)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events where `src` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.13."
   },
   "dataSources": "`sourcetype=\"bind:query\"` etc., CIM-tagged Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Infoblox, BIND, Zeek dns → DNS — Universal Forwarder (Splunkbase 617)",
   "spl": "index=security tag=dns tag=network\n| timechart span=5m count by src\n| eventstats avg(count) as mu, stdev(count) as s\n| where count > mu+4*s",
-  "description": "DNS tunneling and malware generate high `query` counts per `src` — normalized in `DNS` CIM model.",
+  "description": "DNS tunneling and malware generate high `query` counts per `src` — normalized in `DNS` CIM model. Searches `index=security` with sourcetype `configured sourcetype` for UC-10.13.13, aggregating `avg` by `src` over `5m`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'DNS Query Volume (CIM)' without manual log review.",
   "value": "Early 'DNS Query Volume (CIM)' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Exclude resolver IPs; focus on endpoint subnets.",
   "visualization": "Line chart (queries by src), Single value (peak factor).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Approved vulnerability scanner** — Scanner `src` triggers high-severity signatures for 'DNS Query Volume (CIM)'. Join `scanner_ips` before threshold.\n\n2. **Signature definition update** — Vendor content push reclassifies benign traffic. Compare threat_id first_seen with content release date.\n\n3. **Red-team emulation** — Atomic test traffic from approved exercise hosts.\n\n4. **Backup replication traffic** — Off-hours bulk transfer matches lateral-movement heuristics.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `threat_id`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `security`** — Planned work for 'DNS Query Volume (CIM)' shifts `avg` over `span=5m` while `src` remains in-scope for UC-10.13.13. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `src` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "infoblox"
   ],

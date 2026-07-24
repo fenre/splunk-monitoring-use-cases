@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Invoice vs Claim Filing Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_invoice_vs_claim_filing_gap` (UC-25.115.4), SOC dashboard panel \"Personal — Invoice vs Claim Filing Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='vet:invoice' that satisfy the UC-25.115.4 SPL filters for 'Invoice vs Claim Filing Gap'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `vet:invoice` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.115.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='vet:invoice' where `entity` satisfies `invoice_usd` >= 250 for UC-25.115.4 ('Invoice vs Claim Filing Gap'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `vet:invoice` events where `entity` stays below `invoice_usd` >= 250, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.115.4."
   },
   "dataSources": "Trupanion claims (`trupanion:claim`), vet invoices (`vet:invoice`), pet insurance premiums (`petinsurance:premium`), and vet visits (`vet:visit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Trupanion claim exports, veterinary invoice logs, pet insurance premium bills, and vet visit records streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=vet:invoice invoice_id=* invoice_usd=* claim_filed=*\n| where invoice_usd>=250 AND claim_filed=0\n| sort - invoice_usd\n| table pet_name clinic_name invoice_usd invoice_date claim_filed",
-  "description": "Surfaces vet invoices of two hundred fifty dollars or more where no insurance claim was filed.",
-  "value": "Unfiled claims on large bills leave reimbursement money on the table after you already paid the premium.",
+  "description": "Surfaces vet invoices of two hundred fifty dollars or more where no insurance claim was filed. Searches `index=personal` with sourcetype `vet:invoice` for UC-25.115.4, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `invoice_usd` >= 250 in the saved search. Gives Personal operators a repeatable signal for 'Invoice vs Claim Filing Gap' without manual log review.",
+  "value": "Surfaces vet invoices of two hundred fifty dollars or more where no insurance claim was filed. Timely UC-25.115.4 alerting on 'Invoice vs Claim Filing Gap' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Include `claim_filed` flag on invoice exports and review unclaimed invoices over your deductible weekly.",
   "visualization": "Table of large invoices without claims.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Invoice vs Claim Filing Gap'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vet:invoice`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Invoice vs Claim Filing Gap' stops polling `vet:invoice`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vet:invoice`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `invoice_usd` >= 250. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Gymnastics Progression Readiness by Prerequisite' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_gymnastics_progression_readiness_by_prerequisite` (UC-25.28.33), SOC dashboard panel \"Personal — Gymnastics Progression Readiness by Prerequisite\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='gymnastics:skill' that satisfy the UC-25.28.33 SPL filters for 'Gymnastics Progression Readiness by Prerequisite'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `gymnastics:skill` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.28.33."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='gymnastics:skill' where `prerequisite_skill` satisfies detection threshold for UC-25.28.33 ('Gymnastics Progression Readiness by Prerequisite'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `gymnastics:skill` events where `prerequisite_skill` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.28.33."
   },
   "dataSources": "Whoop recovery and strain (`whoop:day`), Garmin ride power (`powermeter:ride`), Stryd runs (`stryd:run`), and gymnastics skill attempts (`gymnastics:skill`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Training telemetry from Whoop, Garmin power meters, Stryd running power, and gymnastics skill trackers maintained in Sheets or app exports sent to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=gymnastics:skill\n| stats avg(readiness_pct) as readiness_pct count as tracked_skills by prerequisite_skill\n| sort 0 - readiness_pct",
   "description": "Ranks prerequisite skillss by progression readiness. Runs scheduled SPL against `index=personal` to surface **Gymnastics Progression Readiness by Prerequisite** so you can spot drift before it becomes a habit.",
-  "value": "Prerequisite-based readiness helps coaches and athletes know what must be stable before the next skill jump makes sense.",
+  "value": "Ranks prerequisite skillss by progression readiness. Timely UC-25.28.33 alerting on 'Gymnastics Progression Readiness by Prerequisite' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send progression readiness events to `index=personal` and keep `prerequisite_skill` populated so the leaderboard stays actionable.",
   "visualization": "Bar chart of progression readiness by prerequisite skills.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Gymnastics Progression Readiness by Prerequisite'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `gymnastics:skill`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Gymnastics Progression Readiness by Prerequisite' stops polling `gymnastics:skill`; stale `prerequisite_skill` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `gymnastics:skill`. Dedup with `stats latest(*) by prerequisite_skill`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

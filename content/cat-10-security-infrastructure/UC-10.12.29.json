@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'Clinical Alert Fatigue Analysis' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_clinical_alert_fatigue_analysis` (UC-10.12.29), SOC dashboard panel \"Security Infra — Clinical Alert Fatigue Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=clinical` sourcetype='epic:alert' that satisfy the UC-10.12.29 SPL filters for 'Clinical Alert Fatigue Analysis'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `clinical` / `epic:alert` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.29."
+    "positiveScenario": "Ingest synthetic events into `index=clinical` sourcetype='epic:alert' where `unit` satisfies detection threshold for UC-10.12.29 ('Clinical Alert Fatigue Analysis'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `clinical` / `epic:alert` events where `unit` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.29."
   },
   "dataSources": "`sourcetype=\"epic:alert\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "EHR alerting, middleware — Universal Forwarder (Splunkbase 617)",
   "spl": "index=clinical sourcetype=\"epic:alert\"\n| eval ack_sec=ack_time-_time\n| stats median(ack_sec) as med_ack, count as fires, dc(alert_id) as rules by unit\n| eval fires_per_bed=fires/bed_count\n| sort -fires",
-  "description": "Quantifies alert acknowledgement times and duplicate fires to guide CDS tuning and Joint Commission alarm safety.",
+  "description": "Quantifies alert acknowledgement times and duplicate fires to guide CDS tuning and Joint Commission alarm safety. Searches `index=clinical` with sourcetype `epic:alert` for UC-10.12.29, aggregating `median` by `unit` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'Clinical Alert Fatigue Analysis' without manual log review.",
   "value": "Early 'Clinical Alert Fatigue Analysis' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Deprecate low-value rules; correlate with nurse staffing ratios from census feeds.",
   "visualization": "Bar chart (fires per bed), Box plot (ack times), Table (top noisy rules).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Clinical Alert Fatigue Analysis'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=clinical` `epic:alert`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `clinical`** — Planned work for 'Clinical Alert Fatigue Analysis' shifts `median` over `span=1h` while `unit` remains in-scope for UC-10.12.29. Cross-check CMDB CHG.\n\n2. **Batch `median` on `epic:alert`** — Scheduled automation elevates `ack_sec` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `unit`** — Health checks in `clinical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `epic:alert`** — First 48h baseline for `unit` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `unit`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

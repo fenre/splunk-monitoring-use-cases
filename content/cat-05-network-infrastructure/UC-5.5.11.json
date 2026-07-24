@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'OMP Route Table Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_omp_route_table_monitoring` (UC-5.5.11), SOC dashboard panel \"Operations — OMP Route Table Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=sdwan` sourcetype='cisco:sdwan:omp' that satisfy the UC-5.5.11 SPL filters for 'OMP Route Table Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `sdwan` / `cisco:sdwan:omp` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.5.11."
+    "positiveScenario": "Ingest synthetic events into `index=sdwan` sourcetype='cisco:sdwan:omp' where `system_ip` satisfies detection threshold for UC-5.5.11 ('OMP Route Table Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `sdwan` / `cisco:sdwan:omp` events where `system_ip` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.5.11."
   },
   "dataSources": "vManage OMP route table, `sourcetype=cisco:sdwan:omp` Indexes: sdwan. Sourcetypes: cisco:sdwan:omp. Key fields: site_id, system_ip. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API",
   "spl": "index=sdwan sourcetype=\"cisco:sdwan:omp\"\n| stats dc(prefix) as route_count, dc(peer) as peer_count by system_ip, site_id\n| appendpipe [| stats avg(route_count) as baseline_routes]\n| where route_count < baseline_routes * 0.8\n| table system_ip site_id route_count peer_count",
   "description": "OMP (Overlay Management Protocol) distributes routes across the SD-WAN fabric. Route churn, missing prefixes, or unexpected withdrawals indicate overlay instability that degrades site-to-site reachability.",
-  "value": "Network operations teams monitor SD-WAN OMP route table health to detect routing anomalies, route churn, and missing network reachability that could isolate sites or disrupt application connectivity.",
+  "value": "OMP (Overlay Management Protocol) distributes routes across the SD-WAN fabric. Timely UC-5.5.11 alerting on 'OMP Route Table Monitoring' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll vManage OMP peers and routes API endpoints. Baseline route count per device. Alert when a site loses more than 20% of its expected routes or when OMP peer adjacencies drop. Track route churn rate over time to identify flapping prefixes.",
   "visualization": "Line chart (route count over time per site), Table (devices below baseline), Single value (total OMP peers).",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'OMP Route Table Monitoring'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `sdwan` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `sdwan`** — Planned work for 'OMP Route Table Monitoring' shifts `dc` over `span=1h` while `system_ip` remains in-scope for UC-5.5.11. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `cisco:sdwan:omp`** — Scheduled automation elevates `site_id` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `system_ip`** — Health checks in `sdwan` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:sdwan:omp`** — First 48h baseline for `system_ip` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `system_ip`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

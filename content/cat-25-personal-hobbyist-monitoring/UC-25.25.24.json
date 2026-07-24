@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Oral Temperature Morning-Evening Spread' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_oral_temperature_morning_evening_spread` (UC-25.25.24), SOC dashboard panel \"Personal — Oral Temperature Morning-Evening Spread\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='thermometer:reading' that satisfy the UC-25.25.24 SPL filters for 'Oral Temperature Morning-Evening Spread'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `thermometer:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.25.24."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='thermometer:reading' where `daypart` satisfies detection threshold for UC-25.25.24 ('Oral Temperature Morning-Evening Spread'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `thermometer:reading` events where `daypart` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.25.24."
   },
   "dataSources": "Oura stress and recovery (`oura:stress`), CPAP therapy sessions (`cpap:session`), oral thermometer readings (`thermometer:reading`), and body-composition scale snapshots (`bodycomp:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal health telemetry from Oura, OSCAR CPAP exports, oral thermometer readings, and smart body-composition scales sent to Splunk HEC via APIs and CSV exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=thermometer:reading\n| eval daypart=if(tonumber(strftime(_time,\"%H\"))<12,\"morning\",\"evening\")\n| stats avg(temp_c) as avg_temp_c count as readings by daypart\n| eventstats avg(avg_temp_c) as overall\n| eval delta_from_overall=round(avg_temp_c-overall,2)",
   "description": "Examines morning versus evening oral temperature spread. Runs scheduled SPL against `index=personal` to surface **Oral Temperature Morning-Evening Spread** so you can spot drift before it becomes a habit.",
-  "value": "Comparing morning and evening readings gives a cleaner baseline for spotting real deviations later.",
+  "value": "Examines morning versus evening oral temperature spread. Timely UC-25.25.24 alerting on 'Oral Temperature Morning-Evening Spread' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send morning versus evening oral temperature spread events to `index=personal` with the fields used in this SPL and review the outliers or trend breaks regularly.",
   "visualization": "Table or chart of morning versus evening oral temperature spread, depending on the selected time range.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Oral Temperature Morning-Evening Spread'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `thermometer:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Oral Temperature Morning-Evening Spread' stops polling `thermometer:reading`; stale `daypart` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `thermometer:reading`. Dedup with `stats latest(*) by daypart`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

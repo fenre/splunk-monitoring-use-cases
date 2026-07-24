@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Fastf1 Metric0 Weekend vs Weekday Split' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_fastf1_metric0_weekend_vs_weekday_split` (UC-25.99.38), SOC dashboard panel \"Personal — Fastf1 Metric0 Weekend vs Weekday Split\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='fastf1:metric0' that satisfy the UC-25.99.38 SPL filters for 'Fastf1 Metric0 Weekend vs Weekday Split'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `fastf1:metric0` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.99.38."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='fastf1:metric0' where `bucket` satisfies `dow` >= 6 for UC-25.99.38 ('Fastf1 Metric0 Weekend vs Weekday Split'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `fastf1:metric0` events where `bucket` stays below `dow` >= 6, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.99.38."
   },
   "dataSources": "FastF1 session data (`fastf1:session`), Ergast race results (`ergast:result`), F1 Fantasy teams (`f1fantasy:team`), race watch parties (`race:watchparty`), and F1 telemetry laps (`f1telemetry:lap`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "FastF1 session exports, Ergast race results, F1 Fantasy team snapshots, race watch-party logs, and F1 telemetry lap dumps forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=fastf1:metric0\n| eval dow=strftime(_time,\"%u\")\n| eval bucket=if(dow>=6,\"weekend\",\"weekday\")\n| stats count as events, avg(value) as avg_value by bucket",
-  "description": "Compares weekend versus weekday event counts and average value for fastf1 metric0.",
-  "value": "Weekend/weekday splits expose lifestyle rhythm changes and work-life boundary shifts.",
+  "description": "Compares weekend versus weekday event counts and average value for fastf1 metric0. Searches `index=personal` with sourcetype `fastf1:metric0` for UC-25.99.38, aggregating `avg` by `bucket` over `the scheduled window`. Alerts when grouped results cross `dow` >= 6 in the saved search. Gives Personal operators a repeatable signal for 'Fastf1 Metric0 Weekend vs Weekday Split' without manual log review.",
+  "value": "Compares weekend versus weekday event counts and average value for fastf1 metric0. Timely UC-25.99.38 alerting on 'Fastf1 Metric0 Weekend vs Weekday Split' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Tag fastf1 metric0 events as weekend or weekday and compare volume and `value`.",
   "visualization": "Side-by-side bar chart for weekend vs weekday.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Fastf1 Metric0 Weekend vs Weekday Split'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `fastf1:metric0`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Fastf1 Metric0 Weekend vs Weekday Split' stops polling `fastf1:metric0`; stale `bucket` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `fastf1:metric0`. Dedup with `stats latest(*) by bucket`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `dow` >= 6. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

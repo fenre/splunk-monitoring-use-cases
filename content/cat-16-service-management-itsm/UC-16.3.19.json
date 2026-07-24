@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Jira High-Priority Queue Time-to-First-Response Risk' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_jira_high_priority_queue_time_to_first_response_` (UC-16.3.19), SOC dashboard panel \"Operations — Jira High-Priority Queue Time-to-First-Response Risk\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='jira:cloud:issues' that satisfy the UC-16.3.19 SPL filters for 'Jira High-Priority Queue Time-to-First-Response Risk'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `jira:cloud:issues` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.3.19."
+    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='jira:cloud:issues' where `project` satisfies `wait_h` > 4 for UC-16.3.19 ('Jira High-Priority Queue Time-to-First-Response Risk'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `itsm` / `jira:cloud:issues` events where `project` stays below `wait_h` > 4, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.3.19."
   },
   "dataSources": "Jira issue snapshots with `priority`, `created_epoch`, `status_category` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Add-on for Jira Cloud (6211) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"jira:cloud:issues\" OR sourcetype=\"jira:issue\"\n| where priority IN (\"Highest\",\"High\",\"P1\",\"P2\") AND status_category=\"To Do\"\n| eval wait_h=(now()-created_epoch)/3600\n| where wait_h > 4\n| stats count by project, component\n| sort -count",
   "description": "Critical issues sitting untouched breach executive incident SLAs. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Protects customer-facing severity queues before escalation triggers. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Critical issues sitting untouched breach executive incident SLAs. Timely UC-16.3.19 alerting on 'Jira High-Priority Queue Time-to-First-Response Risk' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Align priorities with org naming; join to on-call roster if ingested.",
   "visualization": "Single value (count), Heatmap (project × hour).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Jira High-Priority Queue Time-to-First-Response Risk'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `itsm` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Jira High-Priority Queue Time-to-First-Response Risk' shifts `count` over `span=1h` while `project` remains in-scope for UC-16.3.19. Cross-check CMDB CHG.\n\n2. **Batch `count` on `jira:cloud:issues`** — Scheduled automation elevates `component` without crossing `wait_h` > 4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `project`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jira:cloud:issues`** — First 48h baseline for `project` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `project`, `exception_reason`, `valid_until`.",
   "equipment": [
     "jira"
   ],

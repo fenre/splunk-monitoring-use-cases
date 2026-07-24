@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Quality-Time vs Screen-Time Split' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_quality_time_vs_screen_time_split` (UC-25.32.6), SOC dashboard panel \"Personal — Quality-Time vs Screen-Time Split\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='datenight:log' that satisfy the UC-25.32.6 SPL filters for 'Quality-Time vs Screen-Time Split'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `datenight:log` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.32.6."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='datenight:log' where `_time` satisfies detection threshold for UC-25.32.6 ('Quality-Time vs Screen-Time Split'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `datenight:log` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.32.6."
   },
   "dataSources": "Relationship check-ins (`relationship:checkin`), date nights (`datenight:log`), gift ideas (`giftidea:item`), keep-in-touch contacts (`keptintouch:contact`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Relationship and togetherness logs — shared check-in apps, date-night and gift-idea lists, and stay-in-touch reminders — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal (sourcetype=datenight:log OR sourcetype=screentime:usage)\n| bin _time span=1w\n| stats sum(eval(if(sourcetype==\"datenight:log\",duration_min,0))) as together, sum(eval(if(sourcetype==\"screentime:usage\",minutes,0))) as screen by _time\n| eval ratio=round(together/(screen+1),3)",
-  "description": "Contrasts the time spent together against time on screens each week, a gentle mirror on where attention goes.",
-  "value": "Putting togetherness and screen minutes side by side can prompt small, deliberate changes toward presence.",
+  "description": "Contrasts the time spent together against time on screens each week, a gentle mirror on where attention goes. Searches `index=personal` with sourcetype `datenight:log` for UC-25.32.6, aggregating `sum` by `_time` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Quality-Time vs Screen-Time Split' without manual log review.",
+  "value": "Contrasts the time spent together against time on screens each week, a gentle mirror on where attention goes. Timely UC-25.32.6 alerting on 'Quality-Time vs Screen-Time Split' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Join together-time with screen-time in `index=personal`; trend the ratio weekly.",
   "visualization": "Dual-axis chart of together-time versus screen-time per week.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Quality-Time vs Screen-Time Split'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `datenight:log`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Quality-Time vs Screen-Time Split' stops polling `datenight:log`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `datenight:log`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

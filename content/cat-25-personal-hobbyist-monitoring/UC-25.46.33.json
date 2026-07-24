@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Campaign Asset Archive Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_campaign_asset_archive_gap` (UC-25.46.33), SOC dashboard panel \"Personal — Campaign Asset Archive Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rpg:ops' that satisfy the UC-25.46.33 SPL filters for 'Campaign Asset Archive Gap'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `rpg:ops` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.46.33."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rpg:ops' where `asset_type` satisfies `backlog` > 0 for UC-25.46.33 ('Campaign Asset Archive Gap'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `rpg:ops` events where `asset_type` stays below `backlog` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.46.33."
   },
   "dataSources": "Character sheets (`rpg:character`), VTT sessions (`rpg:session`), initiative rounds (`rpg:initiative`), encounters (`rpg:combat`), campaign ops (`rpg:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tabletop campaign telemetry — D&D Beyond character exports, Roll20 session logs, initiative trackers, and campaign asset checklists — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=rpg:ops asset_type=* archive_state=*\n| stats sum(eval(if(archive_state!=\"archived\",1,0))) as backlog, count as total by asset_type\n| where backlog>0\n| sort - backlog",
-  "description": "Lists pending campaign assets backlog by asset type for campaign record-keeping.",
-  "value": "Backlog counts expose where small unfinished tasks accumulate and create hidden drag inside campaign record-keeping.",
+  "description": "Lists pending campaign assets backlog by asset type for campaign record-keeping. Searches `index=personal` with sourcetype `rpg:ops` for UC-25.46.33, aggregating `sum` by `asset_type` over `the scheduled window`. Alerts when grouped results cross `backlog` > 0 in the saved search. Gives Personal operators a repeatable signal for 'Campaign Asset Archive Gap' without manual log review.",
+  "value": "Lists pending campaign assets backlog by asset type for campaign record-keeping. Timely UC-25.46.33 alerting on 'Campaign Asset Archive Gap' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Mark each `rpg:ops` record with a pending-state flag and summarize backlog totals by `asset_type`.",
   "visualization": "Table of asset type with pending campaign assets counts.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Campaign Asset Archive Gap'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rpg:ops`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Campaign Asset Archive Gap' stops polling `rpg:ops`; stale `asset_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rpg:ops`. Dedup with `stats latest(*) by asset_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `backlog` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

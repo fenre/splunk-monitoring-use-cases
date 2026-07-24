@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'OpenStack Glance Image Upload and Download Throughput' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_openstack_glance_image_upload_and_download_throu` (UC-2.9.5), SOC dashboard panel \"Linux — OpenStack Glance Image Upload and Download Throughput\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=openstack` sourcetype='openstack:glance' that satisfy the UC-2.9.5 SPL filters for 'OpenStack Glance Image Upload and Download Throughput'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `openstack` / `openstack:glance` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.9.5."
+    "positiveScenario": "Ingest synthetic events into `index=openstack` sourcetype='openstack:glance' where `store` satisfies `mbps` < 10 for UC-2.9.5 ('OpenStack Glance Image Upload and Download Throughput'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `openstack` / `openstack:glance` events where `store` stays below `mbps` < 10, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.9.5."
   },
   "dataSources": "`index=openstack` `sourcetype=\"openstack:glance\"` — `image_id`, `bytes_transferred`, `duration_sec`, `operation` (upload|download), `store` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Glance API logs with transfer metrics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=openstack sourcetype=\"openstack:glance\" earliest=-24h\n| eval mbps=tonumber(bytes_transferred)/(1024*1024)/tonumber(duration_sec)\n| where mbps<10 AND tonumber(bytes_transferred)>104857600\n| stats avg(mbps) as avg_mbps, count as slow_ops by store, image_id",
   "description": "Slow image transfers delay autoscale and CI image refreshes. Throughput trending highlights object-store latency or congested API networks.",
-  "value": "Keeps golden image pipelines fast and reduces build queue time. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Slow image transfers delay autoscale and CI image refreshes. Timely UC-2.9.5 alerting on 'OpenStack Glance Image Upload and Download Throughput' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Compute mbps per operation. Alert on sustained slow large transfers. Compare stores (file vs rbd vs swift).",
   "visualization": "Line chart throughput; table slow images; histogram latency.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'OpenStack Glance Image Upload and Download Throughput'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `openstack` `openstack:glance`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `openstack`** — Package managers spike `store` metrics for 'OpenStack Glance Image Upload and Download Throughput'. Correlate with apt/yum logs in the same `openstack:glance` window.\n\n2. **Nightly backup I/O on `store`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `openstack:glance`** — Nagios/Zabbix polls `store` and mimics sustained load without crossing `mbps` < 10.\n\n4. **New host onboarding** — `store` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `store`, `valid_until`.",
   "equipment": [
     "openstack"
   ],

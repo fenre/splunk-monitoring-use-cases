@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'UniFi Protect Recording Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_unifi_protect_recording_gap` (UC-25.18.20), SOC dashboard panel \"Personal — UniFi Protect Recording Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='unifiprotect:event' that satisfy the UC-25.18.20 SPL filters for 'UniFi Protect Recording Gap'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `unifiprotect:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.20."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='unifiprotect:event' where `camera` satisfies `hours_since` > 1 for UC-25.18.20 ('UniFi Protect Recording Gap'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `unifiprotect:event` events where `camera` stays below `hours_since` > 1, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.20."
   },
   "dataSources": "Home security telemetry (`reolink:event`, `unifiprotect:event`, `ring:event`, `nestprotect:event`, `frigate:event`, `camera:health`, `alarm:event`, `doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Reolink, UniFi Protect, Ring, Nest Protect, Frigate, and Home Assistant security integrations streamed to Splunk HEC via MQTT, webhooks, and vendor APIs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=unifiprotect:event event=recording\n| stats max(_time) as last_recording by camera\n| eval hours_since=round((now()-last_recording)/3600,1)\n| where hours_since>1\n| sort - hours_since",
   "description": "Uses UniFi Protect recording events telemetry to monitor how long each camera has gone without a recording event in index=personal.",
-  "value": "Splunk turns the feed into an operational check for cameras or storage paths that are not capturing footage, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses UniFi Protect recording events telemetry to monitor how long each camera has gone without a recording.... Timely UC-25.18.20 alerting on 'UniFi Protect Recording Gap' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest UniFi Protect recording events data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Camera table of hours since last recording.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'UniFi Protect Recording Gap'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifiprotect:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'UniFi Protect Recording Gap' stops polling `unifiprotect:event`; stale `camera` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifiprotect:event`. Dedup with `stats latest(*) by camera`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 1. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

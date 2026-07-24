@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Tempest Pressure Drop Storm Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_tempest_pressure_drop_storm_watch` (UC-25.10.28), SOC dashboard panel \"Personal — Tempest Pressure Drop Storm Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='weatherflow:obs' that satisfy the UC-25.10.28 SPL filters for 'Tempest Pressure Drop Storm Watch'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `weatherflow:obs` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.28."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='weatherflow:obs' where `station` satisfies `pressure_drop_hpa` > 4 for UC-25.10.28 ('Tempest Pressure Drop Storm Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `weatherflow:obs` events where `station` stays below `pressure_drop_hpa` > 4, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.28."
   },
   "dataSources": "Weather and garden telemetry (`weatherflow:obs`, `ecowitt:obs`, `purpleair:aqi`, `airgradient:sensor`, `plant:sensor`, `aquarium:sensor`, `ambee:pollen`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "WeatherFlow Tempest, Ecowitt, PurpleAir, AirGradient, ESPHome plant sensors, aquarium controllers, and pollen feeds streamed to Splunk HEC via MQTT and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=weatherflow:obs\n| sort 0 station _time\n| streamstats current=f last(pressure_hpa) as prev_pressure_hpa by station\n| eval pressure_drop_hpa=round(prev_pressure_hpa-pressure_hpa,1)\n| where pressure_drop_hpa>4\n| sort - pressure_drop_hpa",
   "description": "Uses Tempest barometric pressure telemetry to monitor rapid pressure drops that usually precede rough weather in index=personal.",
-  "value": "Splunk turns the feed into an operational check for storm setups before wind and rain arrive, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Tempest barometric pressure telemetry to monitor rapid pressure drops that usually precede rough weath.... Timely UC-25.10.28 alerting on 'Tempest Pressure Drop Storm Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Tempest barometric pressure data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Event table of rapid pressure drops.",
   "cimModels": [],
@@ -60,7 +60,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Tempest Pressure Drop Storm Watch'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `weatherflow:obs`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Tempest Pressure Drop Storm Watch' stops polling `weatherflow:obs`; stale `station` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `weatherflow:obs`. Dedup with `stats latest(*) by station`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `pressure_drop_hpa` > 4. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

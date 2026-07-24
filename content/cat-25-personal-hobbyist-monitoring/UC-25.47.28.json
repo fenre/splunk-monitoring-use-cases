@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Zotero Duplicate Paper Queue' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_zotero_duplicate_paper_queue` (UC-25.47.28), SOC dashboard panel \"Personal — Zotero Duplicate Paper Queue\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='research:paper' that satisfy the UC-25.47.28 SPL filters for 'Zotero Duplicate Paper Queue'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `research:paper` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.47.28."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='research:paper' where `library_name` satisfies `backlog` > 0 for UC-25.47.28 ('Zotero Duplicate Paper Queue'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `research:paper` events where `library_name` stays below `backlog` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.47.28."
   },
   "dataSources": "Highlights (`reading:highlight`), book activity (`reading:book`), reviews (`reading:review`), paper libraries (`research:paper`), sync states (`reading:sync`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Reading and second-brain telemetry — Readwise review exports, Kindle highlights, Goodreads shelves, and Zotero research libraries — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=research:paper library_name=* duplicate_flag=*\n| stats sum(eval(if(duplicate_flag=\"yes\",1,0))) as backlog, count as total by library_name\n| where backlog>0\n| sort - backlog",
   "description": "Lists pending duplicate papers backlog by library for research library cleanup. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Backlog counts expose where small unfinished tasks accumulate and create hidden drag inside research library cleanup.",
+  "value": "Lists pending duplicate papers backlog by library for research library cleanup. Timely UC-25.47.28 alerting on 'Zotero Duplicate Paper Queue' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Mark each `research:paper` record with a pending-state flag and summarize backlog totals by `library_name`.",
   "visualization": "Table of library with pending duplicate papers counts.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Zotero Duplicate Paper Queue'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `research:paper`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Zotero Duplicate Paper Queue' stops polling `research:paper`; stale `library_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `research:paper`. Dedup with `stats latest(*) by library_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `backlog` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

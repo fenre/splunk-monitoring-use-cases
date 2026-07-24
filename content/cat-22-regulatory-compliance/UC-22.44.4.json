@@ -54,17 +54,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Vendor principal vendor_abc@x logs in at 03:00 UTC on Sunday from a geography not on the contract's permitted list; the UC fires.",
-    "negativeScenario": "Same principal during contracted weekday hours from the expected geography; no alert.",
-    "fixtureRef": "",
-    "attackTechnique": "T1078.004",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=idp` sourcetype='okta:audit' where `entity` satisfies detection threshold for UC-22.44.4 ('Vendor access telemetry — principals active outside contracted hours/geos'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `idp` / `okta:audit` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.44.4."
   },
   "dataSources": "IdP authentication events for named vendor principals, vendor contracts lookup with contracted hours/geos.",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=idp earliest=-1h (sourcetype=okta:audit OR sourcetype=azuread:audit) result=success\n| search [ inputlookup vendor_principals.csv | fields user ]\n| `get_geolocation(src_ip)`\n| lookup vendor_contract.csv user OUTPUT allowed_hours allowed_countries\n| eval hour=strftime(_time,\"%H\"), weekday=strftime(_time,\"%A\"), window_ok=if(match(allowed_hours,weekday.\":\".hour),1,0), geo_ok=if(match(allowed_countries,country),1,0)\n| where window_ok=0 OR geo_ok=0\n| table _time user country hour weekday allowed_countries allowed_hours",
   "description": "Intersects vendor principal authentication events with contracted access windows (hours/days) and permitted geographies; divergence is a DORA Art.28 finding.",
-  "value": "Materialises contractual access controls into operational telemetry. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Intersects vendor principal authentication events with contracted access windows (hours/days) and permitted.... Timely UC-22.44.4 alerting on 'Vendor access telemetry — principals active outside contracted hours/geos' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Maintain vendor_principals macro; (2) extract contracted windows/geos from contracts and publish to vendor_contract.csv; (3) run hourly. Indexes required: `index=idp`; Sourcetypes: `sourcetype=azuread:audit`, `sourcetype=okta:audit`.",
   "visualization": "World map of vendor logins with off-geo markers, bar chart of vendors over time, single-value 'vendor logins within contract (24h)'. Key fields: `allowed_countries`, `allowed_hours`, `country`, `hour`, `user`, `weekday`.",
   "cimModels": [
@@ -92,7 +89,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised DORA control testing** — Internal audit exercises 'Vendor access telemetry — principals active outside contracted hours/geos' (UC-22.44.4) on `entity` during scheduled clause Art.28 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=idp` `okta:audit` without crossing evidence threshold. Cross-check engagement letter in `dora_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `idp` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `dora_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1078.004"
   ],

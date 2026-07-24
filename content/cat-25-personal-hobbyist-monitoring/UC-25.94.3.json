@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Warm Intro Request Conversion' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_warm_intro_request_conversion` (UC-25.94.3), SOC dashboard panel \"Personal — Warm Intro Request Conversion\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='intro:request' that satisfy the UC-25.94.3 SPL filters for 'Warm Intro Request Conversion'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `intro:request` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.94.3."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='intro:request' where `network_segment` satisfies detection threshold for UC-25.94.3 ('Warm Intro Request Conversion'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `intro:request` events where `network_segment` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.94.3."
   },
   "dataSources": "Monica contacts (`monica:contact`), Clay relationships (`clay:relationship`), LinkedIn connections (`linkedin:connection`), follow-up reminders (`followup:reminder`), and intro requests (`intro:request`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Monica contact relationship logs, Clay network exports, LinkedIn connection events, follow-up reminder tasks, and warm-intro request trackers streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=intro:request intro_status=*\n| stats count as requests, sum(eval(if(intro_status=\"accepted\",1,0))) as accepted by network_segment\n| eval conversion_pct=round(100*accepted/requests,1)\n| sort - conversion_pct",
   "description": "Calculates warm-intro request acceptance rate by network segment. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Intro conversion rates show which circles actually move the needle versus ones that look busy but go nowhere.",
+  "value": "Calculates warm-intro request acceptance rate by network segment. Timely UC-25.94.3 alerting on 'Warm Intro Request Conversion' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log each intro request with `intro_status` and `network_segment`, then review conversion quarterly.",
   "visualization": "Bar chart of conversion percentage by segment.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Warm Intro Request Conversion'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `intro:request`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Warm Intro Request Conversion' stops polling `intro:request`; stale `network_segment` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `intro:request`. Dedup with `stats latest(*) by network_segment`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

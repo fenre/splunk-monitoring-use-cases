@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Surfline Rideable Hours by Swell Direction' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_surfline_rideable_hours_by_swell_direction` (UC-25.41.24), SOC dashboard panel \"Personal — Surfline Rideable Hours by Swell Direction\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='surf:forecast' that satisfy the UC-25.41.24 SPL filters for 'Surfline Rideable Hours by Swell Direction'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `surf:forecast` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.41.24."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='surf:forecast' where `swell_direction` satisfies detection threshold for UC-25.41.24 ('Surfline Rideable Hours by Swell Direction'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `surf:forecast` events where `swell_direction` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.41.24."
   },
   "dataSources": "Rides (`ride:session`), charge sessions (`ride:charge`), ride exports (`ride:export`), surf forecasts (`surf:forecast`), ride incidents (`ride:incident`), segment efforts (`fitness:segment`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Micro-mobility and action-sports telemetry — Onewheel ride exports, legacy Boosted board logs, Surfline forecast snapshots, and Strava segment efforts — streamed to Splunk HEC via vendor exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=surf:forecast swell_direction=* rideable_hours=*\n| stats avg(rideable_hours) as avg_rideable_hours, count as events by swell_direction\n| sort - avg_rideable_hours",
   "description": "Shows average rideable hours by swell direction for surf-forecast windows. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Average rideable hours by swell direction helps compare surf-forecast windows across the factors that matter most.",
+  "value": "Shows average rideable hours by swell direction for surf-forecast windows. Timely UC-25.41.24 alerting on 'Surfline Rideable Hours by Swell Direction' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture `rideable_hours` on `surf:forecast` events and normalize `swell_direction` so Splunk can summarize performance by swell direction.",
   "visualization": "Bar chart of average rideable hours by swell direction.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Surfline Rideable Hours by Swell Direction'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `surf:forecast`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Surfline Rideable Hours by Swell Direction' stops polling `surf:forecast`; stale `swell_direction` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `surf:forecast`. Dedup with `stats latest(*) by swell_direction`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

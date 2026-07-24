@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Weekend Load Shape Comparison' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_weekend_load_shape_comparison` (UC-25.6.17), SOC dashboard panel \"Personal — Weekend Load Shape Comparison\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='dsmr:telegram' that satisfy the UC-25.6.17 SPL filters for 'Weekend Load Shape Comparison'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `dsmr:telegram` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.6.17."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='dsmr:telegram' where `hour` satisfies `weekday` > 5 for UC-25.6.17 ('Weekend Load Shape Comparison'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `dsmr:telegram` events where `hour` stays below `weekday` > 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.6.17."
   },
   "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=dsmr:telegram\n| eval hour=strftime(_time,\"%H\"), weekday=strftime(_time,\"%u\")\n| eval is_weekend=if(weekday>5,\"weekend\",\"weekday\")\n| stats avg(import_kw) as avg_kw by hour is_weekend\n| sort hour is_weekend",
   "description": "Builds a simple weekend-versus-weekday load profile so you can see whether household patterns match the tariff assumptions and automations you built.",
-  "value": "Different day types create different opportunities for cost control; comparing the shapes often reveals obvious timer changes you were not seeing.",
+  "value": "Builds a simple weekend-versus-weekday load profile so you can see whether household patterns match the tar.... Timely UC-25.6.17 alerting on 'Weekend Load Shape Comparison' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest import power continuously; review the hour-by-hour profile and adapt automations around the true weekend pattern.",
   "visualization": "Overlay chart of weekday and weekend average load by hour.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Weekend Load Shape Comparison'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `dsmr:telegram`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Weekend Load Shape Comparison' stops polling `dsmr:telegram`; stale `hour` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `dsmr:telegram`. Dedup with `stats latest(*) by hour`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `weekday` > 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

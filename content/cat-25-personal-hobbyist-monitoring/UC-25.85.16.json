@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Logseq Task Throughput Review Backlog Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_logseq_task_throughput_review_backlog_alert` (UC-25.85.16), SOC dashboard panel \"Personal — Logseq Task Throughput Review Backlog Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='logseq:task' that satisfy the UC-25.85.16 SPL filters for 'Logseq Task Throughput Review Backlog Alert'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `logseq:task` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.85.16."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='logseq:task' where `vault` satisfies `review_backlog` > 0 for UC-25.85.16 ('Logseq Task Throughput Review Backlog Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `logseq:task` events where `vault` stays below `review_backlog` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.85.16."
   },
   "dataSources": "Obsidian graph stats (`obsidian:stats`), Roam daily notes (`roam:daily`), Logseq tasks (`logseq:task`), Zettelkasten notes (`zettel:note`), PKM review summaries (`pkm:review`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Obsidian graph stats, Roam daily notes, Logseq task exports, and Zettelkasten counts streamed to Splunk HEC via plugins, CSV exports, and scripted vault scans. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=logseq:task\n| stats latest(open_task_backlog) as review_backlog by vault\n| where review_backlog>0\n| sort - review_backlog",
-  "description": "Shows where unread, unrevised, or unreviewed material is building up in logseq task throughput.",
-  "value": "A review backlog is where note systems quietly turn from helpful to cluttered, so it is worth monitoring directly.",
+  "description": "Shows where unread, unrevised, or unreviewed material is building up in logseq task throughput. Searches `index=personal` with sourcetype `logseq:task` for UC-25.85.16, aggregating `count` by `vault` over `the scheduled window`. Alerts when grouped results cross `review_backlog` > 0 in the saved search. Gives Personal operators a repeatable signal for 'Logseq Task Throughput Review Backlog Alert' without manual log review.",
+  "value": "Shows where unread, unrevised, or unreviewed material is building up in logseq task throughput. Timely UC-25.85.16 alerting on 'Logseq Task Throughput Review Backlog Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Write a numeric backlog count per vault, graph, or workspace during the daily export.",
   "visualization": "Bar chart of review backlog by vault or workspace.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Logseq Task Throughput Review Backlog Alert'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `logseq:task`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Logseq Task Throughput Review Backlog Alert' stops polling `logseq:task`; stale `vault` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `logseq:task`. Dedup with `stats latest(*) by vault`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `review_backlog` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hashicorp"
   ],

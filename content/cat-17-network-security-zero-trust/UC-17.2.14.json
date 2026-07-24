@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Geo-Impossible VPN Connections' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_geo_impossible_vpn_connections` (UC-17.2.14), SOC dashboard panel \"Network — Geo-Impossible VPN Connections\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vpn` sourcetype='cisco:asa' that satisfy the UC-17.2.14 SPL filters for 'Geo-Impossible VPN Connections'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vpn` / `cisco:asa` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.2.14."
+    "positiveScenario": "Ingest synthetic events into `index=vpn` sourcetype='cisco:asa' where `user` satisfies `gap_hrs` < 6 for UC-17.2.14 ('Geo-Impossible VPN Connections'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `vpn` / `cisco:asa` events where `user` stays below `gap_hrs` < 6, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.2.14."
   },
   "dataSources": "VPN session connect with `src`, `user` Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), GeoIP — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=vpn sourcetype=\"cisco:asa\" action=\"session_connect\" earliest=-24h\n| iplocation src\n| eval country=Country\n| sort user _time\n| streamstats current=f last(_time) as prev_time last(Country) as prev_country by user\n| eval gap_hrs=round((_time-prev_time)/3600,2)\n| where isnotnull(prev_country) AND country!=prev_country AND gap_hrs < 6\n| table _time, user, prev_country, country, gap_hrs, src",
-  "description": "Detects logins from two distant countries faster than plausible travel — complements static geo allowlists (UC-17.2.3).",
-  "value": "Security teams detect physically impossible VPN connection patterns (e.g., login from New York and London within 30 minutes), providing high-confidence indicators of credential compromise or unauthorized credential sharing.",
+  "description": "Detects logins from two distant countries faster than plausible travel — complements static geo allowlists (UC-17.2.3). Searches `index=vpn` with sourcetype `cisco:asa` for UC-17.2.14, aggregating `count` by `user` over `the scheduled window`. Alerts when grouped results cross `gap_hrs` < 6 in the saved search. Gives Network operators a repeatable signal for 'Geo-Impossible VPN Connections' without manual log review.",
+  "value": "Detects logins from two distant countries faster than plausible travel — complements static geo allowlists.... Timely UC-17.2.14 alerting on 'Geo-Impossible VPN Connections' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Tune time window (e.g., 4–8h) and distance (optional `haversine` if lat/long from enriched data). Whitelist mobile users and split tunnel carrier NAT.",
   "visualization": "Table (impossible travel), Map (prev vs new), Single value (alerts / day).",
   "cimModels": [

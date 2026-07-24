@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'BitLocker Recovery Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_bitlocker_recovery_events` (UC-1.2.53), SOC dashboard panel \"Linux — BitLocker Recovery Events\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=768 that satisfy the UC-1.2.53 SPL filters for 'BitLocker Recovery Events'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.53."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=768 where `entity` satisfies detection threshold for UC-1.2.53 ('BitLocker Recovery Events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.53."
   },
   "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-BitLocker/BitLocker Management` (EventCode 768, 770, 775, 846) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-BitLocker*\"\n  EventCode IN (768, 770, 775, 846)\n| eval issue=case(EventCode=768,\"Recovery mode entered\",EventCode=770,\"Protection suspended\",EventCode=775,\"Recovery key used\",EventCode=846,\"Encryption failed\")\n| table _time, host, issue, VolumeName, RecoveryReason\n| sort -_time",
   "description": "BitLocker recovery mode triggers indicate TPM issues, boot configuration changes, or potential tampering with the boot chain. Each event requires investigation.",
-  "value": "Encryption health is a physical-loss and compliance story, not a CPU chart—treat it as such.",
+  "value": "BitLocker recovery mode triggers indicate TPM issues, boot configuration changes, or potential tampering wi.... Timely UC-1.2.53 alerting on 'BitLocker Recovery Events' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Forward BitLocker Management and Operational logs. EventCode 768/775=recovery mode (TPM unsealing failed, boot integrity compromised). Common benign triggers: BIOS updates, boot order changes. Alert on recovery events — each one should be correlated with approved change windows. Track EventCode 770 (protection suspended) — ensure it's re-enabled within 24 hours.",
   "visualization": "Table (recovery events), Timeline, Single value (unresolved recoveries).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'BitLocker Recovery Events'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `configured sourcetype`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'BitLocker Recovery Events'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

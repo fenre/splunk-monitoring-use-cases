@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Rain-Plan Readiness Checklist' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_rain_plan_readiness_checklist` (UC-25.53.17), SOC dashboard panel \"Personal — Rain-Plan Readiness Checklist\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='event:task' that satisfy the UC-25.53.17 SPL filters for 'Rain-Plan Readiness Checklist'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `event:task` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.53.17."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='event:task' where `owner` satisfies detection threshold for UC-25.53.17 ('Rain-Plan Readiness Checklist'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `event:task` events where `owner` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.53.17."
   },
   "dataSources": "Planning tasks (`event:task`), budget lines (`event:budget`), RSVPs (`event:rsvp`), vendor bookings (`event:vendor`), countdown milestones (`event:countdown`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Wedding and event planning — task and budget spreadsheets, RSVP platforms (Zola, The Knot), vendor contracts, and seating tools — streamed to Splunk HEC via CSV exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=event:task contingency_plan=rain\n| stats sum(eval(if(status=\"done\",1,0))) as done, count as tasks by owner\n| eval readiness_pct=round(100*done/tasks,1)\n| sort - readiness_pct",
   "description": "Scores how complete the rain-contingency task set is, owner by owner. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Fallback plans are notorious for being half-prepared; a checklist score keeps the backup path real.",
+  "value": "Scores how complete the rain-contingency task set is, owner by owner. Timely UC-25.53.17 alerting on 'Rain-Plan Readiness Checklist' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Tag contingency tasks in `event:task` and compute readiness percentage by owner.",
   "visualization": "Table of rain-plan owners with readiness percentage.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Rain-Plan Readiness Checklist'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `event:task`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Rain-Plan Readiness Checklist' stops polling `event:task`; stale `owner` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `event:task`. Dedup with `stats latest(*) by owner`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

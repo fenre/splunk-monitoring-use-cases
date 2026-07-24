@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'CMDB Data Quality Score' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cmdb_data_quality_score` (UC-16.2.1), SOC dashboard panel \"Operations — CMDB Data Quality Score\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:cmdb_ci' that satisfy the UC-16.2.1 SPL filters for 'CMDB Data Quality Score'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:cmdb_ci` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.2.1."
+    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:cmdb_ci' where `entity` satisfies detection threshold for UC-16.2.1 ('CMDB Data Quality Score'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `itsm` / `snow:cmdb_ci` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.2.1."
   },
   "dataSources": "CMDB CI data (completeness, accuracy, freshness) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow`, custom metrics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:cmdb_ci\"\n| eval complete=if(isnotnull(owner) AND isnotnull(support_group) AND isnotnull(environment),1,0)\n| eval fresh=if(last_discovered > relative_time(now(),\"-30d\"),1,0)\n| stats avg(complete) as completeness, avg(fresh) as freshness\n| eval quality_score=round((completeness*50+freshness*50),1)",
-  "description": "Poor CMDB data quality undermines all ITSM processes. Scoring and trending drives data quality improvement initiatives.",
+  "description": "Poor CMDB data quality undermines all ITSM processes. Scoring and trending drives data quality improvement initiatives. Searches `index=itsm` with sourcetype `snow:cmdb_ci` for UC-16.2.1, aggregating `avg` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'CMDB Data Quality Score' without manual log review.",
   "value": "Early 'CMDB Data Quality Score' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Define CMDB quality dimensions (completeness, accuracy, freshness, relationships). Score each dimension. Calculate composite quality score. Track trend over time. Set improvement targets. Report to CMDB governance board.",
   "visualization": "Gauge (quality score), Line chart (quality trend), Bar chart (quality by dimension), Table (worst-scoring CIs).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'CMDB Data Quality Score'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `itsm` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'CMDB Data Quality Score' shifts `avg` over `span=1h` while `host` remains in-scope for UC-16.2.1. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `snow:cmdb_ci`** — Scheduled automation elevates `complete` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:cmdb_ci`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

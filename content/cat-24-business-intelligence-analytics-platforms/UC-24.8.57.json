@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Hevo Data Pipeline Run Duration p95' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_hevo_data_pipeline_run_duration_p95` (UC-24.8.57), SOC dashboard panel \"Operations — Hevo Data Pipeline Run Duration p95\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='hevo:pipeline' that satisfy the UC-24.8.57 SPL filters for 'Hevo Data Pipeline Run Duration p95'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `hevo:pipeline` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.8.57."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='hevo:pipeline' where `pipeline_name` satisfies `p95_min` > 60 for UC-24.8.57 ('Hevo Data Pipeline Run Duration p95'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `hevo:pipeline` events where `pipeline_name` stays below `p95_min` > 60, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.8.57."
   },
   "dataSources": "Hevo pipelines (`hevo:pipeline`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Hevo Data pipeline events via the Hevo API to HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=hevo:pipeline status=\"SUCCESS\"\n| eval dur_min=round(duration_ms/60000,2)\n| stats avg(dur_min) as avg_min, p95(dur_min) as p95_min, count as runs by pipeline_name\n| where p95_min>60\n| sort - p95_min",
   "description": "Computes the 95th-percentile run duration for each pipeline in Hevo Data and flags the slowest, pointing owners at the specific content or jobs that need optimisation.",
-  "value": "Tail latency, not the average, is what users feel; ranking Hevo Data pipelines by p95 focuses tuning effort where it removes the most pain.",
+  "value": "Computes the 95th-percentile run duration for each pipeline in Hevo Data and flags the slowest, pointing ow.... Timely UC-24.8.57 alerting on 'Hevo Data Pipeline Run Duration p95' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest Hevo Data timing data; schedule daily over a trailing week and review the slowest pipelines with their owners.",
   "visualization": "Table of pipeline by p95 run duration, trend line.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Hevo Data Pipeline Run Duration p95'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Hevo Data Pipeline Run Duration p95' shifts `avg` over `span=1h` while `pipeline_name` remains in-scope for UC-24.8.57. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `hevo:pipeline`** — Scheduled automation elevates `dur_min` without crossing `p95_min` > 60. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pipeline_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `hevo:pipeline`** — First 48h baseline for `pipeline_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pipeline_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

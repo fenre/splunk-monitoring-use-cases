@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'DLP over Web Traffic' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_dlp_over_web_traffic` (UC-10.5.4), SOC dashboard panel \"Security Infra — DLP over Web Traffic\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='netskope:events' that satisfy the UC-10.5.4 SPL filters for 'DLP over Web Traffic'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `proxy` / `netskope:events` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.5.4."
+    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='netskope:events' where `user` satisfies detection threshold for UC-10.5.4 ('DLP over Web Traffic'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `proxy` / `netskope:events` events where `user` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.5.4."
   },
   "dataSources": "SWG DLP logs (file uploads, paste detection) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "SWG/CASB TA — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"netskope:events\" alert_type=\"DLP\"\n| stats count by user, app, policy_name, file_type\n| sort -count",
-  "description": "Web DLP events indicate sensitive data being uploaded to unauthorized destinations. Critical for compliance.",
+  "description": "Web DLP events indicate sensitive data being uploaded to unauthorized destinations. Critical for compliance. Searches `index=proxy` with sourcetype `netskope:events` for UC-10.5.4, aggregating `count` by `user` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'DLP over Web Traffic' without manual log review.",
   "value": "Early 'DLP over Web Traffic' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Configure DLP policies in SWG/CASB for sensitive data patterns. Ingest DLP violation events. Alert on high-severity violations. Track by user, destination app, and data type. Report for compliance audits.",
   "visualization": "Table (DLP violations), Bar chart (violations by policy), Line chart (violation trend), Pie chart (by data type).",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'DLP over Web Traffic'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=proxy` `netskope:events`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy`** — Planned work for 'DLP over Web Traffic' shifts `count` over `span=1h` while `user` remains in-scope for UC-10.5.4. Cross-check CMDB CHG.\n\n2. **Batch `count` on `netskope:events`** — Scheduled automation elevates `app` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netskope:events`** — First 48h baseline for `user` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netskope"
   ],

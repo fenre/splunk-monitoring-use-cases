@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Personal Golden Signals Rollup' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_personal_golden_signals_rollup` (UC-25.40.12), SOC dashboard panel \"Personal — Personal Golden Signals Rollup\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='personalslo:status' that satisfy the UC-25.40.12 SPL filters for 'Personal Golden Signals Rollup'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `personalslo:status` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.40.12."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='personalslo:status' where `service` satisfies detection threshold for UC-25.40.12 ('Personal Golden Signals Rollup'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `personalslo:status` events where `service` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.40.12."
   },
   "dataSources": "Daily life scores (`lifescore:daily`), personal SLO status (`personalslo:status`), cross-signal correlations (`correlation:pair`), plus every other `index=personal` sourcetype as input. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "The meta layer — correlating every `index=personal` feed (sleep, activity, mood, weather, spend, productivity, home telemetry) into daily life scores, personal SLOs, and cross-signal anomaly detection, all computed in Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=personalslo:status\n| stats avg(latency_score) as latency, avg(error_budget_pct) as error_budget, avg(saturation_pct) as saturation, avg(availability_pct) as availability by service\n| sort service",
-  "description": "Rolls up a personal version of the golden signals across the services and habits you care about most.",
-  "value": "Treating life systems like services can sound silly, but it is a sharp way to see overload, fragility, and missed expectations.",
+  "description": "Rolls up a personal version of the golden signals across the services and habits you care about most. Searches `index=personal` with sourcetype `personalslo:status` for UC-25.40.12, aggregating `avg` by `service` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Personal Golden Signals Rollup' without manual log review.",
+  "value": "Rolls up a personal version of the golden signals across the services and habits you care about most. Timely UC-25.40.12 alerting on 'Personal Golden Signals Rollup' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Publish personal-SLO status events into `index=personal`; summarize the key golden-signal metrics per service.",
   "visualization": "Service table of latency, error-budget, saturation, and availability metrics.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Personal Golden Signals Rollup'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `personalslo:status`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Personal Golden Signals Rollup' stops polling `personalslo:status`; stale `service` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `personalslo:status`. Dedup with `stats latest(*) by service`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

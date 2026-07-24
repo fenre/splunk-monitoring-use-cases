@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'SNMPv3 Authentication Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_snmpv3_authentication_failures` (UC-14.1.14), SOC dashboard panel \"Operations — SNMPv3 Authentication Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='target_sourcetype' that satisfy the UC-14.1.14 SPL filters for 'SNMPv3 Authentication Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.1.14."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='target_sourcetype' where `src` satisfies `count` > 10 for UC-14.1.14 ('SNMPv3 Authentication Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `target_sourcetype` events where `src` stays below `count` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.1.14."
   },
   "dataSources": "`sourcetype=\"snmp:auth\"` or `sourcetype=\"cisco:ios\"` (SNMPv3 usmStats) Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "Device syslog, SNMP engine logs — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype IN (\"snmp:auth\",\"cisco:ios\")\n| search \"authentication failure\" OR \"Unknown user name\" OR \"usmStatsUnknownUserNames\"\n| eval user=coalesce(user, user_name)\n| stats count by src, device_name, user\n| where count > 10\n| sort -count",
-  "description": "Auth failures indicate credential rotation gaps, brute force, or misconfigured collectors.",
+  "description": "Auth failures indicate credential rotation gaps, brute force, or misconfigured collectors. Searches `index=network` with sourcetype `configured sourcetype` for UC-14.1.14, aggregating `count` by `src` over `the scheduled window`. Alerts when grouped results cross `count` > 10 in the saved search. Gives Operations operators a repeatable signal for 'SNMPv3 Authentication Failures' without manual log review.",
   "value": "Early 'SNMPv3 Authentication Failures' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Forward device-side SNMPv3 error counters to Splunk. Alert on burst from single IP or new engine ID. Correlate with NetOps change tickets.",
   "visualization": "Table (top sources of auth failures), Timeline (failure bursts), Map (geo of source IPs if routed).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'SNMPv3 Authentication Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'SNMPv3 Authentication Failures' shifts `count` over `span=1h` while `src` remains in-scope for UC-14.1.14. Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `device_name` without crossing `count` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `src` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp",

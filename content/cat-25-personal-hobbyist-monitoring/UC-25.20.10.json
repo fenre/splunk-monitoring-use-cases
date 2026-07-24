@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Backyard Sensor Fleet Uptime' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_backyard_sensor_fleet_uptime` (UC-25.20.10), SOC dashboard panel \"Personal — Backyard Sensor Fleet Uptime\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='seismo:reading' that satisfy the UC-25.20.10 SPL filters for 'Backyard Sensor Fleet Uptime'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `seismo:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.20.10."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='seismo:reading' where `sourcetype` satisfies `mins_silent` > 30 for UC-25.20.10 ('Backyard Sensor Fleet Uptime'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `seismo:reading` events where `sourcetype` stays below `mins_silent` > 30, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.20.10."
   },
   "dataSources": "Seismograph (`seismo:reading`), Geiger counter (`geiger:cpm`), lightning strikes (`lightning:strike`), radon (`radon:reading`), all-sky meteor camera (`allsky:capture`), river-level gauge (`riverlevel:reading`), magnetometer (`magnetometer:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "DIY citizen-science sensors — Raspberry Shake seismograph, DIY Geiger counter, AS3935/Blitzortung lightning detector, radon monitor, all-sky meteor camera, river-level gauge, and magnetometer — streamed to Splunk HEC via MQTT and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal (sourcetype=seismo:reading OR sourcetype=geiger:cpm OR sourcetype=radon:reading OR sourcetype=magnetometer:reading)\n| stats latest(_time) as last_seen by sourcetype\n| eval mins_silent=round((now()-last_seen)/60,0), offline=if(mins_silent>30,1,0)\n| sort - mins_silent",
   "description": "Checks that each of your citizen-science sensors is still reporting so a dead feed does not leave a silent gap in your data.",
-  "value": "Long-running science needs unbroken data; a simple heartbeat across the sensor fleet catches a crashed feed before the record has holes.",
+  "value": "Checks that each of your citizen-science sensors is still reporting so a dead feed does not leave a silent.... Timely UC-25.20.10 alerting on 'Backyard Sensor Fleet Uptime' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Track the last-seen time per sensor sourcetype; alert when any has been quiet too long.",
   "visualization": "Table of sensors with minutes since last reading and offline flag.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Backyard Sensor Fleet Uptime'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `seismo:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Backyard Sensor Fleet Uptime' stops polling `seismo:reading`; stale `sourcetype` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `seismo:reading`. Dedup with `stats latest(*) by sourcetype`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `mins_silent` > 30. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

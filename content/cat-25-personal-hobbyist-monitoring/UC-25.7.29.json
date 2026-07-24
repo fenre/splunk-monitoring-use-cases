@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Emby Concurrent Stream Ceiling' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_emby_concurrent_stream_ceiling` (UC-25.7.29), SOC dashboard panel \"Personal — Emby Concurrent Stream Ceiling\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='emby:session' that satisfy the UC-25.7.29 SPL filters for 'Emby Concurrent Stream Ceiling'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `emby:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.7.29."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='emby:session' where `server` satisfies `concurrent_streams` > 3 for UC-25.7.29 ('Emby Concurrent Stream Ceiling'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `emby:session` events where `server` stays below `concurrent_streams` > 3, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.7.29."
   },
   "dataSources": "Media and gaming telemetry (`jellyfin:activity`, `emby:session`, `steam:player`, `steamdeck:session`, `xbox:activity`, `nintendo:play`, `tautulli:play`, `antennapod:episode`, `retroarch:session`, `sonarr:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Jellyfin, Emby, Steam, Steam Deck logs, Xbox and Nintendo exports, Tautulli, AntennaPod, RetroArch, and the *arr stack via official APIs, local databases, webhook payloads, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=emby:session event=playback\n| bin _time span=10m\n| stats dc(session_id) as concurrent_streams by server _time\n| where concurrent_streams>3\n| sort - concurrent_streams",
-  "description": "Uses Emby playback sessions telemetry to monitor server concurrency during busy playback windows in index=personal.",
-  "value": "Splunk turns the feed into an operational check for times when household streaming nears the server's limit, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses Emby playback sessions telemetry to monitor server concurrency during busy playback windows in index=personal. Searches `index=personal` with sourcetype `emby:session` for UC-25.7.29, aggregating `dc` by `server` over `10m`. Alerts when grouped results cross `concurrent_streams` > 3 in the saved search. Gives Personal operators a repeatable signal for 'Emby Concurrent Stream Ceiling' without manual log review.",
+  "value": "Uses Emby playback sessions telemetry to monitor server concurrency during busy playback windows in index=p.... Timely UC-25.7.29 alerting on 'Emby Concurrent Stream Ceiling' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Emby playback sessions data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Ten-minute chart of concurrent Emby streams.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Emby Concurrent Stream Ceiling'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `emby:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Emby Concurrent Stream Ceiling' stops polling `emby:session`; stale `server` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `dc` over `10m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `emby:session`. Dedup with `stats latest(*) by server`.\n\n4. **Timezone bucket misalignment** — `10m` bins on UTC vs local schedule skew `concurrent_streams` > 3. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

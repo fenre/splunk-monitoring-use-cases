@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Slab Cache Growth Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_slab_cache_growth_monitoring` (UC-1.1.46), SOC dashboard panel \"Linux — Slab Cache Growth Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='syslog' that satisfy the UC-1.1.46 SPL filters for 'Slab Cache Growth Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `syslog` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.46."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='syslog' where `host` satisfies detection threshold for UC-1.1.46 ('Slab Cache Growth Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `syslog` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.46."
   },
   "dataSources": "`sourcetype=syslog` (kernel/slab messages) or a scripted `custom:slabinfo` feed from `/proc/slabinfo` for structured totals Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix` (and optional custom scripted input for slab snapshots) — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=syslog \"slab\"\n| bin _time span=1d\n| stats sum(slab_size) as total_slab by host, _time\n| streamstats window=30 avg(total_slab) as baseline stdev(total_slab) as stddev by host\n| eval upper=baseline+(2*stddev)\n| where total_slab > upper",
   "description": "Detects unusual day-over-day growth in the kernel slab allocator footprint so we can catch memory pressure from slab bloat or leaks before the host runs out of usable memory.",
-  "value": "Catching runaway slab growth early protects services that depend on a healthy page cache and spare RAM, and it shortens time-to-triage for driver or app leaks hidden in the kernel allocator.",
+  "value": "Detects unusual day-over-day growth in the kernel slab allocator footprint so we can catch memory pressure.... Timely UC-1.1.46 alerting on 'Slab Cache Growth Monitoring' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Ingest messages that include slab sizing (or build a `custom:slabinfo` input that prints total slab size). Require numeric `slab_size` extraction. Use the daily `stats` and `streamstats` rollups for a host-specific baseline, then alert when totals exceed the upper band.",
   "visualization": "Timechart, Anomaly Chart",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Slab Cache Growth Monitoring'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `syslog`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Slab Cache Growth Monitoring'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `sum` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "syslog"

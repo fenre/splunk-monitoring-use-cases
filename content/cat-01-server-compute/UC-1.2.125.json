@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Cluster Shared Volume (CSV) Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_cluster_shared_volume_csv_health` (UC-1.2.125), SOC dashboard panel \"Linux — Cluster Shared Volume (CSV) Health\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=5120 that satisfy the UC-1.2.125 SPL filters for 'Cluster Shared Volume (CSV) Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.125."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=5120 where `host` satisfies detection threshold for UC-1.2.125 ('Cluster Shared Volume (CSV) Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.125."
   },
   "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-FailoverClustering/Operational` Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-FailoverClustering/Operational\" EventCode IN (5120, 5121, 5140, 5142, 5143)\n| eval Status=case(EventCode=5120,\"CSV_Online\", EventCode=5121,\"CSV_Offline\", EventCode=5140,\"CSV_Redirected\", EventCode=5142,\"CSV_IO_Paused\", EventCode=5143,\"CSV_IO_Resumed\", 1=1,\"Other\")\n| stats count latest(_time) as LastEvent by host, VolumeName, Status\n| where Status IN (\"CSV_Offline\", \"CSV_Redirected\", \"CSV_IO_Paused\")\n| sort -LastEvent",
   "description": "Cluster Shared Volumes underpin Hyper-V and SQL Server failover clusters. CSV failures cause VM/database unavailability across the cluster.",
-  "value": "CSV space and I/O health under Hyper-V clusters affects every VM on shared storage. Early signals on pause, redirect, or latency avoid multi-tenant brownouts.",
+  "value": "Cluster Shared Volumes underpin Hyper-V and SQL Server failover clusters. Timely UC-1.2.125 alerting on 'Cluster Shared Volume (CSV) Health' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Monitor Failover Clustering Operational log for CSV state changes. CSV Offline (5121) is critical — VMs will fail. CSV Redirected (5140) means I/O is going through another node (degraded performance). CSV I/O Paused (5142) freezes all VMs on that volume. Alert immediately on offline and paused states. Monitor CSV latency via Perfmon: Cluster CSV File System counters. Track cluster node membership changes (1069/1070/1135).",
   "visualization": "Status dashboard (CSV states), Timechart (state changes), Alert on failures.",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Cluster Shared Volume (CSV) Health'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `configured sourcetype`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Cluster Shared Volume (CSV) Health'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hyperv",
     "mssql",

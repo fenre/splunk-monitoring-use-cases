@@ -28,14 +28,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Create a test provider risk assessment showing inherent risk of 9/10 and residual risk of 8/10 (minimal control effectiveness); verify the search identifies inadequate risk reduction.",
-    "negativeScenario": "Create a test provider risk assessment showing inherent 9/10 reduced to residual 3/10 through validated controls; verify the assessment shows effective risk management."
+    "positiveScenario": "Ingest synthetic events into `index=risk` sourcetype='dora:tprr' where `entity` satisfies `inherent` > 0 for UC-22.3.38 ('DORA ICT Third-Party Risk Register — Inherent vs Residual Risk Score Reconciliation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `risk` / `dora:tprr` events where `entity` stays below `inherent` > 0, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.3.38."
   },
   "dataSources": "`index=risk` `sourcetype=\"dora:tprr\"` (provider_id, inherent, residual, control_effectiveness, last_review) (Splunkbase 1621 — Splunk CIM Add-on)",
   "app": "Splunk DB Connect, GRC export",
   "spl": "index=risk sourcetype=\"dora:tprr\" earliest=-1d\n| where inherent>0 AND residual=inherent AND (isnull(control_effectiveness) OR control_effectiveness=\"unknown\")\n| eval last=strptime(last_review,\"%Y-%m-%d\")\n| where last<relative_time(now(),\"-180d@d\")\n| table provider_id, inherent, residual, control_effectiveness, last_review",
   "description": "Risk registers should show mitigation effect. Detecting rows where residual risk equals inherent without documented controls, or where math is inconsistent, protects the integrity of supervisory reporting derived from the register.",
-  "value": "Gives the responsible team auditor-ready evidence for DORA compliance by automating regulatory compliance evidence using indexes risk and sourcetypes dora:tprr. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
+  "value": "Risk registers should show mitigation effect. Timely UC-22.3.38 alerting on 'DORA ICT Third-Party Risk Register — Inherent vs Residual Risk Score Reconciliation' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Define scoring scale 1–25; (2) require control linkage from GRC; (3) quarterly risk committee review of hits; (4) exclude not-yet-assessed new vendors for 90 days via `onboarding_flag`; (5) export for internal audit. Indexes required: `index=risk`; Sourcetypes: `sourcetype=dora:tprr`.",
   "visualization": "Table (anomalies), Scatter (inherent vs residual), Single value (count).",
   "cimModels": [],
@@ -53,7 +53,7 @@
       "url": "https://splunkbase.splunk.com/app/263"
     }
   ],
-  "knownFalsePositives": "1. **Initial risk scoring for new providers** — Newly engaged providers awaiting first assessment cycle may show default risk scores rather than validated assessments.\n\n2. **Risk score temporal fluctuation** — Provider risk scores that fluctuate around threshold boundaries due to minor changes may trigger excessive alerts.\n\n3. **Industry-wide risk elevation** — Sector-wide risk increases (e.g., geopolitical events) elevating all provider scores may not represent individual provider degradation.\n\n4. **Assessment methodology transitions** — Risk scoring methodology changes creating apparent score jumps without actual risk changes.\n\n5. **Compensating control effectiveness** — Residual risk remaining above appetite despite controls is managed through the acceptance process, not necessarily indicating control failure.\n\n**Operational suppression:** Maintain a lookup table (`dora_approved_exceptions.csv`) mapping known legitimate activities by process owner, approval reference, and expiry date. Filter the SPL results against this lookup to suppress documented exceptions and reduce alert fatigue. Review and rotate entries quarterly per the ICT risk management framework review cycle.",
+  "knownFalsePositives": "1. **Authorised DORA control testing** — Internal audit exercises 'DORA ICT Third-Party Risk Register — Inherent vs Residual Risk Score Reconciliation' (UC-22.3.38) on `entity` during scheduled clause Art.19 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=risk` `dora:tprr` without crossing `inherent` > 0. Cross-check engagement letter in `dora_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `risk` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `dora_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "requiredFields": [
     "control_effectiveness",
     "inherent",

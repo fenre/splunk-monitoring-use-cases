@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Windows Event Forwarding (WEF) Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_windows_event_forwarding_wef_health` (UC-1.2.54), SOC dashboard panel \"Linux — Windows Event Forwarding (WEF) Health\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=102 that satisfy the UC-1.2.54 SPL filters for 'Windows Event Forwarding (WEF) Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.54."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=102 where `host` satisfies detection threshold for UC-1.2.54 ('Windows Event Forwarding (WEF) Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.54."
   },
   "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Forwarding/Operational` (EventCode 100, 102, 103, 105, 111) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-Forwarding/Operational\"\n  EventCode IN (102, 103, 105, 111)\n| eval issue=case(EventCode=102,\"Subscription connected\",EventCode=103,\"Subscription error\",EventCode=105,\"Access denied\",EventCode=111,\"Collector unreachable\")\n| stats count by host, issue, SubscriptionName\n| where issue!=\"Subscription connected\"\n| sort -count",
   "description": "WEF collects events from thousands of endpoints to central collectors. Forwarding failures create visibility gaps across the security monitoring pipeline.",
-  "value": "If WEF is down, a chunk of the estate is dark to SIEM and SOAR even if the hosts are ‘healthy’ in CMDB terms.",
+  "value": "WEF collects events from thousands of endpoints to central collectors. Timely UC-1.2.54 alerting on 'Windows Event Forwarding (WEF) Health' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Enable Forwarding/Operational log on WEF collectors and clients. EventCode 103=subscription-level error, 105=access denied (Kerberos/permission issue), 111=cannot reach collector. Monitor for expected forwarders going silent — compare against CMDB endpoint list. Alert when error rate exceeds 5% of clients. Use `wecutil gr <subscription>` via scripted input for precise subscription health.",
   "visualization": "Status grid (subscription × host), Pie chart (healthy vs. error), Table (error details), Single value (connected clients).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Windows Event Forwarding (WEF) Health'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `configured sourcetype`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Windows Event Forwarding (WEF) Health'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "m365",
     "windows"

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for '12V Battery Weakness Proxy' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_12v_battery_weakness_proxy` (UC-25.3.15), SOC dashboard panel \"Personal — 12V Battery Weakness Proxy\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tesla:vehicle' that satisfy the UC-25.3.15 SPL filters for '12V Battery Weakness Proxy'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tesla:vehicle` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.15."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tesla:vehicle' where `vin` satisfies `min_mv` < 11500 for UC-25.3.15 ('12V Battery Weakness Proxy'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `tesla:vehicle` events where `vin` stays below `min_mv` < 11500, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.15."
   },
   "dataSources": "Tesla vehicle and charge state (`tesla:vehicle`, `tesla:charge`), OBD-II PIDs (`obd:pid`), Smart EV charger sessions (`evcharger:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tesla Fleet API / TeslaMate, TeslaFi, and generic OBD-II / Smartcar / charger APIs via HEC scripted inputs and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tesla:vehicle\n| stats min(low_voltage_mv) as min_mv, latest(alert_12v) as alert_12v by vin\n| where min_mv<11500 OR alert_12v=\"true\"\n| sort min_mv",
   "description": "Uses low-voltage battery telemetry as an early-warning proxy for the tiny battery that can strand an otherwise well-charged EV.",
-  "value": "Owners tend to watch the high-voltage pack and ignore the 12V system until it fails dramatically; this gives that small battery its own dashboard.",
+  "value": "Uses low-voltage battery telemetry as an early-warning proxy for the tiny battery that can strand an otherw.... Timely UC-25.3.15 alerting on '12V Battery Weakness Proxy' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward low-voltage health telemetry or alerts from the vehicle API; review weekly and replace the auxiliary battery before it surprises you.",
   "visualization": "Single-value panel of low-voltage alerts with a table of minimum observed voltage.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for '12V Battery Weakness Proxy'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tesla:vehicle`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for '12V Battery Weakness Proxy' stops polling `tesla:vehicle`; stale `vin` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `min` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tesla:vehicle`. Dedup with `stats latest(*) by vin`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `min_mv` < 11500. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

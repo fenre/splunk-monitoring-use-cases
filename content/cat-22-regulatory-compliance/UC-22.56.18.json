@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set `material_change=true` with `tsa_submission_date=null` and `change_date` >30 days ago. UC-22.56.18 MUST flag.",
-    "negativeScenario": "Set `tsa_submission_date` within 30 days of `change_date`. UC-22.56.18 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies `days_since_change` <= 30 for UC-22.56.18 ('TSA-SD multi-modal Cybersecurity Implementation Plan (CIP) versioning + amendment audit trail'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `days_since_change` <= 30, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.56.18."
   },
   "dataSources": "KV Store `tsa_cip_version_lookup` (cip_id, modality, version, change_date, material_change, tsa_submission_date, approver). SharePoint CIP document repository audit (`o365:management`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup tsa_cip_version_lookup\n| where material_change=true\n| eval days_since_change = round((now() - change_date) / 86400, 0)\n| eval submission_status = case(\n    isnotnull(tsa_submission_date) AND (tsa_submission_date - change_date) / 86400 <= 30, \"on_time\",\n    isnotnull(tsa_submission_date) AND (tsa_submission_date - change_date) / 86400 > 30, \"late\",\n    isnull(tsa_submission_date) AND days_since_change <= 30, \"in_window\",\n    isnull(tsa_submission_date) AND days_since_change > 30, \"overdue\",\n    1=1, \"unknown\")\n| where submission_status IN (\"overdue\",\"late\")\n| table cip_id modality version change_date days_since_change tsa_submission_date submission_status approver",
-  "description": "Audits the CIP version ledger for material amendments with overdue TSA submission.",
-  "value": "TSA inspectors will look at the CIP ledger to confirm material amendments were submitted as required.",
+  "description": "Audits the CIP version ledger for material amendments with overdue TSA submission. Searches `index=target_index` with sourcetype `configured sourcetype` for UC-22.56.18, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `days_since_change` <= 30 in the saved search. Gives Compliance operators a repeatable signal for 'TSA-SD multi-modal Cybersecurity Implementation Plan (CIP) versioning + amendment audit trail' without manual log review.",
+  "value": "Audits the CIP version ledger for material amendments with overdue TSA submission. Timely UC-22.56.18 alerting on 'TSA-SD multi-modal Cybersecurity Implementation Plan (CIP) versioning + amendment audit trail' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `tsa_cip_version_lookup` from the GRC system. (2) Schedule UC-22.56.18 daily. (3) Build the `TSA CIP Version Ledger` dashboard.",
   "visualization": "(Panel 1) Outstanding material amendments. (Panel 2) Submission-status pie. (Panel 3) Per-modality version history. (Panel 4) Approver chain.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit or GRC exercises 'TSA-SD multi-modal Cybersecurity Implementation Plan (CIP) versioning + amendment audit trail' during scheduled clause TSA-SCAS-cip-version evidence collection. Match compliance programme calendar and accounts tagged `compliance_ops=true`.\n\n2. **External assessor sampling** — QSA or regulator sampling temporarily spikes `index=audit_evidence` `configured sourcetype` volume. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB-approved change pauses or reshapes ingestion to `audit_evidence`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected cross-boundary events during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD multi-modal Cybersecurity Implementation Plan (CIP) versioning + amendment audit trail' (UC-22.56.18) on `entity` during scheduled clause TSA-SCAS-cip-version sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `days_since_change` <= 30. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (governance)"
   ],

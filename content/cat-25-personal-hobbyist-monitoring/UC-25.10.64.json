@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Netatmo Weather Module CO2 Level Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_netatmo_weather_module_co2_level_leaderboard` (UC-25.10.64), SOC dashboard panel \"Personal — Netatmo Weather Module CO2 Level Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='netatmo:weather' that satisfy the UC-25.10.64 SPL filters for 'Netatmo Weather Module CO2 Level Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `netatmo:weather` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.64."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='netatmo:weather' where `module_name` satisfies detection threshold for UC-25.10.64 ('Netatmo Weather Module CO2 Level Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `netatmo:weather` events where `module_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.64."
   },
   "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture/greenhouse sensors, aquarium controllers (`aquarium:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=netatmo:weather co2_ppm=*\n| stats sum(co2_ppm) as total_value, avg(co2_ppm) as avg_value by module_name\n| sort - total_value",
-  "description": "Ranks module values by total and average co2 level across Netatmo weather module events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks module values by total and average co2 level across Netatmo weather module events. Searches `index=personal` with sourcetype `netatmo:weather` for UC-25.10.64, aggregating `sum` by `module_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Netatmo Weather Module CO2 Level Leaderboard' without manual log review.",
+  "value": "Ranks module values by total and average co2 level across Netatmo weather module events. Timely UC-25.10.64 alerting on 'Netatmo Weather Module CO2 Level Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `co2_ppm` values for each Netatmo weather module event and review total and average co2 level by module.",
   "visualization": "Table of entities ranked by total co2 level.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Netatmo Weather Module CO2 Level Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `netatmo:weather`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Netatmo Weather Module CO2 Level Leaderboard' stops polling `netatmo:weather`; stale `module_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `netatmo:weather`. Dedup with `stats latest(*) by module_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

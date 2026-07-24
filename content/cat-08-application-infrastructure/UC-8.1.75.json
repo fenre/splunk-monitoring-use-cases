@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Apache Tomcat Thread Pool Exhaustion (activeThreads vs maxThreads)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_apache_tomcat_thread_pool_exhaustion_activethrea` (UC-8.1.75), SOC dashboard panel \"Operations — Apache Tomcat Thread Pool Exhaustion (activeThreads vs maxThreads)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='jmx:tomcat:threadpool' that satisfy the UC-8.1.75 SPL filters for 'Apache Tomcat Thread Pool Exhaustion (activeThreads vs maxThreads)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `jmx:tomcat:threadpool` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.75."
+    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='jmx:tomcat:threadpool' where `host` satisfies `maxt` > 0 for UC-8.1.75 ('Apache Tomcat Thread Pool Exhaustion (activeThreads vs maxThreads)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `web` / `jmx:tomcat:threadpool` events where `host` stays below `maxt` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.75."
   },
   "dataSources": "`index=web` `sourcetype=jmx:tomcat:threadpool` (Catalina executor / http-nio thread pool MBeans via Splunk Add-on for JMX) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder; Splunk Add-on for JMX (`Splunk_TA_jmx`) for metrics; file inputs for `tomcat:catalina`, `tomcat:access`, `tomcat:manager` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"jmx:tomcat:threadpool\"\n| eval maxt=tonumber(maxThreads), act=tonumber(currentThreadsBusy)\n| eval util_pct=if(maxt>0, round(100*act/maxt,1), null())\n| where util_pct >= 90\n| timechart span=5m max(util_pct) as thread_util by host, mbean",
   "description": "Tomcat's HTTP worker threads handle every concurrent request. When `currentThreadsBusy` approaches `maxThreads`, new work queues or times out at the connector. Early detection prevents cascading failures at the load balancer.",
-  "value": "Preserves user experience by scaling or tuning connectors before thread starvation.",
+  "value": "Tomcat's HTTP worker threads handle every concurrent request. Timely UC-8.1.75 alerting on 'Apache Tomcat Thread Pool Exhaustion (activeThreads vs maxThreads)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Install Splunk Add-on for JMX (`Splunk_TA_jmx`); configure `jmx.conf` for `Catalina:type=ThreadPool,name=*`. Poll 60s. Alert when `currentThreadsBusy/maxThreads` ≥90% for 15m.",
   "visualization": "Time charts for utilization, tables for top URIs and deploy events, single-value alerts.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Apache Tomcat Thread Pool Exhaustion (activeThreads vs maxThreads)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `web` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'Apache Tomcat Thread Pool Exhaustion (activeThreads vs maxThreads)' shifts `max` over `span=5m` while `host` remains in-scope for UC-8.1.75. Cross-check CMDB CHG.\n\n2. **Batch `max` on `jmx:tomcat:threadpool`** — Scheduled automation elevates `mbean` without crossing `maxt` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jmx:tomcat:threadpool`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "tomcat"
   ],

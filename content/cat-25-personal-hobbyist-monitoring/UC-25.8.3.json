@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Proxmox Node Resource Saturation' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_proxmox_node_resource_saturation` (UC-25.8.3), SOC dashboard panel \"Personal — Proxmox Node Resource Saturation\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='proxmox:metric' that satisfy the UC-25.8.3 SPL filters for 'Proxmox Node Resource Saturation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `proxmox:metric` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.3."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='proxmox:metric' where `node` satisfies `max_cpu` > 90 for UC-25.8.3 ('Proxmox Node Resource Saturation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `proxmox:metric` events where `node` stays below `max_cpu` > 90, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.3."
   },
   "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), UPS status via NUT (`nut:ups`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=proxmox:metric\n| stats max(cpu_pct) as max_cpu, avg(cpu_pct) as avg_cpu, max(mem_pct) as max_mem by node\n| where max_cpu>90 OR max_mem>90\n| sort - max_cpu",
   "description": "Tracks CPU and memory pressure on your Proxmox hosts and flags nodes running hot, which slows every virtual machine on them.",
-  "value": "One saturated host degrades all its guests at once; catching it early lets you rebalance virtual machines before everything crawls.",
+  "value": "Tracks CPU and memory pressure on your Proxmox hosts and flags nodes running hot, which slows every virtual.... Timely UC-25.8.3 alerting on 'Proxmox Node Resource Saturation' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward Proxmox node metrics; schedule every 10 minutes and alert on sustained high CPU or memory.",
   "visualization": "Heatmap of nodes by peak CPU and memory.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Proxmox Node Resource Saturation'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `proxmox:metric`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Proxmox Node Resource Saturation' stops polling `proxmox:metric`; stale `node` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `proxmox:metric`. Dedup with `stats latest(*) by node`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `max_cpu` > 90. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "proxmox",

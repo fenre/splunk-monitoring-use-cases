@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'Cloud Quota and Service Limit Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cloud_quota_and_service_limit_utilization` (UC-4.4.17), SOC dashboard panel \"Operations — Cloud Quota and Service Limit Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:service_quotas' that satisfy the UC-4.4.17 SPL filters for 'Cloud Quota and Service Limit Utilization'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:service_quotas` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.4.17."
+    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:service_quotas' where `entity` satisfies `usage_pct` > 80 for UC-4.4.17 ('Cloud Quota and Service Limit Utilization'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `aws` / `aws:service_quotas` events where `entity` stays below `usage_pct` > 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.4.17."
   },
   "dataSources": "AWS Service Quotas API, Trusted Advisor (limits), Azure usage and quotas, GCP quota API Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws`, Service Quotas API, Azure quotas, GCP quotas — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cloud Quota and Service Limit Utilization'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `aws` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Cloud Quota and Service Limit Utilization' shifts `count` over `span=1h` while `host` remains in-scope for UC-4.4.17. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:service_quotas`** — Scheduled automation elevates `usage_pct` without crossing `usage_pct` > 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:service_quotas`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "azure",

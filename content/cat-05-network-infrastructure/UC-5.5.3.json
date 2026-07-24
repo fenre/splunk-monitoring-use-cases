@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Application SLA Violations' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_application_sla_violations` (UC-5.5.3), SOC dashboard panel \"Operations — Application SLA Violations\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=sdwan` sourcetype='cisco:sdwan:approute' that satisfy the UC-5.5.3 SPL filters for 'Application SLA Violations'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `sdwan` / `cisco:sdwan:approute` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.5.3."
+    "positiveScenario": "Ingest synthetic events into `index=sdwan` sourcetype='cisco:sdwan:approute' where `site` satisfies detection threshold for UC-5.5.3 ('Application SLA Violations'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `sdwan` / `cisco:sdwan:approute` events where `site` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.5.3."
   },
   "dataSources": "vManage app-aware routing metrics Indexes: sdwan. Sourcetypes: cisco:sdwan:approute. Key fields: app_name, site, sla_class. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
   "spl": "index=sdwan sourcetype=\"cisco:sdwan:approute\"\n| where sla_violation=\"true\"\n| stats count by site, app_name, sla_class | sort -count",
-  "description": "Detects when business-critical applications aren't meeting performance requirements over the WAN.",
-  "value": "Network operations teams detect when SD-WAN tunnels violate application-specific SLA thresholds for voice, video, and business-critical traffic, enabling targeted troubleshooting and validating automatic path failover.",
+  "description": "Detects when business-critical applications aren't meeting performance requirements over the WAN. Searches `index=sdwan` with sourcetype `cisco:sdwan:approute` for UC-5.5.3, aggregating `count` by `site` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Application SLA Violations' without manual log review.",
+  "value": "Detects when business-critical applications aren't meeting performance requirements over the WAN. Timely UC-5.5.3 alerting on 'Application SLA Violations' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Collect app-aware routing statistics from vManage. Alert when critical applications violate their SLA class.",
   "visualization": "Table (site, app, violations), Bar chart by app, Timechart.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Application SLA Violations'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `sdwan` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `sdwan`** — Planned work for 'Application SLA Violations' shifts `count` over `span=1h` while `site` remains in-scope for UC-5.5.3. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:sdwan:approute`** — Scheduled automation elevates `app_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `site`** — Health checks in `sdwan` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:sdwan:approute`** — First 48h baseline for `site` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `site`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

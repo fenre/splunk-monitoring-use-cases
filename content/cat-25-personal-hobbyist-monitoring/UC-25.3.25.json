@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'ChargePoint Cost per kWh Outlier' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_chargepoint_cost_per_kwh_outlier` (UC-25.3.25), SOC dashboard panel \"Personal — ChargePoint Cost per kWh Outlier\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='chargepoint:session' that satisfy the UC-25.3.25 SPL filters for 'ChargePoint Cost per kWh Outlier'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `chargepoint:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.25."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='chargepoint:session' where `network_name` satisfies `kwh_added` > 5 for UC-25.3.25 ('ChargePoint Cost per kWh Outlier'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `chargepoint:session` events where `network_name` stays below `kwh_added` > 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.25."
   },
   "dataSources": "Personal EV and vehicle telemetry (`tesla:vehicle`, `tesla:charge`, `rivian:vehicle`, `chargepoint:session`, `plugshare:checkin`, `evcharger:session`, `obd:pid`, `smartcar:vehicle`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tesla Fleet API / TeslaMate, Rivian telemetry, ChargePoint session exports, PlugShare trip logs, Smartcar, and OBD-II / home-charger data via APIs, CSV exports, MQTT, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=chargepoint:session\n| eval cost_per_kwh=round(session_cost_usd/kwh_added,2)\n| where kwh_added>5\n| eventstats avg(cost_per_kwh) as avg_cost by network_name\n| where cost_per_kwh>avg_cost*1.5\n| sort - cost_per_kwh",
-  "description": "Uses ChargePoint session costs telemetry to monitor price paid per delivered kilowatt-hour in index=personal.",
-  "value": "Splunk turns the feed into an operational check for expensive charging stops that distort trip budgets, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses ChargePoint session costs telemetry to monitor price paid per delivered kilowatt-hour in index=personal. Searches `index=personal` with sourcetype `chargepoint:session` for UC-25.3.25, aggregating `avg` by `network_name` over `the scheduled window`. Alerts when grouped results cross `kwh_added` > 5 in the saved search. Gives Personal operators a repeatable signal for 'ChargePoint Cost per kWh Outlier' without manual log review.",
+  "value": "Uses ChargePoint session costs telemetry to monitor price paid per delivered kilowatt-hour in index=personal. Timely UC-25.3.25 alerting on 'ChargePoint Cost per kWh Outlier' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest ChargePoint session costs data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Cost-per-kWh comparison by charging network.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'ChargePoint Cost per kWh Outlier'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `chargepoint:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'ChargePoint Cost per kWh Outlier' stops polling `chargepoint:session`; stale `network_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `chargepoint:session`. Dedup with `stats latest(*) by network_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `kwh_added` > 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

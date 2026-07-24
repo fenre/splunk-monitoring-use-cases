@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Trust Document Update Backlog' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_trust_document_update_backlog` (UC-25.105.3), SOC dashboard panel \"Personal — Trust Document Update Backlog\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='trust:document' that satisfy the UC-25.105.3 SPL filters for 'Trust Document Update Backlog'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `trust:document` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.105.3."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='trust:document' where `entity` satisfies `days_since_update` > 730 for UC-25.105.3 ('Trust Document Update Backlog'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `trust:document` events where `entity` stays below `days_since_update` > 730, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.105.3."
   },
   "dataSources": "Trust documents (`trust:document`), will status logs (`will:status`), power-of-attorney records (`poa:record`), and estate review sessions (`estate:review`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Trust document vault exports, will status trackers, power-of-attorney records, and estate review checklists forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=trust:document days_since_update=* document_status=*\n| where days_since_update>730 AND document_status!=\"current\"\n| sort - days_since_update\n| table document_type asset_value_usd days_since_update document_status",
-  "description": "Surfaces trust documents not marked current and unchanged for more than two years.",
-  "value": "Outdated trust schedules miss new accounts and property, creating probate gaps you thought you closed.",
+  "description": "Surfaces trust documents not marked current and unchanged for more than two years. Searches `index=personal` with sourcetype `trust:document` for UC-25.105.3, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `days_since_update` > 730 in the saved search. Gives Personal operators a repeatable signal for 'Trust Document Update Backlog' without manual log review.",
+  "value": "Surfaces trust documents not marked current and unchanged for more than two years. Timely UC-25.105.3 alerting on 'Trust Document Update Backlog' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log `days_since_update` and `document_status` for each trust document and review the backlog annually.",
   "visualization": "Table of stale trust documents by days since update.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Trust Document Update Backlog'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `trust:document`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Trust Document Update Backlog' stops polling `trust:document`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `trust:document`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_since_update` > 730. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hashicorp"
   ],

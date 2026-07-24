@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'The Knot Checklist Completion Burn-Up' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_the_knot_checklist_completion_burn_up` (UC-25.53.19), SOC dashboard panel \"Personal — The Knot Checklist Completion Burn-Up\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='event:checklist' that satisfy the UC-25.53.19 SPL filters for 'The Knot Checklist Completion Burn-Up'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `event:checklist` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.53.19."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='event:checklist' where `milestone_name` satisfies detection threshold for UC-25.53.19 ('The Knot Checklist Completion Burn-Up'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `event:checklist` events where `milestone_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.53.19."
   },
   "dataSources": "Planning tasks (`event:checklist`), seating revisions (`event:seating`), vendor contracts (`event:vendor`), deposits (`event:deposit`), planning syncs (`event:sync`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Wedding and event-planning telemetry — The Knot checklist exports, seating-chart revisions, vendor deposit schedules, and RSVP operations — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=event:checklist milestone_name=* completed=*\n| stats count as total, sum(eval(if(completed=\"yes\",1,0))) as matched by milestone_name\n| eval a_completed_task_pct=round(100*matched/total,1)\n| sort - a_completed_task_pct",
-  "description": "Measures the percentage of The Knot checklist tasks that end with a completed task by milestone.",
-  "value": "Completion and exception percentages make it easier to spot which milestone are helping or hurting The Knot checklist tasks.",
+  "description": "Measures the percentage of The Knot checklist tasks that end with a completed task by milestone. Searches `index=personal` with sourcetype `event:checklist` for UC-25.53.19, aggregating `sum` by `milestone_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'The Knot Checklist Completion Burn-Up' without manual log review.",
+  "value": "Measures the percentage of The Knot checklist tasks that end with a completed task by milestone. Timely UC-25.53.19 alerting on 'The Knot Checklist Completion Burn-Up' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store a normalized flag for `a completed task` on `event:checklist` events and summarize the hit rate by `milestone_name`.",
   "visualization": "Table of milestone with percentage of The Knot checklist tasks ending with a completed task.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'The Knot Checklist Completion Burn-Up'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `event:checklist`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'The Knot Checklist Completion Burn-Up' stops polling `event:checklist`; stale `milestone_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `event:checklist`. Dedup with `stats latest(*) by milestone_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

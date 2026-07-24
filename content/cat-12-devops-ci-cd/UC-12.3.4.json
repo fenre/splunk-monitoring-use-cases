@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'License Compliance Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_license_compliance_tracking` (UC-12.3.4), SOC dashboard panel \"Operations — License Compliance Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='sca:license' that satisfy the UC-12.3.4 SPL filters for 'License Compliance Tracking'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `devops` / `sca:license` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.3.4."
+    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='sca:license' where `project` satisfies detection threshold for UC-12.3.4 ('License Compliance Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `devops` / `sca:license` events where `project` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.3.4."
   },
   "dataSources": "SCA license scan results (Snyk, FOSSA, WhiteSource) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "SCA tool output — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"sca:license\"\n| where license_risk IN (\"high\",\"critical\") OR license IN (\"GPL-3.0\",\"AGPL-3.0\")\n| stats count by project, package_name, license, license_risk\n| sort -license_risk",
-  "description": "Open-source license violations create legal risk. Automated tracking ensures compliance before code reaches production.",
+  "description": "Open-source license violations create legal risk. Automated tracking ensures compliance before code reaches production. Searches `index=devops` with sourcetype `sca:license` for UC-12.3.4, aggregating `count` by `project` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'License Compliance Tracking' without manual log review.",
   "value": "Early 'License Compliance Tracking' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ingest SCA license scan results. Track license types across all projects. Alert on copyleft licenses in commercial products. Report on license distribution for legal review. Block deployments with policy violations.",
   "visualization": "Table (license risks), Pie chart (license distribution), Bar chart (risks by project).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'License Compliance Tracking'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `devops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `devops`** — Planned work for 'License Compliance Tracking' shifts `count` over `span=1h` while `project` remains in-scope for UC-12.3.4. Cross-check CMDB CHG.\n\n2. **Batch `count` on `sca:license`** — Scheduled automation elevates `package_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `project`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `sca:license`** — First 48h baseline for `project` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `project`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

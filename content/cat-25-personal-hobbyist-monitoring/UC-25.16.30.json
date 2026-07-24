@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Tap Line Cleaning Overdue' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_tap_line_cleaning_overdue` (UC-25.16.30), SOC dashboard panel \"Personal — Tap Line Cleaning Overdue\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tapline:clean' that satisfy the UC-25.16.30 SPL filters for 'Tap Line Cleaning Overdue'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tapline:clean` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.16.30."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tapline:clean' where `tap` satisfies `days_since_clean` > 30 for UC-25.16.30 ('Tap Line Cleaning Overdue'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `tapline:clean` events where `tap` stays below `days_since_clean` > 30, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.16.30."
   },
   "dataSources": "Brewing telemetry (`brew:batch`, `brew:fermentation`, `brew:mash`, `tilt:hydrometer`, `ispindel:reading`, `kegerator:pressure`, `kegerator:pour`, `brewfridge:compressor`, `winecellar:reading`, `tapline:clean`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Brewfather batch exports, iSpindel and Tilt hydrometers, ESPHome mash probes, keg pressure sensors, brew-fridge telemetry, and cellar climate data via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tapline:clean\n| stats latest(days_since_clean) as days_since_clean by tap\n| where days_since_clean>30\n| sort - days_since_clean",
-  "description": "Uses Tap-line maintenance logs telemetry to monitor how long each draft line has gone since cleaning in index=personal.",
-  "value": "Splunk turns the feed into an operational check for lines that are drifting into flavor or hygiene risk, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses Tap-line maintenance logs telemetry to monitor how long each draft line has gone since cleaning in index=personal. Searches `index=personal` with sourcetype `tapline:clean` for UC-25.16.30, aggregating `count` by `tap` over `the scheduled window`. Alerts when grouped results cross `days_since_clean` > 30 in the saved search. Gives Personal operators a repeatable signal for 'Tap Line Cleaning Overdue' without manual log review.",
+  "value": "Uses Tap-line maintenance logs telemetry to monitor how long each draft line has gone since cleaning in ind.... Timely UC-25.16.30 alerting on 'Tap Line Cleaning Overdue' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Tap-line maintenance logs data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Tap table of days since clean.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Tap Line Cleaning Overdue'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tapline:clean`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Tap Line Cleaning Overdue' stops polling `tapline:clean`; stale `tap` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tapline:clean`. Dedup with `stats latest(*) by tap`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_since_clean` > 30. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

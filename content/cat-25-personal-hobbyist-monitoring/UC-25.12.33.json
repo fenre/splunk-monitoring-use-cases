@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Dividend Payout Concentration by Ticker' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_dividend_payout_concentration_by_ticker` (UC-25.12.33), SOC dashboard panel \"Personal — Dividend Payout Concentration by Ticker\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='plaid:investment' that satisfy the UC-25.12.33 SPL filters for 'Dividend Payout Concentration by Ticker'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `plaid:investment` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.12.33."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='plaid:investment' where `ticker` satisfies `share_pct` > 20 for UC-25.12.33 ('Dividend Payout Concentration by Ticker'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `plaid:investment` events where `ticker` stays below `share_pct` > 20, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.12.33."
   },
   "dataSources": "Personal finance telemetry (`monarch:transaction`, `copilot:transaction`, `plaid:account`, `plaid:transaction`, `plaid:investment`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Monarch Money, Copilot Money, Plaid-connected accounts, Plaid investments, and brokerage CSV exports ingested into Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=plaid:investment transaction_type=dividend\n| bin _time span=12mon\n| stats sum(amount_usd) as annual_dividends_usd by ticker _time\n| eventstats sum(annual_dividends_usd) as total_dividends_usd by _time\n| eval share_pct=round(100*annual_dividends_usd/total_dividends_usd,1)\n| where share_pct>20\n| sort - share_pct",
-  "description": "Uses Plaid dividend records telemetry to monitor how concentrated dividend income is by ticker in index=personal.",
-  "value": "Splunk turns the feed into an operational check for income streams that depend too heavily on one holding, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses Plaid dividend records telemetry to monitor how concentrated dividend income is by ticker in index=personal. Searches `index=personal` with sourcetype `plaid:investment` for UC-25.12.33, aggregating `sum` by `ticker` over `12m`. Alerts when grouped results cross `share_pct` > 20 in the saved search. Gives Personal operators a repeatable signal for 'Dividend Payout Concentration by Ticker' without manual log review.",
+  "value": "Uses Plaid dividend records telemetry to monitor how concentrated dividend income is by ticker in index=per.... Timely UC-25.12.33 alerting on 'Dividend Payout Concentration by Ticker' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Plaid dividend records data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Annual dividend concentration table.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Dividend Payout Concentration by Ticker'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `plaid:investment`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Dividend Payout Concentration by Ticker' stops polling `plaid:investment`; stale `ticker` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `12m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `plaid:investment`. Dedup with `stats latest(*) by ticker`.\n\n4. **Timezone bucket misalignment** — `12m` bins on UTC vs local schedule skew `share_pct` > 20. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hardware_bmc",
     "m365",

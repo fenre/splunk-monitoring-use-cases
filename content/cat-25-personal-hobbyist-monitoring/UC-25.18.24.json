@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'UniFi Protect Retention Below Target' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_unifi_protect_retention_below_target` (UC-25.18.24), SOC dashboard panel \"Personal — UniFi Protect Retention Below Target\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='unifiprotect:event' that satisfy the UC-25.18.24 SPL filters for 'UniFi Protect Retention Below Target'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `unifiprotect:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.24."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='unifiprotect:event' where `nvr` satisfies `retention_days` < 7 for UC-25.18.24 ('UniFi Protect Retention Below Target'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `unifiprotect:event` events where `nvr` stays below `retention_days` < 7, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.24."
   },
   "dataSources": "Home security telemetry (`reolink:event`, `unifiprotect:event`, `ring:event`, `nestprotect:event`, `frigate:event`, `camera:health`, `alarm:event`, `doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Reolink, UniFi Protect, Ring, Nest Protect, Frigate, and Home Assistant security integrations streamed to Splunk HEC via MQTT, webhooks, and vendor APIs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=unifiprotect:event event=storage\n| stats latest(retention_days) as retention_days by nvr\n| where retention_days<7\n| sort retention_days",
-  "description": "Uses UniFi Protect storage telemetry telemetry to monitor remaining retention window for recordings in index=personal.",
-  "value": "Splunk turns the feed into an operational check for NVR storage that is no longer meeting your retention goal, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses UniFi Protect storage telemetry telemetry to monitor remaining retention window for recordings in index=personal. Searches `index=personal` with sourcetype `unifiprotect:event` for UC-25.18.24, aggregating `count` by `nvr` over `the scheduled window`. Alerts when grouped results cross `retention_days` < 7 in the saved search. Gives Personal operators a repeatable signal for 'UniFi Protect Retention Below Target' without manual log review.",
+  "value": "Uses UniFi Protect storage telemetry telemetry to monitor remaining retention window for recordings in inde.... Timely UC-25.18.24 alerting on 'UniFi Protect Retention Below Target' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest UniFi Protect storage telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "NVR table of retention days remaining.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'UniFi Protect Retention Below Target'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifiprotect:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'UniFi Protect Retention Below Target' stops polling `unifiprotect:event`; stale `nvr` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifiprotect:event`. Dedup with `stats latest(*) by nvr`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `retention_days` < 7. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

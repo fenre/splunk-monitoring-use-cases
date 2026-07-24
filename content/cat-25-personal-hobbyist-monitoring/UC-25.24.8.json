@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Pasture Soil-Moisture and Grazing Readiness' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_pasture_soil_moisture_and_grazing_readiness` (UC-25.24.8), SOC dashboard panel \"Personal — Pasture Soil-Moisture and Grazing Readiness\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='pasture:sensor' that satisfy the UC-25.24.8 SPL filters for 'Pasture Soil-Moisture and Grazing Readiness'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `pasture:sensor` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.24.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='pasture:sensor' where `paddock` satisfies `moisture` > 25 for UC-25.24.8 ('Pasture Soil-Moisture and Grazing Readiness'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `pasture:sensor` events where `paddock` stays below `moisture` > 25, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.24.8."
   },
   "dataSources": "Beehive telemetry (`beehive:reading`), coop door (`chickencoop:door`), egg counts (`egg:count`), livestock tags (`livestock:tag`), feed level (`feed:level`), pasture sensors (`pasture:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Homestead sensors — connected beehive scale/temperature/sound, automatic chicken-coop door, egg counter, livestock GPS/health tags, feed-silo level, and pasture soil sensors — streamed to Splunk HEC via MQTT and LoRaWAN gateways. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=pasture:sensor\n| stats avg(soil_moisture_pct) as moisture, avg(soil_temp_c) as temp by paddock\n| eval growing=if(moisture>25 AND temp>8,\"growing\",\"resting\")\n| sort - moisture",
-  "description": "Tracks soil moisture and temperature across paddocks to judge which are growing grass and ready to graze.",
-  "value": "Rotational grazing depends on grass recovery; measuring paddock conditions helps move stock at the right time for healthy pasture.",
+  "description": "Tracks soil moisture and temperature across paddocks to judge which are growing grass and ready to graze. Searches `index=personal` with sourcetype `pasture:sensor` for UC-25.24.8, aggregating `avg` by `paddock` over `the scheduled window`. Alerts when grouped results cross `moisture` > 25 in the saved search. Gives Personal operators a repeatable signal for 'Pasture Soil-Moisture and Grazing Readiness' without manual log review.",
+  "value": "Tracks soil moisture and temperature across paddocks to judge which are growing grass and ready to graze. Timely UC-25.24.8 alerting on 'Pasture Soil-Moisture and Grazing Readiness' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest pasture soil sensors into `index=personal`; review moisture and temperature by paddock.",
   "visualization": "Bar chart of soil moisture by paddock with a growing indicator.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Pasture Soil-Moisture and Grazing Readiness'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pasture:sensor`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Pasture Soil-Moisture and Grazing Readiness' stops polling `pasture:sensor`; stale `paddock` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pasture:sensor`. Dedup with `stats latest(*) by paddock`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `moisture` > 25. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hardware_bmc",
     "mqtt"

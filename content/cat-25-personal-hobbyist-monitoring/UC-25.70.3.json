@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Dishwasher Salt Refill Forecast' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_dishwasher_salt_refill_forecast` (UC-25.70.3), SOC dashboard panel \"Personal — Dishwasher Salt Refill Forecast\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='homeconnect:dishwasher' that satisfy the UC-25.70.3 SPL filters for 'Dishwasher Salt Refill Forecast'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `homeconnect:dishwasher` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.70.3."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='homeconnect:dishwasher' where `entity` satisfies `weeks_remaining` < 2 for UC-25.70.3 ('Dishwasher Salt Refill Forecast'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `homeconnect:dishwasher` events where `entity` stays below `weeks_remaining` < 2, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.70.3."
   },
   "dataSources": "LG ThinQ washer cycles (`thinq:washer`), LG ThinQ dryer cycles (`thinq:dryer`), Home Connect dishwasher runs (`homeconnect:dishwasher`), and ecobee HVAC runtime (`ecobee:thermostat`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "LG ThinQ washer and dryer telemetry, Home Connect dishwasher data, and ecobee HVAC runtime exported into Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=homeconnect:dishwasher salt_level_pct=* cycles_per_week=*\n| eval weeks_remaining=round(salt_level_pct/(cycles_per_week*2),1)\n| where weeks_remaining<2\n| sort weeks_remaining",
-  "description": "Forecasts when dishwasher salt will run out based on the current level and recent cycle frequency.",
-  "value": "Consumables are easiest to manage when you measure burn-down and buy just before the annoyance begins.",
+  "description": "Forecasts when dishwasher salt will run out based on the current level and recent cycle frequency. Searches `index=personal` with sourcetype `homeconnect:dishwasher` for UC-25.70.3, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `weeks_remaining` < 2 in the saved search. Gives Personal operators a repeatable signal for 'Dishwasher Salt Refill Forecast' without manual log review.",
+  "value": "Forecasts when dishwasher salt will run out based on the current level and recent cycle frequency. Timely UC-25.70.3 alerting on 'Dishwasher Salt Refill Forecast' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture salt level and rolling weekly cycle count from Home Connect or a companion export.",
   "visualization": "Table of dishwashers with salt level and estimated weeks remaining.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Dishwasher Salt Refill Forecast'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homeconnect:dishwasher`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Dishwasher Salt Refill Forecast' stops polling `homeconnect:dishwasher`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homeconnect:dishwasher`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `weeks_remaining` < 2. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

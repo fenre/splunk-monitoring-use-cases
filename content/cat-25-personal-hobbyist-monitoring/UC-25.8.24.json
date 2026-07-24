@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'AdGuard Upstream Failure Share' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_adguard_upstream_failure_share` (UC-25.8.24), SOC dashboard panel \"Personal — AdGuard Upstream Failure Share\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='adguard:query' that satisfy the UC-25.8.24 SPL filters for 'AdGuard Upstream Failure Share'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `adguard:query` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.24."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='adguard:query' where `upstream` satisfies `queries` >= 50 for UC-25.8.24 ('AdGuard Upstream Failure Share'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `adguard:query` events where `upstream` stays below `queries` >= 50, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.24."
   },
   "dataSources": "Homelab services (`kubernetes:pod`, `proxmox:metric`, `vaultwarden:event`, `paperless:document`, `immich:job`, `adguard:query`, `docker:stats`, `truenas:pool`, `nut:ups`, `uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Kubernetes homelab clusters, Proxmox, Vaultwarden, Paperless-ngx, Immich, AdGuard Home, Docker, TrueNAS, and NUT metrics via APIs, logs, Telegraf, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=adguard:query\n| stats count as queries, count(eval(status=\"upstream_error\")) as upstream_errors by upstream\n| eval error_pct=round(100*upstream_errors/queries,1)\n| where queries>=50 AND error_pct>1\n| sort - error_pct",
-  "description": "Uses AdGuard Home query logs telemetry to monitor upstream failure rate by resolver in index=personal.",
-  "value": "Splunk turns the feed into an operational check for DNS providers that are hurting resolution quality, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses AdGuard Home query logs telemetry to monitor upstream failure rate by resolver in index=personal. Searches `index=personal` with sourcetype `adguard:query` for UC-25.8.24, aggregating `count` by `upstream` over `the scheduled window`. Alerts when grouped results cross `queries` >= 50 in the saved search. Gives Personal operators a repeatable signal for 'AdGuard Upstream Failure Share' without manual log review.",
+  "value": "Uses AdGuard Home query logs telemetry to monitor upstream failure rate by resolver in index=personal. Timely UC-25.8.24 alerting on 'AdGuard Upstream Failure Share' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest AdGuard Home query logs data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Resolver table of query volume and upstream errors.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'AdGuard Upstream Failure Share'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `adguard:query`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'AdGuard Upstream Failure Share' stops polling `adguard:query`; stale `upstream` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `adguard:query`. Dedup with `stats latest(*) by upstream`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `queries` >= 50. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "hashicorp",

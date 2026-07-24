@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Package Download Anomalies' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_package_download_anomalies` (UC-12.3.3), SOC dashboard panel \"Operations — Package Download Anomalies\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='artifactory:access' that satisfy the UC-12.3.3 SPL filters for 'Package Download Anomalies'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `devops` / `artifactory:access` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.3.3."
+    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='artifactory:access' where `package_name` satisfies detection threshold for UC-12.3.3 ('Package Download Anomalies'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `devops` / `artifactory:access` events where `package_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.3.3."
   },
   "dataSources": "Repository access logs (download events) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Artifactory/Nexus access logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"artifactory:access\"\n| stats count by package_name, client_ip\n| eventstats avg(count) as avg_downloads, stdev(count) as stdev_downloads by package_name\n| where count > avg_downloads + 3*stdev_downloads",
-  "description": "Unusual package download patterns may indicate dependency confusion attacks or compromised internal packages.",
+  "description": "Unusual package download patterns may indicate dependency confusion attacks or compromised internal packages. Searches `index=devops` with sourcetype `artifactory:access` for UC-12.3.3, aggregating `avg` by `package_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Package Download Anomalies' without manual log review.",
   "value": "Early 'Package Download Anomalies' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Monitor package download patterns. Baseline normal download volumes per package. Alert on statistical outliers. Watch for downloads of internal packages from external IPs. Track new/unknown packages being introduced.",
   "visualization": "Table (anomalous downloads), Bar chart (top downloaded packages), Line chart (download volume trend).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Package Download Anomalies'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `devops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `devops`** — Planned work for 'Package Download Anomalies' shifts `avg` over `span=1h` while `package_name` remains in-scope for UC-12.3.3. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `artifactory:access`** — Scheduled automation elevates `client_ip` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `package_name`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `artifactory:access`** — First 48h baseline for `package_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `package_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

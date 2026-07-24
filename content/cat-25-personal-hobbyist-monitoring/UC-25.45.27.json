@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Release Calendar Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_release_calendar_gap_watch` (UC-25.45.27), SOC dashboard panel \"Personal — Release Calendar Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='music:ops' that satisfy the UC-25.45.27 SPL filters for 'Release Calendar Gap Watch'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `music:ops` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.45.27."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='music:ops' where `entity` satisfies detection threshold for UC-25.45.27 ('Release Calendar Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `music:ops` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.45.27."
   },
   "dataSources": "Release events (`music:distribution`), Bandcamp activity (`music:bandcamp`), project exports (`music:project`), streaming analytics (`music:streaming`), metadata tasks (`music:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Music-making and creator telemetry — DistroKid release exports, Bandcamp sales activity, Cockos Reaper project stats, and Spotify for Artists analytics — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=music:ops release_name=* planned_release_epoch=* release_state=*\n| eval days_left=round((planned_release_epoch-now())/86400,1)\n| where release_state!=\"released\"\n| table release_name release_state days_left\n| sort days_left",
-  "description": "Lists open scheduled releases with time remaining for release calendar coverage.",
-  "value": "Time-left monitoring helps prevent quiet deadline misses across the operational details that support release calendar coverage.",
+  "description": "Lists open scheduled releases with time remaining for release calendar coverage. Searches `index=personal` with sourcetype `music:ops` for UC-25.45.27, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Release Calendar Gap Watch' without manual log review.",
+  "value": "Lists open scheduled releases with time remaining for release calendar coverage. Timely UC-25.45.27 alerting on 'Release Calendar Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store an expiry timestamp on `music:ops` events and filter for open or unfinished scheduled releases.",
   "visualization": "Table of open scheduled releases sorted by time remaining.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Release Calendar Gap Watch'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `music:ops`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Release Calendar Gap Watch' stops polling `music:ops`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `music:ops`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

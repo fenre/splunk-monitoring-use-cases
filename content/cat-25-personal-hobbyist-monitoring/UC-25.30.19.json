@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Discogs Median Price Gap to Paid Cost' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_discogs_median_price_gap_to_paid_cost` (UC-25.30.19), SOC dashboard panel \"Personal — Discogs Median Price Gap to Paid Cost\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='discogs:item' that satisfy the UC-25.30.19 SPL filters for 'Discogs Median Price Gap to Paid Cost'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `discogs:item` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.30.19."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='discogs:item' where `collection_name` satisfies detection threshold for UC-25.30.19 ('Discogs Median Price Gap to Paid Cost'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `discogs:item` events where `collection_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.30.19."
   },
   "dataSources": "Discogs collection entries (`discogs:item`), comics (`comic:item`), coin catalogue entries (`coin:item`), stamp album entries (`stamp:item`), and watch logs (`watch:item`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Collection telemetry from Discogs, Comic Vine, coin and stamp catalogues, and watch-collection trackers sent to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=discogs:item\n| search median_price=* paid_price=*\n| stats avg(median_price-paid_price) as avg_gap sum(median_price-paid_price) as total_gap by collection_name\n| sort 0 - avg_gap",
   "description": "Ranks collectionss by Discogs market gap versus paid cost. Runs scheduled SPL against `index=personal` to surface **Discogs Median Price Gap to Paid Cost** so you can spot drift before it becomes a habit.",
-  "value": "The market gap tells you whether the collection is being built below, above, or roughly at the current median.",
+  "value": "Ranks collectionss by Discogs market gap versus paid cost. Timely UC-25.30.19 alerting on 'Discogs Median Price Gap to Paid Cost' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send Discogs market gap versus paid cost events to `index=personal` and keep `collection_name` populated so the leaderboard stays actionable.",
   "visualization": "Bar chart of Discogs market gap versus paid cost by collections.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Discogs Median Price Gap to Paid Cost'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `discogs:item`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Discogs Median Price Gap to Paid Cost' stops polling `discogs:item`; stale `collection_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `discogs:item`. Dedup with `stats latest(*) by collection_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

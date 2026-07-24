@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Wireless Authentication Trends' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_wireless_authentication_trends` (UC-5.4.7), SOC dashboard panel \"Operations — Wireless Authentication Trends\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:ise:syslog' that satisfy the UC-5.4.7 SPL filters for 'Wireless Authentication Trends'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `cisco:ise:syslog` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.4.7."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:ise:syslog' where `status` satisfies detection threshold for UC-5.4.7 ('Wireless Authentication Trends'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `cisco:ise:syslog` events where `status` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.4.7."
   },
   "dataSources": "RADIUS logs, WLC auth events Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "WLC syslog, RADIUS/ISE logs — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=\"cisco:ise:syslog\" (\"Passed\" OR \"Failed\") AND \"Wireless\"\n| eval status=if(match(_raw,\"Passed\"),\"Success\",\"Failed\")\n| timechart span=1h count by status",
-  "description": "802.1X success/failure rates indicate RADIUS health, certificate issues, or expired credentials.",
+  "description": "802.1X success/failure rates indicate RADIUS health, certificate issues, or expired credentials. Searches `index=network` with sourcetype `cisco:ise:syslog` for UC-5.4.7, aggregating `count` by `status` over `1h`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Wireless Authentication Trends' without manual log review.",
   "value": "Network operations teams monitor wireless authentication trends across all SSIDs and methods (802.1X, PSK, MAB) to detect systemic RADIUS failures, credential rotation issues, and authentication method performance degradation.",
   "implementation": "Forward ISE/RADIUS authentication logs. Track success/failure ratio over time. Alert on sustained failure rate increase.",
   "visualization": "Stacked bar chart (success vs. failure), Line chart, Single value (failure rate %).",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Wireless Authentication Trends'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Wireless Authentication Trends' shifts `count` over `span=1h` while `status` remains in-scope for UC-5.4.7. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ise:syslog`** — Scheduled automation elevates `status` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `status`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ise:syslog`** — First 48h baseline for `status` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `status`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"

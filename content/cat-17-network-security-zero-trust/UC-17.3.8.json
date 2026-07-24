@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Zero Trust Access Denial Trending' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_zero_trust_access_denial_trending` (UC-17.3.8), SOC dashboard panel \"Network — Zero Trust Access Denial Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=zt` sourcetype='zt:access' that satisfy the UC-17.3.8 SPL filters for 'Zero Trust Access Denial Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `zt` / `zt:access` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.8."
+    "positiveScenario": "Ingest synthetic events into `index=zt` sourcetype='zt:access' where `user` satisfies `count` > 20 for UC-17.3.8 ('Zero Trust Access Denial Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `zt` / `zt:access` events where `user` stays below `count` > 20, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.8."
   },
   "dataSources": "Access decision logs (allow/deny), user, app, reason Indexes: zt. Sourcetypes: zt:access. Key fields: _time, application, deny_reason, user. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk_TA_zscaler` (ZPA), Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `TA-fortinet_fortigate` (FortiSASE), Check Point App for Splunk (Splunkbase 4293)",
   "spl": "index=zt sourcetype=\"zt:access\"\n| where decision=\"deny\"\n| bin _time span=1h\n| stats count by user, application, deny_reason, _time\n| where count > 20\n| sort -count",
   "description": "High denial rates may indicate policy misconfiguration or attacker probing. Trending supports tuning and security analysis.",
-  "value": "Zero Trust operations teams trend access denials across all enforcement points (Entra CA, ZTNA, SWG) in a unified view, separating policy-change impacts from attack signals and identifying users experiencing excessive friction from overly strict controls.",
+  "value": "High denial rates may indicate policy misconfiguration or attacker probing. Timely UC-17.3.8 alerting on 'Zero Trust Access Denial Trending' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Ingest access decision logs. Baseline denial rate by user and app. Alert on spike in denials or new deny reason. Report on top denied users and apps for policy review.",
   "visualization": "Line chart (denials over time), Table (denials by user/app), Bar chart (deny reasons).",
   "cimModels": [
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Zero Trust Access Denial Trending'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `zt`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `zt:access` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `zt`** — Planned work for 'Zero Trust Access Denial Trending' shifts `count` over `span=1h` while `user` remains in-scope for UC-17.3.8. Cross-check CMDB CHG.\n\n2. **Batch `count` on `zt:access`** — Scheduled automation elevates `application` without crossing `count` > 20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`** — Health checks in `zt` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zt:access`** — First 48h baseline for `user` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1071.001",
     "T1046"

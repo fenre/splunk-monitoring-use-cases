@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Feeder Hopper Jam or Empty Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_feeder_hopper_jam_or_empty_alert` (UC-25.11.9), SOC dashboard panel \"Personal — Feeder Hopper Jam or Empty Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='petfeeder:event' that satisfy the UC-25.11.9 SPL filters for 'Feeder Hopper Jam or Empty Alert'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `petfeeder:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.11.9."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='petfeeder:event' where `feeder` satisfies `food_remaining_pct` < 10 for UC-25.11.9 ('Feeder Hopper Jam or Empty Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `petfeeder:event` events where `feeder` stays below `food_remaining_pct` < 10, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.11.9."
   },
   "dataSources": "Pet tracker location/activity (`tractive:position`, `whistle:activity`), smart feeder events (`petfeeder:event`), litter-box usage (`litterrobot:cycle`), bird-feeder detections (`birdfeeder:detection`), doorbell/package events (`doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Pet GPS/activity trackers (Tractive/Fi/Whistle), smart feeders and litter boxes, bird feeders/cams, and home-life sensors via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=petfeeder:event\n| where event_type=\"jam\" OR food_remaining_pct<10\n| stats latest(food_remaining_pct) as remaining, count(eval(event_type=\"jam\")) as jams by feeder\n| where jams>0 OR remaining<10\n| sort remaining",
   "description": "Combines mechanical jam events with low-food state so the smart feeder does not earn your trust and then fail at the worst possible moment.",
-  "value": "Feeding automation only matters when it removes worry; this query makes sure the feeder still has both food and the ability to dispense it.",
+  "value": "Combines mechanical jam events with low-food state so the smart feeder does not earn your trust and then fa.... Timely UC-25.11.9 alerting on 'Feeder Hopper Jam or Empty Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward smart-feeder events and hopper level; alert immediately on jams or critically low remaining food.",
   "visualization": "Current-state table of feeders with jam count and food remaining.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Feeder Hopper Jam or Empty Alert'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `petfeeder:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Feeder Hopper Jam or Empty Alert' stops polling `petfeeder:event`; stale `feeder` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `petfeeder:event`. Dedup with `stats latest(*) by feeder`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `food_remaining_pct` < 10. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

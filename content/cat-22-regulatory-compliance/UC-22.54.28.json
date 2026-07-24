@@ -43,14 +43,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Skip the annual KPI review for the current FY; UC-22.54.28 MUST flag `kpi_status=\"annual_review_overdue\"` within 14 days of FY-end.",
-    "negativeScenario": "Conduct annual review with board signed minute capturing the five KPIs; UC-22.54.28 MUST record `kpi_status=\"current\"`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies `days_since_fy_end` > 60 for UC-22.54.28 ('CIRCIA Annual SLA & KPI Review — board-level review of reporting performance, miss rates, and remediation actions'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `days_since_fy_end` > 60, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.54.28."
   },
   "dataSources": "Aggregate of all CIRCIA UCs' summary metrics in `audit_evidence`. KV Store `circia_kpi_review_lookup`. ServiceNow GRC for board-meeting tracking.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup circia_kpi_review_lookup\n| eval now_ts = now()\n| eval fy_end_at = strptime(review_year . \"-12-31\", \"%Y-%m-%d\")\n| eval days_since_fy_end = round((now_ts - fy_end_at) / 86400, 0)\n| eval kpi_status = case(\n    review_year < tonumber(strftime(now_ts, \"%Y\")) - 1 AND isnull(board_review_at), \"annual_review_overdue\",\n    isnull(board_review_at) AND days_since_fy_end > 60, \"annual_review_overdue\",\n    isnull(board_review_at), \"annual_review_pending\",\n    isnull(board_review_signed_by), \"annual_review_unsigned\",\n    1=1, \"current\")\n| where kpi_status != \"current\"\n| table review_id review_year kpi_72hr_sla_met kpi_24hr_sla_met kpi_supplemental_sla_met kpi_classification_sla_met kpi_retention_sla_met board_review_at board_review_signed_by kpi_status",
-  "description": "Tracks the annual board-level review of CIRCIA-SLA KPIs. Surfaces overdue or unsigned reviews.",
-  "value": "Quantitative performance review at board level closes the loop on CIRCIA programme maturity. Without it, the entity has no objective measure of whether the programme is improving over time.",
+  "description": "Tracks the annual board-level review of CIRCIA-SLA KPIs. Surfaces overdue or unsigned reviews. Searches `index=target_index` with sourcetype `configured sourcetype` for UC-22.54.28, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `days_since_fy_end` > 60 in the saved search. Gives Compliance operators a repeatable signal for 'CIRCIA Annual SLA & KPI Review — board-level review of reporting performance, miss rates, and remediation actions' without manual log review.",
+  "value": "Tracks the annual board-level review of CIRCIA-SLA KPIs. Timely UC-22.54.28 alerting on 'CIRCIA Annual SLA & KPI Review — board-level review of reporting performance, miss rates, and remediation actions' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) SOAR `circia-kpi-prefill` runs at FY-end and aggregates the five KPIs into a draft review row. (2) CISO presents to board cyber-risk committee. (3) Board signs minute; row is updated. (4) Schedule UC-22.54.28 monthly.",
   "visualization": "(Panel 1) Rolling 5-year KPI trend. (Panel 2) Annual review status. (Panel 3) Year-over-year delta on each KPI. (Panel 4) Remediation-action tracking from past reviews.",
   "cimModels": [
@@ -84,7 +84,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Board cadence offset** — some boards meet on FY+90 day cadence; review may be done within Q1 of the new FY. Suppression: extend grace to 90 days post-FY-end.\n\n**Suppression mechanism**: KV Store `circia_22_54_28_exceptions` with documented Corporate Secretary approval and 60-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CIRCIA control testing** — Internal audit exercises 'CIRCIA Annual SLA & KPI Review — board-level review of reporting performance, miss rates, and remediation actions' (UC-22.54.28) on `entity` during scheduled clause CIRCIA-CISA-tabletop sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `days_since_fy_end` > 60. Cross-check engagement letter in `circia_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `circia_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (governance performance review)"
   ],

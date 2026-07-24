@@ -54,16 +54,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Closing a change with approval_status='rejected' but state='implemented' returns approval_met=0.",
-    "negativeScenario": "A change approved by a CAB-role user before implementation is absent.",
-    "fixtureRef": "",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=change` sourcetype='servicenow:change' where `change_id` satisfies detection threshold for UC-22.6.55 ('ISO/IEC 27001:2022 Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `change` / `servicenow:change` events where `change_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.6.55."
   },
   "dataSources": "`index=change` sourcetype=servicenow:change; approver-role lookup `cab_roles.csv`. (Splunkbase 1621 — Splunk CIM Add-on)",
   "app": "Splunk Add-on for ServiceNow",
   "spl": "index=change sourcetype=servicenow:change state IN (implemented,closed) earliest=-7d\n| stats latest(type) AS type latest(_time) AS implemented_at latest(approval_status) AS approval_status latest(approver) AS approver latest(approval_date) AS cab_approved_at BY change_id\n| lookup cab_roles.csv approver OUTPUT is_authorised_cab\n| eval approval_met=if(type=\"emergency\",1,if(approval_status=\"approved\" AND is_authorised_cab=1 AND cab_approved_at<=implemented_at,1,0))\n| where approval_met=0\n| table change_id type implemented_at cab_approved_at approver approval_met",
   "description": "Flags implemented changes that were not approved by an authorised CAB member prior to implementation. Clause 8.1 requires the organisation to plan, implement and control processes to meet information-security requirements — CAB approval is the direct control.",
-  "value": "Turns the 'post-implementation review' into a pre-emptive signal. The Head of IT Operations sees the breach list within the hour.",
+  "value": "Flags implemented changes that were not approved by an authorised CAB member prior to implementation. Timely UC-22.6.55 alerting on 'ISO/IEC 27001:2022 Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Export ServiceNow change events; (2) maintain cab_roles.csv listing authorised approvers; (3) schedule UC hourly; (4) approval_met=0 opens a deficiency record with 7d remediation; (5) monthly Audit Committee report. Indexes required: `index=change`; Sourcetypes: `sourcetype=servicenow:change`, `sourcetype=servicenow:change;`.",
   "visualization": "Table of unapproved changes, bar chart of breach count by team, single value 'unapproved changes in last 7d'. Key fields: `approval_met`, `approval_status`, `approver`, `cab_approved_at`, `change_id`, `implemented_at`.",
   "cimModels": [
@@ -83,7 +81,7 @@
       "url": "https://docs.splunk.com/Documentation/ES/latest/User/Overview"
     }
   ],
-  "knownFalsePositives": "1. **Assessment cycle alignment** — Control assessments following annual cycles may show brief non-current periods between assessment completion and report publication.\n\n2. **Finding remediation within SLA** — Open findings within their documented remediation timeline are being addressed per policy, not neglected or overlooked.\n\n3. **Framework version transitions** — Migration between control framework versions (ISO 27001:2013 to 2022) creates temporary mapping gaps during the documented transition period.\n\n4. **Accepted residual risk items** — Findings formally accepted through the risk management governance process with documented compensating controls and management sign-off.\n\n5. **Evidence collection cadence differences** — Controls with different evidence generation frequencies (real-time vs. quarterly) show varying currency in compliance dashboards.\n\n**Operational suppression:** Maintain a lookup table (`iso27001_approved_exceptions.csv`) mapping known legitimate activities by control owner, risk acceptance reference, and expiry date. Filter the SPL results against this lookup to suppress documented exceptions and reduce alert fatigue. Review and rotate entries at each ISMS management review cycle.",
+  "knownFalsePositives": "1. **Authorised ISO 27001 control testing** — Internal audit exercises 'ISO/IEC 27001:2022 Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence' (UC-22.6.55) on `change_id` during scheduled clause 8.1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=change` `servicenow:change` without crossing evidence threshold. Cross-check engagement letter in `iso_27001_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `change` for `change_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `change_id` during normal service delivery.\n\n**Suppression mechanism:** `iso_27001_exception_register.csv` keyed on `change_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Baseline",
   "securityDomain": "audit",
   "requiredFields": [

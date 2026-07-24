@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Personal NOC House-Health Wall' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_personal_noc_house_health_wall` (UC-25.40.7), SOC dashboard panel \"Personal — Personal NOC House-Health Wall\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='personalslo:status' that satisfy the UC-25.40.7 SPL filters for 'Personal NOC House-Health Wall'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `personalslo:status` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.40.7."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='personalslo:status' where `system` satisfies detection threshold for UC-25.40.7 ('Personal NOC House-Health Wall'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `personalslo:status` events where `system` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.40.7."
   },
   "dataSources": "Daily life scores (`lifescore:daily`), personal SLO status (`personalslo:status`), cross-signal correlations (`correlation:pair`), plus every other `index=personal` sourcetype as input. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "The meta layer — correlating every `index=personal` feed (sleep, activity, mood, weather, spend, productivity, home telemetry) into daily life scores, personal SLOs, and cross-signal anomaly detection, all computed in Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=personalslo:status category=house\n| stats latest(status) as status by system\n| eval down=if(status!=\"ok\",1,0)\n| sort - down",
-  "description": "Rolls up every home system — network, energy, security, climate — into one green-or-red status wall.",
-  "value": "A single house-health wall is the home version of a network operations centre, surfacing any problem at a glance.",
+  "description": "Rolls up every home system — network, energy, security, climate — into one green-or-red status wall. Searches `index=personal` with sourcetype `personalslo:status` for UC-25.40.7, aggregating `count` by `system` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Personal NOC House-Health Wall' without manual log review.",
+  "value": "Rolls up every home system — network, energy, security, climate — into one green-or-red status wall. Timely UC-25.40.7 alerting on 'Personal NOC House-Health Wall' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Summarise home-system health into `index=personal`; show a single status board.",
   "visualization": "Status wall of home systems, green or red.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Personal NOC House-Health Wall'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `personalslo:status`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Personal NOC House-Health Wall' stops polling `personalslo:status`; stale `system` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `personalslo:status`. Dedup with `stats latest(*) by system`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

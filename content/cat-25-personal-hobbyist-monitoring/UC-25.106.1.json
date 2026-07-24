@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Guest Rating Below Superhost Threshold' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_guest_rating_below_superhost_threshold` (UC-25.106.1), SOC dashboard panel \"Personal — Guest Rating Below Superhost Threshold\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='guest:review' that satisfy the UC-25.106.1 SPL filters for 'Guest Rating Below Superhost Threshold'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `guest:review` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.106.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='guest:review' where `_time` satisfies `avg_rating` < 4.8 for UC-25.106.1 ('Guest Rating Below Superhost Threshold'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `guest:review` events where `_time` stays below `avg_rating` < 4.8, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.106.1."
   },
   "dataSources": "Airbnb bookings (`airbnb:booking`), Vrbo reservations (`vrbo:reservation`), Airbnb payouts (`airbnb:payout`), and guest reviews (`guest:review`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Airbnb booking exports, Vrbo reservation webhooks, Airbnb payout statements, guest review logs, and turnover checklists streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=guest:review rating=* listing_name=*\n| bin _time span=1q\n| stats avg(rating) as avg_rating, count as reviews by _time listing_name\n| where avg_rating<4.8 AND reviews>=3\n| sort avg_rating",
-  "description": "Flags listings whose quarterly average guest rating falls below the typical Superhost threshold.",
-  "value": "Rating slippage is easier to fix mid-quarter than after Airbnb removes your Superhost badge.",
+  "description": "Flags listings whose quarterly average guest rating falls below the typical Superhost threshold. Searches `index=personal` with sourcetype `guest:review` for UC-25.106.1, aggregating `avg` by `_time` over `the scheduled window`. Alerts when grouped results cross `avg_rating` < 4.8 in the saved search. Gives Personal operators a repeatable signal for 'Guest Rating Below Superhost Threshold' without manual log review.",
+  "value": "Flags listings whose quarterly average guest rating falls below the typical Superhost threshold. Timely UC-25.106.1 alerting on 'Guest Rating Below Superhost Threshold' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Export guest reviews with numeric `rating` and review at least three reviews per listing each quarter.",
   "visualization": "Table of listings with quarterly average rating.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Guest Rating Below Superhost Threshold'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `guest:review`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Guest Rating Below Superhost Threshold' stops polling `guest:review`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `guest:review`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_rating` < 4.8. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

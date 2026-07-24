@@ -55,16 +55,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Stopping the data-engineering job for kpi_id=patch_mttr for 1h past its sla_minutes sets is_stale=1.",
-    "negativeScenario": "A KPI posting within sla_minutes is absent.",
-    "fixtureRef": "",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=compliance` sourcetype='isms:objective_result' where `kpi_id]` satisfies detection threshold for UC-22.6.49 ('ISO/IEC 27001:2022 Clause 9.1 — Monitoring programme coverage: KPI telemetry uptime'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `compliance` / `isms:objective_result` events where `kpi_id]` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.6.49."
   },
   "dataSources": "`index=_internal` sourcetype=splunkd (scheduler logs); `index=compliance` sourcetype=isms:objective_result; KPI freshness lookup `iso_27001_kpi_freshness.csv`. (Splunkbase 1621 — Splunk CIM Add-on)",
   "app": "Splunk Enterprise Security",
   "spl": "| inputlookup iso_27001_kpi_freshness.csv\n| join type=outer kpi_id\n  [search index=compliance sourcetype=isms:objective_result earliest=-7d\n   | stats latest(_time) AS last_seen BY kpi_id]\n| eval age_min=round((now()-last_seen)/60,0)\n| eval is_stale=if(age_min>sla_minutes OR isnull(last_seen),1,0)\n| table kpi_id last_seen age_min sla_minutes is_stale",
   "description": "For every ISMS KPI the committee has agreed to measure under Clause 9.1, check the pipeline is alive within the KPI's freshness SLA. Stale pipelines are a silent failure mode of monitoring programmes.",
-  "value": "Prevents the worst external-audit outcome (monitoring 'was in place' but had silently died) and gives the Head of Platform a single dashboard tile showing ISMS telemetry health.",
+  "value": "For every ISMS KPI the committee has agreed to measure under Clause 9. Timely UC-22.6.49 alerting on 'ISO/IEC 27001:2022 Clause 9.1 — Monitoring programme coverage: KPI telemetry uptime' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Push each KPI into index=compliance; (2) maintain iso_27001_kpi_freshness.csv per KPI with its SLA; (3) schedule UC every 15m; (4) is_stale=1 pages the data-engineering owner of the KPI; (5) weekly ISMS report attaches the latest state. Sourcetypes: `sourcetype=isms:objective_result`, `sourcetype=isms:objective_result;`, `sourcetype=splunkd`.",
   "visualization": "Heatmap of KPI staleness, table of stale KPIs, single value 'stale KPIs right now'. Key fields: `age_min`, `is_stale`, `kpi_id`, `kpi_id]`, `last_seen`, `sla_minutes`.",
   "cimModels": [
@@ -84,7 +82,7 @@
       "url": "https://docs.splunk.com/Documentation/ES/latest/User/Overview"
     }
   ],
-  "knownFalsePositives": "1. **Assessment cycle alignment** — Control assessments following annual cycles may show brief non-current periods between assessment completion and report publication.\n\n2. **Finding remediation within SLA** — Open findings within their documented remediation timeline are being addressed per policy, not neglected or overlooked.\n\n3. **Framework version transitions** — Migration between control framework versions (ISO 27001:2013 to 2022) creates temporary mapping gaps during the documented transition period.\n\n4. **Accepted residual risk items** — Findings formally accepted through the risk management governance process with documented compensating controls and management sign-off.\n\n5. **Evidence collection cadence differences** — Controls with different evidence generation frequencies (real-time vs. quarterly) show varying currency in compliance dashboards.\n\n**Operational suppression:** Maintain a lookup table (`iso27001_approved_exceptions.csv`) mapping known legitimate activities by control owner, risk acceptance reference, and expiry date. Filter the SPL results against this lookup to suppress documented exceptions and reduce alert fatigue. Review and rotate entries at each ISMS management review cycle.",
+  "knownFalsePositives": "1. **Authorised ISO 27001 control testing** — Internal audit exercises 'ISO/IEC 27001:2022 Clause 9.1 — Monitoring programme coverage: KPI telemetry uptime' (UC-22.6.49) on `kpi_id]` during scheduled clause 9.1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=compliance` `isms:objective_result` without crossing evidence threshold. Cross-check engagement letter in `iso_27001_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `compliance` for `kpi_id]`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `kpi_id]` during normal service delivery.\n\n**Suppression mechanism:** `iso_27001_exception_register.csv` keyed on `kpi_id]`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Baseline",
   "securityDomain": "audit",
   "requiredFields": [

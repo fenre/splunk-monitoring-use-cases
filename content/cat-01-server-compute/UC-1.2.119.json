@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Registry Run Key Persistence Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_registry_run_key_persistence_monitoring` (UC-1.2.119), SOC dashboard panel \"Linux — Registry Run Key Persistence Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=13 that satisfy the UC-1.2.119 SPL filters for 'Registry Run Key Persistence Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.119."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=13 where `entity` satisfies detection threshold for UC-1.2.119 ('Registry Run Key Persistence Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.119."
   },
   "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 13) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog EventCode=13\n| where match(TargetObject, \"(?i)(CurrentVersion\\\\\\\\Run|CurrentVersion\\\\\\\\RunOnce|Winlogon\\\\\\\\Shell|Winlogon\\\\\\\\Userinit|Explorer\\\\\\\\Shell Folders)\")\n| where NOT match(Details, \"(?i)(program files|windows\\\\\\\\system32|syswow64)\")\n| table _time, host, User, Image, TargetObject, Details\n| sort -_time",
   "description": "Registry Run keys are the most common persistence mechanism for malware. Monitoring autostart registry locations detects new malware installations.",
-  "value": "Run and RunOnce keys are old but still effective persistence. Pairing registry run changes with process data tells you if a new auto-start is boring IT software or something else.",
+  "value": "Registry Run keys are the most common persistence mechanism for malware. Timely UC-1.2.119 alerting on 'Registry Run Key Persistence Monitoring' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Sysmon EventCode 13 (RegistryValueSet) monitors registry modifications. Track all autostart locations: Run, RunOnce, RunServices, Winlogon Shell/Userinit, Explorer Shell Folders, and AppInit_DLLs. Filter known-legitimate entries (Program Files, System32). Alert on entries pointing to temp directories, AppData, user profiles, or encoded/obfuscated paths. Monitor both HKLM (system-wide) and HKCU (per-user). MITRE ATT&CK T1547.001.",
   "visualization": "Table (new Run key entries), Alert on suspicious paths, Timeline.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Registry Run Key Persistence Monitoring'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `configured sourcetype`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Registry Run Key Persistence Monitoring'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

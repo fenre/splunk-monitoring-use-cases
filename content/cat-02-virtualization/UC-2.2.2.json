@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Hyper-V Replication Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_hyper_v_replication_health` (UC-2.2.2), SOC dashboard panel \"Linux — Hyper-V Replication Health\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin' that satisfy the UC-2.2.2 SPL filters for 'Hyper-V Replication Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.2.2."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin' where `host` satisfies detection threshold for UC-2.2.2 ('Hyper-V Replication Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.2.2."
   },
   "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin` Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` (Hyper-V) — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin\" (\"replication\" AND (\"error\" OR \"warning\" OR \"critical\" OR \"failed\"))\n| stats count by host, EventCode, Message\n| sort -count",
-  "description": "Replication lag means your DR site is behind. If replication breaks, you lose your recovery point objective (RPO).",
+  "description": "Replication lag means your DR site is behind. If replication breaks, you lose your recovery point objective (RPO). Searches `index=wineventlog` with sourcetype `WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin` for UC-2.2.2, aggregating `count` by `host` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Linux operators a repeatable signal for 'Hyper-V Replication Health' without manual log review.",
   "value": "Early 'Hyper-V Replication Health' detection reduces capacity incidents, patch regressions, and service outages by giving Linux operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Enable Hyper-V VMMS event log collection. Also create a PowerShell scripted input: `Get-VMReplication | Select VMName, State, Health, LastReplicationTime`. Alert on replication state != Normal or health != Normal.",
   "visualization": "Table (VM, replication state, health, last sync), Status indicators, Events list.",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Hyper-V Replication Health'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Hyper-V Replication Health'. Correlate with apt/yum logs in the same `WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hyperv",
     "windows"

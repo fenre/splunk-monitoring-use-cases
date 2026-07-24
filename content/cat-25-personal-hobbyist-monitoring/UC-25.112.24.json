@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Local Alert Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_local_alert_sync_gap_watch` (UC-25.112.24), SOC dashboard panel \"Personal — Local Alert Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='local:alert' that satisfy the UC-25.112.24 SPL filters for 'Local Alert Sync Gap Watch'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `local:alert` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.112.24."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='local:alert' where `alert_source` satisfies `hours_since` > 24 for UC-25.112.24 ('Local Alert Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `local:alert` events where `alert_source` stays below `hours_since` > 24, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.112.24."
   },
   "dataSources": "Nextdoor posts (`nextdoor:post`), Ring Neighbors alerts (`ring:neighbor`), neighborhood watch logs (`neighborhood:watch`), and local alerts (`local:alert`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Nextdoor post exports, Ring Neighbors alerts, neighborhood watch logs, and local emergency alert feeds ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=local:alert\n| stats max(_time) as last_seen by alert_source\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>24\n| sort - hours_since",
   "description": "Detects when local alert data has stopped arriving for a given alert source. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Personal telemetry is only useful when it is current; sync-gap alerts catch failed exports and broken credentials early.",
+  "value": "Detects when local alert data has stopped arriving for a given alert source. Timely UC-25.112.24 alerting on 'Local Alert Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Track the latest event time per alert source and alert when the feed is older than 24 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Local Alert Sync Gap Watch'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `local:alert`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Local Alert Sync Gap Watch' stops polling `local:alert`; stale `alert_source` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `local:alert`. Dedup with `stats latest(*) by alert_source`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 24. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

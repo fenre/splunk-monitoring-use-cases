@@ -57,13 +57,13 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mssql:audit' that satisfy the UC-7.1.13 SPL filters for 'Schema Change Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `mssql:audit` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.13."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mssql:audit' where `entity` satisfies detection threshold for UC-7.1.13 ('Schema Change Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `mssql:audit` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.13."
   },
   "dataSources": "SQL Server DDL triggers, audit logs, PostgreSQL `log_statement='ddl'` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "DB Connect, SQL Server audit — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"mssql:audit\" action_id IN (\"CR\",\"AL\",\"DR\")\n| table _time, server_principal_name, database_name, object_name, statement\n| sort -_time",
-  "description": "Unauthorized DDL changes to production databases can break applications. Detection ensures change control compliance.",
+  "description": "Unauthorized DDL changes to production databases can break applications. Detection ensures change control compliance. Searches `index=database` with sourcetype `mssql:audit` for UC-7.1.13, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Schema Change Detection' without manual log review.",
   "value": "Early 'Schema Change Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Enable SQL Server audit for DDL events (CREATE, ALTER, DROP). For PostgreSQL, set `log_statement='ddl'`. Forward audit logs to Splunk. Alert on any DDL outside maintenance windows. Correlate with change tickets.",
   "visualization": "Table (DDL events with details), Timeline (schema changes), Bar chart (changes by user).",
@@ -94,7 +94,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Schema Change Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Schema Change Detection' shifts `count` over `span=1h` while `host` remains in-scope for UC-7.1.13. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mssql:audit`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mssql:audit`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mssql",

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Dispatch Directory Size (_introspection)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dispatch_directory_size_introspection` (UC-13.1.41), SOC dashboard panel \"Operations — Dispatch Directory Size (_introspection)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=main` sourcetype='splunk:dispatch_stats' that satisfy the UC-13.1.41 SPL filters for 'Dispatch Directory Size (_introspection)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `main` / `splunk:dispatch_stats` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.41."
+    "positiveScenario": "Ingest synthetic events into `index=main` sourcetype='splunk:dispatch_stats' where `host` satisfies `size_gb` > 50 for UC-13.1.41 ('Dispatch Directory Size (_introspection)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `main` / `splunk:dispatch_stats` events where `host` stays below `size_gb` > 50, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.41."
   },
   "dataSources": "Scripted input / HEC: `sourcetype=splunk:dispatch_stats` on `index=main` (dispatch dir size MB per SH) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Monitoring Console, scripted disk check — Universal Forwarder (Splunkbase 617)",
   "spl": "index=main sourcetype=\"splunk:dispatch_stats\"\n| eval size_gb=round(dispatch_dir_size_mb/1024,2)\n| where size_gb > 50\n| stats max(size_gb) as max_gb by host",
-  "description": "Large dispatch directories fill disk and slow search teardown—common after runaway searches or stuck jobs.",
+  "description": "Large dispatch directories fill disk and slow search teardown—common after runaway searches or stuck jobs. Searches `index=main` with sourcetype `splunk:dispatch_stats` for UC-13.1.41, aggregating `max` by `host` over `the scheduled window`. Alerts when grouped results cross `size_gb` > 50 in the saved search. Gives Operations operators a repeatable signal for 'Dispatch Directory Size (_introspection)' without manual log review.",
   "value": "Early 'Dispatch Directory Size (_introspection)' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Nightly scripted input: `du -sm` on `$SPLUNK_HOME/var/run/splunk/dispatch`, emit JSON. Alert on rapid growth. Automate cleanup of orphaned jobs per support guidance.",
   "visualization": "Gauge (dispatch GB per SH), Line chart (growth trend).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Dispatch Directory Size (_introspection)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `main` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `main`** — Planned work for 'Dispatch Directory Size (_introspection)' shifts `max` over `span=1h` while `host` remains in-scope for UC-13.1.41. Cross-check CMDB CHG.\n\n2. **Batch `max` on `splunk:dispatch_stats`** — Scheduled automation elevates `size_gb` without crossing `size_gb` > 50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `main` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `splunk:dispatch_stats`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

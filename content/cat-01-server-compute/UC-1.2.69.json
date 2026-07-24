@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Page File Usage & Exhaustion' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_page_file_usage_exhaustion` (UC-1.2.69), SOC dashboard panel \"Linux — Page File Usage & Exhaustion\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=perfmon` sourcetype='Perfmon:Paging_File' that satisfy the UC-1.2.69 SPL filters for 'Page File Usage & Exhaustion'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `perfmon` / `Perfmon:Paging_File` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.69."
+    "positiveScenario": "Ingest synthetic events into `index=perfmon` sourcetype='Perfmon:Paging_File' where `host` satisfies `pf_pct` > 70 for UC-1.2.69 ('Page File Usage & Exhaustion'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `perfmon` / `Perfmon:Paging_File` events where `host` stays below `pf_pct` > 70, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.69."
   },
   "dataSources": "`sourcetype=Perfmon:Paging_File` (counter: % Usage, % Usage Peak) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=perfmon sourcetype=\"Perfmon:Paging_File\" counter=\"% Usage\" instance=\"_Total\"\n| timechart span=15m avg(Value) as pf_pct by host\n| where pf_pct > 70",
   "description": "Page file exhaustion prevents new process creation and causes \"out of virtual memory\" errors. System-managed page files can grow to fill the disk.",
-  "value": "When the page file is full, applications can fail to start and services can become unstable. Watching usage helps the team add RAM, fix leaks, or resize the page file before users see widespread errors.",
+  "value": "Page file exhaustion prevents new process creation and causes \"out of virtual memory\" errors. Timely UC-1.2.69 alerting on 'Page File Usage & Exhaustion' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Configure Perfmon inputs for Paging File object: `% Usage`, `% Usage Peak` (interval=300). Alert when usage exceeds 70% sustained (indicates memory pressure requiring page file). Track peak usage — if it regularly exceeds 80%, the system needs more RAM or has a memory leak. Also monitor EventCode 2004 in System log (page file too small) as a reactive indicator.",
   "visualization": "Line chart (page file usage over time), Gauge (current usage), Table (hosts with high usage).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Page File Usage & Exhaustion'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `perfmon` `Perfmon:Paging_File`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `perfmon`** — Package managers spike `host` metrics for 'Page File Usage & Exhaustion'. Correlate with apt/yum logs in the same `Perfmon:Paging_File` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `Perfmon:Paging_File`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `pf_pct` > 70.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

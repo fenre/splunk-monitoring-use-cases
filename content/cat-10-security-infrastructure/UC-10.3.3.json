@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Agent Health Monitoring' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_agent_health_monitoring` (UC-10.3.3), SOC dashboard panel \"Security Infra — Agent Health Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=edr` sourcetype='crowdstrike:sensor_health' that satisfy the UC-10.3.3 SPL filters for 'Agent Health Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `edr` / `crowdstrike:sensor_health` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.3.3."
+    "positiveScenario": "Ingest synthetic events into `index=edr` sourcetype='crowdstrike:sensor_health' where `entity` satisfies `hours_since_checkin` > 24 for UC-10.3.3 ('Agent Health Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `edr` / `crowdstrike:sensor_health` events where `entity` stays below `hours_since_checkin` > 24, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.3.3."
   },
   "dataSources": "EDR agent status API, last check-in timestamps Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "EDR TA, scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edr sourcetype=\"crowdstrike:sensor_health\"\n| eval hours_since_checkin=round((now()-last_seen_epoch)/3600,1)\n| where hours_since_checkin > 24 OR sensor_version < \"6.50\"\n| table hostname, os, sensor_version, hours_since_checkin, status",
-  "description": "Endpoints without healthy EDR agents are blind spots. Gap detection ensures comprehensive coverage.",
+  "description": "Endpoints without healthy EDR agents are blind spots. Gap detection ensures comprehensive coverage. Searches `index=edr` with sourcetype `crowdstrike:sensor_health` for UC-10.3.3, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `hours_since_checkin` > 24 in the saved search. Gives Security Infra operators a repeatable signal for 'Agent Health Monitoring' without manual log review.",
   "value": "Early 'Agent Health Monitoring' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Poll EDR agent status API daily. Identify agents offline >24 hours, outdated versions, or degraded status. Cross-reference with CMDB for full coverage analysis. Alert on critical servers with unhealthy agents.",
   "visualization": "Table (unhealthy agents), Single value (% healthy), Pie chart (agent version distribution), Bar chart (offline by OS).",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Agent Health Monitoring'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=edr` `crowdstrike:sensor_health`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `edr`** — Planned work for 'Agent Health Monitoring' shifts `count` over `span=1h` while `host` remains in-scope for UC-10.3.3. Cross-check CMDB CHG.\n\n2. **Batch `count` on `crowdstrike:sensor_health`** — Scheduled automation elevates `hours_since_checkin` without crossing `hours_since_checkin` > 24. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `edr` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `crowdstrike:sensor_health`** — First 48h baseline for `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "crowdstrike"
   ],

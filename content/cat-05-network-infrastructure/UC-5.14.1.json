@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'HAProxy Backend Server Health Check Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_haproxy_backend_server_health_check_failures` (UC-5.14.1), SOC dashboard panel \"Operations — HAProxy Backend Server Health Check Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='haproxy:http' that satisfy the UC-5.14.1 SPL filters for 'HAProxy Backend Server Health Check Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `proxy` / `haproxy:http` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.1."
+    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='haproxy:http' where `backend` satisfies `status` >= 500 for UC-5.14.1 ('HAProxy Backend Server Health Check Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `proxy` / `haproxy:http` events where `backend` stays below `status` >= 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.1."
   },
   "dataSources": "`index=proxy` `sourcetype=haproxy:http` default TCP/HTTP log format; `haproxy:syslog` mirror Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=proxy sourcetype=\"haproxy:http\"\n| where status >= 500 OR match(_raw, \"(?i)NOLB|no server\") OR match(_raw, \"(?i)layer7 invalid\")\n| stats count by backend, server\n| sort - count",
-  "description": "Backend health checks prevent traffic to failed nodes; log evidence shows which farm member and protocol failed first.",
+  "description": "Backend health checks prevent traffic to failed nodes; log evidence shows which farm member and protocol failed first. Searches `index=proxy` with sourcetype `haproxy:http` for UC-5.14.1, aggregating `count` by `backend` over `the scheduled window`. Alerts when grouped results cross `status` >= 500 in the saved search. Gives Operations operators a repeatable signal for 'HAProxy Backend Server Health Check Failures' without manual log review.",
   "value": "Operations teams detect HAProxy backend server health check failures and DOWN transitions, distinguishing L4 connection failures from L7 response errors and identifying backends with no available servers.",
   "implementation": "Forward HAProxy logs via syslog or UF file tail. Map `backend`/`server` fields per HAProxy 2.8 `log-format`. Correlate with `haproxy:stats` CSV from `show stat`.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'HAProxy Backend Server Health Check Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `proxy` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy`** — Planned work for 'HAProxy Backend Server Health Check Failures' shifts `count` over `span=1h` while `backend` remains in-scope for UC-5.14.1. Cross-check CMDB CHG.\n\n2. **Batch `count` on `haproxy:http`** — Scheduled automation elevates `server` without crossing `status` >= 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `backend`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `haproxy:http`** — First 48h baseline for `backend` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `backend`, `exception_reason`, `valid_until`.",
   "equipment": [
     "haproxy",
     "syslog"

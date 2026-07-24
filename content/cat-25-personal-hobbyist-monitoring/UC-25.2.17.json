@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Blood Pressure Variability Monitor' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_blood_pressure_variability_monitor` (UC-25.2.17), SOC dashboard panel \"Personal — Blood Pressure Variability Monitor\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='withings:measure' that satisfy the UC-25.2.17 SPL filters for 'Blood Pressure Variability Monitor'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `withings:measure` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.17."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='withings:measure' where `user` satisfies `sys_sd` > 12 for UC-25.2.17 ('Blood Pressure Variability Monitor'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `withings:measure` events where `user` stays below `sys_sd` > 12, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.17."
   },
   "dataSources": "Apple Health metrics (`apple:health`), Oura Ring daily readiness/sleep (`oura:daily`), WHOOP recovery/strain (`whoop:cycle`), Withings body and blood-pressure (`withings:measure`), Dexcom CGM glucose (`dexcom:egv`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Apple Health / Apple Watch exports (Health Auto Export, Shortcuts) via HEC; Oura, WHOOP, Withings, and Dexcom APIs via scripted REST inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=withings:measure measure_type=blood_pressure\n| bin _time span=1w\n| stats stdev(systolic) as sys_sd, avg(systolic) as avg_sys, avg(diastolic) as avg_dia by user _time\n| where sys_sd>12 OR avg_sys>135 OR avg_dia>85\n| sort - sys_sd",
   "description": "Tracks week-to-week blood-pressure stability and not just the average, surfacing those weeks where numbers are swinging around more than usual.",
-  "value": "High variability can matter even when averages look only mildly elevated; the trend helps you separate an isolated reading from a pattern worth following up.",
+  "value": "Tracks week-to-week blood-pressure stability and not just the average, surfacing those weeks where numbers.... Timely UC-25.2.17 alerting on 'Blood Pressure Variability Monitor' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Export cuff readings from Withings or a similar device; review weekly variability and sustained elevated averages.",
   "visualization": "Weekly table of systolic variability with mean systolic and diastolic values.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Blood Pressure Variability Monitor'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `withings:measure`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Blood Pressure Variability Monitor' stops polling `withings:measure`; stale `user` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `stdev` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `withings:measure`. Dedup with `stats latest(*) by user`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `sys_sd` > 12. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

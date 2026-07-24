@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Thermometer Reading Gap During Illness' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_thermometer_reading_gap_during_illness` (UC-25.25.29), SOC dashboard panel \"Personal — Thermometer Reading Gap During Illness\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='thermometer:reading' that satisfy the UC-25.25.29 SPL filters for 'Thermometer Reading Gap During Illness'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `thermometer:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.25.29."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='thermometer:reading' where `illness_id` satisfies detection threshold for UC-25.25.29 ('Thermometer Reading Gap During Illness'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `thermometer:reading` events where `illness_id` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.25.29."
   },
   "dataSources": "Oura stress and recovery (`oura:stress`), CPAP therapy sessions (`cpap:session`), oral thermometer readings (`thermometer:reading`), and body-composition scale snapshots (`bodycomp:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal health telemetry from Oura, OSCAR CPAP exports, oral thermometer readings, and smart body-composition scales sent to Splunk HEC via APIs and CSV exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=thermometer:reading\n| search illness_id=*\n| stats latest(_time) as last_seen count as events by illness_id\n| eval hours_since=round((now()-last_seen)/3600,1)\n| sort - hours_since",
   "description": "Shows which illness episodess have gone quiet for illness monitoring readings. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "During an active illness, long gaps between readings can hide whether things are improving or escalating.",
+  "value": "Shows which illness episodess have gone quiet for illness monitoring readings. Timely UC-25.25.29 alerting on 'Thermometer Reading Gap During Illness' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send illness monitoring readings events to `index=personal` and alert when the gap since the last event grows beyond the expected cadence.",
   "visualization": "Table of illness episodess with time since last event.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Thermometer Reading Gap During Illness'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `thermometer:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Thermometer Reading Gap During Illness' stops polling `thermometer:reading`; stale `illness_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `thermometer:reading`. Dedup with `stats latest(*) by illness_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

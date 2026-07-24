@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Commute Delay by Mode and Weather' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_commute_delay_by_mode_and_weather` (UC-25.41.12), SOC dashboard panel \"Personal — Commute Delay by Mode and Weather\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ebike:ride' that satisfy the UC-25.41.12 SPL filters for 'Commute Delay by Mode and Weather'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `ebike:ride` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.41.12."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ebike:ride' where `mode` satisfies detection threshold for UC-25.41.12 ('Commute Delay by Mode and Weather'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `ebike:ride` events where `mode` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.41.12."
   },
   "dataSources": "E-bike rides (`ebike:ride`), scooter trips (`scooter:trip`), skate sessions (`skate:session`), surf sessions (`surf:session`), snow runs (`snow:run`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Micro-mobility and action-sport trackers — e-bike / e-scooter apps (VanMoof, Bosch eBike Flow), and skate / surf / snow session trackers (Trace, Slopes, Xensr) with IMU sensors — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal (sourcetype=ebike:ride OR sourcetype=scooter:trip)\n| eval mode=if(sourcetype=\"ebike:ride\",\"e-bike\",\"e-scooter\")\n| stats avg(duration_min) as avg_duration, avg(delay_min) as avg_delay, count as trips by mode weather_bucket\n| sort mode weather_bucket",
-  "description": "Compares commute friction across micro-mobility modes under different weather conditions.",
-  "value": "Mode choice feels intuitive, but a delay matrix makes it easier to decide what really works in poor conditions.",
+  "description": "Compares commute friction across micro-mobility modes under different weather conditions. Searches `index=personal` with sourcetype `ebike:ride` for UC-25.41.12, aggregating `avg` by `mode` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Commute Delay by Mode and Weather' without manual log review.",
+  "value": "Compares commute friction across micro-mobility modes under different weather conditions. Timely UC-25.41.12 alerting on 'Commute Delay by Mode and Weather' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Track trip duration, delay, and weather bucket for e-bike and scooter commutes; summarize by mode and weather.",
   "visualization": "Grouped table of average commute duration and delay by mode and weather.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Commute Delay by Mode and Weather'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ebike:ride`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Commute Delay by Mode and Weather' stops polling `ebike:ride`; stale `mode` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ebike:ride`. Dedup with `stats latest(*) by mode`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "servicenow"
   ],

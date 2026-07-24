@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Solar Export Clipping Hours' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_solar_export_clipping_hours` (UC-25.50.26), SOC dashboard panel \"Personal — Solar Export Clipping Hours\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='sustain:solar' that satisfy the UC-25.50.26 SPL filters for 'Solar Export Clipping Hours'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `sustain:solar` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.50.26."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='sustain:solar' where `inverter_name` satisfies detection threshold for UC-25.50.26 ('Solar Export Clipping Hours'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `sustain:solar` events where `inverter_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.50.26."
   },
   "dataSources": "Sharing activity (`sustain:share`), repairs (`sustain:repair`), compost logs (`sustain:compost`), solar telemetry (`sustain:solar`), sustainability audits (`sustain:audit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Sustainability telemetry — Olio sharing activity, Repair Cafe repair logs, compost-weight records, and solar-offset telemetry — streamed to Splunk HEC via APIs, exports, and smart-home integrations. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=sustain:solar inverter_name=* clipping_hour=*\n| stats count as total, sum(eval(if(clipping_hour=\"yes\",1,0))) as matched by inverter_name\n| eval a_clipping_hour_pct=round(100*matched/total,1)\n| sort - a_clipping_hour_pct",
-  "description": "Measures the percentage of solar production hours that end with a clipping hour by inverter.",
-  "value": "Completion and exception percentages make it easier to spot which inverter are helping or hurting solar production hours.",
+  "description": "Measures the percentage of solar production hours that end with a clipping hour by inverter. Searches `index=personal` with sourcetype `sustain:solar` for UC-25.50.26, aggregating `sum` by `inverter_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Solar Export Clipping Hours' without manual log review.",
+  "value": "Measures the percentage of solar production hours that end with a clipping hour by inverter. Timely UC-25.50.26 alerting on 'Solar Export Clipping Hours' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store a normalized flag for `a clipping hour` on `sustain:solar` events and summarize the hit rate by `inverter_name`.",
   "visualization": "Table of inverter with percentage of solar production hours ending with a clipping hour.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Solar Export Clipping Hours'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sustain:solar`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Solar Export Clipping Hours' stops polling `sustain:solar`; stale `inverter_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sustain:solar`. Dedup with `stats latest(*) by inverter_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

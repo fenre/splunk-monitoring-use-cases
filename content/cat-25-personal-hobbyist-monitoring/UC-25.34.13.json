@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Reward Breakage Before Expiry' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_reward_breakage_before_expiry` (UC-25.34.13), SOC dashboard panel \"Personal — Reward Breakage Before Expiry\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='cashback:reward' that satisfy the UC-25.34.13 SPL filters for 'Reward Breakage Before Expiry'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `cashback:reward` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.34.13."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='cashback:reward' where `program` satisfies `soonest_expiry` <= 30 for UC-25.34.13 ('Reward Breakage Before Expiry'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `cashback:reward` events where `program` stays below `soonest_expiry` <= 30, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.34.13."
   },
   "dataSources": "Micro-spend transactions (`microspend:txn`), no-spend days (`nospend:day`), price-per-use items (`priceperuse:item`), cash-back rewards (`cashback:reward`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Bank-transaction exports categorised for micro-spending, no-spend-day trackers, price-per-use logs, and cash-back / rewards feeds — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=cashback:reward\n| eval days_to_expiry=round((expiry_date-now())/86400,0)\n| stats sum(balance) as balance, min(days_to_expiry) as soonest_expiry by program\n| where soonest_expiry<=30\n| sort soonest_expiry",
   "description": "Flags rewards balances that are likely to expire unused. Runs scheduled SPL against `index=personal` to surface **Reward Breakage Before Expiry** so you can spot drift before it becomes a habit.",
-  "value": "Cash-back and points feel like gains, but unused rewards are just deferred waste.",
+  "value": "Flags rewards balances that are likely to expire unused. Timely UC-25.34.13 alerting on 'Reward Breakage Before Expiry' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest reward-balance snapshots with expiry dates; alert when expiry is near and value is still unclaimed.",
   "visualization": "Table of reward programs with balance and days to expiry.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Reward Breakage Before Expiry'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `cashback:reward`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Reward Breakage Before Expiry' stops polling `cashback:reward`; stale `program` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `cashback:reward`. Dedup with `stats latest(*) by program`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `soonest_expiry` <= 30. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

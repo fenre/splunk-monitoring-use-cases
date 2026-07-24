@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'CNC and Laser Job Runtime and Queue' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_cnc_and_laser_job_runtime_and_queue` (UC-25.17.9), SOC dashboard panel \"Personal — CNC and Laser Job Runtime and Queue\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='cnc:job' that satisfy the UC-25.17.9 SPL filters for 'CNC and Laser Job Runtime and Queue'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `cnc:job` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.17.9."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='cnc:job' where `machine` satisfies detection threshold for UC-25.17.9 ('CNC and Laser Job Runtime and Queue'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `cnc:job` events where `machine` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.17.9."
   },
   "dataSources": "Print jobs (`octoprint:job`), printer firmware telemetry (`printer:telemetry`), filament spools (`filament:spool`), CNC/laser jobs (`cnc:job`), workshop air (`workshop:air`), cordless tool batteries (`tool:battery`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "OctoPrint / Klipper (Moonraker) print servers, printer firmware telemetry, filament spool tracking, CNC/laser job logs, and workshop air/tool sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=cnc:job\n| stats sum(runtime_s) as run_s, count as jobs, sum(eval(if(state=\"queued\",1,0))) as queued by machine\n| eval run_hours=round(run_s/3600,1)\n| sort - run_hours",
-  "description": "Tracks runtime and the pending queue for your CNC or laser so you can plan the shop's workload and material.",
-  "value": "Knowing machine hours and backlog helps schedule cuts, order stock, and time consumable replacement before a big job.",
+  "description": "Tracks runtime and the pending queue for your CNC or laser so you can plan the shop's workload and material. Searches `index=personal` with sourcetype `cnc:job` for UC-25.17.9, aggregating `sum` by `machine` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'CNC and Laser Job Runtime and Queue' without manual log review.",
+  "value": "Tracks runtime and the pending queue for your CNC or laser so you can plan the shop's workload and material. Timely UC-25.17.9 alerting on 'CNC and Laser Job Runtime and Queue' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest CNC/laser job records; schedule daily and review runtime and queue per machine.",
   "visualization": "Table of machines with total runtime, job count, and queue depth.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'CNC and Laser Job Runtime and Queue'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `cnc:job`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'CNC and Laser Job Runtime and Queue' stops polling `cnc:job`; stale `machine` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `cnc:job`. Dedup with `stats latest(*) by machine`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

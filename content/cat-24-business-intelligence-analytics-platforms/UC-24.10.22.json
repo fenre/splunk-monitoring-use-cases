@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Microsoft Purview Failures by Data Source' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_microsoft_purview_failures_by_data_source` (UC-24.10.22), SOC dashboard panel \"Operations — Microsoft Purview Failures by Data Source\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='purview:scan' that satisfy the UC-24.10.22 SPL filters for 'Microsoft Purview Failures by Data Source'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `purview:scan` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.10.22."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='purview:scan' where `data_source` satisfies `failures` > 0 for UC-24.10.22 ('Microsoft Purview Failures by Data Source'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `purview:scan` events where `data_source` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.10.22."
   },
   "dataSources": "Purview scans (`purview:scan`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Microsoft Purview scan and data-access events via the Purview REST API to HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=purview:scan status=\"Failed\"\n| stats count as failures, latest(_time) as last_failure by data_source\n| where failures>0\n| sort - failures",
   "description": "Counts Microsoft Purview failures grouped by data source so operators immediately see which specific data sources are broken rather than a single global failure number.",
-  "value": "Object-level failure attribution turns a vague 'Microsoft Purview is failing' alert into an actionable list of exactly what to fix first.",
+  "value": "Counts Microsoft Purview failures grouped by data source so operators immediately see which specific data s.... Timely UC-24.10.22 alerting on 'Microsoft Purview Failures by Data Source' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest Microsoft Purview failure events; schedule every 15 minutes and alert on failures for business-critical data sources.",
   "visualization": "Table of data source by failure count and last failure time.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Microsoft Purview Failures by Data Source'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Microsoft Purview Failures by Data Source' shifts `count` over `span=1h` while `data_source` remains in-scope for UC-24.10.22. Cross-check CMDB CHG.\n\n2. **Batch `count` on `purview:scan`** — Scheduled automation elevates `src` without crossing `failures` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `data_source`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `purview:scan`** — First 48h baseline for `data_source` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `data_source`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

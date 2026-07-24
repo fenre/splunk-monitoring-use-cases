@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Feed and Water Supply Runway' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_feed_and_water_supply_runway` (UC-25.24.7), SOC dashboard panel \"Personal — Feed and Water Supply Runway\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='feed:level' that satisfy the UC-25.24.7 SPL filters for 'Feed and Water Supply Runway'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `feed:level` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.24.7."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='feed:level' where `silo` satisfies `days_left` < 7 for UC-25.24.7 ('Feed and Water Supply Runway'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `feed:level` events where `silo` stays below `days_left` < 7, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.24.7."
   },
   "dataSources": "Beehive telemetry (`beehive:reading`), coop door (`chickencoop:door`), egg counts (`egg:count`), livestock tags (`livestock:tag`), feed level (`feed:level`), pasture sensors (`pasture:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Homestead sensors — connected beehive scale/temperature/sound, automatic chicken-coop door, egg counter, livestock GPS/health tags, feed-silo level, and pasture soil sensors — streamed to Splunk HEC via MQTT and LoRaWAN gateways. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=feed:level\n| stats latest(level_pct) as level, avg(daily_use_pct) as usage by silo\n| eval days_left=round(level/usage,1)\n| where days_left<7\n| sort days_left",
-  "description": "Estimates how many days of feed remain in each silo or bin so a delivery is ordered before the animals go hungry.",
-  "value": "Running out of feed is not an option on a homestead; a usage-based runway makes reordering timely instead of frantic.",
+  "description": "Estimates how many days of feed remain in each silo or bin so a delivery is ordered before the animals go hungry. Searches `index=personal` with sourcetype `feed:level` for UC-25.24.7, aggregating `avg` by `silo` over `the scheduled window`. Alerts when grouped results cross `days_left` < 7 in the saved search. Gives Personal operators a repeatable signal for 'Feed and Water Supply Runway' without manual log review.",
+  "value": "Estimates how many days of feed remain in each silo or bin so a delivery is ordered before the animals go h.... Timely UC-25.24.7 alerting on 'Feed and Water Supply Runway' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest feed-level sensors into `index=personal`; schedule daily and flag supplies running low.",
   "visualization": "Table of feed silos by days of supply remaining.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Feed and Water Supply Runway'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `feed:level`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Feed and Water Supply Runway' stops polling `feed:level`; stale `silo` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `feed:level`. Dedup with `stats latest(*) by silo`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_left` < 7. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hardware_bmc",
     "mqtt"

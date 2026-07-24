@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Microsegmentation Policy Effectiveness' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_microsegmentation_policy_effectiveness` (UC-17.3.17), SOC dashboard panel \"Network — Microsegmentation Policy Effectiveness\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=zt` sourcetype='microseg:policy' that satisfy the UC-17.3.17 SPL filters for 'Microsegmentation Policy Effectiveness'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `zt` / `microseg:policy` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.17."
+    "positiveScenario": "Ingest synthetic events into `index=zt` sourcetype='microseg:policy' where `kind` satisfies detection threshold for UC-17.3.17 ('Microsegmentation Policy Effectiveness'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `zt` / `microseg:policy` events where `kind` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.17."
   },
   "dataSources": "`microseg:policy` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA — Universal Forwarder (Splunkbase 617)",
   "spl": "index=zt sourcetype=\"microseg:policy\" earliest=-7d\n| eval kind=if(action=\"deny\",\"deny\",\"allow\")\n| stats count as c by kind, policy_name\n| eventstats sum(c) as tot by policy_name\n| eval pct=round(100*c/tot,1)\n| where kind=\"deny\"\n| table policy_name, pct, c",
-  "description": "Ratio of expected denies vs allows for critical segments — validates that “default deny” is actually enforced.",
-  "value": "Security architects measure microsegmentation policy effectiveness by tracking explicit-vs-default policy coverage, block-to-allow ratios, and lateral movement reduction, demonstrating the security value of segmentation investment to leadership.",
+  "description": "Ratio of expected denies vs allows for critical segments — validates that “default deny” is actually enforced. Searches `index=zt` with sourcetype `microseg:policy` for UC-17.3.17, aggregating `sum` by `kind` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Network operators a repeatable signal for 'Microsegmentation Policy Effectiveness' without manual log review.",
+  "value": "Security architects measure microsegmentation policy effectiveness by tracking explicit-vs-default policy coverage, block-to-allow ratios, and lateral movement reduction, demonstrating the security value of segmentation investment to leadership reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "High deny % on locked-down segments is expected; unexpected **allow** spikes on deny-first policies warrant review (use companion search with `kind=\"allow\"`).",
   "visualization": "Bar chart (deny % by policy), Table (policy mix), Line chart (deny trend).",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Microsegmentation Policy Effectiveness'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `zt`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `microseg:policy` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `zt`** — Planned work for 'Microsegmentation Policy Effectiveness' shifts `sum` over `span=1h` while `kind` remains in-scope for UC-17.3.17. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `microseg:policy`** — Scheduled automation elevates `policy_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `kind`** — Health checks in `zt` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `microseg:policy`** — First 48h baseline for `kind` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `kind`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1021",
     "T1046"

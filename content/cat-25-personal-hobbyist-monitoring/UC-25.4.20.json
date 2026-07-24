@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Thread Border Router Parent Churn' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_thread_border_router_parent_churn` (UC-25.4.20), SOC dashboard panel \"Personal — Thread Border Router Parent Churn\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='thread:router' that satisfy the UC-25.4.20 SPL filters for 'Thread Border Router Parent Churn'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `thread:router` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.4.20."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='thread:router' where `endpoint` satisfies `parent_count` > 2 for UC-25.4.20 ('Thread Border Router Parent Churn'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `thread:router` events where `endpoint` stays below `parent_count` > 2, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.4.20."
   },
   "dataSources": "Home automation orchestration (`homeassistant:event`, `matter:event`, `thread:router`, `alexa:routine`, `googlehome:event`, `zigbee2mqtt:bridge`, `smartthings:event`, `nodered:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home Assistant, Matter and Thread border routers, Alexa routine logs, Google Home automations, Zigbee2MQTT bridges, SmartThings, Node-RED, and webhooks streamed to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=thread:router\n| bin _time span=1d\n| stats dc(parent_id) as parent_count by endpoint _time\n| where parent_count>2\n| sort - parent_count",
   "description": "Uses Thread mesh telemetry telemetry to monitor how many different parents each endpoint used each day in index=personal.",
-  "value": "Splunk turns the feed into an operational check for endpoints wandering too much around the mesh, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Thread mesh telemetry telemetry to monitor how many different parents each endpoint used each day in i.... Timely UC-25.4.20 alerting on 'Thread Border Router Parent Churn' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Thread mesh telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Daily table of parent-count churn by endpoint.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Thread Border Router Parent Churn'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `thread:router`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Thread Border Router Parent Churn' stops polling `thread:router`; stale `endpoint` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `dc` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `thread:router`. Dedup with `stats latest(*) by endpoint`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `parent_count` > 2. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

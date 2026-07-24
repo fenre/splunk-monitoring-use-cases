@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Long-Duration Flow Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_long_duration_flow_detection` (UC-5.7.10), SOC dashboard panel \"Operations — Long-Duration Flow Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='netflow' that satisfy the UC-5.7.10 SPL filters for 'Long-Duration Flow Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `netflow` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.7.10."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='netflow' where `src` satisfies `duration_min` > 60 for UC-5.7.10 ('Long-Duration Flow Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `netflow` events where `src` stays below `duration_min` > 60, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.7.10."
   },
   "dataSources": "`stream:netflow` / `stream:ipfix` or `splunk_stream` with a `duration` (or time-equivalent) field on flows Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Stream, NetFlow integrator — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"netflow\"\n| eval duration_min=duration/60\n| where duration_min > 60\n| stats sum(bytes) as total_bytes, max(duration_min) as max_duration by src, dest, dest_port\n| eval GB=round(total_bytes/1073741824,2) | sort -max_duration\n| head 20",
-  "description": "Extremely long-lived flows may indicate data exfiltration, persistent backdoors, or stuck sessions consuming resources.",
-  "value": "Security teams identify persistent connections, detect C2 beaconing patterns, and investigate abnormally long-lived network sessions that may indicate compromise, tunneling, or application issues.",
+  "description": "Extremely long-lived flows may indicate data exfiltration, persistent backdoors, or stuck sessions consuming resources. Searches `index=network` with sourcetype `netflow` for UC-5.7.10, aggregating `sum` by `src` over `the scheduled window`. Alerts when grouped results cross `duration_min` > 60 in the saved search. Gives Operations operators a repeatable signal for 'Long-Duration Flow Detection' without manual log review.",
+  "value": "Extremely long-lived flows may indicate data exfiltration, persistent backdoors, or stuck sessions consumin.... Timely UC-5.7.10 alerting on 'Long-Duration Flow Detection' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Analyze flow records for duration >60 minutes. Cross-reference with known long-lived services (VPN, database replication). Flag unknown long flows for investigation.",
   "visualization": "Table (source, destination, port, duration, bytes), Scatter plot (duration vs. bytes).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Long-Duration Flow Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Long-Duration Flow Detection' shifts `sum` over `span=1h` while `src` remains in-scope for UC-5.7.10. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `netflow`** — Scheduled automation elevates `dest` without crossing `duration_min` > 60. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netflow`** — First 48h baseline for `src` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netflow",
     "stream"

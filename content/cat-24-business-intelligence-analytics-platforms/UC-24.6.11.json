@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Amazon QuickSight SPICE Ingestion Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_amazon_quicksight_spice_ingestion_failures` (UC-24.6.11), SOC dashboard panel \"Operations — Amazon QuickSight SPICE Ingestion Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='aws:cloudtrail' that satisfy the UC-24.6.11 SPL filters for 'Amazon QuickSight SPICE Ingestion Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `aws:cloudtrail` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.6.11."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='aws:cloudtrail' where `requestParameters.dataSetId` satisfies detection threshold for UC-24.6.11 ('Amazon QuickSight SPICE Ingestion Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `aws:cloudtrail` events where `requestParameters.dataSetId` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.6.11."
   },
   "dataSources": "MicroStrategy DSS logs (`microstrategy:dsserror`), Cognos audit (`cognos:audit`), BusinessObjects audit (`businessobjects:audit`), Oracle Analytics usage (`oracle:analytics:usage`), ThoughtSpot audit (`thoughtspot:audit`), QuickSight CloudTrail (`aws:cloudtrail`). Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=bi sourcetype=aws:cloudtrail eventSource=\"quicksight.amazonaws.com\" eventName=\"CreateIngestion\" OR eventName=\"UpdateDataSet\"\n| search errorCode=* OR ingestionStatus=\"FAILED\"\n| stats count as failures by requestParameters.dataSetId, errorCode\n| sort - failures",
   "description": "Detects failed Amazon QuickSight SPICE dataset ingestions from CloudTrail so dashboards backed by SPICE do not silently serve stale imported data.",
-  "value": "SPICE ingestion failures freeze QuickSight dashboards at the last good import; CloudTrail-based detection catches them without polling each dataset.",
+  "value": "Detects failed Amazon QuickSight SPICE dataset ingestions from CloudTrail so dashboards backed by SPICE do.... Timely UC-24.6.11 alerting on 'Amazon QuickSight SPICE Ingestion Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Route QuickSight CloudTrail via the Splunk Add-on for AWS; schedule hourly and alert on ingestion failures for production datasets.",
   "visualization": "Table of dataset by failures and error code.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Amazon QuickSight SPICE Ingestion Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Amazon QuickSight SPICE Ingestion Failures' shifts `count` over `span=1h` while `requestParameters.dataSetId` remains in-scope for UC-24.6.11. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudtrail`** — Scheduled automation elevates `errorCode` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `requestParameters.dataSetId`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for `requestParameters.dataSetId` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `requestParameters.dataSetId`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "oracle"

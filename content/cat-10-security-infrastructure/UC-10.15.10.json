@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Suricata TLS Client JA3 Fingerprints Rare in the Enterprise (Possible Custom Malware C2)' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_suricata_tls_client_ja3_fingerprints_rare_in_the` (UC-10.15.10), SOC dashboard panel \"Security Infra — Suricata TLS Client JA3 Fingerprints Rare in the Enterprise (Possible Custom Malware C2)\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ids` sourcetype='suricata:tls' that satisfy the UC-10.15.10 SPL filters for 'Suricata TLS Client JA3 Fingerprints Rare in the Enterprise (Possible Custom Malware C2)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ids` / `suricata:tls` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.15.10."
+    "positiveScenario": "Ingest synthetic events into `index=ids` sourcetype='suricata:tls' where `ja3` satisfies `ja3_src_rarity` <= 5 for UC-10.15.10 ('Suricata TLS Client JA3 Fingerprints Rare in the Enterprise (Possible Custom Malware C2)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ids` / `suricata:tls` events where `ja3` stays below `ja3_src_rarity` <= 5, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.15.10."
   },
   "dataSources": "Suricata EVE JSON TLS events, commonly `sourcetype=suricata:tls` when using the Splunk TA for Suricata",
   "app": "Splunk TA for Suricata (Splunkbase 4242)",
   "spl": "index=ids sourcetype=\"suricata:tls\" earliest=-7d\n| eval ja3=coalesce(ja3, ja3_hash, tls_ja3)\n| eval src_ip=coalesce(src_ip, src)\n| eval dest_ip=coalesce(dest_ip, dest)\n| where isnotnull(ja3) AND ja3!=\"\"\n| eventstats dc(src_ip) as ja3_src_rarity by ja3\n| where ja3_src_rarity <= 5\n| stats dc(dest_ip) as unique_servers count as handshakes values(server_name) as sni_samples by src_ip, ja3\n| where handshakes >= 12 AND unique_servers >= 6\n| sort -handshakes",
   "description": "Most enterprise clients present a small set of JA3 hashes from standard browsers and patch levels. A source IP generating many connections with a rarely seen JA3 while contacting diverse destinations may indicate custom malware, red-team tooling, or outdated TLS stacks being abused.",
-  "value": "Adds behaviour-based coverage on encrypted channels where payload inspection is not available.",
+  "value": "Most enterprise clients present a small set of JA3 hashes from standard browsers and patch levels. Timely UC-10.15.10 alerting on 'Suricata TLS Client JA3 Fingerprints Rare in the Enterprise (Possible Custom Malware C2)' reduces missed threat campaigns, control regressions, and SOC SLA breaches before manual triage or audit channels escalate.",
   "implementation": "Confirm Suricata outputs `tls` events in EVE JSON and that the TA maps them to `suricata:tls`. Tune `ja3_hits` using a 7-day window on your own data. Enrich `src_ip` with DHCP or AD identity. Exclude known vulnerability scanners and patch-management relays via lookup.",
   "visualization": "Table (src_ip, JA3, connection count), Hunt timeline, Pair with `suricata:flow` for byte ratios.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Suricata TLS Client JA3 Fingerprints Rare in the Enterprise (Possible Custom Malware C2)'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=ids` `suricata:tls`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `ids`** — Planned work for 'Suricata TLS Client JA3 Fingerprints Rare in the Enterprise (Possible Custom Malware C2)' shifts `dc` over `span=1h` while `ja3` remains in-scope for UC-10.15.10. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `suricata:tls`** — Scheduled automation elevates `src_ip` without crossing `ja3_src_rarity` <= 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ja3`** — Health checks in `ids` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `suricata:tls`** — First 48h baseline for `ja3` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `ja3`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "suricata"

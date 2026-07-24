@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Asterisk AMI SIP Digest Authentication Failure Burst' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_asterisk_ami_sip_digest_authentication_failure_b` (UC-21.8.11), SOC dashboard panel \"Operations — Asterisk AMI SIP Digest Authentication Failure Burst\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=voip` sourcetype='asterisk:ami' that satisfy the UC-21.8.11 SPL filters for 'Asterisk AMI SIP Digest Authentication Failure Burst'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `voip` / `asterisk:ami` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.8.11."
+    "positiveScenario": "Ingest synthetic events into `index=voip` sourcetype='asterisk:ami' where `_time` satisfies `count` > 20 for UC-21.8.11 ('Asterisk AMI SIP Digest Authentication Failure Burst'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `voip` / `asterisk:ami` events where `_time` stays below `count` > 20, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.8.11."
   },
   "dataSources": "`index=voip` `sourcetype=asterisk:ami` lines containing `ChallengeResponseFailed`, `FailedACL`, or `InvalidPassword` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Asterisk AMI TCP logger (custom scripted input or `hep`/`syslog` bridge), Splunk Universal Forwarder — Universal Forwarder (Splunkbase 617)",
   "spl": "index=voip sourcetype=asterisk:ami (Event=\"ChallengeResponseFailed\" OR Event=\"InvalidPassword\" OR Message=\"*Authentication*failed*\")\n| bin _time span=5m\n| stats count by _time, host, Peer, Account\n| where count > 20",
   "description": "Brute-force attempts against Asterisk SIP digest authentication or AMI logins often precede toll fraud. AMI emits structured `Event` types for failed challenges; rolling 5-minute counts per peer and account expose automated attacks without needing full PCAP.",
-  "value": "Reduces toll fraud and trunk denial-of-service by surfacing authentication storms while they are still noisy and blockable at the SBC or firewall.",
+  "value": "Brute-force attempts against Asterisk SIP digest authentication or AMI logins often precede toll fraud. Timely UC-21.8.11 alerting on 'Asterisk AMI SIP Digest Authentication Failure Burst' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Enable AMI read-only for monitoring if possible. Stream AMI over TCP to a lightweight forwarder script that prefixes syslog or writes to a monitored file with `sourcetype=asterisk:ami`. Ensure `Peer`, `Account`, and `Event` fields are extracted. Baseline legitimate password churn; tune `count > 20` per environment. Pair with firewall blocklist automation via SOAR.",
   "visualization": "Column chart (failures per 5m), Table (top Peer), Bubble (Account × Peer).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Asterisk AMI SIP Digest Authentication Failure Burst'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `voip` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `voip`** — Planned work for 'Asterisk AMI SIP Digest Authentication Failure Burst' shifts `count` over `span=5m` while `_time` remains in-scope for UC-21.8.11. Cross-check CMDB CHG.\n\n2. **Batch `count` on `asterisk:ami`** — Scheduled automation elevates `host` without crossing `count` > 20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `asterisk:ami`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "asterisk",
     "hardware_bmc",

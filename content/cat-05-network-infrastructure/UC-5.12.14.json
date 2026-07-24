@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'SBC (Session Border Controller) Registration Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_sbc_session_border_controller_registration_trend` (UC-5.12.14), SOC dashboard panel \"Operations — SBC (Session Border Controller) Registration Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=voip` sourcetype='sip:sbc' that satisfy the UC-5.12.14 SPL filters for 'SBC (Session Border Controller) Registration Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `voip` / `sip:sbc` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.12.14."
+    "positiveScenario": "Ingest synthetic events into `index=voip` sourcetype='sip:sbc' where `_time` satisfies `attempts` > 0 for UC-5.12.14 ('SBC (Session Border Controller) Registration Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `voip` / `sip:sbc` events where `_time` stays below `attempts` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.12.14."
   },
   "dataSources": "`index=voip` or `index=network` `sourcetype=\"cisco:ios\"` / `sourcetype=\"sip:sbc\"` with SIP METHOD=REGISTER, response codes (`sip_response_code`), `contact`, `user_agent`, source IPs; Cisco CUBE syslog `%SIP-4-REGISTER`; Ribbon/AudioCodes JSON syslog equivalents; optional Splunk Stream SIP capture normalized to same schema. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "Cisco IOS/CUBE syslog TA, vendor SBC syslog feeds, Splunk Stream (optional) — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=voip (sourcetype=\"sip:sbc\" OR sourcetype=\"cisco:ios\")\n| search REGISTER\n| eval success=if(match(sip_response_code,\"^(200|202)$\"),1,0)\n| bin _time span=15m\n| stats sum(success) as ok count as attempts dc(contact) as distinct_contacts by _time, host\n| eval fail_rate=if(attempts>0, round(100*(attempts-ok)/attempts,2), 0)\n| where fail_rate>5 OR attempts>1000\n| sort _time",
   "description": "Measures SIP REGISTER attempt volumes, success ratios, and distinct endpoint footprint per SBC to expose credential attacks, TLS migration regressions, or registrar outages before phones mass-unregister.",
-  "value": "Security and voice ops detect brute-force REGISTER storms, certificate rollover failures, or stale expiry timers early—preserving inbound reachability for BYOD softphones and SIP trunk survivability options.",
+  "value": "Measures SIP REGISTER attempt volumes, success ratios, and distinct endpoint footprint per SBC to expose cr.... Timely UC-5.12.14 alerting on 'SBC (Session Border Controller) Registration Trending' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Extract METHOD and response reliably via transforms; whitelist maintenance subnets; alert on fail_rate >5% over fifteen minutes or sudden 401/403 bursts; retain hashed AOR identifiers if privacy policy requires minimization.",
   "visualization": "Timechart REGISTER attempts vs successes; single-value current fail_rate; top user_agent table for fingerprinting rogue scanners.",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'SBC (Session Border Controller) Registration Trending'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `voip` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `voip`** — Planned work for 'SBC (Session Border Controller) Registration Trending' shifts `sum` over `span=15m` while `_time` remains in-scope for UC-5.12.14. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `sip:sbc`** — Scheduled automation elevates `host` without crossing `attempts` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `sip:sbc`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "stream",

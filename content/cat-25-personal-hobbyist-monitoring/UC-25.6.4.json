@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Grid Import and Export Cost Balance' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_grid_import_and_export_cost_balance` (UC-25.6.4), SOC dashboard panel \"Personal — Grid Import and Export Cost Balance\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='dsmr:telegram' that satisfy the UC-25.6.4 SPL filters for 'Grid Import and Export Cost Balance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `dsmr:telegram` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.6.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='dsmr:telegram' where `_time` satisfies detection threshold for UC-25.6.4 ('Grid Import and Export Cost Balance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `dsmr:telegram` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.6.4."
   },
   "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=dsmr:telegram\n| bin _time span=1d\n| stats sum(import_kwh) as import_kwh, sum(export_kwh) as export_kwh by _time\n| eval net_cost=round(import_kwh*0.30 - export_kwh*0.10,2)\n| sort - _time",
   "description": "Balances the energy you bought from the grid against what you sold back and turns it into a daily net cost using your tariff.",
-  "value": "The net grid balance is what actually lands on your bill; seeing it daily connects your habits and the weather to real money.",
+  "value": "Balances the energy you bought from the grid against what you sold back and turns it into a daily net cost.... Timely UC-25.6.4 alerting on 'Grid Import and Export Cost Balance' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest smart-meter import/export registers; set your tariffs and schedule daily to track net cost.",
   "visualization": "Chart of daily grid import, export, and net cost.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Grid Import and Export Cost Balance'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `dsmr:telegram`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Grid Import and Export Cost Balance' stops polling `dsmr:telegram`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `dsmr:telegram`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

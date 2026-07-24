@@ -14,7 +14,7 @@
   "app": "`Splunk Add-on for Salesforce` ([Splunkbase 3549](https://splunkbase.splunk.com/app/3549)), ≥5.0. Install on the Search Head (for field extractions and saved searches) and on a dedicated Heavy Forwarder if running data collection off-SH. The TA provides both collection and parsing. The TA requires a Salesforce Connected App with OAuth 2.0 credentials and an Event Monitoring or Salesforce Shield license.",
   "spl": "index=salesforce sourcetype=\"salesforce:event_log\" EventType IN (\"ApexExecution\",\"API\") Operation=\"delete\"\n| stats count as deletes, dc(EntityId) as unique_records, values(EntityName) as objects by UserId, Username\n| where deletes > 100 OR unique_records > 50\n| sort -deletes",
   "description": "Surfaces mass delete operations executed through API or Apex execution paths by counting delete events and distinct record identifiers per user—calling out possible sabotage, insider cover-ups, or destructive automation run amok.",
-  "value": "Bulk erasure can destroy evidence for financial crime investigations, breach customer contracts, and break retention duties; rapid alerts enable backup restores, legal holds, and regulator notifications before statutory windows close.",
+  "value": "Surfaces mass delete operations executed through API or Apex execution paths by counting delete events and.... Timely UC-10.12.51 alerting on 'Salesforce Custom Object Bulk Delete and Data Destruction' reduces missed threat campaigns, control regressions, and SOC SLA breaches before manual triage or audit channels escalate.",
   "implementation": "Normalize Operation and EntityName fields from your Event Monitoring mapping; align thresholds with largest approved data-quality jobs; integrate with Salesforce recycle bin and backup vendor APIs for corroboration.",
   "visualization": "**Row 1 —** Stacked bar chart of **`deletes` by `EntityName`** (click sets `$object$` token). **Row 2 —** Master-detail table (**`Username`, `deletes`, `unique_records`, multi-value `objects`**) with export. **Row 3 —** Sparkline trend (**`span=1d`**, default range **Last 30 days**) comparing daily delete volume vs 30-day median band. **Row 4 —** **Recycle Bin status** supplementary panel querying accelerated summary (or scripted REST output ingested separately) outlining recoverable counts for highlighted user.",
   "cimModels": [
@@ -43,7 +43,7 @@
       "url": "https://help.salesforce.com/s/articleView?id=sf.home_delete.htm"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Salesforce Custom Object Bulk Delete and Data Destruction'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=salesforce` `salesforce:event_log`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `salesforce`** — Planned work for 'Salesforce Custom Object Bulk Delete and Data Destruction' shifts `dc` over `span=1h` while `UserId` remains in-scope for UC-10.12.51. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `salesforce:event_log`** — Scheduled automation elevates `Username` without crossing `deletes` > 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `UserId`** — Health checks in `salesforce` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `salesforce:event_log`** — First 48h baseline for `UserId` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `UserId`, `exception_reason`, `valid_until`.",
   "equipment": [
     "salesforce"
   ],
@@ -62,8 +62,8 @@
   "prerequisiteUseCases": [],
   "wave": "walk",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=salesforce` sourcetype='salesforce:event_log' that satisfy the UC-10.12.51 SPL filters for 'Salesforce Custom Object Bulk Delete and Data Destruction'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `salesforce` / `salesforce:event_log` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.51."
+    "positiveScenario": "Ingest synthetic events into `index=salesforce` sourcetype='salesforce:event_log' where `UserId` satisfies `deletes` > 100 for UC-10.12.51 ('Salesforce Custom Object Bulk Delete and Data Destruction'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `salesforce` / `salesforce:event_log` events where `UserId` stays below `deletes` > 100, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.51."
   },
   "exclusions": "Covers the detection logic documented for 'Salesforce Custom Object Bulk Delete and Data Destruction' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_salesforce_custom_object_bulk_delete_and_data_de` (UC-10.12.51), SOC dashboard panel \"Security Infra — Salesforce Custom Object Bulk Delete and Data Destruction\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls."

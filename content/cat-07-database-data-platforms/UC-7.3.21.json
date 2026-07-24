@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'MongoDB Authentication Failure Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mongodb_authentication_failure_monitoring` (UC-7.3.21), SOC dashboard panel \"Operations — MongoDB Authentication Failure Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mongodb:audit' that satisfy the UC-7.3.21 SPL filters for 'MongoDB Authentication Failure Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `mongodb:audit` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.3.21."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mongodb:audit' where `host` satisfies `failures` > 30 for UC-7.3.21 ('MongoDB Authentication Failure Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `mongodb:audit` events where `host` stays below `failures` > 30, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.3.21."
   },
   "dataSources": "MongoDB audit log (`atype: authenticate`, `result: 0`) or mongod log lines `Authentication failed` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "MongoDB Atlas audit export, MongoDB Enterprise Advanced audit, or forwarded mongod logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"mongodb:audit\"\n| search \"Authentication failed\" OR result=\"fail\" OR errCode=18\n| bin _time span=1h\n| stats count as failures dc(user) as users dc(ip) as sources by host, _time\n| where failures > 30",
   "description": "Failed authentication events in MongoDB audit logs indicate credential attacks or misconfigured clients. Teams monitor these alongside Atlas authentication alerts.",
-  "value": "Improves detection of database credential abuse in self-managed and Atlas-backed MongoDB deployments ingested into Splunk.",
+  "value": "Failed authentication events in MongoDB audit logs indicate credential attacks or misconfigured clients. Timely UC-7.3.21 alerting on 'MongoDB Authentication Failure Monitoring' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Normalize audit schema (Atlas vs on-prem). Map result codes: success vs failure per vendor docs. Enrich addr with threat intel if permitted. Tune thresholds for CI/CD service accounts.",
   "visualization": "Table (user, sources, count), Timeline (failures), Map (addr).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'MongoDB Authentication Failure Monitoring'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'MongoDB Authentication Failure Monitoring' shifts `dc` over `span=1h` while `host` remains in-scope for UC-7.3.21. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `mongodb:audit`** — Scheduled automation elevates `_time` without crossing `failures` > 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:audit`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "mongodb"
   ],

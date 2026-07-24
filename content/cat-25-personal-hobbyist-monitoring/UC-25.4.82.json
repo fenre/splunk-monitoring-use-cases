@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'ESPHome Device Log State Value Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_esphome_device_log_state_value_leaderboard` (UC-25.4.82), SOC dashboard panel \"Personal — ESPHome Device Log State Value Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='esphome:device' that satisfy the UC-25.4.82 SPL filters for 'ESPHome Device Log State Value Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `esphome:device` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.4.82."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='esphome:device' where `entity_id` satisfies detection threshold for UC-25.4.82 ('ESPHome Device Log State Value Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `esphome:device` events where `entity_id` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.4.82."
   },
   "dataSources": "Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Hubitat/openHAB logs, Node-RED flow events (`nodered:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=esphome:device state_float=*\n| stats sum(state_float) as total_value, avg(state_float) as avg_value by entity_id\n| sort - total_value",
-  "description": "Ranks entity values by total and average state value across ESPHome device log events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks entity values by total and average state value across ESPHome device log events. Searches `index=personal` with sourcetype `esphome:device` for UC-25.4.82, aggregating `sum` by `entity_id` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'ESPHome Device Log State Value Leaderboard' without manual log review.",
+  "value": "Ranks entity values by total and average state value across ESPHome device log events. Timely UC-25.4.82 alerting on 'ESPHome Device Log State Value Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `state_float` values for each ESPHome device log event and review total and average state value by entity.",
   "visualization": "Table of entities ranked by total state value.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'ESPHome Device Log State Value Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `esphome:device`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'ESPHome Device Log State Value Leaderboard' stops polling `esphome:device`; stale `entity_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `esphome:device`. Dedup with `stats latest(*) by entity_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -75,14 +75,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=phantom` sourcetype='cisco:ise:syslog' that satisfy the UC-17.1.82 SPL filters for 'Splunk SOAR + ISE Closed-Loop Playbook Audit and Mean-Time-to-Containment KPI'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `phantom` / `cisco:ise:syslog` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.82."
+    "positiveScenario": "Ingest synthetic events into `index=phantom` sourcetype='cisco:ise:syslog' where `container_id` satisfies detection threshold for UC-17.1.82 ('Splunk SOAR + ISE Closed-Loop Playbook Audit and Mean-Time-to-Containment KPI'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `phantom` / `cisco:ise:syslog` events where `container_id` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.82."
   },
   "dataSources": "Splunk SOAR audit logs `index=phantom` showing playbook runs, action results from the *Cisco ISE* SOAR app (https://splunkbase.splunk.com/app/4250) — `block_endpoint`, `unblock_endpoint`, `endpoint_session_info` actions. Combine with ISE syslog 86001 (ANC-applied) to audit reach.",
   "app": "`Splunk SOAR Cisco ISE App` (Splunkbase 4250) + Splunk SOAR.",
   "spl": "index=phantom action_name=block_endpoint\n| eval soar_apply_time=_time\n| stats earliest(soar_apply_time) as soar_t, latest(_time) as last_action by container_id, mac_address\n| join mac_address [search index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=86001 anc_action=quarantine | rename _time as ise_apply_time]\n| eval soar_to_ise_lag_s=ise_apply_time - soar_t\n| stats avg(soar_to_ise_lag_s) as avg_lag, max(soar_to_ise_lag_s) as max_lag",
   "description": "Audits Splunk SOAR playbook → ISE ANC closed-loop performance. Measures (a) SOAR `block_endpoint` action success rate, (b) average lag from SOAR action to ISE 86001 confirmation, and (c) max lag (worst case).",
-  "value": "Automated containment is only as fast as its slowest link. SOAR playbook audit gives the SOC measurable evidence that playbooks executed end-to-end, satisfying NIS2/DORA incident-response requirements with quantitative MTTC.",
+  "value": "Audits Splunk SOAR playbook → ISE ANC closed-loop performance. Timely UC-17.1.82 alerting on 'Splunk SOAR + ISE Closed-Loop Playbook Audit and Mean-Time-to-Containment KPI' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Schedule the search every 1 hour over the last 24 hours; emit MTTC KPI to a summary index for the SOAR-effectiveness dashboard.",
   "visualization": "MTTC trend; per-playbook success rate; failed-action log.",
   "cimModels": [

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'UPS Battery Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ups_battery_monitoring` (UC-15.1.22), SOC dashboard panel \"Operations — UPS Battery Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=power` sourcetype='snmp:ups' that satisfy the UC-15.1.22 SPL filters for 'UPS Battery Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `power` / `snmp:ups` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.1.22."
+    "positiveScenario": "Ingest synthetic events into `index=power` sourcetype='snmp:ups' where `entity` satisfies `runtime_remaining_min` < 30 for UC-15.1.22 ('UPS Battery Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `power` / `snmp:ups` events where `entity` stays below `runtime_remaining_min` < 30, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.1.22."
   },
   "dataSources": "SNMP UPS-MIB (upsEstimatedMinutesRemaining, upsBatteryStatus, upsBatteryTemperature) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "SNMP TA (UPS-MIB) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=power sourcetype=\"snmp:ups\"\n| where battery_status!=\"normal\" OR runtime_remaining_min < 30 OR battery_temp_c > 35\n| table _time, ups_name, battery_status, charge_pct, runtime_remaining_min, battery_temp_c",
-  "description": "UPS battery failure during power loss causes complete outage. Proactive monitoring prevents unprotected power events.",
+  "description": "UPS battery failure during power loss causes complete outage. Proactive monitoring prevents unprotected power events. Searches `index=power` with sourcetype `snmp:ups` for UC-15.1.22, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `runtime_remaining_min` < 30 in the saved search. Gives Operations operators a repeatable signal for 'UPS Battery Monitoring' without manual log review.",
   "value": "Early 'UPS Battery Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Poll UPS via SNMP every 5 minutes. Alert on low charge (<80%), low runtime (<30 min), high temperature (>35°C), or abnormal status. Track battery health trend to predict replacement needs.",
   "visualization": "Gauge (charge %), Line chart (runtime trend), Table (UPS status), Single value (runtime remaining).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'UPS Battery Monitoring'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `power` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `power`** — Planned work for 'UPS Battery Monitoring' shifts `count` over `span=1h` while `host` remains in-scope for UC-15.1.22. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:ups`** — Scheduled automation elevates `src` without crossing `runtime_remaining_min` < 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `power` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:ups`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "snmp"
   ],

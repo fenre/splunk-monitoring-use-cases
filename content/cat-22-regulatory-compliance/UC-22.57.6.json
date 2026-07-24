@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set `last_exercise_date` to 400 days ago. UC-22.57.6 MUST flag.",
-    "negativeScenario": "Exercise within 365 days with after-action + corrective actions closed. UC-22.57.6 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:ir_ca' where `csa_cii_id` satisfies `days_since_exercise` > 365 for UC-22.57.6 ('SG Cyber Act annual cybersecurity exercise + Exercise Cyber Star participation tracker'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `itsm` / `snow:ir_ca` events where `csa_cii_id` stays below `days_since_exercise` > 365, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.57.6."
   },
   "dataSources": "KV Store `csa_exercise_lookup` (cii_id, last_exercise_date, exercise_type, exercise_lead, after_action_doc_url, ca_open_count, ca_overdue_count, csa_exercise_star_participation).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928).",
   "spl": "| inputlookup csa_exercise_lookup\n| eval days_since_exercise = round((now() - last_exercise_date) / 86400, 0)\n| join type=left cii_id [search index=itsm sourcetype=\"snow:ir_ca\" csa_cii_id=* | stats count as ca_open_count count(eval(ca_due_date < now() AND state=\"open\")) as ca_overdue_count by csa_cii_id | rename csa_cii_id as cii_id]\n| eval exercise_status = case(\n    days_since_exercise > 365, \"overdue\",\n    days_since_exercise > 335, \"due_soon\",\n    isnull(after_action_doc_url), \"after_action_missing\",\n    ca_overdue_count > 0, \"corrective_actions_overdue\",\n    1=1, \"current\")\n| table cii_id last_exercise_date days_since_exercise exercise_type csa_exercise_star_participation after_action_doc_url ca_open_count ca_overdue_count exercise_status",
   "description": "Tracks annual exercise currency, after-action evidence, corrective-action closure, and CSA Exercise Cyber Star participation.",
-  "value": "CSA Commissioner expects annual exercise. Cyber Star participation is the gold standard.",
+  "value": "Tracks annual exercise currency, after-action evidence, corrective-action closure, and CSA Exercise Cyber S.... Timely UC-22.57.6 alerting on 'SG Cyber Act annual cybersecurity exercise + Exercise Cyber Star participation tracker' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `csa_exercise_lookup` after each exercise. (2) Schedule UC-22.57.6 daily. (3) Build `CSA Cyber Exercise Ledger` dashboard.",
   "visualization": "(Panel 1) Exercise status by CII. (Panel 2) Days-since-exercise. (Panel 3) Cyber Star participation. (Panel 4) Open corrective actions.",
   "cimModels": [
@@ -67,7 +67,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit or GRC exercises 'SG Cyber Act annual cybersecurity exercise + Exercise Cyber Star participation tracker' during scheduled clause SG-CA-s16 evidence collection. Match compliance programme calendar and accounts tagged `compliance_ops=true`.\n\n2. **External assessor sampling** — QSA or regulator sampling temporarily spikes `index=itsm` `snow:ir_ca` volume. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB-approved change pauses or reshapes ingestion to `itsm`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected cross-boundary events during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
+  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit exercises 'SG Cyber Act annual cybersecurity exercise + Exercise Cyber Star participation tracker' (UC-22.57.6) on `csa_cii_id` during scheduled clause SG-CA-s16 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=itsm` `snow:ir_ca` without crossing `days_since_exercise` > 365. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `itsm` for `csa_cii_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `csa_cii_id` during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `csa_cii_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (exercise governance)"
   ],

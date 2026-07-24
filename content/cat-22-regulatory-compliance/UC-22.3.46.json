@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Generate load that drives a PSN to <30% headroom. Evidence captured.",
-    "negativeScenario": "All PSNs >50% headroom. Healthy capacity attestation."
+    "positiveScenario": "Ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `_time` satisfies detection threshold for UC-22.3.46 ('DORA Art.7 — Cisco ISE PSN Capacity SLO Evidence (ICT Resilience)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `nac` / `cisco:ise:syslog` events where `_time` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.3.46."
   },
   "dataSources": "`index=nac sourcetype=cisco:ise:syslog` 5200/5400 + `ise_psn_capacity.csv`. Cross-reference UC-17.1.77. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (5200, 5400) earliest=-1h\n| bin _time span=1m\n| stats count as auth_count by _time, host\n| eval tps=round(auth_count/60, 1)\n| lookup ise_psn_capacity.csv host OUTPUT psn_max_tps\n| eval headroom_pct=round(((psn_max_tps - tps) / psn_max_tps) * 100, 1)\n| eval dora_clause=\"Art.7\", control=\"ICT_Capacity\"\n| stats min(headroom_pct) as min_headroom, avg(headroom_pct) as avg_headroom by host\n| collect index=audit_evidence",
-  "description": "We continuously evidence DORA Art.7 — ISE NAC capacity headroom for ICT resilience.",
-  "value": "DORA's hallmark is quantitative ICT resilience. NAC capacity is foundational; this UC's daily archived evidence is the regulator-quality artefact.",
+  "description": "We continuously evidence DORA Art.7 — ISE NAC capacity headroom for ICT resilience. Searches `index=nac` with sourcetype `cisco:ise:syslog` for UC-22.3.46, aggregating `min` by `_time` over `1m`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'DORA Art.7 — Cisco ISE PSN Capacity SLO Evidence (ICT Resilience)' without manual log review.",
+  "value": "We continuously evidence DORA Art. Timely UC-22.3.46 alerting on 'DORA Art.7 — Cisco ISE PSN Capacity SLO Evidence (ICT Resilience)' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "Hourly aggregation; daily evidence archive.",
   "visualization": "DORA Art.7 panel: PSN headroom; capacity gauge.",
   "cimModels": [
@@ -62,7 +62,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Authorised DORA control testing** — Internal audit or GRC exercises 'DORA Art.7 — Cisco ISE PSN Capacity SLO Evidence (ICT Resilience)' during scheduled clause Art.7 evidence collection. Match compliance programme calendar and accounts tagged `compliance_ops=true`.\n\n2. **External assessor sampling** — QSA or regulator sampling temporarily spikes `index=nac` `cisco:ise:syslog` volume. Cross-check engagement letter in `dora_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB-approved change pauses or reshapes ingestion to `nac`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected cross-boundary events during normal service delivery.\n\n**Suppression mechanism:** `dora_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
+  "knownFalsePositives": "1. **Authorised DORA control testing** — Internal audit exercises 'DORA Art.7 — Cisco ISE PSN Capacity SLO Evidence (ICT Resilience)' (UC-22.3.46) on `_time` during scheduled clause Art.7 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=nac` `cisco:ise:syslog` without crossing evidence threshold. Cross-check engagement letter in `dora_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `nac` for `_time`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `_time` during normal service delivery.\n\n**Suppression mechanism:** `dora_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "requiredFields": [
     "_time",
     "host",

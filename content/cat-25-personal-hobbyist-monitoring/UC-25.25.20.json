@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Oura Resilience Recovery Gap After Hard Days' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_oura_resilience_recovery_gap_after_hard_days` (UC-25.25.20), SOC dashboard panel \"Personal — Oura Resilience Recovery Gap After Hard Days\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='oura:stress' that satisfy the UC-25.25.20 SPL filters for 'Oura Resilience Recovery Gap After Hard Days'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `oura:stress` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.25.20."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='oura:stress' where `entity` satisfies `stress_score` >= 80 for UC-25.25.20 ('Oura Resilience Recovery Gap After Hard Days'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `oura:stress` events where `entity` stays below `stress_score` >= 80, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.25.20."
   },
   "dataSources": "Oura stress and recovery (`oura:stress`), CPAP therapy sessions (`cpap:session`), oral thermometer readings (`thermometer:reading`), and body-composition scale snapshots (`bodycomp:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal health telemetry from Oura, OSCAR CPAP exports, oral thermometer readings, and smart body-composition scales sent to Splunk HEC via APIs and CSV exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=oura:stress\n| sort 0 _time\n| eval hard_day=if(stress_score>=80,1,0), recovered=if(recovery_score>=70,1,0)\n| streamstats current=f last(eval(if(hard_day=1,_time,null()))) as last_hard_day\n| where recovered=1 AND isnotnull(last_hard_day)\n| eval recovery_days=round((_time-last_hard_day)/86400,1)\n| stats avg(recovery_days) as avg_recovery_days perc90(recovery_days) as p90_recovery_days",
   "description": "Examines recovery gap after high-stress days. Runs scheduled SPL against `index=personal` to surface **Oura Resilience Recovery Gap After Hard Days** so you can spot drift before it becomes a habit.",
-  "value": "Recovery lag says more about resilience than a single stressful day ever will. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Examines recovery gap after high-stress days. Timely UC-25.25.20 alerting on 'Oura Resilience Recovery Gap After Hard Days' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send recovery gap after high-stress days events to `index=personal` with the fields used in this SPL and review the outliers or trend breaks regularly.",
   "visualization": "Table or chart of recovery gap after high-stress days, depending on the selected time range.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Oura Resilience Recovery Gap After Hard Days'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `oura:stress`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Oura Resilience Recovery Gap After Hard Days' stops polling `oura:stress`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `oura:stress`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `stress_score` >= 80. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

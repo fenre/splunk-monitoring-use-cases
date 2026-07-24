@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Spirit Fill Level Depletion Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_spirit_fill_level_depletion_rate` (UC-25.108.2), SOC dashboard panel \"Personal — Spirit Fill Level Depletion Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='spirit:bottle' that satisfy the UC-25.108.2 SPL filters for 'Spirit Fill Level Depletion Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `spirit:bottle` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.108.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='spirit:bottle' where `bottle_id` satisfies `depletion_pct` > 5 for UC-25.108.2 ('Spirit Fill Level Depletion Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `spirit:bottle` events where `bottle_id` stays below `depletion_pct` > 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.108.2."
   },
   "dataSources": "CellarTracker bottles (`cellartracker:bottle`), Vivino wines (`vivino:wine`), spirits bottles (`spirit:bottle`), and wine tasting notes (`wine:tasting`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "CellarTracker bottle exports, Vivino wine scans, spirits inventory logs, and tasting note journals forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=spirit:bottle spirit_type=* fill_level_pct=*\n| sort 0 _time\n| streamstats current=f last(fill_level_pct) as prev_fill by bottle_id\n| eval depletion_pct=round(prev_fill-fill_level_pct,1)\n| where depletion_pct>5\n| stats avg(depletion_pct) as avg_depletion, count as pours by spirit_type bottle_id\n| sort - avg_depletion",
   "description": "Tracks how quickly spirits bottle fill levels drop between inventory scans. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Depletion rate shows which bottles get enjoyed versus collect dust, guiding repurchase and gift decisions.",
+  "value": "Tracks how quickly spirits bottle fill levels drop between inventory scans. Timely UC-25.108.2 alerting on 'Spirit Fill Level Depletion Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log `fill_level_pct` on periodic spirit inventory scans and compare pour frequency by bottle.",
   "visualization": "Bar chart of average depletion percent by spirit type.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Spirit Fill Level Depletion Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `spirit:bottle`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Spirit Fill Level Depletion Rate' stops polling `spirit:bottle`; stale `bottle_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `spirit:bottle`. Dedup with `stats latest(*) by bottle_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `depletion_pct` > 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

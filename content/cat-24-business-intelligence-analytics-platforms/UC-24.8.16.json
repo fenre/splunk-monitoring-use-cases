@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'AWS Glue Crawler Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_aws_glue_crawler_failures` (UC-24.8.16), SOC dashboard panel \"Operations — AWS Glue Crawler Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='aws:cloudwatch' that satisfy the UC-24.8.16 SPL filters for 'AWS Glue Crawler Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `aws:cloudwatch` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.8.16."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='aws:cloudwatch' where `crawler_name` satisfies detection threshold for UC-24.8.16 ('AWS Glue Crawler Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `aws:cloudwatch` events where `crawler_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.8.16."
   },
   "dataSources": "AWS Glue job runs (`aws:glue:jobrun`), crawler events (`aws:cloudwatch`), and CloudTrail Glue API calls (`aws:cloudtrail`). Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "AWS Glue job run and crawler events via CloudWatch/CloudTrail to the Splunk Add-on for AWS; Glue API `GetJobRuns` via HEC scripted inputs. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=bi sourcetype=aws:cloudwatch source=\"*glue*\" (state=\"Failed\" OR crawlerState=\"Failed\")\n| stats count as failures, latest(_time) as last_fail by crawler_name\n| sort - failures",
   "description": "Detects AWS Glue crawler runs that fail, which leaves the Glue Data Catalog with stale or missing partitions that break downstream Athena/Spark reads.",
-  "value": "A failed crawler means new partitions are invisible to queries; catching it keeps the catalog in sync with the underlying data lake.",
+  "value": "Detects AWS Glue crawler runs that fail, which leaves the Glue Data Catalog with stale or missing partition.... Timely UC-24.8.16 alerting on 'AWS Glue Crawler Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Route Glue CloudWatch events through the Splunk Add-on for AWS; schedule hourly and alert on crawler failures for governed databases.",
   "visualization": "Table of crawler by failures, timechart.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'AWS Glue Crawler Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'AWS Glue Crawler Failures' shifts `count` over `span=1h` while `crawler_name` remains in-scope for UC-24.8.16. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `crawler_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for `crawler_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `crawler_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

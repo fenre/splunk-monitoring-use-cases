@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Tableau Cloud Bulk Export and Download Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_tableau_cloud_bulk_export_and_download_audit` (UC-24.1.25), SOC dashboard panel \"Operations — Tableau Cloud Bulk Export and Download Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='tableau:cloud:activity' that satisfy the UC-24.1.25 SPL filters for 'Tableau Cloud Bulk Export and Download Audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `tableau:cloud:activity` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.1.25."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='tableau:cloud:activity' where `user` satisfies detection threshold for UC-24.1.25 ('Tableau Cloud Bulk Export and Download Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `tableau:cloud:activity` events where `user` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.1.25."
   },
   "dataSources": "Tableau Cloud Activity Log (`tableau:cloud:activity`) and Admin Insights. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Tableau Cloud Activity Log and Admin Insights exports plus the Tableau Cloud REST API via HEC scripted inputs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=tableau:cloud:activity (action=\"download_workbook\" OR action=\"download_view\")\n| stats count as exports, sum(coalesce(row_count,rows,record_count)) as rows by user\n| eventstats avg(rows) as avg_rows, stdev(rows) as sd_rows\n| where rows>avg_rows+3*sd_rows\n| sort - rows",
   "description": "Watches Tableau Cloud for users exporting or downloading unusually large volumes of data, a signal for both data-exfiltration risk and ungoverned spreadsheet sprawl.",
-  "value": "Large exports move governed data out of Tableau Cloud where it can no longer be controlled; anomaly detection flags the risky ones for review.",
+  "value": "Watches Tableau Cloud for users exporting or downloading unusually large volumes of data, a signal for both.... Timely UC-24.1.25 alerting on 'Tableau Cloud Bulk Export and Download Audit' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest Tableau Cloud export/download events with row counts; schedule daily and alert on 3-sigma export-volume anomalies per user.",
   "visualization": "Table of user by export volume, anomaly markers.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Tableau Cloud Bulk Export and Download Audit'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Tableau Cloud Bulk Export and Download Audit' shifts `sum` over `span=1h` while `user` remains in-scope for UC-24.1.25. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `tableau:cloud:activity`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tableau:cloud:activity`** — First 48h baseline for `user` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

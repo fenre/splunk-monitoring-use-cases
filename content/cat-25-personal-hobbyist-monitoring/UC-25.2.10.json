@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Wearable Battery and Sync Health' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_wearable_battery_and_sync_health` (UC-25.2.10), SOC dashboard panel \"Personal — Wearable Battery and Sync Health\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='oura:daily' that satisfy the UC-25.2.10 SPL filters for 'Wearable Battery and Sync Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `oura:daily` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.10."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='oura:daily' where `device` satisfies `hours_since` > 30 for UC-25.2.10 ('Wearable Battery and Sync Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `oura:daily` events where `device` stays below `hours_since` > 30, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.10."
   },
   "dataSources": "Apple Health metrics (`apple:health`), Oura Ring readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings measurements (`withings:measure`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Apple Health / Apple Watch exports (Health Auto Export or Shortcuts) via HEC; Oura, Whoop, Withings, and Dexcom APIs via scripted REST inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=oura:daily\n| stats max(_time) as last_seen, latest(battery_pct) as battery by device\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>30 OR battery<15\n| sort - hours_since",
   "description": "Watches your health wearables for a low battery or a stalled sync so you do not wake up to a night of missing sleep and recovery data.",
-  "value": "Health trends only work with continuous data; catching a dead ring or a sync stall protects the very metrics you rely on.",
+  "value": "Watches your health wearables for a low battery or a stalled sync so you do not wake up to a night of missi.... Timely UC-25.2.10 alerting on 'Wearable Battery and Sync Health' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest device battery and last-sync fields; schedule twice daily and alert on low battery or a sync gap before bedtime.",
   "visualization": "Table of devices by battery level and hours since last sync.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Wearable Battery and Sync Health'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `oura:daily`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Wearable Battery and Sync Health' stops polling `oura:daily`; stale `device` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `oura:daily`. Dedup with `stats latest(*) by device`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 30. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

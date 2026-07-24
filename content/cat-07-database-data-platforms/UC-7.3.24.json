@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'ZooKeeper Client Session Expiry Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_zookeeper_client_session_expiry_events` (UC-7.3.24), SOC dashboard panel \"Operations — ZooKeeper Client Session Expiry Events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=zookeeper` sourcetype='zookeeper:log' that satisfy the UC-7.3.24 SPL filters for 'ZooKeeper Client Session Expiry Events'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `zookeeper` / `zookeeper:log` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.3.24."
+    "positiveScenario": "Ingest synthetic events into `index=zookeeper` sourcetype='zookeeper:log' where `host` satisfies `expired_sessions` > 5 for UC-7.3.24 ('ZooKeeper Client Session Expiry Events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `zookeeper` / `zookeeper:log` events where `host` stays below `expired_sessions` > 5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.3.24."
   },
   "dataSources": "ZooKeeper server log lines reporting expired sessions (`Expiring session`, `Session establishment`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder on ZooKeeper nodes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=zookeeper sourcetype=\"zookeeper:log\"\n| search (\"Expiring session\" OR \"expired session\" OR \"Session.*expired\")\n| bin _time span=15m\n| stats count as expired_sessions by host, _time\n| where expired_sessions > 5",
   "description": "Bursts of session expirations indicate GC pauses, network partitions, or mis-tuned session timeouts on clients such as Kafka brokers or HBase region servers.",
-  "value": "Predicts cascading leader elections and dependent service outages by surfacing ensemble health from the authoritative server log.",
+  "value": "Bursts of session expirations indicate GC pauses, network partitions, or mis-tuned session timeouts on clie.... Timely UC-7.3.24 alerting on 'ZooKeeper Client Session Expiry Events' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ensure ZooKeeper logs include session IDs. Deduplicate INFO vs WARN levels. Baseline per environment—Kafka clusters may spike during broker restarts. Correlate with JVM GC logs on ZooKeeper peers.",
   "visualization": "Timeline (expired sessions), Table (host, count), Single value (15m rate).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'ZooKeeper Client Session Expiry Events'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `zookeeper` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `zookeeper`** — Planned work for 'ZooKeeper Client Session Expiry Events' shifts `count` over `span=15m` while `host` remains in-scope for UC-7.3.24. Cross-check CMDB CHG.\n\n2. **Batch `count` on `zookeeper:log`** — Scheduled automation elevates `_time` without crossing `expired_sessions` > 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `zookeeper` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zookeeper:log`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka",
     "zookeeper"

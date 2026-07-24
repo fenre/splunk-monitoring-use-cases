@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Cache Hit/Miss Ratio' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cache_hit_miss_ratio` (UC-8.5.1), SOC dashboard panel \"Operations — Cache Hit/Miss Ratio\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cache` sourcetype='redis:info' that satisfy the UC-8.5.1 SPL filters for 'Cache Hit/Miss Ratio'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cache` / `redis:info` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.5.1."
+    "positiveScenario": "Ingest synthetic events into `index=cache` sourcetype='redis:info' where `host` satisfies `cache_hit_pct` < 90 for UC-8.5.1 ('Cache Hit/Miss Ratio'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cache` / `redis:info` events where `host` stays below `cache_hit_pct` < 90, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.5.1."
   },
   "dataSources": "Redis INFO stats, Memcached stats, Varnish stats Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (`redis-cli INFO`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cache sourcetype=\"redis:info\"\n| eval hit_ratio=round(keyspace_hits/(keyspace_hits+keyspace_misses)*100,2)\n| timechart span=5m avg(hit_ratio) as cache_hit_pct by host\n| where cache_hit_pct < 90",
-  "description": "Cache hit ratio directly measures cache effectiveness. Declining ratio means more backend load and higher latency.",
+  "description": "Cache hit ratio directly measures cache effectiveness. Declining ratio means more backend load and higher latency. Searches `index=cache` with sourcetype `redis:info` for UC-8.5.1, aggregating `avg` by `host` over `5m`. Alerts when grouped results cross `cache_hit_pct` < 90 in the saved search. Gives Operations operators a repeatable signal for 'Cache Hit/Miss Ratio' without manual log review.",
   "value": "Early 'Cache Hit/Miss Ratio' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Run `redis-cli INFO` via scripted input every minute. Parse keyspace_hits and keyspace_misses. Calculate hit ratio. Alert when ratio drops below 90%. Correlate with application deployment events (new code may change access patterns).",
   "visualization": "Gauge (hit ratio %), Line chart (hit ratio over time), Single value (current hit ratio).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cache Hit/Miss Ratio'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `cache` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `cache`** — Planned work for 'Cache Hit/Miss Ratio' shifts `avg` over `span=5m` while `host` remains in-scope for UC-8.5.1. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `redis:info`** — Scheduled automation elevates `hit_ratio` without crossing `cache_hit_pct` < 90. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cache` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `redis:info`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "memcached",
     "redis",

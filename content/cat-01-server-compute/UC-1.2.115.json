@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Logon Session Anomalies (Type 3 / Network Logon)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_logon_session_anomalies_type_3_network_logon` (UC-1.2.115), SOC dashboard panel \"Linux — Logon Session Anomalies (Type 3 / Network Logon)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=4624 that satisfy the UC-1.2.115 SPL filters for 'Logon Session Anomalies (Type 3 / Network Logon)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.115."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=4624 where `TargetUserName` satisfies `TargetCount` > 5 for UC-1.2.115 ('Logon Session Anomalies (Type 3 / Network Logon)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events where `TargetUserName` stays below `TargetCount` > 5, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.115."
   },
   "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4624) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog EventCode=4624 Logon_Type=3\n| eval src=coalesce(Source_Network_Address, IpAddress, \"unknown\")\n| stats dc(host) as TargetCount values(host) as Targets count by TargetUserName, src\n| where TargetCount>5\n| sort -TargetCount",
   "description": "Network logons (Type 3) from unexpected sources indicate lateral movement with stolen credentials. Baselining normal patterns reveals compromised accounts.",
-  "value": "Type 3 network logons from odd sources to many hosts can show password spray or automated reuse. Clustering by user and source helps separate noise from real lateral auth.",
+  "value": "Network logons (Type 3) from unexpected sources indicate lateral movement with stolen credentials. Timely UC-1.2.115 alerting on 'Logon Session Anomalies (Type 3 / Network Logon)' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Monitor Type 3 (Network) logons across all systems. Build baseline of normal logon patterns: which accounts log into which systems from where. Alert on accounts that suddenly access many more systems than usual (lateral movement), network logons from unusual subnets, and logons using service accounts from non-service IPs. Exclude machine accounts (ending in $) for noise reduction. Combine with EventCode 4648 (explicit credentials).",
   "visualization": "Network diagram (account-to-host), Timechart (logon volume), Alert on anomalous spread.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Logon Session Anomalies (Type 3 / Network Logon)'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `configured sourcetype`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `TargetUserName` metrics for 'Logon Session Anomalies (Type 3 / Network Logon)'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `TargetUserName`** — Predictable `dc` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `TargetUserName` and mimics sustained load without crossing `TargetCount` > 5.\n\n4. **New host onboarding** — `TargetUserName` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `TargetUserName`, `valid_until`.",
   "equipment": [
     "windows"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Unity Catalog Ungoverned Table Access' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_unity_catalog_ungoverned_table_access` (UC-24.10.8), SOC dashboard panel \"Operations — Unity Catalog Ungoverned Table Access\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='unity_catalog:audit' that satisfy the UC-24.10.8 SPL filters for 'Unity Catalog Ungoverned Table Access'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `unity_catalog:audit` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.10.8."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='unity_catalog:audit' where `request_params.full_name` satisfies detection threshold for UC-24.10.8 ('Unity Catalog Ungoverned Table Access'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `unity_catalog:audit` events where `request_params.full_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.10.8."
   },
   "dataSources": "Collibra audit (`collibra:audit`), Alation/Atlan audit, DataHub events, OpenLineage runs (`openlineage:event`), Unity Catalog audit (`unity_catalog:audit`), Purview scans (`purview:scan`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Catalog/governance audit exports (Collibra, Alation, Atlan, DataHub, Unity Catalog, Microsoft Purview) via REST APIs and OpenLineage events to HEC scripted inputs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=unity_catalog:audit action_name=\"getTable\" OR action_name=\"generateTemporaryTableCredential\"\n| lookup governed_tables full_name AS request_params.full_name OUTPUT is_governed\n| where isnull(is_governed) OR is_governed!=\"true\"\n| stats count as accesses, dc(user_identity.email) as users by request_params.full_name\n| sort - accesses",
   "description": "Correlates Unity Catalog table-access events against a governed-tables allowlist to surface reads of tables that sit outside the governance perimeter.",
-  "value": "Data used for decisions but never brought under governance is a compliance and trust risk; catching ungoverned access drives it into the catalog.",
+  "value": "Correlates Unity Catalog table-access events against a governed-tables allowlist to surface reads of tables.... Timely UC-24.10.8 alerting on 'Unity Catalog Ungoverned Table Access' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest Unity Catalog audit logs; maintain a governed-tables lookup; schedule daily and review ungoverned high-volume tables.",
   "visualization": "Table of ungoverned table by access count and user count.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Unity Catalog Ungoverned Table Access'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Unity Catalog Ungoverned Table Access' shifts `dc` over `span=1h` while `request_params.full_name` remains in-scope for UC-24.10.8. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `unity_catalog:audit`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `request_params.full_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `unity_catalog:audit`** — First 48h baseline for `request_params.full_name` is unstable; join `governed_tables` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `request_params.full_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "dell_emc"
   ],

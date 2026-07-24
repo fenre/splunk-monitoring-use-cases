@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Journal Prompt Completion Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_journal_prompt_completion_rate` (UC-25.31.12), SOC dashboard panel \"Personal — Journal Prompt Completion Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='journal:entry' that satisfy the UC-25.31.12 SPL filters for 'Journal Prompt Completion Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `journal:entry` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.31.12."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='journal:entry' where `_time` satisfies detection threshold for UC-25.31.12 ('Journal Prompt Completion Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `journal:entry` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.31.12."
   },
   "dataSources": "Mood entries (`mood:entry`), meditation sessions (`meditation:session`), journal entries (`journal:entry`), gratitude logs (`gratitude:log`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Mood, mindfulness and journaling apps — Daylio / How We Feel mood exports, Headspace / Insight Timer meditation logs, journaling and gratitude entries — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=journal:entry prompted=true\n| bin _time span=1w\n| stats count as completed, dc(prompt_id) as prompt_variety by _time\n| sort - _time",
-  "description": "Tracks how consistently you complete prompted journal entries instead of skipping reflective moments.",
-  "value": "Prompt completion is a simple measure of self-reflection consistency and can show when a journaling habit is quietly fading.",
+  "description": "Tracks how consistently you complete prompted journal entries instead of skipping reflective moments. Searches `index=personal` with sourcetype `journal:entry` for UC-25.31.12, aggregating `dc` by `_time` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Journal Prompt Completion Rate' without manual log review.",
+  "value": "Tracks how consistently you complete prompted journal entries instead of skipping reflective moments. Timely UC-25.31.12 alerting on 'Journal Prompt Completion Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Tag prompted entries in `index=personal`; summarize weekly completion counts and prompt variety.",
   "visualization": "Weekly column chart of completed prompts with a secondary value for variety.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Journal Prompt Completion Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `journal:entry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Journal Prompt Completion Rate' stops polling `journal:entry`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `dc` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `journal:entry`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

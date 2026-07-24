@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Cloudflare DDoS Mitigation Event Volume by Attack Vector (`cloudflare:json`)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_cloudflare_ddos_mitigation_event_volume_by_attac` (UC-17.4.7), SOC dashboard panel \"Network — Cloudflare DDoS Mitigation Event Volume by Attack Vector (`cloudflare:json`)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=waf` sourcetype='cloudflare:json' that satisfy the UC-17.4.7 SPL filters for 'Cloudflare DDoS Mitigation Event Volume by Attack Vector (`cloudflare:json`)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `waf` / `cloudflare:json` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.4.7."
+    "positiveScenario": "Ingest synthetic events into `index=waf` sourcetype='cloudflare:json' where `MitigationReason` satisfies detection threshold for UC-17.4.7 ('Cloudflare DDoS Mitigation Event Volume by Attack Vector (`cloudflare:json`)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `waf` / `cloudflare:json` events where `MitigationReason` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.4.7."
   },
   "dataSources": "Cloudflare Logpush JSON delivered to Splunk HEC/S3 with `sourcetype=cloudflare:json` (HTTP requests, firewall, Workers, DNS, Access as configured)",
   "app": "Cloudflare App for Splunk (Splunkbase 4501) + Logpush JSON (`cloudflare:json`)",
   "spl": "index=waf sourcetype=\"cloudflare:json\" earliest=-24h\n| where match(_raw,\"(?i)ddos|mitigat|dos\")\n| spath MitigationReason\n| spath RuleID\n| stats count by MitigationReason, EdgeColoCode\n| sort -count",
-  "description": "L3/4 versus L7 attacks need different runbooks. Logpush JSON ties mitigation reasons to colo and rule context.",
-  "value": "Security and NOC teams gain real-time visibility into active DDoS attacks, understand whether mitigated traffic is L3/L4 volumetric or L7 application-layer, and document attack patterns for regulatory reporting and DDoS protection investment decisions.",
+  "description": "L3/4 versus L7 attacks need different runbooks. Logpush JSON ties mitigation reasons to colo and rule context. Searches `index=waf` with sourcetype `cloudflare:json` for UC-17.4.7, aggregating `count` by `MitigationReason` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Network operators a repeatable signal for 'Cloudflare DDoS Mitigation Event Volume by Attack Vector (`cloudflare:json`)' without manual log review.",
+  "value": "L3/4 versus L7 attacks need different runbooks. Timely UC-17.4.7 alerting on 'Cloudflare DDoS Mitigation Event Volume by Attack Vector (`cloudflare:json`)' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Configure Logpush jobs per dataset; route all into a unified `cloudflare:json` sourcetype or use transforms to normalize. Use `spath` for PascalCase fields. Create macros per zone name.",
   "visualization": "Stacked area (vector over time), geomap (colo).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Cloudflare DDoS Mitigation Event Volume by Attack Vector (`cloudflare:json`)'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `waf`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `cloudflare:json` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `waf`** — Planned work for 'Cloudflare DDoS Mitigation Event Volume by Attack Vector (`cloudflare:json`)' shifts `count` over `span=1h` while `MitigationReason` remains in-scope for UC-17.4.7. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cloudflare:json`** — Scheduled automation elevates `EdgeColoCode` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `MitigationReason`** — Health checks in `waf` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cloudflare:json`** — First 48h baseline for `MitigationReason` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `MitigationReason`, `exception_reason`, `valid_until`.",
   "securityDomain": "cloud",
   "equipment": [
     "cloudflare"

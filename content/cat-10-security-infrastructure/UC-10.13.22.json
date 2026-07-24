@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'False Positive Ratio (IDS CIM)' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_false_positive_ratio_ids_cim` (UC-10.13.22), SOC dashboard panel \"Security Infra — False Positive Ratio (IDS CIM)\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' that satisfy the UC-10.13.22 SPL filters for 'False Positive Ratio (IDS CIM)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.22."
+    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' where `signature` satisfies `fp_ratio` > 40 for UC-10.13.22 ('False Positive Ratio (IDS CIM)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events where `signature` stays below `fp_ratio` > 40, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.22."
   },
   "dataSources": "Optional `vendor_info` or custom field `disposition` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "IDS + SOAR disposition fields mapped to CIM — Universal Forwarder (Splunkbase 617)",
   "spl": "index=security tag=ids disposition=*\n| stats count(eval(disposition=\"false_positive\")) as fp count as tot by signature\n| eval fp_ratio=round(fp/tot*100,1)\n| where fp_ratio>40",
-  "description": "When analysts tag disposition, or vendor provides `action`/`priority`, measure noise ratio per `signature`.",
+  "description": "When analysts tag disposition, or vendor provides `action`/`priority`, measure noise ratio per `signature`. Searches `index=security` with sourcetype `configured sourcetype` for UC-10.13.22, aggregating `count` by `signature` over `the scheduled window`. Alerts when grouped results cross `fp_ratio` > 40 in the saved search. Gives Security Infra operators a repeatable signal for 'False Positive Ratio (IDS CIM)' without manual log review.",
   "value": "Early 'False Positive Ratio (IDS CIM)' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Requires workflow — without disposition, proxy with low-severity bulk.",
   "visualization": "Table (noisy rules), Line chart (fp_ratio trend).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'False Positive Ratio (IDS CIM)'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=security` `configured sourcetype`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `security`** — Planned work for 'False Positive Ratio (IDS CIM)' shifts `count` over `span=1h` while `signature` remains in-scope for UC-10.13.22. Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `fp_ratio` without crossing `fp_ratio` > 40. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `signature`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `signature` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `signature`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

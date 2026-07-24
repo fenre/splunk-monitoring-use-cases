@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Personal NOC Wall Daily Health Score' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_personal_noc_wall_daily_health_score` (UC-25.61.1), SOC dashboard panel \"Personal — Personal NOC Wall Daily Health Score\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lifeos:score' that satisfy the UC-25.61.1 SPL filters for 'Personal NOC Wall Daily Health Score'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `lifeos:score` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.61.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lifeos:score' where `_time` satisfies `worst_score` < 60 for UC-25.61.1 ('Personal NOC Wall Daily Health Score'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `lifeos:score` events where `_time` stays below `worst_score` < 60, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.61.1."
   },
   "dataSources": "Life service health (`lifeos:service`), personal scorecards (`lifeos:score`), breach notifications (`hibp:breach`), location visits (`location:visit`), runbook checklists (`runbook:checklist`), and Home Assistant outage events (`homeassistant:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Apple and Google location exports, Have I Been Pwned breach alerts, Todoist-style personal runbooks, and Home Assistant outage events streamed into Splunk HEC under `index=personal`. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=lifeos:score\n| bin _time span=1d\n| stats avg(overall_score) as avg_score, min(overall_score) as worst_score by _time\n| eval wall_state=case(worst_score<60,\"red\",worst_score<80,\"yellow\",1=1,\"green\")\n| sort _time",
-  "description": "Builds a daily top-line health score for your personal NOC wall so the whole life stack can be summarized in one tile.",
-  "value": "A single score helps you decide whether the day looks operationally normal or whether multiple little problems are stacking up.",
+  "description": "Builds a daily top-line health score for your personal NOC wall so the whole life stack can be summarized in one tile. Searches `index=personal` with sourcetype `lifeos:score` for UC-25.61.1, aggregating `avg` by `_time` over `1d`. Alerts when grouped results cross `worst_score` < 60 in the saved search. Gives Personal operators a repeatable signal for 'Personal NOC Wall Daily Health Score' without manual log review.",
+  "value": "Builds a daily top-line health score for your personal NOC wall so the whole life stack can be summarized i.... Timely UC-25.61.1 alerting on 'Personal NOC Wall Daily Health Score' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Compute `overall_score` from your cross-stream dashboards and publish one `lifeos:score` event per day.",
   "visualization": "Single-value tile for current score with a supporting daily trend.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Personal NOC Wall Daily Health Score'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lifeos:score`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Personal NOC Wall Daily Health Score' stops polling `lifeos:score`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lifeos:score`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `worst_score` < 60. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

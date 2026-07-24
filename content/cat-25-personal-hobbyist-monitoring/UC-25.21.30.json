@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Direwolf KISS Client Disconnect Tracker' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_direwolf_kiss_client_disconnect_tracker` (UC-25.21.30), SOC dashboard panel \"Personal — Direwolf KISS Client Disconnect Tracker\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='direwolf:packet' that satisfy the UC-25.21.30 SPL filters for 'Direwolf KISS Client Disconnect Tracker'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `direwolf:packet` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.21.30."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='direwolf:packet' where `client_name` satisfies detection threshold for UC-25.21.30 ('Direwolf KISS Client Disconnect Tracker'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `direwolf:packet` events where `client_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.21.30."
   },
   "dataSources": "FT8 spots (`ft8:spot`), JS8Call messages (`js8call:message`), PSKReporter receptions (`pskreporter:spot`), Direwolf TNC telemetry (`direwolf:packet`), and NOAA APT pass events (`noaaapt:pass`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Weak-signal and decoder telemetry from WSJT-X FT8, JS8Call, PSKReporter, Direwolf TNC, NOAA APT pass schedulers, and station-control scripts sent to Splunk HEC via APIs, ADIF/log exports, and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=direwolf:packet\n| search event=\"kiss_disconnect\"\n| stats latest(_time) as last_seen count as events by client_name\n| eval days_since=round((now()-last_seen)/86400,1)\n| sort - days_since",
   "description": "Shows which clientss have gone quiet for KISS client sessions. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Client disconnect recency helps you spot unattended software that is quietly dropping off the packet path.",
+  "value": "Shows which clientss have gone quiet for KISS client sessions. Timely UC-25.21.30 alerting on 'Direwolf KISS Client Disconnect Tracker' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send KISS client sessions events to `index=personal` and alert when the gap since the last event grows beyond the expected cadence.",
   "visualization": "Table of clientss with time since last event.",
   "cimModels": [],
@@ -54,7 +54,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Direwolf KISS Client Disconnect Tracker'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `direwolf:packet`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Direwolf KISS Client Disconnect Tracker' stops polling `direwolf:packet`; stale `client_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `direwolf:packet`. Dedup with `stats latest(*) by client_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

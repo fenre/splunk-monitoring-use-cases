@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Gift Budget Overrun by Recipient' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_gift_budget_overrun_by_recipient` (UC-25.32.22), SOC dashboard panel \"Personal — Gift Budget Overrun by Recipient\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='giftbudget:item' that satisfy the UC-25.32.22 SPL filters for 'Gift Budget Overrun by Recipient'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `giftbudget:item` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.32.22."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='giftbudget:item' where `recipient_name` satisfies `overrun_amount` > 0 for UC-25.32.22 ('Gift Budget Overrun by Recipient'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `giftbudget:item` events where `recipient_name` stays below `overrun_amount` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.32.22."
   },
   "dataSources": "Shared calendar events (`sharedcalendar:event`), gift budget items (`giftbudget:item`), touchpoint logs (`touchpoint:log`), and relationship rituals (`relationship:ritual`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Relationship and togetherness telemetry from shared calendars, gift budgets, message and call logs, and long-distance touchpoint trackers sent to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=giftbudget:item\n| search overrun_amount>0\n| stats sum(overrun_amount) as overrun_amount count as items by recipient_name\n| sort 0 - overrun_amount",
   "description": "Ranks recipientss by gift-budget overruns. Runs scheduled SPL against `index=personal` to surface **Gift Budget Overrun by Recipient** so you can spot drift before it becomes a habit.",
-  "value": "Recipient-level overruns show where generosity is drifting past the plan and needs a reset.",
+  "value": "Ranks recipientss by gift-budget overruns. Timely UC-25.32.22 alerting on 'Gift Budget Overrun by Recipient' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send gift-budget overruns events to `index=personal` and keep `recipient_name` populated so the leaderboard stays actionable.",
   "visualization": "Bar chart of gift-budget overruns by recipients.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Gift Budget Overrun by Recipient'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `giftbudget:item`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Gift Budget Overrun by Recipient' stops polling `giftbudget:item`; stale `recipient_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `giftbudget:item`. Dedup with `stats latest(*) by recipient_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `overrun_amount` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

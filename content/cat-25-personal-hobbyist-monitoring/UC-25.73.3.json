@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Row Counter Stall Points' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_row_counter_stall_points` (UC-25.73.3), SOC dashboard panel \"Personal — Row Counter Stall Points\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='knitcompanion:counter' that satisfy the UC-25.73.3 SPL filters for 'Row Counter Stall Points'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `knitcompanion:counter` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.73.3."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='knitcompanion:counter' where `pattern_name` satisfies `row_delta` <= 0 for UC-25.73.3 ('Row Counter Stall Points'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `knitcompanion:counter` events where `pattern_name` stays below `row_delta` <= 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.73.3."
   },
   "dataSources": "Ravelry projects (`ravelry:project`), knitCompanion row counters (`knitcompanion:counter`), Shelly smart-plug machine runtime (`shelly:status`), and Ravelry stash entries (`ravelry:stash`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Ravelry project and stash exports, knitCompanion row-counter logs, and Shelly plug telemetry for sewing-machine hours sent to Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=knitcompanion:counter rows_completed=* pattern_name=*\n| sort 0 pattern_name _time\n| streamstats current=f last(rows_completed) as prev_rows by pattern_name\n| eval row_delta=rows_completed-prev_rows\n| where isnotnull(prev_rows) AND row_delta<=0\n| stats count as stall_events by pattern_name\n| sort - stall_events",
   "description": "Finds patterns where row counts repeatedly stop advancing between sessions. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Stall points usually indicate a confusing instruction block, a fit issue, or a project that has lost momentum.",
+  "value": "Finds patterns where row counts repeatedly stop advancing between sessions. Timely UC-25.73.3 alerting on 'Row Counter Stall Points' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Sync knitCompanion counter history into Splunk and compare consecutive row values within each pattern.",
   "visualization": "Table of patterns with repeated row-count stall events.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Row Counter Stall Points'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `knitcompanion:counter`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Row Counter Stall Points' stops polling `knitcompanion:counter`; stale `pattern_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `knitcompanion:counter`. Dedup with `stats latest(*) by pattern_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `row_delta` <= 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

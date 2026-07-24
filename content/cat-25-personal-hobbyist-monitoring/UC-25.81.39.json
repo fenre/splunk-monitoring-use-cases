@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Community Event Field Completeness Score' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_community_event_field_completeness_score` (UC-25.81.39), SOC dashboard panel \"Personal — Community Event Field Completeness Score\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='community:event' that satisfy the UC-25.81.39 SPL filters for 'Community Event Field Completeness Score'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `community:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.81.39."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='community:event' where `entity` satisfies detection threshold for UC-25.81.39 ('Community Event Field Completeness Score'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `community:event` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.81.39."
   },
   "dataSources": "Club attendance (`club:attendance`), running-club sessions (`runningclub:session`), maker-space visits (`makerspace:visit`), book-club meetings (`bookclub:meeting`), community events (`community:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Book-club attendance, running-club miles, maker-space visits, and general social-club participation logs streamed to Splunk HEC via forms, check-ins, and calendar exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=community:event\n| eval complete=if(isnotnull(value) AND isnotnull(duration_min),1,0)\n| stats sum(complete) as complete_rows, count as total\n| eval completeness_pct=round(100*complete_rows/total,1)",
   "description": "Measures how often community event events include both value and duration. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Incomplete exports break joins and dashboards; completeness scoring catches schema drift early.",
+  "value": "Measures how often community event events include both value and duration. Timely UC-25.81.39 alerting on 'Community Event Field Completeness Score' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Require `value` and `duration_min` on community event events and track completeness percentage.",
   "visualization": "Single-value gauge of field completeness percent.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Community Event Field Completeness Score'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `community:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Community Event Field Completeness Score' stops polling `community:event`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `community:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "dell_emc"
   ],

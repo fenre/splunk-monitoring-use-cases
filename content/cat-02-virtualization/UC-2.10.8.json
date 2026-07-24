@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'VxRail Power Supply Redundancy Loss Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_vxrail_power_supply_redundancy_loss_events` (UC-2.10.8), SOC dashboard panel \"Linux — VxRail Power Supply Redundancy Loss Events\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vxrail` sourcetype='vxrail:chassis' that satisfy the UC-2.10.8 SPL filters for 'VxRail Power Supply Redundancy Loss Events'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vxrail` / `vxrail:chassis` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.10.8."
+    "positiveScenario": "Ingest synthetic events into `index=vxrail` sourcetype='vxrail:chassis' where `serial` satisfies detection threshold for UC-2.10.8 ('VxRail Power Supply Redundancy Loss Events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `vxrail` / `vxrail:chassis` events where `serial` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.10.8."
   },
   "dataSources": "`index=vxrail` `sourcetype=\"vxrail:chassis\"` — `psu_id`, `serial`, `redundancy_state`, `input_voltage`, `health` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "iDRAC SNMP/syslog or VxRail hardware feed — Universal Forwarder (Splunkbase 617)",
   "spl": "index=vxrail sourcetype=\"vxrail:chassis\" earliest=-24h\n| eval rs=lower(redundancy_state)\n| eval h=lower(health)\n| where match(rs, \"(?i)lost|degraded\") OR match(h, \"(?i)critical|warning\")\n| stats latest(redundancy_state) as rs_latest by serial, psu_id",
-  "description": "Running on a single PSU raises thermal and electrical risk; a second fault can hard-stop a node during peak load.",
-  "value": "Prevents unplanned node loss during maintenance windows and heat waves. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Running on a single PSU raises thermal and electrical risk; a second fault can hard-stop a node during peak load. Searches `index=vxrail` with sourcetype `vxrail:chassis` for UC-2.10.8, aggregating `count` by `serial` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Linux operators a repeatable signal for 'VxRail Power Supply Redundancy Loss Events' without manual log review.",
+  "value": "Running on a single PSU raises thermal and electrical risk; a second fault can hard-stop a node during peak.... Timely UC-2.10.8 alerting on 'VxRail Power Supply Redundancy Loss Events' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Correlate PSU events with facility tickets. Page on redundancy loss. Track MTTR for PSU replacement.",
   "visualization": "Gauge redundancy; timeline; asset table.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'VxRail Power Supply Redundancy Loss Events'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `vxrail` `vxrail:chassis`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `vxrail`** — Package managers spike `serial` metrics for 'VxRail Power Supply Redundancy Loss Events'. Correlate with apt/yum logs in the same `vxrail:chassis` window.\n\n2. **Nightly backup I/O on `serial`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vxrail:chassis`** — Nagios/Zabbix polls `serial` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `serial` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `serial`, `valid_until`.",
   "equipment": [
     "hardware_bmc",
     "snmp",

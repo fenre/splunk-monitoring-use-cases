@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Network Session Anomaly (CIM)' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_network_session_anomaly_cim` (UC-10.13.14), SOC dashboard panel \"Security Infra — Network Session Anomaly (CIM)\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' that satisfy the UC-10.13.14 SPL filters for 'Network Session Anomaly (CIM)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.14."
+    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' where `src` satisfies `ports` > 100 for UC-10.13.14 ('Network Session Anomaly (CIM)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events where `src` stays below `ports` > 100, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.14."
   },
   "dataSources": "`action` allowed/blocked with session identifiers Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Firewall session logs → All_Traffic — Universal Forwarder (Splunkbase 617)",
   "spl": "index=security tag=network tag=session\n| bin _time span=10m\n| stats dc(dest_port) as ports, dc(dest) as dsts by src, _time\n| where ports>100 OR dsts>50",
-  "description": "Session count per host vs. baseline — lateral movement and port scans increase discrete sessions.",
+  "description": "Session count per host vs. baseline — lateral movement and port scans increase discrete sessions. Searches `index=security` with sourcetype `configured sourcetype` for UC-10.13.14, aggregating `dc` by `src` over `10m`. Alerts when grouped results cross `ports` > 100 in the saved search. Gives Security Infra operators a repeatable signal for 'Network Session Anomaly (CIM)' without manual log review.",
   "value": "Early 'Network Session Anomaly (CIM)' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Tune per server role; datacenter hosts expected higher `dsts`.",
   "visualization": "Table (noisy hosts), Scatter (ports vs. dsts).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Network Session Anomaly (CIM)'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=security` `configured sourcetype`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `security`** — Planned work for 'Network Session Anomaly (CIM)' shifts `dc` over `span=10m` while `src` remains in-scope for UC-10.13.14. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `configured_sourcetype`** — Scheduled automation elevates `_time` without crossing `ports` > 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `src` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

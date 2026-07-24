@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'ESPHome Wi-Fi RSSI Basement Dead Zone' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_esphome_wi_fi_rssi_basement_dead_zone` (UC-25.4.40), SOC dashboard panel \"Personal — ESPHome Wi-Fi RSSI Basement Dead Zone\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='esphome:device' that satisfy the UC-25.4.40 SPL filters for 'ESPHome Wi-Fi RSSI Basement Dead Zone'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `esphome:device` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.4.40."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='esphome:device' where `entity_id` satisfies `wifi_rssi_dbm` < -80 for UC-25.4.40 ('ESPHome Wi-Fi RSSI Basement Dead Zone'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `esphome:device` events where `entity_id` stays below `wifi_rssi_dbm` < -80, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.4.40."
   },
   "dataSources": "Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Hubitat/openHAB logs, Node-RED flow events (`nodered:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=esphome:device wifi_rssi_dbm<-80\n| stats avg(wifi_rssi_dbm) as rssi by entity_id",
   "description": "Maps ESPHome nodes with persistently weak Wi-Fi signal. Runs scheduled SPL against `index=personal` to surface **ESPHome Wi-Fi RSSI Basement Dead Zone** so you can spot drift before it becomes a habit.",
-  "value": "Surfacing esphome wi-fi rssi basement dead zone helps you act before small issues become habits.",
+  "value": "Surfacing esphome wi-fi rssi basement dead zone helps you act before small issues become habits reduces missed training goals, stale hobby data, and connector failures by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Ingest the relevant smart home platforms & automation export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'ESPHome Wi-Fi RSSI Basement Dead Zone'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `esphome:device`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'ESPHome Wi-Fi RSSI Basement Dead Zone' stops polling `esphome:device`; stale `entity_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `esphome:device`. Dedup with `stats latest(*) by entity_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `wifi_rssi_dbm` < -80. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

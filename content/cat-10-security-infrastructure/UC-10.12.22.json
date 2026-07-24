@@ -13,13 +13,13 @@
   "exclusions": "Covers the detection logic documented for 'Infusion Pump Connectivity Monitoring' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_infusion_pump_connectivity_monitoring` (UC-10.12.22), SOC dashboard panel \"Security Infra — Infusion Pump Connectivity Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=clinical` sourcetype='mdi:pump' that satisfy the UC-10.12.22 SPL filters for 'Infusion Pump Connectivity Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `clinical` / `mdi:pump` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.22."
+    "positiveScenario": "Ingest synthetic events into `index=clinical` sourcetype='mdi:pump' where `pump_id` satisfies `gap_sec` > 300 for UC-10.12.22 ('Infusion Pump Connectivity Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `clinical` / `mdi:pump` events where `pump_id` stays below `gap_sec` > 300, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.22."
   },
   "dataSources": "`sourcetype=\"mdi:pump\"`, `sourcetype=\"hl7:mdt\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Medical device integration (MDI), RTLS — Universal Forwarder (Splunkbase 617)",
   "spl": "index=clinical sourcetype=\"mdi:pump\"\n| stats latest(_time) as last_seen, latest(alarm_state) as alarm by pump_id, unit\n| eval gap_sec=now()-last_seen\n| where gap_sec>300 OR alarm=\"AIR_IN_LINE\"\n| table pump_id, unit, gap_sec, alarm",
-  "description": "Pump disconnects can delay therapy; supports Joint Commission device management expectations.",
+  "description": "Pump disconnects can delay therapy; supports Joint Commission device management expectations. Searches `index=clinical` with sourcetype `mdi:pump` for UC-10.12.22, aggregating `count` by `pump_id` over `the scheduled window`. Alerts when grouped results cross `gap_sec` > 300 in the saved search. Gives Security Infra operators a repeatable signal for 'Infusion Pump Connectivity Monitoring' without manual log review.",
   "value": "Early 'Infusion Pump Connectivity Monitoring' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Integrate with CMMS for maintenance; alert biomed on extended silence from critical care beds.",
   "visualization": "Status map (units), Table (stale pumps), Timeline (alarms).",
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Infusion Pump Connectivity Monitoring'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=clinical` `mdi:pump`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `clinical`** — Planned work for 'Infusion Pump Connectivity Monitoring' shifts `count` over `span=1h` while `pump_id` remains in-scope for UC-10.12.22. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mdi:pump`** — Scheduled automation elevates `unit` without crossing `gap_sec` > 300. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pump_id`** — Health checks in `clinical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mdi:pump`** — First 48h baseline for `pump_id` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `pump_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

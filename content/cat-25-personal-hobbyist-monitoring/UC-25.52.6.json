@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Home-Temperature Safety Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_home_temperature_safety_watch` (UC-25.52.6), SOC dashboard panel \"Personal — Home-Temperature Safety Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='eldercare:activity' that satisfy the UC-25.52.6 SPL filters for 'Home-Temperature Safety Watch'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `eldercare:activity` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.52.6."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='eldercare:activity' where `entity` satisfies `temp_c` < 16 for UC-25.52.6 ('Home-Temperature Safety Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `eldercare:activity` events where `entity` stays below `temp_c` < 16, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.52.6."
   },
   "dataSources": "Daily activity (`eldercare:activity`), fall alerts (`fall:alert`), medication reminders (`medreminder:event`), check-in calls (`checkin:call`), wandering alerts (`wandering:alert`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Elder-care and accessibility telemetry — activity and fall sensors (Apple Watch fall detection, motion mats), medication dispensers, and check-in / video-call logs — streamed to Splunk HEC via APIs and smart-home hubs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=eldercare:activity metric=temperature\n| timechart span=1h avg(value) as temp_c\n| eval unsafe=case(temp_c<16,\"too cold\",temp_c>28,\"too hot\",1=1,\"ok\")\n| where unsafe!=\"ok\"",
-  "description": "Watches indoor temperature at an elderly relative's home and flags spells that are dangerously cold or hot.",
-  "value": "Older people are vulnerable to cold and heat but may not notice or act; an outside alert protects them.",
+  "description": "Watches indoor temperature at an elderly relative's home and flags spells that are dangerously cold or hot. Searches `index=personal` with sourcetype `eldercare:activity` for UC-25.52.6, aggregating `avg` by `entity` over `1h`. Alerts when grouped results cross `temp_c` < 16 in the saved search. Gives Personal operators a repeatable signal for 'Home-Temperature Safety Watch' without manual log review.",
+  "value": "Watches indoor temperature at an elderly relative's home and flags spells that are dangerously cold or hot. Timely UC-25.52.6 alerting on 'Home-Temperature Safety Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest indoor temperature into `index=personal`; alert when it leaves the safe range.",
   "visualization": "Line chart of indoor temperature with safe-band shading.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Home-Temperature Safety Watch'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `eldercare:activity`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Home-Temperature Safety Watch' stops polling `eldercare:activity`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1h` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `eldercare:activity`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `temp_c` < 16. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

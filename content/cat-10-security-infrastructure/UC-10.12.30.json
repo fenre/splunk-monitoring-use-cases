@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'ADT Message Routing Failures' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_adt_message_routing_failures` (UC-10.12.30), SOC dashboard panel \"Security Infra — ADT Message Routing Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=interfaces` sourcetype='hl7:v2' that satisfy the UC-10.12.30 SPL filters for 'ADT Message Routing Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `interfaces` / `hl7:v2` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.30."
+    "positiveScenario": "Ingest synthetic events into `index=interfaces` sourcetype='hl7:v2' where `sending_facility` satisfies detection threshold for UC-10.12.30 ('ADT Message Routing Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `interfaces` / `hl7:v2` events where `sending_facility` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.30."
   },
   "dataSources": "`sourcetype=\"hl7:v2\"`, `msg_type=\"ADT\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Interface engine — Universal Forwarder (Splunkbase 617)",
   "spl": "index=interfaces sourcetype=\"hl7:v2\" msg_type=\"ADT*\"\n| search routing_status=\"FAIL\" OR ErrorCode!=\"0\"\n| stats count, values(pid) as patients by sending_facility, receiving_system\n| sort -count",
-  "description": "ADT misroutes leave wrong census in downstream systems (lab, HIE), affecting care and billing.",
+  "description": "ADT misroutes leave wrong census in downstream systems (lab, HIE), affecting care and billing. Searches `index=interfaces` with sourcetype `hl7:v2` for UC-10.12.30, aggregating `values` by `sending_facility` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'ADT Message Routing Failures' without manual log review.",
   "value": "Early 'ADT Message Routing Failures' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Reconciliation job for ADT A03 without matching A01; monitor duplicate PV1 segments.",
   "visualization": "Table (failed routes), Sankey (facility → system), Line chart (failure trend).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'ADT Message Routing Failures'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=interfaces` `hl7:v2`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `interfaces`** — Planned work for 'ADT Message Routing Failures' shifts `values` over `span=1h` while `sending_facility` remains in-scope for UC-10.12.30. Cross-check CMDB CHG.\n\n2. **Batch `values` on `hl7:v2`** — Scheduled automation elevates `receiving_system` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sending_facility`** — Health checks in `interfaces` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `hl7:v2`** — First 48h baseline for `sending_facility` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `sending_facility`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

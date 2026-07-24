@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Transit Last-Train Risk' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_transit_last_train_risk` (UC-25.14.17), SOC dashboard panel \"Personal — Transit Last-Train Risk\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='transit:arrival' that satisfy the UC-25.14.17 SPL filters for 'Transit Last-Train Risk'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `transit:arrival` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.17."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='transit:arrival' where `stop_name` satisfies `minutes_left` >= 0 for UC-25.14.17 ('Transit Last-Train Risk'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `transit:arrival` events where `stop_name` stays below `minutes_left` >= 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.17."
   },
   "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home ADS-B receiver (dump1090 / readsb / tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=transit:arrival\n| stats latest(minutes_until_last_service) as minutes_left by stop_name route\n| where minutes_left>=0 AND minutes_left<20\n| sort minutes_left",
   "description": "Surfaces stops and routes where you are uncomfortably close to the last viable service of the day, a handy commuter or night-out safety net.",
-  "value": "Missing the last train or bus changes the whole evening; keeping the remaining buffer visible helps you act before the option disappears.",
+  "value": "Surfaces stops and routes where you are uncomfortably close to the last viable service of the day, a handy.... Timely UC-25.14.17 alerting on 'Transit Last-Train Risk' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward GTFS realtime arrival data with a derived last-service countdown; alert when the remaining window gets tight for your saved routes.",
   "visualization": "Table of stops by minutes until last service.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Transit Last-Train Risk'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `transit:arrival`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Transit Last-Train Risk' stops polling `transit:arrival`; stale `stop_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `transit:arrival`. Dedup with `stats latest(*) by stop_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `minutes_left` >= 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

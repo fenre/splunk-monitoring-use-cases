@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Guest Dietary and Access Needs' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_guest_dietary_and_access_needs` (UC-25.53.5), SOC dashboard panel \"Personal — Guest Dietary and Access Needs\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='event:rsvp' that satisfy the UC-25.53.5 SPL filters for 'Guest Dietary and Access Needs'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `event:rsvp` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.53.5."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='event:rsvp' where `dietary_need` satisfies detection threshold for UC-25.53.5 ('Guest Dietary and Access Needs'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `event:rsvp` events where `dietary_need` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.53.5."
   },
   "dataSources": "Planning tasks (`event:task`), budget lines (`event:budget`), RSVPs (`event:rsvp`), vendor bookings (`event:vendor`), countdown milestones (`event:countdown`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Wedding and event planning — task and budget spreadsheets, RSVP platforms (Zola, The Knot), vendor contracts, and seating tools — streamed to Splunk HEC via CSV exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=event:rsvp response=yes\n| stats count by dietary_need\n| sort - count",
-  "description": "Summarises the dietary and accessibility needs of attending guests so caterers and venues can prepare.",
-  "value": "Getting needs right shows guests they matter and avoids awkward gaps on the day.",
+  "description": "Summarises the dietary and accessibility needs of attending guests so caterers and venues can prepare. Searches `index=personal` with sourcetype `event:rsvp` for UC-25.53.5, aggregating `count` by `dietary_need` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Guest Dietary and Access Needs' without manual log review.",
+  "value": "Summarises the dietary and accessibility needs of attending guests so caterers and venues can prepare. Timely UC-25.53.5 alerting on 'Guest Dietary and Access Needs' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest RSVP dietary fields into `index=personal`; tally needs across attending guests.",
   "visualization": "Bar chart of guest dietary and access needs.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Guest Dietary and Access Needs'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `event:rsvp`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Guest Dietary and Access Needs' stops polling `event:rsvp`; stale `dietary_need` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `event:rsvp`. Dedup with `stats latest(*) by dietary_need`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

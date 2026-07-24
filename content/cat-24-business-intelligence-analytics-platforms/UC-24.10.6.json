@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Data Asset Stewardship Coverage' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_data_asset_stewardship_coverage` (UC-24.10.6), SOC dashboard panel \"Operations — Data Asset Stewardship Coverage\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='atlan:audit' that satisfy the UC-24.10.6 SPL filters for 'Data Asset Stewardship Coverage'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dataops` / `atlan:audit` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.10.6."
+    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='atlan:audit' where `asset_qualified_name` satisfies detection threshold for UC-24.10.6 ('Data Asset Stewardship Coverage'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dataops` / `atlan:audit` events where `asset_qualified_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.10.6."
   },
   "dataSources": "Catalog audit events (`collibra:audit`, `atlan:audit`, `datahub:audit`), OpenLineage run events (`openlineage:event`), Unity Catalog audit logs, Purview scan/classification results, stewardship and access-policy change events. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Collibra / Alation / Atlan / DataHub / Microsoft Purview / Databricks Unity Catalog audit logs and REST APIs via HEC scripted inputs; OpenLineage/Marquez events via HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops sourcetype=atlan:audit action=asset_updated\n| stats latest(has_owner) as has_owner, latest(has_description) as has_desc by asset_qualified_name\n| eval documented=if(has_owner=\"true\" AND has_desc=\"true\",1,0)\n| stats sum(documented) as documented, count as total\n| eval coverage_pct=round(100*documented/total,1)",
   "description": "Measures the share of catalogued data assets that have both an owner and a description, a headline governance KPI for catalog completeness.",
-  "value": "Undocumented, unowned data is ungoverned data; tracking stewardship coverage turns a vague governance goal into a measurable KPI.",
+  "value": "Measures the share of catalogued data assets that have both an owner and a description, a headline governan.... Timely UC-24.10.6 alerting on 'Data Asset Stewardship Coverage' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest catalog asset metadata; schedule weekly; chart coverage and set improvement targets with data owners.",
   "visualization": "Single-value coverage gauge, coverage trend, table of undocumented assets.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Data Asset Stewardship Coverage'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `dataops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `dataops`** — Planned work for 'Data Asset Stewardship Coverage' shifts `sum` over `span=1h` while `asset_qualified_name` remains in-scope for UC-24.10.6. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `atlan:audit`** — Scheduled automation elevates `documented` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `asset_qualified_name`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `atlan:audit`** — First 48h baseline for `asset_qualified_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `asset_qualified_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "dell_emc"
   ],

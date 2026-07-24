@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Water-Pressure Sag During Peak Use' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_water_pressure_sag_during_peak_use` (UC-25.19.15), SOC dashboard panel \"Personal — Water-Pressure Sag During Peak Use\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='waterpressure:reading' that satisfy the UC-25.19.15 SPL filters for 'Water-Pressure Sag During Peak Use'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `waterpressure:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.19.15."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='waterpressure:reading' where `entity` satisfies detection threshold for UC-25.19.15 ('Water-Pressure Sag During Peak Use'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `waterpressure:reading` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.19.15."
   },
   "dataSources": "Whole-home water flow (`watermeter:flow`), water pressure (`waterpressure:reading`), irrigation control (`irrigation:zone`), water-heater events (`waterheater:event`), greywater tanks (`greywater:tank`), and utility sensors for pumps and softeners (`sumppump:event`, `wellpump:event`, `watersoftener:status`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Water and plumbing telemetry from smart water meters, pressure sensors, irrigation controllers, sump and well pumps, greywater tanks, and water-heater sensors streamed to Splunk HEC via MQTT and vendor APIs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=waterpressure:reading\n| timechart span=15m min(pressure_psi) as min_pressure_psi",
-  "description": "Charts minimum water pressure through the day so weak service or restrictive filters show up during heavy use windows.",
-  "value": "Pressure sag explains many day-to-day comfort complaints and helps distinguish fixture issues from broader supply problems.",
+  "description": "Charts minimum water pressure through the day so weak service or restrictive filters show up during heavy use windows. Searches `index=personal` with sourcetype `waterpressure:reading` for UC-25.19.15, aggregating `min` by `entity` over `15m`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Water-Pressure Sag During Peak Use' without manual log review.",
+  "value": "Charts minimum water pressure through the day so weak service or restrictive filters show up during heavy u.... Timely UC-25.19.15 alerting on 'Water-Pressure Sag During Peak Use' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Install a pressure sensor near the main and compare low-pressure periods against demand spikes and filter maintenance.",
   "visualization": "Time chart of minimum water pressure.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Water-Pressure Sag During Peak Use'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `waterpressure:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Water-Pressure Sag During Peak Use' stops polling `waterpressure:reading`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `min` over `15m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `waterpressure:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `15m` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

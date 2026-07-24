@@ -40,17 +40,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "User charlie creates vendor Acme Ltd on Monday and approves a $50k payment to Acme on Tuesday; the UC fires.",
-    "negativeScenario": "Vendor creation and payment approval are by distinct identities; no alert.",
-    "fixtureRef": "",
-    "attackTechnique": "T1078",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=erp` sourcetype='sap:vendor_master' where `vendor_id` satisfies detection threshold for UC-22.48.5 ('Vendor-master SoD — same identity creates vendor AND approves payment'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `erp` / `sap:vendor_master` events where `vendor_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.48.5."
   },
   "dataSources": "ERP vendor-master events, AP payment approval events. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=erp sourcetype=sap:vendor_master OR sourcetype=oracle:vendor_master action=create earliest=-30d\n| stats min(_time) as created_at values(created_by) as creators by vendor_id\n| join vendor_id [search index=erp sourcetype=*:ap_payment action=approve earliest=-30d | stats values(approved_by) as approvers by vendor_id]\n| eval overlap=mvfilter(match(creators,approvers))\n| where mvcount(overlap)>0\n| table vendor_id created_at creators approvers overlap",
   "description": "Classic fraud-vector control: the ability to create a vendor and approve its payment cannot reside with a single identity.",
-  "value": "Continuously enforces a control most organisations only sample. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Classic fraud-vector control: the ability to create a vendor and approve its payment cannot reside with a s.... Timely UC-22.48.5 alerting on 'Vendor-master SoD — same identity creates vendor AND approves payment' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Ensure ERP emits both events; (2) run hourly; (3) auto-freeze suspicious vendor payments via AP workflow. Indexes required: `index=erp`; Sourcetypes: `sourcetype=*:ap_payment`, `sourcetype=oracle:vendor_master`, `sourcetype=sap:vendor_master`.",
   "visualization": "Table of same-person violations, single-value 'vendors with SoD-compliant lifecycle'. Key fields: `approvers`, `created_at`, `creators`, `overlap`, `vendor_id`, `vendor_id]`.",
   "cimModels": [
@@ -77,7 +74,7 @@
       "title": "NIST Cybersecurity Framework"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised SOX ITGC control testing** — Internal audit exercises 'Vendor-master SoD — same identity creates vendor AND approves payment' (UC-22.48.5) on `vendor_id` during scheduled clause ITGC.Vendor.SoD sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=erp` `sap:vendor_master` without crossing evidence threshold. Cross-check engagement letter in `sox_itgc_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `erp` for `vendor_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `vendor_id` during normal service delivery.\n\n**Suppression mechanism:** `sox_itgc_exception_register.csv` keyed on `vendor_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1078"
   ],

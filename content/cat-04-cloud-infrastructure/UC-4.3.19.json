@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Cloud Billing Budget Alerts and Anomaly' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cloud_billing_budget_alerts_and_anomaly` (UC-4.3.19), SOC dashboard panel \"Operations — Cloud Billing Budget Alerts and Anomaly\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='gcp:billing' that satisfy the UC-4.3.19 SPL filters for 'Cloud Billing Budget Alerts and Anomaly'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `gcp` / `gcp:billing` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.19."
+    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='gcp:billing' where `_time` satisfies detection threshold for UC-4.3.19 ('Cloud Billing Budget Alerts and Anomaly'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `gcp` / `gcp:billing` events where `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.19."
   },
   "dataSources": "Billing export to BigQuery or Pub/Sub, Budget alert notifications Collected via Splunk Add-on for Google Cloud Platform (Splunkbase 3084) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_google-cloudplatform` — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
   "spl": "index=gcp sourcetype=\"gcp:billing\"\n| bin _time span=1d\n| stats sum(cost) as daily_cost by _time, service\n| eventstats avg(daily_cost) as avg_cost, stdev(daily_cost) as stdev_cost by service\n| where daily_cost > avg_cost + 2*stdev_cost",
-  "description": "Budget alerts and spend anomalies prevent cost overruns. Early detection enables corrective action before invoice.",
+  "description": "Budget alerts and spend anomalies prevent cost overruns. Early detection enables corrective action before invoice. Searches `index=gcp` with sourcetype `gcp:billing` for UC-4.3.19, aggregating `sum` by `_time` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Cloud Billing Budget Alerts and Anomaly' without manual log review.",
   "value": "Early 'Cloud Billing Budget Alerts and Anomaly' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Enable billing export. Ingest daily/monthly cost data. Create budget alerts and forward to Splunk. Calculate baseline and alert on 2-sigma anomaly by service or project.",
   "visualization": "Line chart (cost with threshold), Table (service, cost, anomaly), Stacked area (cost by service).",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cloud Billing Budget Alerts and Anomaly'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `gcp` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `gcp`** — Planned work for 'Cloud Billing Budget Alerts and Anomaly' shifts `sum` over `span=1d` while `_time` remains in-scope for UC-4.3.19. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `gcp:billing`** — Scheduled automation elevates `service` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gcp:billing`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "gcp"
   ],

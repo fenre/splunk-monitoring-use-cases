@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Max Speed Outlier Runs' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_max_speed_outlier_runs` (UC-25.91.4), SOC dashboard panel \"Personal — Max Speed Outlier Runs\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='skitracks:run' that satisfy the UC-25.91.4 SPL filters for 'Max Speed Outlier Runs'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `skitracks:run` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.91.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='skitracks:run' where `trail_name` satisfies `z_score` >= 2 for UC-25.91.4 ('Max Speed Outlier Runs'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `skitracks:run` events where `trail_name` stays below `z_score` >= 2, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.91.4."
   },
   "dataSources": "Slopes ski sessions (`slopes:session`), Ski Tracks runs (`skitracks:run`), OnTheSnow resort reports (`onthesnow:report`), snow safety checks (`snow:safety`), and Ikon Pass lift scans (`ikon:pass`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Slopes ski sessions, Ski Tracks GPS runs, OnTheSnow resort reports, snow safety checklist logs, and Ikon Pass scan exports forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=skitracks:run max_speed_kph=* trail_name=*\n| eventstats avg(max_speed_kph) as avg_speed, stdev(max_speed_kph) as speed_stdev by trail_name\n| eval z_score=round((max_speed_kph-avg_speed)/nullif(speed_stdev,0),2)\n| where z_score>=2\n| table _time trail_name max_speed_kph avg_speed z_score",
-  "description": "Detects Ski Tracks runs whose max speed is two standard deviations above the trail average.",
-  "value": "Speed outliers can flag icy conditions, GPS glitches, or runs where control got away from you.",
+  "description": "Detects Ski Tracks runs whose max speed is two standard deviations above the trail average. Searches `index=personal` with sourcetype `skitracks:run` for UC-25.91.4, aggregating `avg` by `trail_name` over `the scheduled window`. Alerts when grouped results cross `z_score` >= 2 in the saved search. Gives Personal operators a repeatable signal for 'Max Speed Outlier Runs' without manual log review.",
+  "value": "Detects Ski Tracks runs whose max speed is two standard deviations above the trail average. Timely UC-25.91.4 alerting on 'Max Speed Outlier Runs' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Export Ski Tracks runs with `max_speed_kph` and review z-score outliers after each resort day.",
   "visualization": "Scatter plot of max speed by trail with outlier markers.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Max Speed Outlier Runs'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `skitracks:run`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Max Speed Outlier Runs' stops polling `skitracks:run`; stale `trail_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `skitracks:run`. Dedup with `stats latest(*) by trail_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `z_score` >= 2. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "servicenow"
   ],

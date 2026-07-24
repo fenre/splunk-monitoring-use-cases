@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'OpenStack Nova Instance State Stuck in BUILD or ERROR' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_openstack_nova_instance_state_stuck_in_build_or_` (UC-2.9.9), SOC dashboard panel \"Linux — OpenStack Nova Instance State Stuck in BUILD or ERROR\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=openstack` sourcetype='openstack:nova' that satisfy the UC-2.9.9 SPL filters for 'OpenStack Nova Instance State Stuck in BUILD or ERROR'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `openstack` / `openstack:nova` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.9.9."
+    "positiveScenario": "Ingest synthetic events into `index=openstack` sourcetype='openstack:nova' where `instance_uuid` satisfies `age_sec` > 900 for UC-2.9.9 ('OpenStack Nova Instance State Stuck in BUILD or ERROR'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `openstack` / `openstack:nova` events where `instance_uuid` stays below `age_sec` > 900, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.9.9."
   },
   "dataSources": "`index=openstack` `sourcetype=\"openstack:nova\"` — `instance_uuid`, `vm_state`, `task_state`, `power_state`, `host` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Nova state audit from `nova list --fields` JSON or notifications — Universal Forwarder (Splunkbase 617)",
   "spl": "index=openstack sourcetype=\"openstack:nova\" earliest=-6h\n| eval vs=lower(coalesce(vm_state, state))\n| eval ts=lower(coalesce(task_state, task))\n| where vs=\"build\" OR vs=\"error\" OR match(ts, \"(?i)scheduling|networking|block_device\")\n| eval age_sec=now()-tonumber(state_changed_epoch)\n| where age_sec>900\n| stats max(age_sec) as max_age by instance_uuid, host, vs",
   "description": "Instances stuck mid-build consume quotas and mask scheduler or image issues. Long-lived ERROR states often indicate recurring hardware faults.",
-  "value": "Protects tenant SLAs and prevents ghost capacity consumption. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Instances stuck mid-build consume quotas and mask scheduler or image issues. Timely UC-2.9.9 alerting on 'OpenStack Nova Instance State Stuck in BUILD or ERROR' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Snapshot state every few minutes. Alert when age exceeds 15 minutes. Auto-open tickets with hypervisor and image id.",
   "visualization": "Single value stuck count; table oldest instances; timeline transitions.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'OpenStack Nova Instance State Stuck in BUILD or ERROR'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `openstack` `openstack:nova`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `openstack`** — Package managers spike `instance_uuid` metrics for 'OpenStack Nova Instance State Stuck in BUILD or ERROR'. Correlate with apt/yum logs in the same `openstack:nova` window.\n\n2. **Nightly backup I/O on `instance_uuid`** — Predictable `max` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `openstack:nova`** — Nagios/Zabbix polls `instance_uuid` and mimics sustained load without crossing `age_sec` > 900.\n\n4. **New host onboarding** — `instance_uuid` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `instance_uuid`, `valid_until`.",
   "equipment": [
     "hyperv",
     "openstack"

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Sustainable Commute Mode Share' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_sustainable_commute_mode_share` (UC-25.50.16), SOC dashboard panel \"Personal — Sustainable Commute Mode Share\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='carbon:estimate' that satisfy the UC-25.50.16 SPL filters for 'Sustainable Commute Mode Share'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `carbon:estimate` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.50.16."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='carbon:estimate' where `mode` satisfies detection threshold for UC-25.50.16 ('Sustainable Commute Mode Share'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `carbon:estimate` events where `mode` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.50.16."
   },
   "dataSources": "Carbon estimates (`carbon:estimate`), recycling weight (`recycling:weight`), food waste (`foodwaste:log`), repairs (`repair:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Sustainability telemetry — carbon-footprint apps, home recycling scales, food-waste logs, and repair / reuse journals — streamed to Splunk HEC via APIs, MQTT, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=carbon:estimate category=commute\n| stats sum(distance_km) as km by mode\n| eventstats sum(km) as total_km\n| eval mode_share_pct=round(100*km/total_km,1)\n| sort - mode_share_pct",
-  "description": "Shows what share of your commuting distance happens by low-carbon versus high-carbon transport modes.",
-  "value": "Mode share is more actionable than a monthly carbon total because it maps directly to everyday choices.",
+  "description": "Shows what share of your commuting distance happens by low-carbon versus high-carbon transport modes. Searches `index=personal` with sourcetype `carbon:estimate` for UC-25.50.16, aggregating `sum` by `mode` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Sustainable Commute Mode Share' without manual log review.",
+  "value": "Shows what share of your commuting distance happens by low-carbon versus high-carbon transport modes. Timely UC-25.50.16 alerting on 'Sustainable Commute Mode Share' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Tag commute carbon events with mode and distance; calculate each mode's percentage share of total distance.",
   "visualization": "Pie chart of commute distance share by mode.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Sustainable Commute Mode Share'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `carbon:estimate`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Sustainable Commute Mode Share' stops polling `carbon:estimate`; stale `mode` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `carbon:estimate`. Dedup with `stats latest(*) by mode`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

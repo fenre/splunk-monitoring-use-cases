@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'WatchBox Service Record Weekly Turnaround Days Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_watchbox_service_record_weekly_turnaround_days_t` (UC-25.107.14), SOC dashboard panel \"Personal — WatchBox Service Record Weekly Turnaround Days Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='watchbox:service' that satisfy the UC-25.107.14 SPL filters for 'WatchBox Service Record Weekly Turnaround Days Trend'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `watchbox:service` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.107.14."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='watchbox:service' where `_time` satisfies detection threshold for UC-25.107.14 ('WatchBox Service Record Weekly Turnaround Days Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `watchbox:service` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.107.14."
   },
   "dataSources": "Chrono24 listings (`chrono24:listing`), WatchBox service records (`watchbox:service`), wrist-time logs (`watch:wristtime`), and watch service history (`watch:service`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Chrono24 listing snapshots, WatchBox service records, wrist-time wear logs, and in-house service history exports ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=watchbox:service turnaround_days=*\n| bin _time span=1w\n| stats avg(turnaround_days) as avg_duration, max(turnaround_days) as worst_duration by _time\n| sort _time",
-  "description": "Trends the average and worst turnaround days for WatchBox service record events each week.",
-  "value": "Weekly timing trends show whether a process is becoming slower, more erratic, or healthier over time.",
+  "description": "Trends the average and worst turnaround days for WatchBox service record events each week. Searches `index=personal` with sourcetype `watchbox:service` for UC-25.107.14, aggregating `avg` by `_time` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'WatchBox Service Record Weekly Turnaround Days Trend' without manual log review.",
+  "value": "Trends the average and worst turnaround days for WatchBox service record events each week. Timely UC-25.107.14 alerting on 'WatchBox Service Record Weekly Turnaround Days Trend' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture turnaround_days on each event and review weekly averages plus worst cases during your personal ops review.",
   "visualization": "Line chart of weekly average turnaround days with markers for the worst week.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'WatchBox Service Record Weekly Turnaround Days Trend'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `watchbox:service`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'WatchBox Service Record Weekly Turnaround Days Trend' stops polling `watchbox:service`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `watchbox:service`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,8 +12,8 @@
   "exclusions": "Covers the detection logic documented for 'EDI Acknowledgement Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_edi_acknowledgement_monitoring` (UC-14.2.27), SOC dashboard panel \"Operations — EDI Acknowledgement Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=edi` sourcetype='edi:control' that satisfy the UC-14.2.27 SPL filters for 'EDI Acknowledgement Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `edi` / `edi:control` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.27."
+    "positiveScenario": "Ingest synthetic events into `index=edi` sourcetype='edi:control' where `interchange_id` satisfies `ack_latency_sec` > 3600 for UC-14.2.27 ('EDI Acknowledgement Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `edi` / `edi:control` events where `interchange_id` stays below `ack_latency_sec` > 3600, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.27."
   },
   "dataSources": "`sourcetype=\"edi:control\"`, `sourcetype=\"as2:mdn\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "B2B gateway (IBM/Seeburger), VAN logs — Universal Forwarder (Splunkbase 617)",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'EDI Acknowledgement Monitoring'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `edi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `edi`** — Planned work for 'EDI Acknowledgement Monitoring' shifts `count` over `span=1h` while `interchange_id` remains in-scope for UC-14.2.27. Cross-check CMDB CHG.\n\n2. **Batch `count` on `edi:control`** — Scheduled automation elevates `doc_type` without crossing `ack_latency_sec` > 3600. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `interchange_id`** — Health checks in `edi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `edi:control`** — First 48h baseline for `interchange_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `interchange_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

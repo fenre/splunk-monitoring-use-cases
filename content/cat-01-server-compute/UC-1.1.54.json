@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Network Namespace Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_network_namespace_monitoring` (UC-1.1.54), SOC dashboard panel \"Linux — Network Namespace Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='custom:netns' that satisfy the UC-1.1.54 SPL filters for 'Network Namespace Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `custom:netns` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.54."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='custom:netns' where `host` satisfies `netns_count` > 10 for UC-1.1.54 ('Network Namespace Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `custom:netns` events where `host` stays below `netns_count` > 10, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.54."
   },
   "dataSources": "`sourcetype=custom:netns` (enumeration of `/var/run/netns/` or `ip netns` output) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix` with a custom scripted input for namespace inventory — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:netns host=*\n| stats dc(netns_name) as netns_count by host\n| where netns_count > 10",
   "description": "Counts how many distinct network namespace names appear per host in the collection window; unusually high counts can mean container sprawl or unexpected new namespaces worth reviewing.",
-  "value": "Unexpected growth in namespaces often lines up with orchestration drift, manual experiments, or activity you want your security or platform team to confirm, before isolation assumptions break.",
+  "value": "Counts how many distinct network namespace names appear per host in the collection window; unusually high c.... Timely UC-1.1.54 alerting on 'Network Namespace Monitoring' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Run a periodic script that lists netns names (or IDs) and ships one row per namespace. Adjust the `where count > 10` threshold to your container density; very dense worker nodes may need per–node group baselines instead of a global number.",
   "visualization": "Table, Alert",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Network Namespace Monitoring'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `custom:netns`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Network Namespace Monitoring'. Correlate with apt/yum logs in the same `custom:netns` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `dc` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:netns`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `netns_count` > 10.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'OBD Tire Pressure Seasonal Delta' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_obd_tire_pressure_seasonal_delta` (UC-25.3.28), SOC dashboard panel \"Personal — OBD Tire Pressure Seasonal Delta\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='obd:pid' that satisfy the UC-25.3.28 SPL filters for 'OBD Tire Pressure Seasonal Delta'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `obd:pid` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.28."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='obd:pid' where `vin` satisfies `seasonal_drop` > 5 for UC-25.3.28 ('OBD Tire Pressure Seasonal Delta'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `obd:pid` events where `vin` stays below `seasonal_drop` > 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.28."
   },
   "dataSources": "Personal EV and vehicle telemetry (`tesla:vehicle`, `tesla:charge`, `rivian:vehicle`, `chargepoint:session`, `plugshare:checkin`, `evcharger:session`, `obd:pid`, `smartcar:vehicle`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tesla Fleet API / TeslaMate, Rivian telemetry, ChargePoint session exports, PlugShare trip logs, Smartcar, and OBD-II / home-charger data via APIs, CSV exports, MQTT, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=obd:pid metric=tire_pressure\n| eval month=strftime(_time,\"%m\")\n| stats avg(front_left_psi) as fl, avg(front_right_psi) as fr, avg(rear_left_psi) as rl, avg(rear_right_psi) as rr by vin month\n| eval avg_psi=round((fl+fr+rl+rr)/4,1)\n| eventstats max(avg_psi) as peak_psi, min(avg_psi) as trough_psi by vin\n| eval seasonal_drop=round(peak_psi-trough_psi,1)\n| where seasonal_drop>5\n| sort - seasonal_drop",
-  "description": "Uses OBD-II tire-pressure exports telemetry to monitor seasonal pressure spread across the year in index=personal.",
-  "value": "Splunk turns the feed into an operational check for vehicles that need more seasonal tire attention, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses OBD-II tire-pressure exports telemetry to monitor seasonal pressure spread across the year in index=personal. Searches `index=personal` with sourcetype `obd:pid` for UC-25.3.28, aggregating `avg` by `vin` over `the scheduled window`. Alerts when grouped results cross `seasonal_drop` > 5 in the saved search. Gives Personal operators a repeatable signal for 'OBD Tire Pressure Seasonal Delta' without manual log review.",
+  "value": "Uses OBD-II tire-pressure exports telemetry to monitor seasonal pressure spread across the year in index=pe.... Timely UC-25.3.28 alerting on 'OBD Tire Pressure Seasonal Delta' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest OBD-II tire-pressure exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Monthly tire-pressure spread by VIN.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'OBD Tire Pressure Seasonal Delta'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `obd:pid`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'OBD Tire Pressure Seasonal Delta' stops polling `obd:pid`; stale `vin` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `obd:pid`. Dedup with `stats latest(*) by vin`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `seasonal_drop` > 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

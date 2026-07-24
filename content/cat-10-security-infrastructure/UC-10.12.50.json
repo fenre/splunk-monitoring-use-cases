@@ -14,7 +14,7 @@
   "app": "`Splunk Add-on for Salesforce` ([Splunkbase 3549](https://splunkbase.splunk.com/app/3549)), ≥5.0. Install on the Search Head (for field extractions and saved searches) and on a dedicated Heavy Forwarder if running data collection off-SH. The TA provides both collection and parsing. The TA requires a Salesforce Connected App with OAuth 2.0 credentials and an Event Monitoring or Salesforce Shield license.",
   "spl": "index=salesforce sourcetype=\"salesforce:event_log\" EventType=\"SetupAuditTrail\" Section=\"Field-Level Security\"\n| stats values(Action) as actions, count by Display, DelegateUser, _time\n| where match(Display, \"(?i)(ssn|social|credit|salary|birthdate|passport|account_number)\")\n| sort -_time",
   "description": "Tracks Setup Audit Trail changes under Field-Level Security that mention sensitive identifiers—such as tax, payroll, passport, payment, or account fields—surfacing widening visibility to profiles or permission sets tied to regulated data.",
-  "value": "Silent widening of sensitive field access triggers privacy violations, CRA and PCI scrutiny, and failed audits; proactive drift alerts preserve least-privilege stories for regulators and keep customer trust intact when teams rush feature releases.",
+  "value": "Tracks Setup Audit Trail changes under Field-Level Security that mention sensitive identifiers—such as tax,.... Timely UC-10.12.50 alerting on 'Salesforce Field-Level Security Configuration Drift' reduces missed threat campaigns, control regressions, and SOC SLA breaches before manual triage or audit channels escalate.",
   "implementation": "Maintain a glossary of canonical sensitive field labels; ingest SetupAuditTrail continuously; delegate review to data stewards who can reconcile Display values with Salesforce metadata dictionaries.",
   "visualization": "**Row 1 —** Interactive timeline of FLS events (**zoom default 7 days**, brush selects maintenance). **Row 2 —** Treemap **`Entity` → `Display`** sized by **`count`** of actions (shows concentrated objects). **Row 3 —** Analyst table (**`DelegateUser`, regex-classified severity, ticket link**). **Row 4 —** **Diff panel** contrasting current vs **`summaryindex`** snapshot for clicked field demonstrating before/after visibility states.",
   "cimModels": [
@@ -43,7 +43,7 @@
       "url": "https://help.salesforce.com/s/articleView?id=sf.admin_fls.htm"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Salesforce Field-Level Security Configuration Drift'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=salesforce` `salesforce:event_log`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `salesforce`** — Planned work for 'Salesforce Field-Level Security Configuration Drift' shifts `values` over `span=1h` while `Display` remains in-scope for UC-10.12.50. Cross-check CMDB CHG.\n\n2. **Batch `values` on `salesforce:event_log`** — Scheduled automation elevates `DelegateUser` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `Display`** — Health checks in `salesforce` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `salesforce:event_log`** — First 48h baseline for `Display` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `Display`, `exception_reason`, `valid_until`.",
   "equipment": [
     "salesforce"
   ],
@@ -62,8 +62,8 @@
   "prerequisiteUseCases": [],
   "wave": "walk",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=salesforce` sourcetype='salesforce:event_log' that satisfy the UC-10.12.50 SPL filters for 'Salesforce Field-Level Security Configuration Drift'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `salesforce` / `salesforce:event_log` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.50."
+    "positiveScenario": "Ingest synthetic events into `index=salesforce` sourcetype='salesforce:event_log' where `Display` satisfies detection threshold for UC-10.12.50 ('Salesforce Field-Level Security Configuration Drift'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `salesforce` / `salesforce:event_log` events where `Display` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.50."
   },
   "exclusions": "Covers the detection logic documented for 'Salesforce Field-Level Security Configuration Drift' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_salesforce_field_level_security_configuration_dr` (UC-10.12.50), SOC dashboard panel \"Security Infra — Salesforce Field-Level Security Configuration Drift\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls."

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'macOS MDM Enrollment and User Channel Check-In SLA' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_macos_mdm_enrollment_and_user_channel_check_in_s` (UC-1.2.136), SOC dashboard panel \"Linux — macOS MDM Enrollment and User Channel Check-In SLA\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=mdm` sourcetype='jamf:computer_inventory' that satisfy the UC-1.2.136 SPL filters for 'macOS MDM Enrollment and User Channel Check-In SLA'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `mdm` / `jamf:computer_inventory` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.136."
+    "positiveScenario": "Ingest synthetic events into `index=mdm` sourcetype='jamf:computer_inventory' where `entity` satisfies `hours_since` > 48 for UC-1.2.136 ('macOS MDM Enrollment and User Channel Check-In SLA'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `mdm` / `jamf:computer_inventory` events where `entity` stays below `hours_since` > 48, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.136."
   },
   "dataSources": "MDM vendor API logs (Jamf Pro, Workspace ONE, Intune macOS) forwarded as JSON/HEC, or `sourcetype=jamf:computer_inventory` style feeds Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Jamf Pro, Microsoft Intune, VMware Workspace ONE — via HEC or scripted pull TA patterns; optional Cisco Secure Endpoint TA for corroboration — Universal Forwarder (Splunkbase 617)",
   "spl": "index=mdm sourcetype=jamf:computer_inventory OR sourcetype=intune:device OR sourcetype=ws1:device\n| eval last_seen_epoch=coalesce(tonumber(last_contact_time_epoch), tonumber(last_seen_epoch))\n| eval hours_since=round((now()-last_seen_epoch)/3600,2)\n| where isnotnull(mdm_enrolled) AND mdm_enrolled=false OR hours_since > 48\n| table _time, host, serial_number, mdm_enrolled, udid, hours_since, management_source\n| sort - hours_since",
   "description": "macOS devices that fall out of MDM enrollment lose policy baselines for disk encryption, firewall, and update cadence. Comparing enrollment flags and last MDM check-in timestamps surfaces unmanaged or ghost systems before auditors do.",
-  "value": "Protects configuration compliance on Apple endpoints by catching MDM channel loss within hours instead of at quarterly inventory.",
+  "value": "macOS devices that fall out of MDM enrollment lose policy baselines for disk encryption, firewall, and upda.... Timely UC-1.2.136 alerting on 'macOS MDM Enrollment and User Channel Check-In SLA' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Ingest your MDM tool’s device export or webhook stream. Normalize fields: `mdm_enrolled` boolean, `last_contact_time_epoch`, `serial_number`, `udid`. For Jamf, mirror the classic Splunk-for-Jamf sourcetype naming; for Intune Graph pulls, use `intune:device`. Schedule hourly; alert when `mdm_enrolled=false` on corporately tagged assets or `hours_since > 48`. Join Splunk asset lookups for loaner exclusions.",
   "visualization": "Map (optional by site), Table (stale check-ins), Single value (unenrolled count).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'macOS MDM Enrollment and User Channel Check-In SLA'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `mdm` `jamf:computer_inventory`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `mdm`** — Package managers spike `host` metrics for 'macOS MDM Enrollment and User Channel Check-In SLA'. Correlate with apt/yum logs in the same `jamf:computer_inventory` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `jamf:computer_inventory`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `hours_since` > 48.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "cisco",
     "macos",

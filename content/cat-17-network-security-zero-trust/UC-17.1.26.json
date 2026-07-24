@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Cloudflare Zone HTTP 5xx and Origin Error Rate' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_cloudflare_zone_http_5xx_and_origin_error_rate` (UC-17.1.26), SOC dashboard panel \"Network — Cloudflare Zone HTTP 5xx and Origin Error Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='cloudflare:json' that satisfy the UC-17.1.26 SPL filters for 'Cloudflare Zone HTTP 5xx and Origin Error Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `cloudflare:json` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.26."
+    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='cloudflare:json' where `ClientRequestHost` satisfies `edge_status` >= 500 for UC-17.1.26 ('Cloudflare Zone HTTP 5xx and Origin Error Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `web` / `cloudflare:json` events where `ClientRequestHost` stays below `edge_status` >= 500, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.26."
   },
   "dataSources": "Cloudflare Logpush `http_requests` dataset ingested with app-recommended sourcetype (commonly `cloudflare:json` per HEC job configuration)",
   "app": "Cloudflare App for Splunk (Splunkbase 4501)",
   "spl": "index=web sourcetype=\"cloudflare:json\" earliest=-1h\n| eval edge_status=tonumber(EdgeResponseStatus)\n| eval origin_status=tonumber(OriginResponseStatus)\n| where edge_status>=500 OR origin_status>=500\n| stats count by ClientRequestHost, EdgeResponseStatus, OriginResponseStatus, RayID\n| sort -count\n| head 50",
   "description": "Elevated 5xx responses at the edge or from the origin indicate failing pools, overloaded applications, or deliberate application-layer attacks. Ray ID–level aggregation supports fast hand-off between CDN and application owners.",
-  "value": "SRE teams track Cloudflare 5xx error rates per zone, separating edge errors (origin unreachable, timeout, SSL failures) from application errors (500/502/503), and measuring consumption against monthly error budgets to trigger reliability investments before SLAs are breached.",
+  "value": "Elevated 5xx responses at the edge or from the origin indicate failing pools, overloaded applications, or d.... Timely UC-17.1.26 alerting on 'Cloudflare Zone HTTP 5xx and Origin Error Rate' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Create a Logpush job for `http_requests` to Splunk HEC; set sourcetype to `cloudflare:json` if following Cloudflare’s Splunk integration guide, or the dataset-specific sourcetype from the app’s Details section. Include `EdgeResponseStatus`, `OriginResponseStatus`, `ClientRequestHost`, and `RayID` in field selection. Alert when 5xx count exceeds a rolling baseline per hostname.",
   "visualization": "Time chart (5xx rate), Table (hostname, edge vs origin status), Single value (SLA breach indicator).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Cloudflare Zone HTTP 5xx and Origin Error Rate'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `web`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `cloudflare:json` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'Cloudflare Zone HTTP 5xx and Origin Error Rate' shifts `count` over `span=1h` while `ClientRequestHost` remains in-scope for UC-17.1.26. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cloudflare:json`** — Scheduled automation elevates `EdgeResponseStatus` without crossing `edge_status` >= 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ClientRequestHost`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cloudflare:json`** — First 48h baseline for `ClientRequestHost` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `ClientRequestHost`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "cloudflare"

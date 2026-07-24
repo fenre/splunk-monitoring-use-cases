@@ -12,8 +12,8 @@
   "exclusions": "Covers the detection logic documented for 'Same-CI Concurrent Scheduled Changes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_same_ci_concurrent_scheduled_changes` (UC-16.4.11), SOC dashboard panel \"Operations — Same-CI Concurrent Scheduled Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:change_request' that satisfy the UC-16.4.11 SPL filters for 'Same-CI Concurrent Scheduled Changes'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:change_request` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.4.11."
+    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:change_request' where `cmdb_ci` satisfies `overlap_count` > 0 for UC-16.4.11 ('Same-CI Concurrent Scheduled Changes'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `itsm` / `snow:change_request` events where `cmdb_ci` stays below `overlap_count` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.4.11."
   },
   "dataSources": "`index=itsm` `sourcetype=\"snow:change_request\"` (`cmdb_ci`, `start_date`, `end_date`, `state`, `number`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Same-CI Concurrent Scheduled Changes'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `itsm` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Same-CI Concurrent Scheduled Changes' shifts `values` over `span=1h` while `cmdb_ci` remains in-scope for UC-16.4.11. Cross-check CMDB CHG.\n\n2. **Batch `values` on `snow:change_request`** — Scheduled automation elevates `chg_a` without crossing `overlap_count` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cmdb_ci`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:change_request`** — First 48h baseline for `cmdb_ci` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cmdb_ci`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

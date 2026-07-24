@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'TriDot Compliance Drop Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_tridot_compliance_drop_alert` (UC-25.93.3), SOC dashboard panel \"Personal — TriDot Compliance Drop Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tridot:plan' that satisfy the UC-25.93.3 SPL filters for 'TriDot Compliance Drop Alert'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tridot:plan` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.93.3."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tridot:plan' where `phase` satisfies `avg_compliance` < 75 for UC-25.93.3 ('TriDot Compliance Drop Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `tridot:plan` events where `phase` stays below `avg_compliance` < 75, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.93.3."
   },
   "dataSources": "TrainingPeaks workouts (`trainingpeaks:workout`), Garmin multisport activities (`garmin:multisport`), TriDot plans (`tridot:plan`), brick workouts (`brick:workout`), and transition logs (`transition:log`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "TrainingPeaks structured workouts, Garmin multisport FIT exports, TriDot training plans, brick workout logs, and transition timing notes ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tridot:plan compliance_pct=* phase=*\n| timechart span=1w avg(compliance_pct) as avg_compliance by phase\n| where avg_compliance<75",
-  "description": "Alerts when weekly average TriDot plan compliance falls below seventy-five percent for any training phase.",
-  "value": "Plan compliance drops often mean life stress or injury; catching them early prevents junk miles.",
+  "description": "Alerts when weekly average TriDot plan compliance falls below seventy-five percent for any training phase. Searches `index=personal` with sourcetype `tridot:plan` for UC-25.93.3, aggregating `avg` by `phase` over `1w`. Alerts when grouped results cross `avg_compliance` < 75 in the saved search. Gives Personal operators a repeatable signal for 'TriDot Compliance Drop Alert' without manual log review.",
+  "value": "Alerts when weekly average TriDot plan compliance falls below seventy-five percent for any training phase. Timely UC-25.93.3 alerting on 'TriDot Compliance Drop Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Export TriDot compliance percentages weekly by `phase` and alert when averages slide under threshold.",
   "visualization": "Line chart of weekly compliance by phase with threshold band.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'TriDot Compliance Drop Alert'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tridot:plan`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'TriDot Compliance Drop Alert' stops polling `tridot:plan`; stale `phase` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tridot:plan`. Dedup with `stats latest(*) by phase`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_compliance` < 75. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

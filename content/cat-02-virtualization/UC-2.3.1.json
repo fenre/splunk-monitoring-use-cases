@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Guest VM Resource Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_guest_vm_resource_monitoring` (UC-2.3.1), SOC dashboard panel \"Linux — Guest VM Resource Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=virtualization` sourcetype='virsh_stats' that satisfy the UC-2.3.1 SPL filters for 'Guest VM Resource Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `virtualization` / `virsh_stats` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.3.1."
+    "positiveScenario": "Ingest synthetic events into `index=virtualization` sourcetype='virsh_stats' where `vm_name` satisfies detection threshold for UC-2.3.1 ('Guest VM Resource Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `virtualization` / `virsh_stats` events where `vm_name` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.3.1."
   },
   "dataSources": "Custom sourcetype from `virsh domstats` or `virt-top` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (`virsh domstats`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=virtualization sourcetype=virsh_stats\n| stats latest(cpu_pct) as cpu, latest(mem_used_mb) as memory by vm_name, host\n| sort -cpu",
-  "description": "Per-VM resource tracking for capacity planning and performance troubleshooting in KVM environments.",
+  "description": "Per-VM resource tracking for capacity planning and performance troubleshooting in KVM environments. Searches `index=virtualization` with sourcetype `virsh_stats` for UC-2.3.1, aggregating `count` by `vm_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Linux operators a repeatable signal for 'Guest VM Resource Monitoring' without manual log review.",
   "value": "Early 'Guest VM Resource Monitoring' detection reduces capacity incidents, patch regressions, and service outages by giving Linux operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Create scripted input: `virsh domstats --cpu-total --balloon --interface --block`. Run every 60 seconds. Parse per-VM CPU time, balloon current, block read/write, and net rx/tx.",
   "visualization": "Table, Line chart per VM, Heatmap.",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Guest VM Resource Monitoring'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `virtualization` `virsh_stats`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `virtualization`** — Package managers spike `vm_name` metrics for 'Guest VM Resource Monitoring'. Correlate with apt/yum logs in the same `virsh_stats` window.\n\n2. **Nightly backup I/O on `vm_name`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `virsh_stats`** — Nagios/Zabbix polls `vm_name` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `vm_name` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `vm_name`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Thread Count Exhaustion' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_thread_count_exhaustion` (UC-1.2.57), SOC dashboard panel \"Linux — Thread Count Exhaustion\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=perfmon` sourcetype='Perfmon:Process' that satisfy the UC-1.2.57 SPL filters for 'Thread Count Exhaustion'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `perfmon` / `Perfmon:Process` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.57."
+    "positiveScenario": "Ingest synthetic events into `index=perfmon` sourcetype='Perfmon:Process' where `host` satisfies `threads` > 500 for UC-1.2.57 ('Thread Count Exhaustion'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `perfmon` / `Perfmon:Process` events where `host` stays below `threads` > 500, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.57."
   },
   "dataSources": "`sourcetype=Perfmon:Process` (counter: Thread Count), `sourcetype=Perfmon:System` (counter: Threads) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=perfmon sourcetype=\"Perfmon:Process\" counter=\"Thread Count\" instance!=\"_Total\" instance!=\"Idle\"\n| stats max(Value) as threads by host, instance\n| where threads > 500\n| sort -threads",
   "description": "Thread leaks or excessive thread creation cause pool exhaustion and application hangs. Windows has a system-wide limit of ~65K threads that affects all processes.",
-  "value": "Thread explosions often precede OOM, hung pools, and sad multi-second latency—the Perfmon part of the page still owns the sharp >500 limit.",
+  "value": "Thread leaks or excessive thread creation cause pool exhaustion and application hangs. Timely UC-1.2.57 alerting on 'Thread Count Exhaustion' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Configure Perfmon Process inputs with `Thread Count` counter (interval=300). Also monitor system-wide threads via Perfmon System → Threads. Alert when any single process exceeds 500 threads or system total exceeds 50K. Common offenders: IIS application pools (w3wp.exe), Java applications, .NET services with async leaks. Correlate with application response times.",
   "visualization": "Bar chart (top thread consumers), Line chart (thread growth trend), Single value (system total).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Thread Count Exhaustion'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `perfmon` `Perfmon:Process`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `perfmon`** — Package managers spike `host` metrics for 'Thread Count Exhaustion'. Correlate with apt/yum logs in the same `Perfmon:Process` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `max` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `Perfmon:Process`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `threads` > 500.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

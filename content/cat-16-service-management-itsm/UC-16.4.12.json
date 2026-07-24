@@ -12,8 +12,8 @@
   "exclusions": "Covers the detection logic documented for 'Standard Change Volume and Mix Guardrail' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_standard_change_volume_and_mix_guardrail` (UC-16.4.12), SOC dashboard panel \"Operations — Standard Change Volume and Mix Guardrail\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:change_request' that satisfy the UC-16.4.12 SPL filters for 'Standard Change Volume and Mix Guardrail'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:change_request` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.4.12."
+    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:change_request' where `_time` satisfies `chg_total` >= 10 for UC-16.4.12 ('Standard Change Volume and Mix Guardrail'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `itsm` / `snow:change_request` events where `_time` stays below `chg_total` >= 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.4.12."
   },
   "dataSources": "`index=itsm` `sourcetype=\"snow:change_request\"` (`type`, `category`, `assignment_group`, `opened_at`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Standard Change Volume and Mix Guardrail'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `itsm` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Standard Change Volume and Mix Guardrail' shifts `sum` over `span=1w` while `_time` remains in-scope for UC-16.4.12. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snow:change_request`** — Scheduled automation elevates `assignment_group` without crossing `chg_total` >= 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:change_request`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

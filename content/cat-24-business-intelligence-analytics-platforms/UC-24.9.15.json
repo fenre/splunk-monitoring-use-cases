@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Soda Failed-Row Sampling Trend' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_soda_failed_row_sampling_trend` (UC-24.9.15), SOC dashboard panel \"Operations — Soda Failed-Row Sampling Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='soda:scan' that satisfy the UC-24.9.15 SPL filters for 'Soda Failed-Row Sampling Trend'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `soda:scan` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.9.15."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='soda:scan' where `dataset` satisfies `failed_rows` > 0 for UC-24.9.15 ('Soda Failed-Row Sampling Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `soda:scan` events where `dataset` stays below `failed_rows` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.9.15."
   },
   "dataSources": "Soda scan results (`soda:scan`), Soda Cloud check events, and Bigeye metric/issue API (`bigeye:issue`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Soda Cloud API and Soda scan results (soda-core) forwarded as JSON to HEC; Bigeye API metric and issue exports via scripted inputs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=soda:scan check_outcome=\"fail\"\n| stats sum(failed_rows) as failed_rows, dc(check_name) as failing_checks by dataset\n| where failed_rows>0\n| sort - failed_rows",
   "description": "Aggregates Soda failed-row counts per dataset across all failing checks, quantifying how much data in each table currently violates its quality rules.",
-  "value": "Ranking datasets by failed rows focuses data-quality remediation on the tables with the most broken records feeding analytics.",
+  "value": "Aggregates Soda failed-row counts per dataset across all failing checks, quantifying how much data in each.... Timely UC-24.9.15 alerting on 'Soda Failed-Row Sampling Trend' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Forward soda-core scan results to HEC; schedule after each scan and alert when failed rows exceed a per-dataset threshold.",
   "visualization": "Table of dataset by failed rows, trend line.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Soda Failed-Row Sampling Trend'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Soda Failed-Row Sampling Trend' shifts `sum` over `span=1h` while `dataset` remains in-scope for UC-24.9.15. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `soda:scan`** — Scheduled automation elevates `src` without crossing `failed_rows` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dataset`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `soda:scan`** — First 48h baseline for `dataset` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dataset`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

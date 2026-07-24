@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Nanit Night Wake Cluster by Hour' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_nanit_night_wake_cluster_by_hour` (UC-25.23.19), SOC dashboard panel \"Personal — Nanit Night Wake Cluster by Hour\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='nanit:sleep' that satisfy the UC-25.23.19 SPL filters for 'Nanit Night Wake Cluster by Hour'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `nanit:sleep` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.23.19."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='nanit:sleep' where `hour` satisfies `hour` >= 19 for UC-25.23.19 ('Nanit Night Wake Cluster by Hour'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `nanit:sleep` events where `hour` stays below `hour` >= 19, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.23.19."
   },
   "dataSources": "Nanit sleep sessions (`nanit:sleep`), Hatch routines (`hatch:routine`), school calendar events (`schoolcalendar:event`), allowance transactions (`allowance:txn`), and kid screen usage (`screentime:usage`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Family-routine telemetry from Nanit sleep exports, Hatch routine data, school calendars, allowance and chore apps, and Apple Screen Time sent to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=nanit:sleep\n| eval hour=tonumber(strftime(_time,\"%H\"))\n| where hour>=19 OR hour<7\n| stats count as wakes avg(awake_min) as avg_awake_min by hour\n| sort hour",
   "description": "Examines Nanit night wakes by hour. Runs scheduled SPL against `index=personal` to surface **Nanit Night Wake Cluster by Hour** so you can spot drift before it becomes a habit.",
-  "value": "Hour-by-hour wake clustering shows when the nursery routine is most fragile instead of only telling you that sleep was rough.",
+  "value": "Examines Nanit night wakes by hour. Timely UC-25.23.19 alerting on 'Nanit Night Wake Cluster by Hour' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send Nanit night wakes by hour events to `index=personal` with the fields used in this SPL and review the outliers or trend breaks regularly.",
   "visualization": "Table or chart of Nanit night wakes by hour, depending on the selected time range.",
   "cimModels": [],
@@ -54,7 +54,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Nanit Night Wake Cluster by Hour'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nanit:sleep`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Nanit Night Wake Cluster by Hour' stops polling `nanit:sleep`; stale `hour` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nanit:sleep`. Dedup with `stats latest(*) by hour`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hour` >= 19. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Rivian Overnight Vampire Drain at Home' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_rivian_overnight_vampire_drain_at_home` (UC-25.3.19), SOC dashboard panel \"Personal — Rivian Overnight Vampire Drain at Home\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rivian:vehicle' that satisfy the UC-25.3.19 SPL filters for 'Rivian Overnight Vampire Drain at Home'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `rivian:vehicle` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.19."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rivian:vehicle' where `vin` satisfies `hour` >= 0 for UC-25.3.19 ('Rivian Overnight Vampire Drain at Home'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `rivian:vehicle` events where `vin` stays below `hour` >= 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.19."
   },
   "dataSources": "Personal EV and vehicle telemetry (`tesla:vehicle`, `tesla:charge`, `rivian:vehicle`, `chargepoint:session`, `plugshare:checkin`, `evcharger:session`, `obd:pid`, `smartcar:vehicle`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tesla Fleet API / TeslaMate, Rivian telemetry, ChargePoint session exports, PlugShare trip logs, Smartcar, and OBD-II / home-charger data via APIs, CSV exports, MQTT, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=rivian:vehicle state=parked location_type=home\n| eval hour=tonumber(strftime(_time,\"%H\"))\n| where hour>=0 AND hour<6\n| bin _time span=1d\n| stats first(soc_pct) as start_soc, last(soc_pct) as end_soc by vin _time\n| eval overnight_loss=round(start_soc-end_soc,1)\n| where overnight_loss>3\n| sort - overnight_loss",
   "description": "Uses Rivian vehicle telemetry telemetry to monitor overnight battery drop while the vehicle sat parked at home in index=personal.",
-  "value": "Splunk turns the feed into an operational check for phantom drain days before they become expensive habit, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Rivian vehicle telemetry telemetry to monitor overnight battery drop while the vehicle sat parked at h.... Timely UC-25.3.19 alerting on 'Rivian Overnight Vampire Drain at Home' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Rivian vehicle telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Daily chart of overnight state-of-charge loss.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Rivian Overnight Vampire Drain at Home'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rivian:vehicle`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Rivian Overnight Vampire Drain at Home' stops polling `rivian:vehicle`; stale `vin` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rivian:vehicle`. Dedup with `stats latest(*) by vin`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `hour` >= 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

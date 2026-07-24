@@ -37,7 +37,7 @@
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+. Requires SUPER-ADMIN-ROLE.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:audit:logs\" isSystemEvent=false auditRequestType IN (\"PUT\",\"POST\",\"DELETE\")\n| where (date_hour < 7 OR date_hour > 19) OR match(date_wday, \"saturday|sunday\")\n| table _time, auditUserName, auditRequestType, auditDescription\n| sort -_time",
   "description": "Detects state-changing administrative activity on the Catalyst Center platform during non-business hours (nights, weekends, holidays), flagging potentially unauthorised changes that occurred during periods of reduced operational oversight — the strongest indicator of either emergency work (should have a ticket) or compromised access (should trigger investigation).",
-  "value": "Legitimate network changes happen during business hours or approved maintenance windows. Configuration modifications at 3 AM on a Saturday — especially without a change ticket — are either emergency response (document it) or unauthorised access (investigate it). This UC surfaces all after-hours state-changing activity so the security team can verify each event was legitimate the next business morning. For SOX ITGC, after-hours changes without corresponding emergency change tickets are potential control failures that require documentation.",
+  "value": "Detects state-changing administrative activity on the Catalyst Center platform during non-business hours (n.... Timely UC-5.13.49 alerting on 'After-Hours Administrative Activity' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Same `audit_logs` input as UC-5.13.45. Filter by time-of-day and day-of-week for after-hours activity. Maintain a `business_hours` definition (default: Mon–Fri 07:00–19:00). Schedule daily at 7 AM to review overnight activity.",
   "visualization": "(1) Table: _time, auditUserName, auditRequestType, auditDescription — filtered to after-hours changes only. (2) Heatmap: activity count by hour-of-day × day-of-week to show patterns. (3) Single value: after-hours changes in last 24h (yellow ≥ 1, red ≥ 5). (4) Correlation: join with ITSM emergency change records to classify each event as approved or unapproved.",
   "references": [
@@ -58,7 +58,7 @@
       "url": "https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_0/home?element=AC-2"
     }
   ],
-  "knownFalsePositives": "**Approved emergency changes during off-hours.** Legitimate emergency maintenance (P1 incident response) generates after-hours activity that has an associated incident ticket. Distinguish by cross-referencing with ITSM emergency change records. Do not suppress — document the event with the incident/change ID to close the audit loop.\n\n**Automated SWIM firmware pushes scheduled for off-hours.** Firmware upgrades are often scheduled overnight to minimise user impact. These generate audit events from the service account or the scheduling user. Distinguish by checking `auditDescription` for SWIM-related operations and correlating with UC-5.13.57 (Upgrade Progress). Suppress by filtering known scheduled-operation users or annotating with the maintenance window.\n\n**Multinational team with after-hours overlap.** A team member in a different timezone working during their business hours appears as after-hours in the primary timezone. Distinguish by checking the `auditUserName` against a user-timezone lookup. Suppress by defining per-user business hours rather than a universal schedule.\n\n**System-generated events during overnight processing.** Despite the `isSystemEvent=false` filter, some automated operations (certificate auto-renewal, scheduled compliance scans) may be attributed to a service account but not flagged as system events. Distinguish by checking whether the `auditUserName` is a known service account. Filter with `| where auditUserName NOT IN (\"<service-accounts>\")`.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'After-Hours Administrative Activity' shifts `count` over `span=1h` while `host` remains in-scope for UC-5.13.49. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:audit:logs`** — Scheduled automation elevates `src` without crossing `date_hour` < 7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:audit:logs`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -77,5 +77,9 @@
   "prerequisiteUseCases": [
     "UC-5.13.45"
   ],
-  "wave": "walk"
+  "wave": "walk",
+  "controlTest": {
+    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:audit:logs' where `entity` satisfies `date_hour` < 7 for UC-5.13.49 ('After-Hours Administrative Activity'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:audit:logs` events where `entity` stays below `date_hour` < 7, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.49."
+  }
 }

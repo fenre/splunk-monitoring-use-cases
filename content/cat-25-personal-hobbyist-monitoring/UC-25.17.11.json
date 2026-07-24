@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Cordless Tool Battery Charge Status' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_cordless_tool_battery_charge_status` (UC-25.17.11), SOC dashboard panel \"Personal — Cordless Tool Battery Charge Status\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tool:battery' that satisfy the UC-25.17.11 SPL filters for 'Cordless Tool Battery Charge Status'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tool:battery` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.17.11."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tool:battery' where `battery` satisfies `charge` >= 80 for UC-25.17.11 ('Cordless Tool Battery Charge Status'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `tool:battery` events where `battery` stays below `charge` >= 80, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.17.11."
   },
   "dataSources": "Print jobs (`octoprint:job`), printer firmware telemetry (`printer:telemetry`), filament spools (`filament:spool`), CNC/laser jobs (`cnc:job`), workshop air (`workshop:air`), cordless tool batteries (`tool:battery`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "OctoPrint / Klipper (Moonraker) print servers, printer firmware telemetry, filament spool tracking, CNC/laser job logs, and workshop air/tool sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tool:battery\n| stats latest(charge_pct) as charge, latest(state) as state by battery\n| eval ready=if(charge>=80,\"ready\",\"charging\")\n| sort charge",
-  "description": "Shows the charge level of your cordless tool batteries so you never start a job with a dead pack.",
-  "value": "A flat battery mid-task is a familiar workshop frustration; a charge overview lets you grab a ready pack instead.",
+  "description": "Shows the charge level of your cordless tool batteries so you never start a job with a dead pack. Searches `index=personal` with sourcetype `tool:battery` for UC-25.17.11, aggregating `count` by `battery` over `the scheduled window`. Alerts when grouped results cross `charge` >= 80 in the saved search. Gives Personal operators a repeatable signal for 'Cordless Tool Battery Charge Status' without manual log review.",
+  "value": "Shows the charge level of your cordless tool batteries so you never start a job with a dead pack. Timely UC-25.17.11 alerting on 'Cordless Tool Battery Charge Status' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest smart-charger status for your tool batteries; surface charge level and readiness for each.",
   "visualization": "Table of tool batteries with charge level and ready state.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Cordless Tool Battery Charge Status'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tool:battery`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Cordless Tool Battery Charge Status' stops polling `tool:battery`; stale `battery` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tool:battery`. Dedup with `stats latest(*) by battery`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `charge` >= 80. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

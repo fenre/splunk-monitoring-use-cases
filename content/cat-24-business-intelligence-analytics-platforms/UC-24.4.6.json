@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Qlik Proxy Session Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_qlik_proxy_session_errors` (UC-24.4.6), SOC dashboard panel \"Operations — Qlik Proxy Session Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='qlik:proxy' that satisfy the UC-24.4.6 SPL filters for 'Qlik Proxy Session Errors'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `qlik:proxy` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.4.6."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='qlik:proxy' where `http_status` satisfies `http_status` >= 500 for UC-24.4.6 ('Qlik Proxy Session Errors'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `qlik:proxy` events where `http_status` stays below `http_status` >= 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.4.6."
   },
   "dataSources": "Qlik Sense logs (`qlik:scheduler`, `qlik:engine`, `qlik:proxy`), reload task history, section access audit, Qlik Cloud events (`com.qlik.v1.*`) and app/reload metrics via REST. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Qlik Sense Enterprise logs (Scheduler/Engine/Proxy/Repository) via Universal Forwarder; Qlik Cloud events via the Qlik Cloud REST API through HEC scripted inputs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=qlik:proxy (result=error OR http_status>=500)\n| stats count as errors by http_status, virtual_proxy\n| where errors>0\n| sort - errors",
   "description": "Surfaces Qlik proxy session and gateway errors so authentication or routing problems affecting user access are caught quickly.",
-  "value": "Proxy errors block users from opening any Qlik app; catching them early keeps the front door to analytics open.",
+  "value": "Surfaces Qlik proxy session and gateway errors so authentication or routing problems affecting user access.... Timely UC-24.4.6 alerting on 'Qlik Proxy Session Errors' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest proxy logs; schedule every 15 minutes; alert on server-error spikes. Correlate with load balancer and IdP health.",
   "visualization": "Timechart of proxy errors by status, table by virtual proxy.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Qlik Proxy Session Errors'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Qlik Proxy Session Errors' shifts `count` over `span=1h` while `http_status` remains in-scope for UC-24.4.6. Cross-check CMDB CHG.\n\n2. **Batch `count` on `qlik:proxy`** — Scheduled automation elevates `virtual_proxy` without crossing `http_status` >= 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `http_status`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `qlik:proxy`** — First 48h baseline for `http_status` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `http_status`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

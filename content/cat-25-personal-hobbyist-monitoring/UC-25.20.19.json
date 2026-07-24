@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Geiger Spike vs Background Baseline' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_geiger_spike_vs_background_baseline` (UC-25.20.19), SOC dashboard panel \"Personal — Geiger Spike vs Background Baseline\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='geiger:cpm' that satisfy the UC-25.20.19 SPL filters for 'Geiger Spike vs Background Baseline'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `geiger:cpm` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.20.19."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='geiger:cpm' where `sensor` satisfies `baseline_cpm` > 0 for UC-25.20.19 ('Geiger Spike vs Background Baseline'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `geiger:cpm` events where `sensor` stays below `baseline_cpm` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.20.19."
   },
   "dataSources": "Citizen-science telemetry (`seismo:reading`, `geiger:cpm`, `lightning:strike`, `airgradient:sensor`, `radon:reading`, `allsky:capture`, `magnetometer:reading`, `weatherstation:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Raspberry Shake, Safecast, Blitzortung-compatible lightning sensors, AirGradient CO2 sensors, radon monitors, allsky cameras, and magnetometers streamed to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=geiger:cpm\n| bin _time span=1h\n| stats avg(cpm) as cpm by sensor _time\n| eventstats avg(cpm) as baseline_cpm by sensor\n| where baseline_cpm>0 AND cpm>baseline_cpm*1.5\n| sort - cpm",
   "description": "Uses Geiger counter telemetry telemetry to monitor radiation count spikes against the usual background in index=personal.",
-  "value": "Splunk turns the feed into an operational check for sensor events that deserve comparison with public baselines, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Geiger counter telemetry telemetry to monitor radiation count spikes against the usual background in i.... Timely UC-25.20.19 alerting on 'Geiger Spike vs Background Baseline' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Geiger counter telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Hourly chart of CPM versus baseline.",
   "cimModels": [],
@@ -60,7 +60,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Geiger Spike vs Background Baseline'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `geiger:cpm`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Geiger Spike vs Background Baseline' stops polling `geiger:cpm`; stale `sensor` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1h` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `geiger:cpm`. Dedup with `stats latest(*) by sensor`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `baseline_cpm` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -12,7 +12,7 @@
   "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:issue\" status=\"RESOLVED\" | eval detect_time=_time | eval resolve_duration_hrs=round((resolved_time-detect_time)/3600,1) | stats avg(resolve_duration_hrs) as avg_mttr_hrs median(resolve_duration_hrs) as median_mttr_hrs p90(resolve_duration_hrs) as p90_mttr_hrs count as resolved_issues by category | join type=left category [search index=catalyst sourcetype=\"cisco:dnac:audit:logs\" auditRequestType=\"CONFIG*\" | stats count as related_changes by category] | eval change_correlation=if(isnotnull(related_changes),\"Changes detected\",\"No changes\") | sort avg_mttr_hrs",
   "description": "Analyzes mean time to repair (MTTR) for Catalyst Center issues and correlates with configuration changes to determine whether changes are improving or degrading resolution times.",
-  "value": "MTTR is the key operational efficiency metric. Correlating with configuration changes reveals whether changes are helping (reducing MTTR) or hurting (introducing new issues).",
+  "value": "Analyzes mean time to repair (MTTR) for Catalyst Center issues and correlates with configuration changes to.... Timely UC-5.13.77 alerting on 'Network Change MTTR Analysis' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "1. **Issues:** Requires `cisco:dnac:issue` with `status=RESOLVED`, a valid **creation** time and **resolved** time — the SPL uses `_time` as detect and `resolved_time` as resolution; if your payload uses `creationTime`/`lastUpdatedTime`, rewrite `eval` lines to match **epoch** seconds.\n2. **Audit:** `cisco:dnac:audit:logs` from Intent API audit stream; `auditRequestType=\"CONFIG*\"` filters configuration changes. If your field is `auditRequestType` vs `requestType`, adjust.\n3. **Join on category:** Both issue and audit must share a stable `category` string; if audit lacks `category`, join on `siteId` + time window instead (advanced).\n4. **Schedule:** Weekly or monthly report; store in summary index for trending.\n5. **Privacy:** Audit logs may contain usernames — restrict role access to this report.",
   "visualization": "Table: category, avg_mttr_hrs, median_mttr_hrs, p90_mttr_hrs, resolved_issues, related_changes, change_correlation; optional timechart of avg MTTR by week; box plot of resolve_duration_hrs.",
   "references": [
@@ -29,7 +29,7 @@
       "url": "https://developer.cisco.com/docs/catalyst-center/#!issues"
     }
   ],
-  "knownFalsePositives": "**Auto-resolved issues with very short MTTR skewing the average downward.** Transient issues that Assurance auto-resolves within minutes show near-zero MTTR, making the team's response appear faster than it actually is. Distinguish by checking whether `resolve_duration_hrs < 0.1` (under 6 minutes), indicating auto-resolution. Suppress by filtering `| where resolve_duration_hrs >= 0.5` for MTTR analysis to focus on issues that required human intervention.\n\n**Issue resolution timestamp missing or inaccurate for manually closed issues.** When an operator manually closes an issue in Catalyst Center, the `resolved_time` may not accurately reflect when the problem was actually fixed. Distinguish by checking whether `resolved_time` is populated and reasonable. Suppress by filtering `| where isnotnull(resolved_time) AND resolved_time>detect_time`.\n\n**Maintenance-window issues included in MTTR calculation.** Issues generated during planned maintenance have their resolution time determined by the maintenance duration, not the team's operational response. Distinguish by correlating with ITSM change records. Suppress by excluding maintenance-window issues from the MTTR metric.\n\n**Change-related issues where the change itself is the resolution.** Some Assurance issues are created because a configuration change was detected. The change is intentional, and the issue resolves when Assurance re-scans. These are not incidents requiring response. Distinguish by checking whether the `category` is \"Configuration\" and correlating with audit log configuration changes. Suppress by filtering configuration-change issues from MTTR analysis.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Network Change MTTR Analysis' shifts `avg` over `span=1h` while `category` remains in-scope for UC-5.13.77. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `cisco:dnac:issue`** — Scheduled automation elevates `category]` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `category`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:issue`** — First 48h baseline for `category` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `category`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -50,5 +50,9 @@
     "UC-5.13.21",
     "UC-5.13.46"
   ],
-  "wave": "run"
+  "wave": "run",
+  "controlTest": {
+    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:issue' where `category` satisfies detection threshold for UC-5.13.77 ('Network Change MTTR Analysis'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:issue` events where `category` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.77."
+  }
 }

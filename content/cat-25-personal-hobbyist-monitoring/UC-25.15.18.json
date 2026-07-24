@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Kombucha Overpressure Window' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_kombucha_overpressure_window` (UC-25.15.18), SOC dashboard panel \"Personal — Kombucha Overpressure Window\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='kombucha:reading' that satisfy the UC-25.15.18 SPL filters for 'Kombucha Overpressure Window'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `kombucha:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.15.18."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='kombucha:reading' where `batch_id` satisfies `pressure` > 180 for UC-25.15.18 ('Kombucha Overpressure Window'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `kombucha:reading` events where `batch_id` stays below `pressure` > 180, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.15.18."
   },
   "dataSources": "Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), kombucha brew (`kombucha:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=kombucha:reading\n| stats latest(pressure_kpa) as pressure, latest(temp_c) as temp by batch_id\n| where pressure>180 OR temp>28\n| sort - pressure",
   "description": "Watches kombucha batches for the pressure and temperature combination that suggests carbonation is moving from fun to explosive.",
-  "value": "Fermentation projects rarely fail gently; a pressure watch helps you vent or chill a batch before the mess starts.",
+  "value": "Watches kombucha batches for the pressure and temperature combination that suggests carbonation is moving f.... Timely UC-25.15.18 alerting on 'Kombucha Overpressure Window' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward pressure and temperature telemetry from the fermenter; alert when either crosses your safe bottling or storage threshold.",
   "visualization": "Batch table of kombucha pressure and temperature.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Kombucha Overpressure Window'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `kombucha:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Kombucha Overpressure Window' stops polling `kombucha:reading`; stale `batch_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `kombucha:reading`. Dedup with `stats latest(*) by batch_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `pressure` > 180. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Food Bank Shift Fill Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_food_bank_shift_fill_rate` (UC-25.57.19), SOC dashboard panel \"Personal — Food Bank Shift Fill Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='community:shift' that satisfy the UC-25.57.19 SPL filters for 'Food Bank Shift Fill Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `community:shift` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.57.19."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='community:shift' where `shift_role` satisfies detection threshold for UC-25.57.19 ('Food Bank Shift Fill Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `community:shift` events where `shift_role` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.57.19."
   },
   "dataSources": "Volunteer shifts (`community:shift`), donations (`community:donation`), mutual-aid requests (`community:mutualaid`), service ops (`community:impact`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Community-service telemetry — food-bank shift logs, blood-donation records, and mutual-aid request maps — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=community:shift shift_role=* filled=*\n| stats count as total, sum(eval(if(filled=\"yes\",1,0))) as matched by shift_role\n| eval a_filled_shift_pct=round(100*matched/total,1)\n| sort - a_filled_shift_pct",
-  "description": "Measures the percentage of food-bank shifts that end with a filled shift by shift role.",
-  "value": "Completion and exception percentages make it easier to spot which shift role are helping or hurting food-bank shifts.",
+  "description": "Measures the percentage of food-bank shifts that end with a filled shift by shift role. Searches `index=personal` with sourcetype `community:shift` for UC-25.57.19, aggregating `sum` by `shift_role` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Food Bank Shift Fill Rate' without manual log review.",
+  "value": "Measures the percentage of food-bank shifts that end with a filled shift by shift role. Timely UC-25.57.19 alerting on 'Food Bank Shift Fill Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store a normalized flag for `a filled shift` on `community:shift` events and summarize the hit rate by `shift_role`.",
   "visualization": "Table of shift role with percentage of food-bank shifts ending with a filled shift.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Food Bank Shift Fill Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `community:shift`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Food Bank Shift Fill Rate' stops polling `community:shift`; stale `shift_role` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `community:shift`. Dedup with `stats latest(*) by shift_role`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "dell_emc"
   ],

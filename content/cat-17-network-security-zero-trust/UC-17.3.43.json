@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'FortiSASE Admin Configuration Audit (Fortinet)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_fortisase_admin_configuration_audit_fortinet` (UC-17.3.43), SOC dashboard panel \"Network — FortiSASE Admin Configuration Audit (Fortinet)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=sase` sourcetype='fgt_event' that satisfy the UC-17.3.43 SPL filters for 'FortiSASE Admin Configuration Audit (Fortinet)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `sase` / `fgt_event` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.43."
+    "positiveScenario": "Ingest synthetic events into `index=sase` sourcetype='fgt_event' where `user` satisfies detection threshold for UC-17.3.43 ('FortiSASE Admin Configuration Audit (Fortinet)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `sase` / `fgt_event` events where `user` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.43."
   },
   "dataSources": "`sourcetype=fgt_event` subtype=system, logid related to admin/config Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`TA-fortinet_fortigate` (FortiSASE admin audit) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=sase sourcetype=\"fgt_event\" subtype=\"system\" earliest=-30d\n| where match(lower(msg),\"(?i)config|policy|rule|admin.*login|object.*modified\")\n| stats count earliest(_time) as first latest(_time) as last values(msg) as actions by user, ui\n| sort -last",
   "description": "FortiSASE policies are centrally managed and affect all connected users globally. Configuration audit logs enable change tracking, compliance, and root-cause analysis when policies cause access issues.",
-  "value": "Security governance teams audit all FortiSASE administrative configuration changes, flagging security profile deletions, out-of-hours modifications, and high-impact changes to firewall policies, ZTNA rules, and web filter profiles that could create immediate security gaps.",
+  "value": "FortiSASE policies are centrally managed and affect all connected users globally. Timely UC-17.3.43 alerting on 'FortiSASE Admin Configuration Audit (Fortinet)' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Forward FortiSASE management audit events. Alert on after-hours changes or bulk policy modifications. Correlate with ITSM change tickets.",
   "visualization": "Table (admin changes), Timeline (configuration events), Bar chart (changes by admin).",
   "cimModels": [
@@ -51,7 +51,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'FortiSASE Admin Configuration Audit (Fortinet)'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `sase`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `fgt_event` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `sase`** — Planned work for 'FortiSASE Admin Configuration Audit (Fortinet)' shifts `values` over `span=1h` while `user` remains in-scope for UC-17.3.43. Cross-check CMDB CHG.\n\n2. **Batch `values` on `fgt_event`** — Scheduled automation elevates `ui` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`** — Health checks in `sase` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `fgt_event`** — First 48h baseline for `user` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1562.004",
     "T1133"

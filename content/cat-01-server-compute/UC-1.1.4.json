@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Disk I/O Saturation (Linux)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_disk_i_o_saturation_linux` (UC-1.1.4), SOC dashboard panel \"Linux — Disk I/O Saturation (Linux)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='iostat' that satisfy the UC-1.1.4 SPL filters for 'Disk I/O Saturation (Linux)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `iostat` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.4."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='iostat' where `host` satisfies `avg_wait` > 20 for UC-1.1.4 ('Disk I/O Saturation (Linux)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `iostat` events where `host` stays below `avg_wait` > 20, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.4."
   },
   "dataSources": "`sourcetype=iostat` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=iostat host=*\n| timechart span=5m avg(avgWaitMillis) as avg_wait, avg(avgSvcMillis) as avg_svc by host\n| where avg_wait > 20",
   "description": "High I/O wait degrades application performance even when CPU and memory look healthy. Catches storage bottlenecks before users complain.",
-  "value": "Slow disks show up as long waits even when CPU and memory charts look fine; we flag that pattern so storage or array issues get attention before apps time out.",
+  "value": "High I/O wait degrades application performance even when CPU and memory look healthy. Timely UC-1.1.4 alerting on 'Disk I/O Saturation (Linux)' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Enable `iostat` scripted input (interval=60). Key fields: `avgWaitMillis` (await — avg wait in ms), `avgSvcMillis` (svctm — avg service time in ms), `bandwUtilPct` (disk utilization %), `rReq_PS`/`wReq_PS` (read/write IOPS). Alert when avgWaitMillis >20ms sustained over 10 minutes. Correlate with application latency metrics for root cause.",
   "visualization": "Line chart (latency over time by host), Heatmap of I/O wait across hosts.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Disk I/O Saturation (Linux)'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `iostat`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Disk I/O Saturation (Linux)'. Correlate with apt/yum logs in the same `iostat` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `iostat`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `avg_wait` > 20.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],

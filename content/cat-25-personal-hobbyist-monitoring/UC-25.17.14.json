@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Nozzle-Clog Warning from Extrusion Skips' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_nozzle_clog_warning_from_extrusion_skips` (UC-25.17.14), SOC dashboard panel \"Personal — Nozzle-Clog Warning from Extrusion Skips\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='printer:telemetry' that satisfy the UC-25.17.14 SPL filters for 'Nozzle-Clog Warning from Extrusion Skips'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `printer:telemetry` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.17.14."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='printer:telemetry' where `printer` satisfies `max_skip_pct` > 5 for UC-25.17.14 ('Nozzle-Clog Warning from Extrusion Skips'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `printer:telemetry` events where `printer` stays below `max_skip_pct` > 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.17.14."
   },
   "dataSources": "Print jobs (`octoprint:job`), printer telemetry (`printer:telemetry`), Klipper resonance metrics (`klipper:telemetry`), resin print logs (`resinprint:job`), tool usage (`tool:usage`), filament inventory (`filament:spool`), and workshop air readings (`workshop:air`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Maker telemetry from OctoPrint, Moonraker, printer firmware sensors, resin printer job logs, smart dryboxes, and workshop tool sensors streamed to Splunk HEC via MQTT and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=printer:telemetry\n| stats avg(extrusion_skip_pct) as avg_skip_pct max(extrusion_skip_pct) as max_skip_pct by printer nozzle\n| where max_skip_pct>5\n| sort - max_skip_pct",
-  "description": "Highlights printers showing elevated extrusion-skip percentages that often precede a clog or partial blockage.",
-  "value": "Extrusion skips are an early sign of filament path trouble, letting you intervene before a long job turns into a spaghetti failure.",
+  "description": "Highlights printers showing elevated extrusion-skip percentages that often precede a clog or partial blockage. Searches `index=personal` with sourcetype `printer:telemetry` for UC-25.17.14, aggregating `avg` by `printer` over `the scheduled window`. Alerts when grouped results cross `max_skip_pct` > 5 in the saved search. Gives Personal operators a repeatable signal for 'Nozzle-Clog Warning from Extrusion Skips' without manual log review.",
+  "value": "Highlights printers showing elevated extrusion-skip percentages that often precede a clog or partial blockage. Timely UC-25.17.14 alerting on 'Nozzle-Clog Warning from Extrusion Skips' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Stream skip or missed-step telemetry from firmware dashboards, toolhead sensors, or post-processed motion logs.",
   "visualization": "Table of printers with average and peak extrusion-skip percentages.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Nozzle-Clog Warning from Extrusion Skips'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `printer:telemetry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Nozzle-Clog Warning from Extrusion Skips' stops polling `printer:telemetry`; stale `printer` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `printer:telemetry`. Dedup with `stats latest(*) by printer`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `max_skip_pct` > 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

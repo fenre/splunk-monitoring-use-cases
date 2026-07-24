@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'dbt Test Failures by Test Type' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dbt_test_failures_by_test_type` (UC-24.9.17), SOC dashboard panel \"Operations — dbt Test Failures by Test Type\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='dbt:run_results' that satisfy the UC-24.9.17 SPL filters for 'dbt Test Failures by Test Type'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `dbt:run_results` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.9.17."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='dbt:run_results' where `test_type` satisfies detection threshold for UC-24.9.17 ('dbt Test Failures by Test Type'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `dbt:run_results` events where `test_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.9.17."
   },
   "dataSources": "dbt test results (`dbt:run_results`), warehouse metadata (`snowflake:query_history`, `bigquery:jobs`), and pipeline event logs. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "dbt test results (`run_results.json`) and cross-platform freshness signals from warehouse INFORMATION_SCHEMA via DB Connect and HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=dbt:run_results\n| spath path=results{} output=results\n| mvexpand results\n| eval node=spath(results,\"unique_id\"), status=spath(results,\"status\")\n| where match(node,\"^test\\.\") AND status=\"fail\"\n| rex field=node \"test\\.[^.]+\\.(?<test_type>not_null|unique|accepted_values|relationships|[a-z_]+)_\"\n| stats count as failures by test_type\n| sort - failures",
   "description": "Parses dbt run_results to classify failing tests by generic type (not_null, unique, accepted_values, relationships) so teams see the dominant class of data-quality breakage.",
-  "value": "Knowing whether failures are mostly uniqueness vs. referential-integrity problems guides systemic fixes rather than one-off patches.",
+  "value": "Parses dbt run_results to classify failing tests by generic type (not_null, unique, accepted_values, relati.... Timely UC-24.9.17 alerting on 'dbt Test Failures by Test Type' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Forward run_results.json; schedule after each dbt build and alert when failures for a test type spike.",
   "visualization": "Table of test type by failures, timechart, breakdown pie.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'dbt Test Failures by Test Type'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'dbt Test Failures by Test Type' shifts `count` over `span=1h` while `test_type` remains in-scope for UC-24.9.17. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbt:run_results`** — Scheduled automation elevates `node` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `test_type`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbt:run_results`** — First 48h baseline for `test_type` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `test_type`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "servicenow",

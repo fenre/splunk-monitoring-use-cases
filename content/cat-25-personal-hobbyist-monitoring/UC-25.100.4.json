@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'AntennaPod In-Progress Abandon Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_antennapod_in_progress_abandon_rate` (UC-25.100.4), SOC dashboard panel \"Personal — AntennaPod In-Progress Abandon Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='antennapod:episode' that satisfy the UC-25.100.4 SPL filters for 'AntennaPod In-Progress Abandon Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `antennapod:episode` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.100.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='antennapod:episode' where `podcast_name` satisfies `completion_pct` < 20 for UC-25.100.4 ('AntennaPod In-Progress Abandon Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `antennapod:episode` events where `podcast_name` stays below `completion_pct` < 20, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.100.4."
   },
   "dataSources": "AntennaPod episodes (`antennapod:episode`), Audible listening sessions (`audible:listen`), Goodreads audiobooks (`goodreads:audiobook`), podcast queues (`podcast:queue`), and listening streaks (`listen:streak`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "AntennaPod listening exports, Audible progress logs, Goodreads audiobook shelves, podcast queue snapshots, and listening streak counters ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=antennapod:episode playback_status=* playback_seconds=* episode_minutes=*\n| eval completion_pct=round(100*playback_seconds/(episode_minutes*60),1)\n| eval abandoned=if(playback_status=\"started\" AND completion_pct<20,1,0)\n| stats sum(abandoned) as abandoned_episodes, count as started_episodes by podcast_name\n| eval abandon_pct=round(100*abandoned_episodes/started_episodes,1)\n| sort - abandon_pct\n| head 15",
-  "description": "Measures how often episodes are started but abandoned below twenty percent completion by podcast.",
-  "value": "High abandon rates flag shows that looked good in the feed but did not earn your attention.",
+  "description": "Measures how often episodes are started but abandoned below twenty percent completion by podcast. Searches `index=personal` with sourcetype `antennapod:episode` for UC-25.100.4, aggregating `sum` by `podcast_name` over `the scheduled window`. Alerts when grouped results cross `completion_pct` < 20 in the saved search. Gives Personal operators a repeatable signal for 'AntennaPod In-Progress Abandon Rate' without manual log review.",
+  "value": "Measures how often episodes are started but abandoned below twenty percent completion by podcast. Timely UC-25.100.4 alerting on 'AntennaPod In-Progress Abandon Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Export AntennaPod playback with `playback_seconds` and `episode_minutes`, then rank podcasts by abandon rate.",
   "visualization": "Bar chart of abandon percentage by podcast.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'AntennaPod In-Progress Abandon Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `antennapod:episode`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'AntennaPod In-Progress Abandon Rate' stops polling `antennapod:episode`; stale `podcast_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `antennapod:episode`. Dedup with `stats latest(*) by podcast_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `completion_pct` < 20. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

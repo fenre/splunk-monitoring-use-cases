@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Medical & Rating Expiry Countdown' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_medical_rating_expiry_countdown` (UC-25.42.8), SOC dashboard panel \"Personal — Medical & Rating Expiry Countdown\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flightlog:entry' that satisfy the UC-25.42.8 SPL filters for 'Medical & Rating Expiry Countdown'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `flightlog:entry` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flightlog:entry' where `entity` satisfies `days_to` < 120 for UC-25.42.8 ('Medical & Rating Expiry Countdown'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `flightlog:entry` events where `entity` stays below `days_to` < 120, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.8."
   },
   "dataSources": "Pilot logbook (`flightlog:entry`), avionics telemetry (`avionics:telemetry`), flight-sim sessions (`flightsim:session`), pre-flight checklists (`preflight:check`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Pilot and flight-sim telemetry — electronic logbooks (ForeFlight, LogTen Pro), Stratux / GDL90 avionics receivers, and Microsoft Flight Simulator / X-Plane SimConnect sessions — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=flightlog:entry event=certificate\n| eval days_to=round((expiry_epoch-now())/86400,0)\n| where days_to<120\n| sort days_to\n| table certificate days_to",
-  "description": "Counts down to the expiry of your medical, ratings, and flight review so none lapses unnoticed.",
-  "value": "A lapsed medical or review grounds you; an early countdown gives time to book renewals without a gap.",
+  "description": "Counts down to the expiry of your medical, ratings, and flight review so none lapses unnoticed. Searches `index=personal` with sourcetype `flightlog:entry` for UC-25.42.8, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `days_to` < 120 in the saved search. Gives Personal operators a repeatable signal for 'Medical & Rating Expiry Countdown' without manual log review.",
+  "value": "Counts down to the expiry of your medical, ratings, and flight review so none lapses unnoticed. Timely UC-25.42.8 alerting on 'Medical & Rating Expiry Countdown' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log certificate expiry dates into `index=personal`; alert as each approaches expiry.",
   "visualization": "Table of pilot certificates by days to expiry.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Medical & Rating Expiry Countdown'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flightlog:entry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Medical & Rating Expiry Countdown' stops polling `flightlog:entry`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flightlog:entry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_to` < 120. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hardware_bmc"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Personal Knowledge & PKM Weekend vs Weekday Split' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_personal_knowledge_pkm_weekend_vs_weekday_split` (UC-25.85.31), SOC dashboard panel \"Personal — Personal Knowledge & PKM Weekend vs Weekday Split\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='obsidian:stats' that satisfy the UC-25.85.31 SPL filters for 'Personal Knowledge & PKM Weekend vs Weekday Split'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `obsidian:stats` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.85.31."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='obsidian:stats' where `day_type` satisfies detection threshold for UC-25.85.31 ('Personal Knowledge & PKM Weekend vs Weekday Split'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `obsidian:stats` events where `day_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.85.31."
   },
   "dataSources": "Obsidian graph stats (`obsidian:stats`), Roam daily notes (`roam:daily`), Logseq tasks (`logseq:task`), Zettelkasten notes (`zettel:note`), PKM review summaries (`pkm:review`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Obsidian graph stats, Roam daily notes, Logseq task exports, and Zettelkasten counts streamed to Splunk HEC via plugins, CSV exports, and scripted vault scans. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=obsidian:stats\n| eval day_type=if(in(strftime(_time,\"%u\"),\"6\",\"7\"),\"weekend\",\"weekday\")\n| stats count as events, avg(duration_min) as avg_duration by day_type",
-  "description": "Separates personal knowledge activity between weekdays and weekends when duration is present.",
-  "value": "Weekend/weekday splits quickly show whether a life domain is work-driven, leisure-driven, or bleeding into the wrong days.",
+  "description": "Separates personal knowledge activity between weekdays and weekends when duration is present. Searches `index=personal` with sourcetype `obsidian:stats` for UC-25.85.31, aggregating `avg` by `day_type` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Personal Knowledge & PKM Weekend vs Weekday Split' without manual log review.",
+  "value": "Separates personal knowledge activity between weekdays and weekends when duration is present. Timely UC-25.85.31 alerting on 'Personal Knowledge & PKM Weekend vs Weekday Split' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Populate optional `duration_min` on `obsidian:stats` events if available; the search still works on counts alone when duration is missing.",
   "visualization": "Side-by-side bar chart of weekday vs weekend event counts.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Personal Knowledge & PKM Weekend vs Weekday Split'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `obsidian:stats`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Personal Knowledge & PKM Weekend vs Weekday Split' stops polling `obsidian:stats`; stale `day_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `obsidian:stats`. Dedup with `stats latest(*) by day_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hashicorp"
   ],

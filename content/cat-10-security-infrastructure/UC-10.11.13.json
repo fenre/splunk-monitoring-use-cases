@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'FortiGate Resource Utilization Alerts' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_fortigate_resource_utilization_alerts` (UC-10.11.13), SOC dashboard panel \"Security Infra — FortiGate Resource Utilization Alerts\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=metrics` sourcetype='fortinet:fortigate_snmp' that satisfy the UC-10.11.13 SPL filters for 'FortiGate Resource Utilization Alerts'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `metrics` / `fortinet:fortigate_snmp` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.11.13."
+    "positiveScenario": "Ingest synthetic events into `index=metrics` sourcetype='fortinet:fortigate_snmp' where `host` satisfies `cpu` > 85 for UC-10.11.13 ('FortiGate Resource Utilization Alerts'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `metrics` / `fortinet:fortigate_snmp` events where `host` stays below `cpu` > 85, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.11.13."
   },
   "dataSources": "`sourcetype=fortinet:fortigate_snmp` Collected via Splunk Add-on for Fortinet FortiGate (Splunkbase 2846) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_fortinet` — Splunk Add-on for Fortinet FortiGate (Splunkbase 2846)",
   "spl": "index=metrics OR index=network sourcetype=\"fortinet:fortigate_snmp\"\n| stats avg(cpu_pct) as cpu, avg(mem_used_pct) as mem by host\n| where cpu>85 OR mem>90",
-  "description": "Resource pressure can cause dropped logs, missed inspection, and HA instability.",
+  "description": "Resource pressure can cause dropped logs, missed inspection, and HA instability. Searches `index=metrics` with sourcetype `fortinet:fortigate_snmp` for UC-10.11.13, aggregating `avg` by `host` over `the scheduled window`. Alerts when grouped results cross `cpu` > 85 in the saved search. Gives Security Infra operators a repeatable signal for 'FortiGate Resource Utilization Alerts' without manual log review.",
   "value": "Early 'FortiGate Resource Utilization Alerts' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ingest SNMP or streaming metrics for CPU, memory, and session table. Threshold alert before performance degrades inspection.",
   "visualization": "Single value (CPU/mem), Line chart (utilization), Table (top busy devices).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Approved vulnerability scanner** — Scanner `src` triggers high-severity signatures for 'FortiGate Resource Utilization Alerts'. Join `scanner_ips` before threshold.\n\n2. **Signature definition update** — Vendor content push reclassifies benign traffic. Compare threat_id first_seen with content release date.\n\n3. **Red-team emulation** — Atomic test traffic from approved exercise hosts.\n\n4. **Backup replication traffic** — Off-hours bulk transfer matches lateral-movement heuristics.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `threat_id`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `metrics`** — Planned work for 'FortiGate Resource Utilization Alerts' shifts `avg` over `span=1h` while `host` remains in-scope for UC-10.11.13. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `fortinet:fortigate_snmp`** — Scheduled automation elevates `src` without crossing `cpu` > 85. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `metrics` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `fortinet:fortigate_snmp`** — First 48h baseline for `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "detectionType": "Anomaly",
   "securityDomain": "network",
   "equipment": [

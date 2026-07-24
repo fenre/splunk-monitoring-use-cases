@@ -28,14 +28,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Configure a test provider with 42% of ICT spend and no documented risk mitigation for the concentration; verify the concentration search flags the excessive spend with provider details.",
-    "negativeScenario": "Configure test providers with maximum 20% spend per provider and documented alternatives; verify no concentration alert fires."
+    "positiveScenario": "Ingest synthetic events into `index=vendor` sourcetype='finops:invoice' where `vendor_id` satisfies `share_pct` > 25 for UC-22.3.21 ('DORA ICT Concentration — Single-Provider Spend and Workload Share Thresholds'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `vendor` / `finops:invoice` events where `vendor_id` stays below `share_pct` > 25, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.3.21."
   },
   "dataSources": "`index=vendor` `sourcetype=\"finops:invoice\"` (vendor_id, amount_usd, period); `cmdb_provider_map.csv` (ci_id, vendor_id, criticality)",
   "app": "Splunk DB Connect (Splunkbase 2686), HTTP Event Collector from FinOps",
   "spl": "index=vendor sourcetype=\"finops:invoice\" period=strftime(now(),\"%Y-%m\") earliest=-400d\n| stats sum(amount_usd) as spend by vendor_id, period\n| eventstats sum(spend) as total_spend by period\n| eval share_pct=round(100*spend/total_spend,2)\n| where share_pct>25\n| sort period, - share_pct",
   "description": "Concentration in a single ICT provider creates systemic dependency. Tracking spend, contract value, and mapped production workloads against internal limits evidences ongoing measurement of concentration risk for management and supervisors.",
-  "value": "Gives the responsible team auditor-ready evidence for DORA compliance by automating regulatory compliance evidence using indexes vendor and sourcetypes finops:invoice. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
+  "value": "Concentration in a single ICT provider creates systemic dependency. Timely UC-22.3.21 alerting on 'DORA ICT Concentration — Single-Provider Spend and Workload Share Thresholds' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Set `share_pct` threshold per board risk appetite; (2) join `cmdb_provider_map` to count critical CIs per vendor; (3) quarterly board pack export; (4) reconcile vendor_id to Register of Information keys; (5) document mitigation (secondary vendor) in GRC. Indexes required: `index=vendor`; Sourcetypes: `sourcetype=finops:invoice`.",
   "visualization": "Stacked bar (spend by vendor), Table (breaches), Single value (vendors over threshold).",
   "cimModels": [],
@@ -53,7 +53,7 @@
       "url": "https://splunkbase.splunk.com/app/263"
     }
   ],
-  "knownFalsePositives": "1. **Approved concentration above regulatory threshold** — Management body decisions accepting provider concentration with enhanced monitoring and documented exit readiness are governance decisions.\n\n2. **Spend calculation methodology differences** — ICT spend allocation methods (direct vs. allocated costs) may produce different concentration percentages.\n\n3. **Multi-year contract amortisation** — Upfront payments for multi-year contracts may spike concentration metrics in the payment year while amortised spend is within limits.\n\n4. **Intra-group provider reclassification** — Shared service centres being reclassified from internal to third-party (or vice versa) during corporate restructuring.\n\n5. **New service onboarding spike** — Temporary concentration increases during new service implementation with planned diversification timeline.\n\n**Operational suppression:** Maintain a lookup table (`dora_approved_exceptions.csv`) mapping known legitimate activities by process owner, approval reference, and expiry date. Filter the SPL results against this lookup to suppress documented exceptions and reduce alert fatigue. Review and rotate entries quarterly per the ICT risk management framework review cycle.",
+  "knownFalsePositives": "1. **Authorised DORA control testing** — Internal audit exercises 'DORA ICT Concentration — Single-Provider Spend and Workload Share Thresholds' (UC-22.3.21) on `vendor_id` during scheduled clause Art.5 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=vendor` `finops:invoice` without crossing `share_pct` > 25. Cross-check engagement letter in `dora_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `vendor` for `vendor_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `vendor_id` during normal service delivery.\n\n**Suppression mechanism:** `dora_exception_register.csv` keyed on `vendor_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "requiredFields": [
     "period",
     "share_pct",

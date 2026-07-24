@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Yoga, Pilates & Mind-Body Longest Quiet Streak' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_yoga_pilates_mind_body_longest_quiet_streak` (UC-25.92.32), SOC dashboard panel \"Personal — Yoga, Pilates & Mind-Body Longest Quiet Streak\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mat:usage' that satisfy the UC-25.92.32 SPL filters for 'Yoga, Pilates & Mind-Body Longest Quiet Streak'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `mat:usage` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.92.32."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mat:usage' where `_time` satisfies `prev_events` > 0 for UC-25.92.32 ('Yoga, Pilates & Mind-Body Longest Quiet Streak'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `mat:usage` events where `_time` stays below `prev_events` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.92.32."
   },
   "dataSources": "Down Dog sessions (`downdog:session`), Peloton yoga classes (`peloton:yoga`), Glo classes (`glo:class`), Pilates sessions (`pilates:session`), and mat usage logs (`mat:usage`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Down Dog session logs, Peloton yoga classes, Glo streaming sessions, Pilates reformer notes, and home mat usage counters sent to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=mat:usage\n| bin _time span=1d\n| stats count as events by _time\n| sort _time\n| streamstats current=f last(_time) as prev_day last(events) as prev_events\n| eval gap_days=round((_time-prev_day)/86400,0)\n| where isnotnull(prev_day) AND prev_events>0 AND events=0 AND gap_days>=2\n| stats max(gap_days) as longest_quiet_streak_days",
-  "description": "Finds the longest multi-day gap with zero yoga, pilates events after activity was previously present.",
-  "value": "Quiet streaks often mean a broken export, a forgotten subscription, or a habit that silently died — all worth catching early.",
+  "description": "Finds the longest multi-day gap with zero yoga, pilates events after activity was previously present. Searches `index=personal` with sourcetype `mat:usage` for UC-25.92.32, aggregating `max` by `_time` over `1d`. Alerts when grouped results cross `prev_events` > 0 in the saved search. Gives Personal operators a repeatable signal for 'Yoga, Pilates & Mind-Body Longest Quiet Streak' without manual log review.",
+  "value": "Finds the longest multi-day gap with zero yoga, pilates events after activity was previously present. Timely UC-25.92.32 alerting on 'Yoga, Pilates & Mind-Body Longest Quiet Streak' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Run daily on `mat:usage` after ingestion; investigate streaks that exceed your normal pause window for this domain.",
   "visualization": "Single-value tile for longest quiet streak with supporting timeline.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Yoga, Pilates & Mind-Body Longest Quiet Streak'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mat:usage`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Yoga, Pilates & Mind-Body Longest Quiet Streak' stops polling `mat:usage`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mat:usage`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `prev_events` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

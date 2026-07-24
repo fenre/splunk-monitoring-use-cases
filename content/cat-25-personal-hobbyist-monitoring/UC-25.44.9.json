@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Catch-and-Release Survival Care Log' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_catch_and_release_survival_care_log` (UC-25.44.9), SOC dashboard panel \"Personal — Catch-and-Release Survival Care Log\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='fishing:catch' that satisfy the UC-25.44.9 SPL filters for 'Catch-and-Release Survival Care Log'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `fishing:catch` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.44.9."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='fishing:catch' where `species` satisfies `avg_handling` < 30 for UC-25.44.9 ('Catch-and-Release Survival Care Log'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `fishing:catch` events where `species` stays below `avg_handling` < 30, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.44.9."
   },
   "dataSources": "Fishing catches (`fishing:catch`), fishfinder sonar (`fishfinder:reading`), foraging finds (`foraging:find`), game-cam triggers (`gamecam:trigger`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Outdoor logs — fishing apps (Fishbrain), sonar / fishfinder exports, game/trail cameras, and foraging journals — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=fishing:catch event=release\n| stats avg(handling_time_s) as avg_handling, count as released by species\n| eval good_practice=if(avg_handling<30,1,0)\n| sort - released",
-  "description": "Tracks how quickly you handle and release fish, encouraging the gentle practice that helps them survive.",
-  "value": "Fast, careful handling dramatically improves catch-and-release survival; logging it keeps your practice honest.",
+  "description": "Tracks how quickly you handle and release fish, encouraging the gentle practice that helps them survive. Searches `index=personal` with sourcetype `fishing:catch` for UC-25.44.9, aggregating `avg` by `species` over `the scheduled window`. Alerts when grouped results cross `avg_handling` < 30 in the saved search. Gives Personal operators a repeatable signal for 'Catch-and-Release Survival Care Log' without manual log review.",
+  "value": "Tracks how quickly you handle and release fish, encouraging the gentle practice that helps them survive. Timely UC-25.44.9 alerting on 'Catch-and-Release Survival Care Log' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log release handling times into `index=personal`; review average handling per species.",
   "visualization": "Bar chart of average handling time by released species.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Catch-and-Release Survival Care Log'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `fishing:catch`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Catch-and-Release Survival Care Log' stops polling `fishing:catch`; stale `species` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `fishing:catch`. Dedup with `stats latest(*) by species`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_handling` < 30. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Proxmox VE HA Manager Fencing and Live Migration Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_proxmox_ve_ha_manager_fencing_and_live_migration` (UC-2.7.1), SOC dashboard panel \"Linux — Proxmox VE HA Manager Fencing and Live Migration Events\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=pve` sourcetype='proxmox:ha' that satisfy the UC-2.7.1 SPL filters for 'Proxmox VE HA Manager Fencing and Live Migration Events'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `pve` / `proxmox:ha` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.7.1."
+    "positiveScenario": "Ingest synthetic events into `index=pve` sourcetype='proxmox:ha' where `node` satisfies detection threshold for UC-2.7.1 ('Proxmox VE HA Manager Fencing and Live Migration Events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `pve` / `proxmox:ha` events where `node` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.7.1."
   },
   "dataSources": "`index=pve` `sourcetype=\"proxmox:ha\"` — `pve-ha-crm` / `pve-ha-lrm`: `node`, `vmid`, `action` (fence|migrate|relocate), `quorate`, `service` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder on Proxmox nodes (journald units `pve-ha-crm`, `pve-ha-lrm`) with `props.conf` for `proxmox:ha` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pve sourcetype=\"proxmox:ha\" earliest=-24h\n| eval act=lower(coalesce(action, ha_action, op))\n| where match(act, \"(?i)fence|stonith|migrate|relocate\") OR match(lower(_raw), \"(?i)lost quorum|not quorate|fence\")\n| rex field=_raw \"(?i)VM\\s+(?<vmid_num>\\d+)\"\n| eval vmid=coalesce(vmid, vmid_num)\n| stats count as ev, values(act) as actions, latest(quorate) as last_quorate by node, vmid\n| sort - ev",
   "description": "HA fencing and forced migrations are the last resort for guest availability on Proxmox clusters. When these events cluster in time or correlate with lost quorum, operators risk split-brain, repeated restarts, or guests left unmanaged during node failure.",
-  "value": "Surfaces imminent or ongoing cluster partition scenarios so you can validate votes, qdevice, and storage before tenants see rolling outages.",
+  "value": "HA fencing and forced migrations are the last resort for guest availability on Proxmox clusters. Timely UC-2.7.1 alerting on 'Proxmox VE HA Manager Fencing and Live Migration Events' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Forward HA manager logs from every cluster member with a consistent sourcetype. Use FIELDALIAS to normalize `action` and `quorate`. Create a correlation search for fence bursts per node and for `quorate=false` transitions. Tie alerts to your hardware management channel when STONITH is involved.",
   "visualization": "Single value (active HA incidents), timechart of fence/migrate rate, table by node and vmid.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Proxmox VE HA Manager Fencing and Live Migration Events'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `pve` `proxmox:ha`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `pve`** — Package managers spike `node` metrics for 'Proxmox VE HA Manager Fencing and Live Migration Events'. Correlate with apt/yum logs in the same `proxmox:ha` window.\n\n2. **Nightly backup I/O on `node`** — Predictable `values` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `proxmox:ha`** — Nagios/Zabbix polls `node` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `node` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `node`, `valid_until`.",
   "equipment": [
     "proxmox"
   ],

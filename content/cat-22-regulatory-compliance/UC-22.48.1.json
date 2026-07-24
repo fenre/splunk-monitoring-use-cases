@@ -52,15 +52,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When any principal (human or service account) holds two roles listed as a toxic combo in sod_matrix.csv, the UC fires with principal, role_a, role_b.",
-    "negativeScenario": "Principals with role-combos that are expressly marked permitted_with_compensating=true do NOT fire.",
-    "fixtureRef": "sample-data/uc-22.48.1-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-22.48.1 ('Segregation of duties — toxic role combinations in IAM'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.48.1."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "| rest /services/iam/principals splunk_server=* | fields principal roles\n| mvexpand roles\n| join principal [| rest /services/iam/principals splunk_server=* | fields principal roles | mvexpand roles | rename roles as other_role]\n| where roles!=other_role\n| lookup sod_matrix.csv role_a=roles role_b=other_role OUTPUT toxic permitted_with_compensating\n| where toxic=\"true\" AND permitted_with_compensating!=\"true\"\n| table principal roles other_role",
   "description": "Enforces the SoD matrix every day across all principals. Toxic combos become visible the moment they are assigned, not at the next audit.",
-  "value": "SoD failures are the top SOX ITGC finding in the Fortune-1000 cohort; automating them is the only defensible posture.",
+  "value": "Enforces the SoD matrix every day across all principals. Timely UC-22.48.1 alerting on 'Segregation of duties — toxic role combinations in IAM' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Maintain sod_matrix.csv with the company's SoD rules; (2) ingest IAM state via REST; (3) run daily; (4) on finding, auto-open a remediation ticket.",
   "visualization": "Table of violations, network graph of role interactions, single-value 'principals with SoD violations'.",
   "cimModels": [
@@ -87,7 +86,7 @@
       "title": "Sarbanes-Oxley Act of 2002 (PDF)"
     }
   ],
-  "knownFalsePositives": "1. **Year-end financial close activities** — Extended processing windows, elevated access grants, and batch job schedule modifications during quarterly and annual close periods are legitimate activities pre-approved by the controller and documented in the close checklist.\n\n2. **External audit sample testing** — During the annual financial statement audit, external auditors perform transaction sampling, access testing, and control walkthroughs that generate unusual query patterns against financial application databases.\n\n3. **Approved emergency access for system recovery** — During P1/P2 incidents affecting financially significant applications, emergency change procedures authorise temporary elevated access that bypasses normal segregation of duties controls.\n\n4. **ERP system upgrade and patch deployment** — Scheduled SAP/Oracle/financial system upgrades involve transport imports, configuration changes, and role modifications that produce expected ITGC deviation signals during the approved maintenance window.\n\n**Suppression mechanism:** Maintain a `sox_exception_register` KV Store lookup containing financial close window dates, audit firm engagement codes, emergency change ticket IDs, and approved maintenance windows. The search joins this lookup and suppresses matches where the exception is valid and within its approved timeframe.",
+  "knownFalsePositives": "1. **Authorised SOX ITGC control testing** — Internal audit exercises 'Segregation of duties — toxic role combinations in IAM' (UC-22.48.1) on `entity` during scheduled clause ITGC.AccessMgmt.SOD sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `sox_itgc_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `sox_itgc_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "identity",
   "requiredFields": [

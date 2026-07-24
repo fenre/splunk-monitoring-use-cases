@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Wanderlog Trip Stop Stop Cost Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_wanderlog_trip_stop_stop_cost_leaderboard` (UC-25.14.58), SOC dashboard panel \"Personal — Wanderlog Trip Stop Stop Cost Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='wanderlog:stop' that satisfy the UC-25.14.58 SPL filters for 'Wanderlog Trip Stop Stop Cost Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `wanderlog:stop` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.58."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='wanderlog:stop' where `city_name` satisfies detection threshold for UC-25.14.58 ('Wanderlog Trip Stop Stop Cost Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `wanderlog:stop` events where `city_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.58."
   },
   "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home ADS-B receiver (dump1090/readsb/tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=wanderlog:stop cost_usd=*\n| stats sum(cost_usd) as total_value, avg(cost_usd) as avg_value by city_name\n| sort - total_value",
-  "description": "Ranks city values by total and average stop cost across Wanderlog trip stop events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks city values by total and average stop cost across Wanderlog trip stop events. Searches `index=personal` with sourcetype `wanderlog:stop` for UC-25.14.58, aggregating `sum` by `city_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Wanderlog Trip Stop Stop Cost Leaderboard' without manual log review.",
+  "value": "Ranks city values by total and average stop cost across Wanderlog trip stop events. Timely UC-25.14.58 alerting on 'Wanderlog Trip Stop Stop Cost Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `cost_usd` values for each Wanderlog trip stop event and review total and average stop cost by city.",
   "visualization": "Table of entities ranked by total stop cost.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Wanderlog Trip Stop Stop Cost Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `wanderlog:stop`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Wanderlog Trip Stop Stop Cost Leaderboard' stops polling `wanderlog:stop`; stale `city_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `wanderlog:stop`. Dedup with `stats latest(*) by city_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

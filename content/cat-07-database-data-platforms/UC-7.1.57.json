@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'ClickHouse ZooKeeper Session Failures Correlation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_clickhouse_zookeeper_session_failures_correlatio` (UC-7.1.57), SOC dashboard panel \"Operations — ClickHouse ZooKeeper Session Failures Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='clickhouse:server_log' that satisfy the UC-7.1.57 SPL filters for 'ClickHouse ZooKeeper Session Failures Correlation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `clickhouse:server_log` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.57."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='clickhouse:server_log' where `host` satisfies `events` >= 5 for UC-7.1.57 ('ClickHouse ZooKeeper Session Failures Correlation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `clickhouse:server_log` events where `host` stays below `events` >= 5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.57."
   },
   "dataSources": "ClickHouse server log lines referencing ZooKeeper coordination, sourcetype `clickhouse:server_log` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Universal Forwarder on ClickHouse nodes monitoring `/var/log/clickhouse-server/clickhouse-server.log` (path per your install) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"clickhouse:server_log\"\n| search \"ZooKeeper\" AND (\"Session expired\" OR \"Connection loss\" OR \"Coordination::Exception\" OR \"Cannot allocate block number\")\n| rex field=_raw \"Code:\\s+(?<zk_code>\\d+)\\.\\s+(?<zk_msg>.+)\"\n| bin _time span=5m\n| stats count as events values(zk_msg) as msgs by host, _time\n| where events >= 5",
   "description": "ClickHouse replication and DDL coordination depend on stable ZooKeeper sessions; repeated session or coordination errors predict readonly tables, stuck merges, and DDL failures. Surfacing bursts by host speeds joint triage with the ZooKeeper team.",
-  "value": "Reduces prolonged replication lag and prevents emergency failover when metadata coordination degrades.",
+  "value": "ClickHouse replication and DDL coordination depend on stable ZooKeeper sessions; repeated session or coordi.... Timely UC-7.1.57 alerting on 'ClickHouse ZooKeeper Session Failures Correlation' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Set `inputs.conf` `monitor://` or container sidecar to ingest ClickHouse logs with `DATETIME_CONFIG` matching ClickHouse log format. Tag `host` as the ClickHouse server. Create a lookup mapping known maintenance. Pair with `zookeeper:mntr` from the ZK cluster in a separate index for joint dashboards.",
   "visualization": "Timeline (events), Table (host, msgs), Top hosts bar chart.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'ClickHouse ZooKeeper Session Failures Correlation'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'ClickHouse ZooKeeper Session Failures Correlation' shifts `values` over `span=5m` while `host` remains in-scope for UC-7.1.57. Cross-check CMDB CHG.\n\n2. **Batch `values` on `clickhouse:server_log`** — Scheduled automation elevates `_time` without crossing `events` >= 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `clickhouse:server_log`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "clickhouse",
     "zookeeper"

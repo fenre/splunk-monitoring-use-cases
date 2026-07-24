@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Aranet Dew Point from Temperature and Relative Humidity' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_aranet_dew_point_from_temperature_and_relative_h` (UC-14.3.60), SOC dashboard panel \"Operations — Aranet Dew Point from Temperature and Relative Humidity\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=environment` sourcetype='aranet:sensor' that satisfy the UC-14.3.60 SPL filters for 'Aranet Dew Point from Temperature and Relative Humidity'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `environment` / `aranet:sensor` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.3.60."
+    "positiveScenario": "Ingest synthetic events into `index=environment` sourcetype='aranet:sensor' where `entity` satisfies `dew_c` > 15 for UC-14.3.60 ('Aranet Dew Point from Temperature and Relative Humidity'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `environment` / `aranet:sensor` events where `entity` stays below `dew_c` > 15, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.3.60."
   },
   "dataSources": "`index=environment` `sourcetype=aranet:sensor` fields `temp_c`, `humidity_pct` (Aranet CO₂ probes ship RH sensors) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Aranet data pipeline via MQTT (Splunkbase #1890) or HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=environment sourcetype=aranet:sensor\n| eval T=tonumber(temp_c), RH=tonumber(humidity_pct)\n| eval a=(17.27*T)/(237.7+T)\n| eval dew_c=round((237.7*a+log(RH/100.0))/(17.27-a),2)\n| where dew_c > 15 AND RH > 65\n| table _time, sensor_id, location, T, RH, dew_c\n| sort - dew_c",
   "description": "Condensation in data halls and labs follows dew point, not RH alone. Magnus-formula dew point computed from Aranet temperature and humidity predicts surface condensation risk when chilled water temperatures or door seals drift.",
-  "value": "Protects equipment and commodities from moisture damage by alerting on psychrometric risk before water forms on racks or packaging.",
+  "value": "Condensation in data halls and labs follows dew point, not RH alone. Timely UC-14.3.60 alerting on 'Aranet Dew Point from Temperature and Relative Humidity' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ensure `temp_c` and `humidity_pct` are numeric. The SPL uses the common Magnus approximation over water (good for facility monitoring). Tune thresholds: data centers often target dew point well below room dry bulb; adjust `dew_c > 15` to your architecture. Document sensor calibration cadence per QA.",
   "visualization": "Scatter (RH vs dew point), Line chart (dew_c trend), Heatmap (room × time).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Aranet Dew Point from Temperature and Relative Humidity'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `environment` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `environment`** — Planned work for 'Aranet Dew Point from Temperature and Relative Humidity' shifts `count` over `span=1h` while `host` remains in-scope for UC-14.3.60. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aranet:sensor`** — Scheduled automation elevates `T` without crossing `dew_c` > 15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `environment` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aranet:sensor`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aranet",
     "mqtt"

@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Grant a test user elevated access to a controlled system without a corresponding approval record in the access management system; verify the monitoring search detects the unapproved privilege within 1 hour and generates an alert with user, system, and missing approval details.",
-    "negativeScenario": "Grant a test user access following the full approval workflow with manager sign-off, risk assessment, and time-limited duration recorded; verify no access violation alert fires and the access appears as properly authorised in the dashboard."
+    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:cmdb_ci' where `name` satisfies detection threshold for UC-22.6.10 ('Security Role Changes vs RACI in ServiceNow CMDB Ownership'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `itsm` / `snow:cmdb_ci` events where `name` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.6.10."
   },
   "dataSources": "`snow:cmdb_ci` See the SPL for index and sourcetype expectations; validate ingestion before enabling the alert.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
   "spl": "index=itsm sourcetype=snow:cmdb_ci earliest=-90d\n| where match(name,\"(?i)prod)\")\n| stats latest(sys_updated_on) as last_update, values(managed_by) as owners by name\n| lookup security_raci.csv ci_name AS name OUTPUT expected_owner\n| where NOT match(mvjoin(owners,\"|\"), expected_owner)",
-  "description": "Correlates CI ownership role changes with expected RACI contacts so responsibilities for assets remain traceable.",
-  "value": "Gives the responsible team auditor-ready evidence for ISO 27001 compliance by automating regulatory compliance evidence using indexes itsm and sourcetypes snow:cmdb_ci. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
+  "description": "Correlates CI ownership role changes with expected RACI contacts so responsibilities for assets remain traceable. Searches `index=itsm` with sourcetype `snow:cmdb_ci` for UC-22.6.10, aggregating `values` by `name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'Security Role Changes vs RACI in ServiceNow CMDB Ownership' without manual log review.",
+  "value": "Correlates CI ownership role changes with expected RACI contacts so responsibilities for assets remain trac.... Timely UC-22.6.10 alerting on 'Security Role Changes vs RACI in ServiceNow CMDB Ownership' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Maintain RACI lookup from ISO SoA; (2) normalize CMDB fields; (3) quarterly access governance review. Indexes required: `index=itsm`; Sourcetypes: `sourcetype=snow:cmdb_ci`.",
   "visualization": "Table, Bar chart. Key fields: `last_update`, `name`, `owners`.",
   "cimModels": [],
@@ -52,7 +52,7 @@
       "url": "https://docs.splunk.com/Documentation/ES/latest/User/Overview"
     }
   ],
-  "knownFalsePositives": "1. **Organisational restructuring transitions** — Role changes during restructuring may create temporary RACI misalignment while new assignments are formalised in ServiceNow.\n\n2. **Acting/interim appointments** — Staff in acting roles may not have formal CMDB ownership updates until the appointment is confirmed as permanent.\n\n3. **Shared responsibility boundaries** — Security responsibilities shared between teams may not map cleanly to single-owner RACI entries.\n\n4. **CMDB synchronisation delays** — HR system changes propagating to CMDB may take one sync cycle, creating brief ownership gaps.\n\n5. **Contractor-to-permanent transitions** — Staff transitioning from contractor to permanent status may have ownership records in both systems temporarily.\n\n**Operational suppression:** Maintain a lookup table (`iso27001_approved_exceptions.csv`) mapping known legitimate activities by control owner, risk acceptance reference, and expiry date. Filter the SPL results against this lookup to suppress documented exceptions and reduce alert fatigue. Review and rotate entries at each ISMS management review cycle.",
+  "knownFalsePositives": "1. **Authorised ISO 27001 control testing** — Internal audit exercises 'Security Role Changes vs RACI in ServiceNow CMDB Ownership' (UC-22.6.10) on `name` during scheduled clause A.5.2 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=itsm` `snow:cmdb_ci` without crossing evidence threshold. Cross-check engagement letter in `iso_27001_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `itsm` for `name`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `name` during normal service delivery.\n\n**Suppression mechanism:** `iso_27001_exception_register.csv` keyed on `name`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "requiredFields": [
     "last_update",
     "name",

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Proxmox VE ZFS Replication Lag and Error Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_proxmox_ve_zfs_replication_lag_and_error_trendin` (UC-2.7.5), SOC dashboard panel \"Linux — Proxmox VE ZFS Replication Lag and Error Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=pve` sourcetype='proxmox:replication' that satisfy the UC-2.7.5 SPL filters for 'Proxmox VE ZFS Replication Lag and Error Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `pve` / `proxmox:replication` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.7.5."
+    "positiveScenario": "Ingest synthetic events into `index=pve` sourcetype='proxmox:replication' where `guest` satisfies `lag_sec` > 3600 for UC-2.7.5 ('Proxmox VE ZFS Replication Lag and Error Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `pve` / `proxmox:replication` events where `guest` stays below `lag_sec` > 3600, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.7.5."
   },
   "dataSources": "`index=pve` `sourcetype=\"proxmox:replication\"` — `guest`, `source`, `target`, `last_sync_epoch`, `fail_count`, `error`, `duration_sec` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scripted input or UF watching `pvesr` status JSON / `zfs` replication logs on source nodes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pve sourcetype=\"proxmox:replication\" earliest=-24h\n| eval lag_sec=now()-tonumber(coalesce(last_sync_epoch, last_sync, last_run_epoch))\n| eval errs=tonumber(coalesce(fail_count, errors, error_count))\n| where lag_sec>3600 OR errs>0 OR match(lower(coalesce(error, _raw)), \"(?i)error|fail\")\n| stats latest(lag_sec) as repl_lag_sec, max(errs) as err_peak, values(error) as err_msgs by guest, target\n| sort - repl_lag_sec",
   "description": "ZFS replication provides asynchronous DR copies for many Proxmox estates. Growing lag or intermittent errors predict broken snapshots, network saturation, or target pool exhaustion before the standby site is useless.",
-  "value": "Holds RPO targets and speeds root-cause analysis between replication endpoints. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "ZFS replication provides asynchronous DR copies for many Proxmox estates. Timely UC-2.7.5 alerting on 'Proxmox VE ZFS Replication Lag and Error Trending' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Normalize last-sync timestamps to epoch seconds. Alert when lag exceeds policy minutes or `fail_count` increments. Enrich with pool free-space from `proxmox:storage` on the target.",
   "visualization": "Area chart replication lag; single value worst pair; table of error strings.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Proxmox VE ZFS Replication Lag and Error Trending'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `pve` `proxmox:replication`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `pve`** — Package managers spike `guest` metrics for 'Proxmox VE ZFS Replication Lag and Error Trending'. Correlate with apt/yum logs in the same `proxmox:replication` window.\n\n2. **Nightly backup I/O on `guest`** — Predictable `max` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `proxmox:replication`** — Nagios/Zabbix polls `guest` and mimics sustained load without crossing `lag_sec` > 3600.\n\n4. **New host onboarding** — `guest` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `guest`, `valid_until`.",
   "equipment": [
     "proxmox"
   ],

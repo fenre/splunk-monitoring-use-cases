@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Infoblox Grid Replication Lag and Member Sync Status (Infoblox)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_infoblox_grid_replication_lag_and_member_sync_st` (UC-5.15.3), SOC dashboard panel \"Operations — Infoblox Grid Replication Lag and Member Sync Status (Infoblox)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dns` sourcetype='infoblox:audit' that satisfy the UC-5.15.3 SPL filters for 'Infoblox Grid Replication Lag and Member Sync Status (Infoblox)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dns` / `infoblox:audit` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.15.3."
+    "positiveScenario": "Ingest synthetic events into `index=dns` sourcetype='infoblox:audit' where `member` satisfies `count` >= 1 for UC-5.15.3 ('Infoblox Grid Replication Lag and Member Sync Status (Infoblox)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dns` / `infoblox:audit` events where `member` stays below `count` >= 1, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.15.3."
   },
   "dataSources": "`sourcetype=infoblox:audit` Grid Manager audit including replication, database sync, and member disconnect messages",
   "app": "Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2934)",
   "spl": "index=dns sourcetype=\"infoblox:audit\" earliest=-4h\n| search replication OR \"grid\" OR \"database\" OR \"serial\" OR \"out of sync\" OR \"disconnected\" OR \"member\"\n| rex field=_raw \"(?i)member[\\s:]+(?<member>[^\\s,]+)\"\n| stats count values(message) as notes latest(_time) as last by member, host\n| where count>=1\n| sort -last",
   "description": "When Grid replication falls behind, DNS and DHCP views diverge between members—leading to intermittent resolution failures or stale RPZ data. Audit events are often the earliest observable signal before user impact.",
-  "value": "DNS architects detect split-brain or lagging members quickly, schedule controlled Grid restarts, and avoid prolonged inconsistency across sites.",
+  "value": "When Grid replication falls behind, DNS and DHCP views diverge between members—leading to intermittent reso.... Timely UC-5.15.3 alerting on 'Infoblox Grid Replication Lag and Member Sync Status (Infoblox)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Forward all Grid and member audit categories. Create correlation searches for keywords such as replication, serial mismatch, disconnected member, or database join failure. Track event rate per member pair and alert on absence of healthy heartbeat logs.",
   "visualization": "Timeline (audit severity), table (member, last sync message, object), map (site/member status).",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Infoblox Grid Replication Lag and Member Sync Status (Infoblox)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `dns` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `dns`** — Planned work for 'Infoblox Grid Replication Lag and Member Sync Status (Infoblox)' shifts `values` over `span=1h` while `member` remains in-scope for UC-5.15.3. Cross-check CMDB CHG.\n\n2. **Batch `values` on `infoblox:audit`** — Scheduled automation elevates `host` without crossing `count` >= 1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `member`** — Health checks in `dns` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `infoblox:audit`** — First 48h baseline for `member` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `member`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "infoblox"

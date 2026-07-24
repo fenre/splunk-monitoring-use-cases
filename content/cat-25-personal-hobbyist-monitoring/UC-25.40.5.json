@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Weekly Personal Ops Review' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_weekly_personal_ops_review` (UC-25.40.5), SOC dashboard panel \"Personal — Weekly Personal Ops Review\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lifescore:daily' that satisfy the UC-25.40.5 SPL filters for 'Weekly Personal Ops Review'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `lifescore:daily` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.40.5."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lifescore:daily' where `_time` satisfies detection threshold for UC-25.40.5 ('Weekly Personal Ops Review'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `lifescore:daily` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.40.5."
   },
   "dataSources": "Daily life scores (`lifescore:daily`), personal SLO status (`personalslo:status`), cross-signal correlations (`correlation:pair`), plus every other `index=personal` sourcetype as input. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "The meta layer — correlating every `index=personal` feed (sleep, activity, mood, weather, spend, productivity, home telemetry) into daily life scores, personal SLOs, and cross-signal anomaly detection, all computed in Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=lifescore:daily\n| bin _time span=1w\n| stats avg(score) as avg_score, min(score) as worst, max(score) as best by _time\n| sort - _time",
-  "description": "Produces a weekly summary of your life score, mirroring the ops review teams run on their systems.",
-  "value": "A regular personal review builds the habit of reflecting and adjusting, the real value behind all the tracking.",
+  "description": "Produces a weekly summary of your life score, mirroring the ops review teams run on their systems. Searches `index=personal` with sourcetype `lifescore:daily` for UC-25.40.5, aggregating `avg` by `_time` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Weekly Personal Ops Review' without manual log review.",
+  "value": "Produces a weekly summary of your life score, mirroring the ops review teams run on their systems. Timely UC-25.40.5 alerting on 'Weekly Personal Ops Review' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Aggregate your life score weekly in `index=personal`; review average, best, and worst.",
   "visualization": "Column chart of weekly life-score summary.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Weekly Personal Ops Review'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lifescore:daily`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Weekly Personal Ops Review' stops polling `lifescore:daily`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lifescore:daily`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

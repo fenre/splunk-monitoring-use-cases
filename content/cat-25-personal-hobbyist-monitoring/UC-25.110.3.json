@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'GoodRx Savings vs Copay Paid' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_goodrx_savings_vs_copay_paid` (UC-25.110.3), SOC dashboard panel \"Personal — GoodRx Savings vs Copay Paid\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='goodrx:price' that satisfy the UC-25.110.3 SPL filters for 'GoodRx Savings vs Copay Paid'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `goodrx:price` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.110.3."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='goodrx:price' where `drug_name]` satisfies `savings_usd` > 5 for UC-25.110.3 ('GoodRx Savings vs Copay Paid'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `goodrx:price` events where `drug_name]` stays below `savings_usd` > 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.110.3."
   },
   "dataSources": "GoodRx prices (`goodrx:price`), CVS refills (`cvs:refill`), pharmacy pickups (`pharmacy:pickup`), and prescription adherence logs (`prescription:adherence`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "GoodRx price lookups, CVS refill confirmations, pharmacy pickup logs, and prescription adherence trackers streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=goodrx:price drug_name=* lowest_price_usd=*\n| join type=inner drug_name [search index=personal sourcetype=cvs:refill | stats latest(copay_usd) as copay by drug_name]\n| eval savings_usd=round(copay-lowest_price_usd,2)\n| where savings_usd>5\n| sort - savings_usd\n| table drug_name copay lowest_price_usd savings_usd",
   "description": "Compares CVS copays against GoodRx lowest prices for the same drug names. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Copay-versus-coupon gaps show where cash price beats insurance and saves real money monthly.",
+  "value": "Compares CVS copays against GoodRx lowest prices for the same drug names. Timely UC-25.110.3 alerting on 'GoodRx Savings vs Copay Paid' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Match `drug_name` across GoodRx lookups and CVS refill receipts, then review positive savings monthly.",
   "visualization": "Table of drugs with potential savings in dollars.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'GoodRx Savings vs Copay Paid'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `goodrx:price`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'GoodRx Savings vs Copay Paid' stops polling `goodrx:price`; stale `drug_name]` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `goodrx:price`. Dedup with `stats latest(*) by drug_name]`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `savings_usd` > 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "snmp"
   ],

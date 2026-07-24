@@ -54,16 +54,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "A high-severity action past due_at with state=open returns sla_met=0.",
-    "negativeScenario": "A closed action that was closed before due_at is absent.",
-    "fixtureRef": "",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=grc` sourcetype='servicenow:vendor_risk' where `action_id` satisfies detection threshold for UC-22.8.37 ('SOC 2 CC9.1 — Risk-mitigation activity: vendor-risk action closure SLA'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `grc` / `servicenow:vendor_risk` events where `action_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.8.37."
   },
   "dataSources": "`index=grc` sourcetype=servicenow:vendor_risk; vendor register lookup `vendor_register.csv`.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase)",
   "spl": "index=grc sourcetype=servicenow:vendor_risk state IN (open,closed) earliest=-120d\n| stats latest(state) AS state latest(severity) AS severity latest(due_at) AS due_at latest(closed_at) AS closed_at BY action_id vendor\n| eval sla_met=case(state=\"closed\" AND closed_at<=due_at,1,state=\"closed\",0,now()>due_at,0,true(),1)\n| where sla_met=0\n| table action_id vendor severity due_at closed_at sla_met",
   "description": "CC9.1 requires the entity to identify, select, and develop risk-mitigation activities. Closure SLA on vendor-risk actions is a direct control output.",
-  "value": "Replaces the quarterly Procurement PowerPoint with a continuous signal. Top vendors with overdue actions are the first line of an Audit Committee brief.",
+  "value": "CC9. Timely UC-22.8.37 alerting on 'SOC 2 CC9.1 — Risk-mitigation activity: vendor-risk action closure SLA' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Route vendor_risk events from ServiceNow GRC; (2) maintain vendor_register.csv; (3) schedule UC daily; (4) sla_met=0 escalates per severity matrix; (5) monthly CISO report. Indexes required: `index=grc`; Sourcetypes: `sourcetype=servicenow:vendor_risk`, `sourcetype=servicenow:vendor_risk;`.",
   "visualization": "Table of overdue actions by vendor, bar chart of SLA adherence by severity, single value 'overdue vendor-risk actions'.",
   "cimModels": [
@@ -90,7 +88,7 @@
       "title": "NIST Cybersecurity Framework"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised SOC 2 control testing** — Internal audit exercises 'SOC 2 CC9.1 — Risk-mitigation activity: vendor-risk action closure SLA' (UC-22.8.37) on `action_id` during scheduled clause CC9.1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=grc` `servicenow:vendor_risk` without crossing evidence threshold. Cross-check engagement letter in `soc_2_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `grc` for `action_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `action_id` during normal service delivery.\n\n**Suppression mechanism:** `soc_2_exception_register.csv` keyed on `action_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Baseline",
   "securityDomain": "audit",
   "requiredFields": [

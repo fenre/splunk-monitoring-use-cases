@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Asset Discovery Reconciliation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_asset_discovery_reconciliation` (UC-16.2.7), SOC dashboard panel \"Operations — Asset Discovery Reconciliation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=discovery` sourcetype='discovery:asset' that satisfy the UC-16.2.7 SPL filters for 'Asset Discovery Reconciliation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `discovery` / `discovery:asset` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.2.7."
+    "positiveScenario": "Ingest synthetic events into `index=discovery` sourcetype='discovery:asset' where `host_key` satisfies detection threshold for UC-16.2.7 ('Asset Discovery Reconciliation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `discovery` / `discovery:asset` events where `host_key` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.2.7."
   },
   "dataSources": "`sourcetype=snow:discovery_model` or custom `discovery:asset`, `sourcetype=snow:cmdb_ci` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "ServiceNow Discovery, SCCM, or network scan feeds — Universal Forwarder (Splunkbase 617)",
   "spl": "index=discovery sourcetype=\"discovery:asset\" earliest=-1d\n| eval host_key=lower(mvindex(split(hostname,\".\"),0))\n| stats latest(_time) as last_seen by host_key, serial_number\n| join type=left max=1 host_key [ search index=itsm sourcetype=\"snow:cmdb_ci\" | eval host_key=lower(mvindex(split(name,\".\"),0)) | table host_key, sys_id, last_discovered ]\n| eval match_state=if(isnotnull(sys_id) AND abs(last_seen-last_discovered)<86400,\"synced\",\"stale_or_missing\")\n| stats count by match_state",
-  "description": "Reconciles discovery source of truth against CMDB for asset inventory — variance by source, age, and confidence.",
+  "description": "Reconciles discovery source of truth against CMDB for asset inventory — variance by source, age, and confidence. Searches `index=discovery` with sourcetype `discovery:asset` for UC-16.2.7, aggregating `count` by `host_key` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Asset Discovery Reconciliation' without manual log review.",
   "value": "Early 'Asset Discovery Reconciliation' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Normalize hostnames (FQDN strip). Map discovery tool serial/IP to CMDB. Report `stale_or_missing` counts weekly. Drive CMDB update tasks for unmatched discovery rows.",
   "visualization": "Pie chart (synced vs stale), Table (unmatched assets), Single value (reconciliation gap %).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Asset Discovery Reconciliation'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `discovery` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `discovery`** — Planned work for 'Asset Discovery Reconciliation' shifts `count` over `span=1h` while `host_key` remains in-scope for UC-16.2.7. Cross-check CMDB CHG.\n\n2. **Batch `count` on `discovery:asset`** — Scheduled automation elevates `serial_number` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host_key`** — Health checks in `discovery` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `discovery:asset`** — First 48h baseline for `host_key` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host_key`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Blind Motor Calibration Drift' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_blind_motor_calibration_drift` (UC-25.5.23), SOC dashboard panel \"Personal — Blind Motor Calibration Drift\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='blindmotor:state' that satisfy the UC-25.5.23 SPL filters for 'Blind Motor Calibration Drift'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `blindmotor:state` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.23."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='blindmotor:state' where `blind` satisfies `avg_position_error_pct` > 5 for UC-25.5.23 ('Blind Motor Calibration Drift'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `blindmotor:state` events where `blind` stays below `avg_position_error_pct` > 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.23."
   },
   "dataSources": "Device-state telemetry (`zigbee2mqtt:device`, `aqara:device`, `tradfri:device`, `lifx:state`, `nanoleaf:scene`, `blindmotor:state`, `shelly:status`, `ecobee:thermostat`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Aqara, IKEA Tradfri, LIFX, Nanoleaf, Shelly, Zigbee2MQTT, Ecobee, and smart blind motors via vendor clouds, LAN APIs, MQTT bridges, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=blindmotor:state\n| stats avg(position_error_pct) as avg_position_error_pct, max(position_error_pct) as max_position_error_pct by blind\n| where avg_position_error_pct>5 OR max_position_error_pct>10\n| sort - avg_position_error_pct",
   "description": "Uses Smart blind motor telemetry telemetry to monitor how far blind positions drift from their intended state in index=personal.",
-  "value": "Splunk turns the feed into an operational check for motors that need recalibration before automations go wrong, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Smart blind motor telemetry telemetry to monitor how far blind positions drift from their intended sta.... Timely UC-25.5.23 alerting on 'Blind Motor Calibration Drift' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Smart blind motor telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Blind table of average and worst position error.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Blind Motor Calibration Drift'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `blindmotor:state`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Blind Motor Calibration Drift' stops polling `blindmotor:state`; stale `blind` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `blindmotor:state`. Dedup with `stats latest(*) by blind`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_position_error_pct` > 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

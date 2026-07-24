@@ -51,15 +51,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When a key's last rotation is older than the cryptoperiod defined in key_policy.csv, the UC fires with key_id, last_rotation, and cryptoperiod.",
-    "negativeScenario": "Keys within their cryptoperiod and keys marked key_type=archive are NOT flagged.",
-    "fixtureRef": "sample-data/uc-22.41.3-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=kms` sourcetype='aws:kms' where `key_id` satisfies detection threshold for UC-22.41.3 ('Key rotation attestation — KMS/HSM rotation SLA tracker'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `kms` / `aws:kms` events where `key_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.41.3."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=kms (sourcetype=aws:kms OR sourcetype=azure:keyvault OR sourcetype=gcp:kms) action=rotate\n| stats max(_time) as last_rotation by key_id tenant\n| lookup key_policy.csv key_id OUTPUT cryptoperiod_days key_type\n| where key_type!=\"archive\"\n| eval age_days=round((now()-last_rotation)/86400,0)\n| where age_days>cryptoperiod_days\n| table tenant key_id last_rotation age_days cryptoperiod_days",
   "description": "Verifies every encryption key is rotated within its policy cryptoperiod. Overdue keys are highlighted and evidence is written to the compliance index for audit.",
-  "value": "Gives the cryptographic custodian the ability to defend the 'our keys are rotated' claim with per-key evidence rather than a policy document.",
+  "value": "Verifies every encryption key is rotated within its policy cryptoperiod. Timely UC-22.41.3 alerting on 'Key rotation attestation — KMS/HSM rotation SLA tracker' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Ingest KMS audit logs; (2) maintain key_policy.csv; (3) run daily; (4) escalate via SOAR to the crypto custodian. Indexes required: `index=kms`; Sourcetypes: `sourcetype=aws:kms`, `sourcetype=azure:keyvault`, `sourcetype=gcp:kms`.",
   "visualization": "Table of overdue keys, scatter plot age vs cryptoperiod, single-value '% of keys within cryptoperiod'. Key fields: `age_days`, `cryptoperiod_days`, `key_id`, `last_rotation`, `tenant`.",
   "cimModels": [
@@ -86,7 +85,7 @@
       "title": "PCI SSC — Document Library"
     }
   ],
-  "knownFalsePositives": "1. **Authorised penetration testing** — Annual or more frequent penetration tests conducted by QSA-approved assessors against cardholder data environment (CDE) systems produce expected security alerts that are pre-communicated and tracked via the test engagement letter.\n\n2. **PCI ASV scanning activity** — Quarterly external vulnerability scans performed by Approved Scanning Vendors generate network probe events that trigger IDS/IPS alerts as an expected part of the PCI DSS validation process.\n\n3. **Tokenization system batch processing** — The payment tokenization platform performs scheduled batch re-tokenization and token lifecycle management operations that produce high-volume cardholder data access patterns within approved operational windows.\n\n4. **Acquirer and processor settlement activity** — End-of-day settlement reconciliation between the merchant platform and payment processor involves legitimate PAN/SAD data transmission that is covered by the processor service provider agreement.\n\n**Suppression mechanism:** Maintain a `pci_exception_register` KV Store lookup containing approved pen-test engagement IDs, ASV scan source IPs, scheduled batch job names, and settlement processing windows. The search filters matches where `pci_exception_valid=true` and the exception has not expired.",
+  "knownFalsePositives": "1. **Authorised PCI DSS control testing** — Internal audit exercises 'Key rotation attestation — KMS/HSM rotation SLA tracker' (UC-22.41.3) on `key_id` during scheduled clause 3.6 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=kms` `aws:kms` without crossing evidence threshold. Cross-check engagement letter in `pci_dss_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `kms` for `key_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `key_id` during normal service delivery.\n\n**Suppression mechanism:** `pci_dss_exception_register.csv` keyed on `key_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "audit",
   "requiredFields": [

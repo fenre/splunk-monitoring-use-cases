@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Gmail Suspicious Forwarding' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_gmail_suspicious_forwarding` (UC-11.2.9), SOC dashboard panel \"Operations — Gmail Suspicious Forwarding\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=gws` sourcetype='gws:admin' that satisfy the UC-11.2.9 SPL filters for 'Gmail Suspicious Forwarding'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `gws` / `gws:admin` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.2.9."
+    "positiveScenario": "Ingest synthetic events into `index=gws` sourcetype='gws:admin' where `entity` satisfies detection threshold for UC-11.2.9 ('Gmail Suspicious Forwarding'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `gws` / `gws:admin` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.2.9."
   },
   "dataSources": "Email settings audit (`CHANGE_EMAIL_SETTING`, Gmail routing / forwarding flags in Reports API export) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_GoogleWorkspace` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=gws sourcetype=\"gws:admin\" event_name=\"CHANGE_EMAIL_SETTING\"\n| search forward OR delegate OR filter\n| where NOT match(setting_value, \".*@yourdomain\\\\.com\")\n| table _time, actor.email, target_user, setting_name, setting_value",
-  "description": "Detects auto-forwarding and delegation to external addresses—common post-compromise behavior.",
+  "description": "Detects auto-forwarding and delegation to external addresses—common post-compromise behavior. Searches `index=gws` with sourcetype `gws:admin` for UC-11.2.9, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Gmail Suspicious Forwarding' without manual log review.",
   "value": "Early 'Gmail Suspicious Forwarding' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ingest email settings changes. Alert on new forwarding to non-corporate domains. Weekly report of active forwards from `gmail:user_settings` export.",
   "visualization": "Table (forwarding changes), Single value (external forwards), Timeline.",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Gmail Suspicious Forwarding'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `gws` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `gws`** — Planned work for 'Gmail Suspicious Forwarding' shifts `count` over `span=1h` while `host` remains in-scope for UC-11.2.9. Cross-check CMDB CHG.\n\n2. **Batch `count` on `gws:admin`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `gws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gws:admin`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

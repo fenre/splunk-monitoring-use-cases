@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Eight Sleep Temperature Intervention Spike' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_eight_sleep_temperature_intervention_spike` (UC-25.2.19), SOC dashboard panel \"Personal — Eight Sleep Temperature Intervention Spike\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='eightsleep:sleep' that satisfy the UC-25.2.19 SPL filters for 'Eight Sleep Temperature Intervention Spike'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `eightsleep:sleep` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.19."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='eightsleep:sleep' where `sleeper` satisfies `temp_adjustments` > 6 for UC-25.2.19 ('Eight Sleep Temperature Intervention Spike'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `eightsleep:sleep` events where `sleeper` stays below `temp_adjustments` > 6, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.19."
   },
   "dataSources": "Recovery and biometrics (`apple:health`, `oura:daily`, `whoop:cycle`, `dexcom:egv`, `levels:glucose`, `libre:glucose`, `eightsleep:sleep`, `withings:measure`, `garmin:bodybattery`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Apple Health / Apple Watch exports, Oura, WHOOP, Dexcom, Levels, LibreView, Eight Sleep, Withings, and Garmin Body Battery feeds via vendor APIs, exports, Home Assistant bridges, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=eightsleep:sleep\n| bin _time span=1d\n| stats sum(temp_adjustments) as temp_adjustments, avg(room_temp_c) as room_temp_c by sleeper _time\n| where temp_adjustments>6\n| sort - temp_adjustments",
   "description": "Uses Eight Sleep exports telemetry to monitor how often the bed had to correct temperature through the night in index=personal.",
-  "value": "Splunk turns the feed into an operational check for sleep sessions fighting room conditions or recovery stress, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Eight Sleep exports telemetry to monitor how often the bed had to correct temperature through the nigh.... Timely UC-25.2.19 alerting on 'Eight Sleep Temperature Intervention Spike' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Eight Sleep exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Daily chart of temperature adjustments and room temperature.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Eight Sleep Temperature Intervention Spike'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `eightsleep:sleep`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Eight Sleep Temperature Intervention Spike' stops polling `eightsleep:sleep`; stale `sleeper` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `eightsleep:sleep`. Dedup with `stats latest(*) by sleeper`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `temp_adjustments` > 6. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

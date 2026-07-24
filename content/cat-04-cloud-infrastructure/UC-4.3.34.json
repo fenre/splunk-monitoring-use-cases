@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Dataflow Pipeline Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dataflow_pipeline_health` (UC-4.3.34), SOC dashboard panel \"Operations — Dataflow Pipeline Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='google:gcp:monitoring' that satisfy the UC-4.3.34 SPL filters for 'Dataflow Pipeline Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `gcp` / `google:gcp:monitoring` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.34."
+    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='google:gcp:monitoring' where `resource.labels.job_name` satisfies `lag_sec` > 300 for UC-4.3.34 ('Dataflow Pipeline Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `gcp` / `google:gcp:monitoring` events where `resource.labels.job_name` stays below `lag_sec` > 300, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.34."
   },
   "dataSources": "`sourcetype=google:gcp:monitoring` (`dataflow.googleapis.com/job/*`), Dataflow worker logs Collected via Splunk Add-on for Google Cloud Platform (Splunkbase 3084) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_google-cloudplatform` — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
   "spl": "index=gcp sourcetype=\"google:gcp:monitoring\" metric.type=\"dataflow.googleapis.com/job/system_lag\"\n| bin _time span=5m\n| stats latest(value) as lag_sec by resource.labels.job_name, _time\n| where lag_sec > 300\n| sort - lag_sec",
-  "description": "Batch and streaming pipelines power analytics; failed jobs or high system lag delay downstream consumers.",
+  "description": "Batch and streaming pipelines power analytics; failed jobs or high system lag delay downstream consumers. Searches `index=gcp` with sourcetype `google:gcp:monitoring` for UC-4.3.34, aggregating `count` by `resource.labels.job_name` over `5m`. Alerts when grouped results cross `lag_sec` > 300 in the saved search. Gives Operations operators a repeatable signal for 'Dataflow Pipeline Health' without manual log review.",
   "value": "Early 'Dataflow Pipeline Health' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ingest job state changes (FAILED, UPDATED) from logging. Alert on sustained system lag for streaming jobs or failed batch completion. Dashboard worker CPU and shuffle errors.",
   "visualization": "Line chart (system lag), Table (job, state), Timeline (job failures).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Dataflow Pipeline Health'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `gcp` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `gcp`** — Planned work for 'Dataflow Pipeline Health' shifts `count` over `span=5m` while `resource.labels.job_name` remains in-scope for UC-4.3.34. Cross-check CMDB CHG.\n\n2. **Batch `count` on `google:gcp:monitoring`** — Scheduled automation elevates `_time` without crossing `lag_sec` > 300. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `resource.labels.job_name`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `google:gcp:monitoring`** — First 48h baseline for `resource.labels.job_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `resource.labels.job_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "gcp"
   ],

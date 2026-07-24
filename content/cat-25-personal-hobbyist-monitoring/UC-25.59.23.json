@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Beeminder Pledge Increase Risk' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_beeminder_pledge_increase_risk` (UC-25.59.23), SOC dashboard panel \"Personal — Beeminder Pledge Increase Risk\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lifeos:beeminder' that satisfy the UC-25.59.23 SPL filters for 'Beeminder Pledge Increase Risk'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `lifeos:beeminder` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.59.23."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lifeos:beeminder' where `goal_slug` satisfies detection threshold for UC-25.59.23 ('Beeminder Pledge Increase Risk'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `lifeos:beeminder` events where `goal_slug` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.59.23."
   },
   "dataSources": "Habit activity (`lifeos:habit`), streaks (`lifeos:streak`), Beeminder goals (`lifeos:beeminder`), OKRs (`lifeos:okr`), planning syncs (`lifeos:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal life-OS telemetry — Habitica quest logs, Streaks app habit chains, Beeminder goal data, and personal OKR reviews — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=lifeos:beeminder goal_slug=* pledge_increased=*\n| stats count as total, sum(eval(if(pledge_increased=\"yes\",1,0))) as matched by goal_slug\n| eval a_pledge_increase_pct=round(100*matched/total,1)\n| sort - a_pledge_increase_pct",
-  "description": "Measures the percentage of Beeminder checkpoints that end with a pledge increase by goal.",
-  "value": "Completion and exception percentages make it easier to spot which goal are helping or hurting Beeminder checkpoints.",
+  "description": "Measures the percentage of Beeminder checkpoints that end with a pledge increase by goal. Searches `index=personal` with sourcetype `lifeos:beeminder` for UC-25.59.23, aggregating `sum` by `goal_slug` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Beeminder Pledge Increase Risk' without manual log review.",
+  "value": "Measures the percentage of Beeminder checkpoints that end with a pledge increase by goal. Timely UC-25.59.23 alerting on 'Beeminder Pledge Increase Risk' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store a normalized flag for `a pledge increase` on `lifeos:beeminder` events and summarize the hit rate by `goal_slug`.",
   "visualization": "Table of goal with percentage of Beeminder checkpoints ending with a pledge increase.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Beeminder Pledge Increase Risk'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lifeos:beeminder`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Beeminder Pledge Increase Risk' stops polling `lifeos:beeminder`; stale `goal_slug` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lifeos:beeminder`. Dedup with `stats latest(*) by goal_slug`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "checkpoint"
   ],

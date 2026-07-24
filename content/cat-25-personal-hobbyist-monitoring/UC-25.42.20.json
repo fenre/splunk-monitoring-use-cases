@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'ForeFlight Checklist Completion Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_foreflight_checklist_completion_gap` (UC-25.42.20), SOC dashboard panel \"Personal — ForeFlight Checklist Completion Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flight:log' that satisfy the UC-25.42.20 SPL filters for 'ForeFlight Checklist Completion Gap'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `flight:log` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.20."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flight:log' where `checklist_name` satisfies detection threshold for UC-25.42.20 ('ForeFlight Checklist Completion Gap'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `flight:log` events where `checklist_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.20."
   },
   "dataSources": "Flight logs (`flight:log`), flight-plan snapshots (`simbrief:plan`), network sessions (`vatsim:session`), prep tasks (`checkride:prep`), export syncs (`flight:export`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Aviation and flight-sim telemetry — ForeFlight exports, SimBrief flight plans, VATSIM session logs, and checkride-prep trackers — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=flight:log checklist_name=* all_items_completed=*\n| stats count as total, sum(eval(if(all_items_completed=\"yes\",1,0))) as matched by checklist_name\n| eval every_checklist_item_complete_pct=round(100*matched/total,1)\n| sort - every_checklist_item_complete_pct",
-  "description": "Measures the percentage of ForeFlight checklist runs that end with every checklist item complete by checklist.",
-  "value": "Completion and exception percentages make it easier to spot which checklist are helping or hurting ForeFlight checklist runs.",
+  "description": "Measures the percentage of ForeFlight checklist runs that end with every checklist item complete by checklist. Searches `index=personal` with sourcetype `flight:log` for UC-25.42.20, aggregating `sum` by `checklist_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'ForeFlight Checklist Completion Gap' without manual log review.",
+  "value": "Measures the percentage of ForeFlight checklist runs that end with every checklist item complete by checklist. Timely UC-25.42.20 alerting on 'ForeFlight Checklist Completion Gap' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store a normalized flag for `every checklist item complete` on `flight:log` events and summarize the hit rate by `checklist_name`.",
   "visualization": "Table of checklist with percentage of ForeFlight checklist runs ending with every checklist item complete.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'ForeFlight Checklist Completion Gap'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flight:log`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'ForeFlight Checklist Completion Gap' stops polling `flight:log`; stale `checklist_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flight:log`. Dedup with `stats latest(*) by checklist_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

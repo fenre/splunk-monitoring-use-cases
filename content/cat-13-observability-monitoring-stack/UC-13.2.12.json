@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Episode Correlation Accuracy' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_episode_correlation_accuracy` (UC-13.2.12), SOC dashboard panel \"Operations — Episode Correlation Accuracy\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsi_grouped_alerts` sourcetype='target_sourcetype' that satisfy the UC-13.2.12 SPL filters for 'Episode Correlation Accuracy'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsi_grouped_alerts` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.2.12."
+    "positiveScenario": "Ingest synthetic events into `index=itsi_grouped_alerts` sourcetype='target_sourcetype' where `disposition` satisfies detection threshold for UC-13.2.12 ('Episode Correlation Accuracy'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `itsi_grouped_alerts` / `target_sourcetype` events where `disposition` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.2.12."
   },
   "dataSources": "`index=itsi_grouped_alerts`, analyst disposition (ServiceNow/Splunk On-Call) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk ITSI Event Analytics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsi_grouped_alerts\n| lookup episode_feedback episode_id OUTPUT disposition\n| stats count by disposition, severity\n| eval pct=round(100*count/sum(count),2)",
-  "description": "Measuring false merges and missed splits improves aggregation policies and reduces analyst rework.",
+  "description": "Measuring false merges and missed splits improves aggregation policies and reduces analyst rework. Searches `index=itsi_grouped_alerts` with sourcetype `configured sourcetype` for UC-13.2.12, aggregating `sum` by `disposition` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Episode Correlation Accuracy' without manual log review.",
   "value": "Early 'Episode Correlation Accuracy' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ingest manual episode disposition (false positive, wrong merge, should split) from ticketing or a KV store. Monthly review of `pct` by policy. Tune aggregation and similarity thresholds.",
   "visualization": "Pie chart (disposition mix), Bar chart (accuracy by policy), Table (episodes with poor feedback).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Episode Correlation Accuracy'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `itsi_grouped_alerts` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `itsi_grouped_alerts`** — Planned work for 'Episode Correlation Accuracy' shifts `sum` over `span=1h` while `disposition` remains in-scope for UC-13.2.12. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `severity` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `disposition`** — Health checks in `itsi_grouped_alerts` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `disposition` is unstable; join `episode_feedback` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `disposition`, `exception_reason`, `valid_until`.",
   "equipment": [
     "itsi",
     "servicenow"

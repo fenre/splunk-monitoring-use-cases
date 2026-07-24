@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'LDAP Query Performance' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_ldap_query_performance` (UC-9.1.9), SOC dashboard panel \"IAM — LDAP Query Performance\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Directory Service' EventCode=1644 that satisfy the UC-9.1.9 SPL filters for 'LDAP Query Performance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Directory Service` events outside the detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.1.9."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Directory Service' EventCode=1644 where `entity` satisfies `entries_visited` > 10000 for UC-9.1.9 ('LDAP Query Performance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Directory Service` events where `entity` stays below `entries_visited` > 10000, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.1.9."
   },
   "dataSources": "Directory Service event log (Event ID 1644 — expensive search), Field Engineering diagnostics Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows`, Directory Service diagnostics — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled IAM maintenance** — Planned directory or IdP change generates expected deviations for 'LDAP Query Performance'. Cross-check change records.\n\n2. **Onboarding burst** — New accounts or apps produce atypical `wineventlog` volume.\n\n3. **Monitoring synthetic bind checks** — Health probes from known scanner hosts.\n\n4. **Stale application credential** — Single entity dominates `WinEventLog:Directory Service` failures.\n\n**Suppression mechanism:** `iam_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `wineventlog`** — Planned work for 'LDAP Query Performance' shifts `count` over `span=1h` while `host` remains in-scope for UC-9.1.9. Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Directory Service` (EventCode=1644)** — Scheduled automation elevates `src` without crossing `entries_visited` > 10000. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Directory Service`** — First 48h baseline for `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "windows"
   ],

@@ -76,16 +76,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When PII-classified data egresses to a destination IP whose geolocation is not on the sanctioned_transfer_jurisdictions.csv list, the UC fires naming the source system, destination country, and PII classification.",
-    "negativeScenario": "Traffic within the EEA or to adequacy-decision jurisdictions with active SCCs does NOT fire.",
-    "fixtureRef": "sample-data/uc-22.38.1-fixture.json",
-    "attackTechnique": "T1567.002"
+    "positiveScenario": "Ingest synthetic events into `index=dlp` sourcetype='target_sourcetype' where `All_Traffic.dest` satisfies detection threshold for UC-22.38.1 ('Cross-border personal-data flow anomaly — egress to unsanctioned jurisdictions'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dlp` / `target_sourcetype` events where `All_Traffic.dest` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.38.1."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic where All_Traffic.tag=egress earliest=-1h by All_Traffic.dest, All_Traffic.src, All_Traffic.bytes_out\n| `get_geolocation(dest)`\n| lookup sanctioned_transfer_jurisdictions.csv country as dest_country OUTPUT scc_active adequacy_decision\n| where isnull(scc_active) AND isnull(adequacy_decision)\n| join src [search index=dlp tag=pii | stats values(classification) as pii_class by src]\n| table _time src dest dest_country pii_class bytes_out",
   "description": "Joins CIM Network_Traffic egress telemetry with DLP PII classification and a sanctioned-jurisdictions lookup. Any transfer of PII-classified traffic to a non-sanctioned destination is a direct Art.44 finding.",
-  "value": "Operationalises a control that is otherwise verifiable only via quarterly desk review of the transfer register.",
+  "value": "Joins CIM Network_Traffic egress telemetry with DLP PII classification and a sanctioned-jurisdictions lookup. Timely UC-22.38.1 alerting on 'Cross-border personal-data flow anomaly — egress to unsanctioned jurisdictions' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Ensure DLP emits CIM-compatible PII classification; (2) maintain sanctioned_transfer_jurisdictions.csv driven by the Art.45 adequacy list and the SCC register; (3) schedule every 15 min; (4) escalate via SOAR to DPO. Indexes required: `index=dlp`.",
   "visualization": "World-map of egress flows (green=sanctioned, red=finding), table of findings, single-value 'transfers in sanctioned geographies'. Key fields: `bytes_out`, `dest`, `dest_country`, `pii_class`, `src`, `src]`.",
   "cimModels": [],
@@ -109,7 +107,7 @@
       "title": "ICO — GDPR Guidance"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised GDPR control testing** — Internal audit exercises 'Cross-border personal-data flow anomaly — egress to unsanctioned jurisdictions' (UC-22.38.1) on `All_Traffic.dest` during scheduled clause Art.44 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=dlp` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `gdpr_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `dlp` for `All_Traffic.dest`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `All_Traffic.dest` during normal service delivery.\n\n**Suppression mechanism:** `gdpr_exception_register.csv` keyed on `All_Traffic.dest`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1567.002"
   ],

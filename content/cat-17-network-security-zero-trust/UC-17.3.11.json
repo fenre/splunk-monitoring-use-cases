@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Micro-Segment Traffic Baseline Anomaly' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_micro_segment_traffic_baseline_anomaly` (UC-17.3.11), SOC dashboard panel \"Network — Micro-Segment Traffic Baseline Anomaly\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=flows` sourcetype='netflow' that satisfy the UC-17.3.11 SPL filters for 'Micro-Segment Traffic Baseline Anomaly'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `flows` / `netflow` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.11."
+    "positiveScenario": "Ingest synthetic events into `index=flows` sourcetype='netflow' where `src_segment` satisfies detection threshold for UC-17.3.11 ('Micro-Segment Traffic Baseline Anomaly'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `flows` / `netflow` events where `src_segment` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.11."
   },
   "dataSources": "East-west traffic, segment IDs, flow counts Indexes: flows. Sourcetypes: netflow. Key fields: _time, dest_segment, src_segment. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Network flow logs, VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA, Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=flows sourcetype=\"netflow\"\n| bin _time span=1h\n| stats sum(bytes) as bytes, count by src_segment, dest_segment, _time\n| eventstats avg(bytes) as avg_bytes by src_segment, dest_segment\n| where bytes > (avg_bytes * 5)\n| table src_segment, dest_segment, bytes, avg_bytes",
   "description": "New or unexpected traffic between segments may indicate lateral movement or misconfiguration. Anomaly detection supports Zero Trust enforcement.",
-  "value": "Security analytics teams detect behavioral anomalies within microsegmented traffic using statistical baselines, identifying unusual byte volumes (potential exfiltration), flow count spikes (potential scanning), and never-before-seen communication pairs (potential lateral movement).",
+  "value": "New or unexpected traffic between segments may indicate lateral movement or misconfiguration. Timely UC-17.3.11 alerting on 'Micro-Segment Traffic Baseline Anomaly' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Ingest segment-level or flow data. Baseline traffic between segment pairs. Alert when traffic exceeds baseline by threshold. Correlate with new connections and ZT policy. Report on segment traffic matrix.",
   "visualization": "Table (anomalous segment pairs), Heatmap (segment × segment traffic), Line chart (traffic trend).",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Micro-Segment Traffic Baseline Anomaly'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `flows`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `netflow` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `flows`** — Planned work for 'Micro-Segment Traffic Baseline Anomaly' shifts `sum` over `span=1h` while `src_segment` remains in-scope for UC-17.3.11. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `netflow`** — Scheduled automation elevates `dest_segment` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_segment`** — Health checks in `flows` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netflow`** — First 48h baseline for `src_segment` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src_segment`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1021",
     "T1570",

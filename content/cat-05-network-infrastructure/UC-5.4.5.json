@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Client Count Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_client_count_trending` (UC-5.4.5), SOC dashboard panel \"Operations — Client Count Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=meraki` sourcetype='target_sourcetype' that satisfy the UC-5.4.5 SPL filters for 'Client Count Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `meraki` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.4.5."
+    "positiveScenario": "Ingest synthetic events into `index=meraki` sourcetype='target_sourcetype' where `ap_name` satisfies detection threshold for UC-5.4.5 ('Client Count Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `meraki` / `target_sourcetype` events where `ap_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.4.5."
   },
   "dataSources": "Splunk_TA_cisco_meraki (Splunkbase #5580): Webhook receiver (sourcetype=meraki:webhook) configured for client connectivity alerts. The polled Dashboard API does NOT expose a per-AP client list; per-association events come via webhook only. Collected via Splunk Add-on for Cisco Meraki (Splunkbase 5631) modular input or scripted poll into the index named in the SPL.",
   "app": "Meraki API, WLC SNMP — Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
   "spl": "index=meraki sourcetype IN (\"meraki:webhook\",\"meraki:webhooklogs:api\")\n    (alertType=\"client_connectivity\" OR alertTypeId=\"client_connection_changed\"\n     OR alertType=\"association\")\n    earliest=-24h\n| spath\n| eval client_mac = coalesce('alertData.clientMac', 'alertData.client.mac', 'alertData.mac')\n| eval ap_name = coalesce(deviceName, 'alertData.deviceName')\n| timechart span=1h dc(client_mac) as concurrent_clients by ap_name",
   "description": "Client count trending informs capacity planning and AP density decisions. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Network operations teams track wireless client counts per AP against model-specific capacity limits, identifying overloaded access points and generating capacity planning data for building and floor-level wireless density management.",
+  "value": "Client count trending informs capacity planning and AP density decisions. Timely UC-5.4.5 alerting on 'Client Count Trending' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "1. Enable the Webhook Logs (HEC) input in Splunk_TA_cisco_meraki and configure a Meraki Dashboard alert profile that includes 'client connection changed' and 'unique client connected'. 2. Each webhook event carries alertData.clientMac and deviceName (the AP). 3. Use dc(client_mac) over a sliding window for concurrent clients per AP. 4. For the network-wide totals (not per-AP), the polled meraki:summarytopclientsbyusage input lists the top 10 clients by usage but does not give a complete client roster.",
   "visualization": "Line chart (clients over time), Table (AP, count), Heatmap.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Client Count Trending'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `meraki` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki`** — Planned work for 'Client Count Trending' shifts `dc` over `span=1h` while `ap_name` remains in-scope for UC-5.4.5. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `configured_sourcetype`** — Scheduled automation elevates `client_mac` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ap_name`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `ap_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ap_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp"

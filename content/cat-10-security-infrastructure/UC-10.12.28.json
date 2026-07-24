@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'Pharmacy Dispensing Audit' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_pharmacy_dispensing_audit` (UC-10.12.28), SOC dashboard panel \"Security Infra — Pharmacy Dispensing Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=clinical` sourcetype='pharmacy:dispense' that satisfy the UC-10.12.28 SPL filters for 'Pharmacy Dispensing Audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `clinical` / `pharmacy:dispense` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.28."
+    "positiveScenario": "Ingest synthetic events into `index=clinical` sourcetype='pharmacy:dispense' where `drug_name` satisfies `fill_hour` < 6 for UC-10.12.28 ('Pharmacy Dispensing Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `clinical` / `pharmacy:dispense` events where `drug_name` stays below `fill_hour` < 6, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.28."
   },
   "dataSources": "`sourcetype=\"pharmacy:dispense\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Pharmacy system (Pyxis, Epic Willow) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=clinical sourcetype=\"pharmacy:dispense\" dea_schedule IN (\"2\",\"3\",\"4\")\n| search override_flag=\"true\" OR fill_hour<6 OR fill_hour>22\n| stats count, sum(quantity) as units by drug_name, pharmacist_id, patient_hash\n| sort -units",
-  "description": "Tracks controlled substance dispensing overrides and after-hours fills for diversion programs.",
+  "description": "Tracks controlled substance dispensing overrides and after-hours fills for diversion programs. Searches `index=clinical` with sourcetype `pharmacy:dispense` for UC-10.12.28, aggregating `sum` by `drug_name` over `the scheduled window`. Alerts when grouped results cross `fill_hour` < 6 in the saved search. Gives Security Infra operators a repeatable signal for 'Pharmacy Dispensing Audit' without manual log review.",
   "value": "Early 'Pharmacy Dispensing Audit' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Align with state PDMP reporting; peer review for high override rates.",
   "visualization": "Table (overrides), Bar chart (by drug), Heatmap (pharmacist × shift).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Pharmacy Dispensing Audit'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=clinical` `pharmacy:dispense`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `clinical`** — Planned work for 'Pharmacy Dispensing Audit' shifts `sum` over `span=1h` while `drug_name` remains in-scope for UC-10.12.28. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `pharmacy:dispense`** — Scheduled automation elevates `pharmacist_id` without crossing `fill_hour` < 6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `drug_name`** — Health checks in `clinical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pharmacy:dispense`** — First 48h baseline for `drug_name` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `drug_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

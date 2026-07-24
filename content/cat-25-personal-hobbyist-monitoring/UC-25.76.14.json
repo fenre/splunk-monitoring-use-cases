@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'UTR Rating Monthly Rollup' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_utr_rating_monthly_rollup` (UC-25.76.14), SOC dashboard panel \"Personal — UTR Rating Monthly Rollup\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='utr:rating' that satisfy the UC-25.76.14 SPL filters for 'UTR Rating Monthly Rollup'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `utr:rating` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.76.14."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='utr:rating' where `_time` satisfies detection threshold for UC-25.76.14 ('UTR Rating Monthly Rollup'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `utr:rating` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.76.14."
   },
   "dataSources": "SwingVision sessions (`swingvision:session`), UTR rating history (`utr:rating`), racket-sport sessions (`racket:session`), stringing and maintenance events (`stringing:service`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "SwingVision match video analytics, UTR rating snapshots, court-session logs, and racket stringing reminders streamed to Splunk HEC via APIs, CSV exports, and mobile forms. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=utr:rating\n| bin _time span=1mon\n| stats sum(rating_value) as total_value avg(match_count) as avg_duration count as sessions by _time\n| sort - _time",
-  "description": "Summarizes utr rating by month so you can review season-to-date volume without digging through individual sessions.",
-  "value": "A monthly rollup is useful for spotting big directional changes and for keeping a simple log of a long season.",
+  "description": "Summarizes utr rating by month so you can review season-to-date volume without digging through individual sessions. Searches `index=personal` with sourcetype `utr:rating` for UC-25.76.14, aggregating `sum` by `_time` over `1m`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'UTR Rating Monthly Rollup' without manual log review.",
+  "value": "Summarizes utr rating by month so you can review season-to-date volume without digging through individual s.... Timely UC-25.76.14 alerting on 'UTR Rating Monthly Rollup' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Retain at least a season of history so month-over-month comparisons stay meaningful.",
   "visualization": "Column chart of monthly totals with average session duration overlaid.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'UTR Rating Monthly Rollup'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `utr:rating`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'UTR Rating Monthly Rollup' stops polling `utr:rating`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `utr:rating`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

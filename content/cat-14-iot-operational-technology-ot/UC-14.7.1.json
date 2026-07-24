@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Litmus Edge Gateway Connectivity Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_litmus_edge_gateway_connectivity_health` (UC-14.7.1), SOC dashboard panel \"Operations — Litmus Edge Gateway Connectivity Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='litmus:health' that satisfy the UC-14.7.1 SPL filters for 'Litmus Edge Gateway Connectivity Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `litmus:health` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.7.1."
+    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='litmus:health' where `gateway_id` satisfies detection threshold for UC-14.7.1 ('Litmus Edge Gateway Connectivity Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ot` / `litmus:health` events where `gateway_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.7.1."
   },
   "dataSources": "`index=ot` `sourcetype=\"litmus:health\"` fields `gateway_id`, `status`, `online` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Litmus Edge (Splunk HEC connector) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"litmus:health\"\n| eval is_online=case(\n    match(lower(status),\"online|up|connected|running\"), 1,\n    match(lower(status),\"offline|down|disconnected|stopped\"), 0,\n    online=\"true\" OR online=\"1\", 1,\n    true(), 0)\n| stats latest(is_online) as online_now, latest(_time) as last_health by gateway_id, site_id\n| where online_now=0 OR isnull(online_now)\n| eval minutes_since=round((now()-last_health)/60,1)\n| table gateway_id, site_id, online_now, last_health, minutes_since",
-  "description": "Gateway offline events stop OT data from reaching Splunk; early detection reduces blind spots in plant visibility.",
+  "description": "Gateway offline events stop OT data from reaching Splunk; early detection reduces blind spots in plant visibility. Searches `index=ot` with sourcetype `litmus:health` for UC-14.7.1, aggregating `count` by `gateway_id` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Litmus Edge Gateway Connectivity Health' without manual log review.",
   "value": "Early 'Litmus Edge Gateway Connectivity Health' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Enable the Litmus Edge Splunk HEC destination and send periodic health/heartbeat JSON. Ensure gateway_id and site_id are present. Alert if no healthy event for 2x the expected interval.",
   "visualization": "Single value (gateways offline), Table (gateway, site, last health), Status indicator (green/red per gateway).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Litmus Edge Gateway Connectivity Health'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `ot` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'Litmus Edge Gateway Connectivity Health' shifts `count` over `span=1h` while `gateway_id` remains in-scope for UC-14.7.1. Cross-check CMDB CHG.\n\n2. **Batch `count` on `litmus:health`** — Scheduled automation elevates `site_id` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `gateway_id`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `litmus:health`** — First 48h baseline for `gateway_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `gateway_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

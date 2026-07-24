@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Engine Temperature Excursion Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_engine_temperature_excursion_watch` (UC-25.43.15), SOC dashboard panel \"Personal — Engine Temperature Excursion Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='nmea:reading' that satisfy the UC-25.43.15 SPL filters for 'Engine Temperature Excursion Watch'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `nmea:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.43.15."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='nmea:reading' where `voyage_id` satisfies `max_temp` > 95 for UC-25.43.15 ('Engine Temperature Excursion Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `nmea:reading` events where `voyage_id` stays below `max_temp` > 95, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.43.15."
   },
   "dataSources": "NMEA/SignalK data (`nmea:reading`), bilge pump (`bilge:event`), mooring/anchor watch (`mooring:status`), marine weather (`marineweather:forecast`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Marine electronics — NMEA 2000 / SignalK boat networks, bilge, battery and shore-power sensors, anchor-watch GPS, and marine weather feeds — streamed to Splunk HEC via SignalK and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=nmea:reading engine_temp_c=*\n| stats max(engine_temp_c) as max_temp, avg(engine_temp_c) as avg_temp by voyage_id\n| where max_temp>95\n| sort - max_temp",
   "description": "Flags voyages where engine temperature crossed a caution threshold. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "A simple excursion watch catches cooling issues early, which is much cheaper than diagnosing them after a failure.",
+  "value": "Flags voyages where engine temperature crossed a caution threshold. Timely UC-25.43.15 alerting on 'Engine Temperature Excursion Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest NMEA engine-temperature readings into `index=personal`; alert when maximum voyage temperature exceeds your threshold.",
   "visualization": "Voyage table of average and maximum engine temperature.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Engine Temperature Excursion Watch'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nmea:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Engine Temperature Excursion Watch' stops polling `nmea:reading`; stale `voyage_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nmea:reading`. Dedup with `stats latest(*) by voyage_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `max_temp` > 95. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

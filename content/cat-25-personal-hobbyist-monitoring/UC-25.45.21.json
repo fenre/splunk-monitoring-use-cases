@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Bandcamp Friday Conversion Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_bandcamp_friday_conversion_rate` (UC-25.45.21), SOC dashboard panel \"Personal — Bandcamp Friday Conversion Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='music:bandcamp' that satisfy the UC-25.45.21 SPL filters for 'Bandcamp Friday Conversion Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `music:bandcamp` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.45.21."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='music:bandcamp' where `campaign_day` satisfies detection threshold for UC-25.45.21 ('Bandcamp Friday Conversion Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `music:bandcamp` events where `campaign_day` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.45.21."
   },
   "dataSources": "Release events (`music:distribution`), Bandcamp activity (`music:bandcamp`), project exports (`music:project`), streaming analytics (`music:streaming`), metadata tasks (`music:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Music-making and creator telemetry — DistroKid release exports, Bandcamp sales activity, Cockos Reaper project stats, and Spotify for Artists analytics — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=music:bandcamp campaign_day=* purchased=*\n| stats count as total, sum(eval(if(purchased=\"yes\",1,0))) as matched by campaign_day\n| eval a_purchase_pct=round(100*matched/total,1)\n| sort - a_purchase_pct",
-  "description": "Measures the percentage of Bandcamp visits that end with a purchase by campaign day.",
-  "value": "Completion and exception percentages make it easier to spot which campaign day are helping or hurting Bandcamp visits.",
+  "description": "Measures the percentage of Bandcamp visits that end with a purchase by campaign day. Searches `index=personal` with sourcetype `music:bandcamp` for UC-25.45.21, aggregating `sum` by `campaign_day` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Bandcamp Friday Conversion Rate' without manual log review.",
+  "value": "Measures the percentage of Bandcamp visits that end with a purchase by campaign day. Timely UC-25.45.21 alerting on 'Bandcamp Friday Conversion Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store a normalized flag for `a purchase` on `music:bandcamp` events and summarize the hit rate by `campaign_day`.",
   "visualization": "Table of campaign day with percentage of Bandcamp visits ending with a purchase.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Bandcamp Friday Conversion Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `music:bandcamp`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Bandcamp Friday Conversion Rate' stops polling `music:bandcamp`; stale `campaign_day` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `music:bandcamp`. Dedup with `stats latest(*) by campaign_day`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

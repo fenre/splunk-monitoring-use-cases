@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Steam Gaming Time and Backlog Tracker' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_steam_gaming_time_and_backlog_tracker` (UC-25.7.4), SOC dashboard panel \"Personal — Steam Gaming Time and Backlog Tracker\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='steam:player' that satisfy the UC-25.7.4 SPL filters for 'Steam Gaming Time and Backlog Tracker'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `steam:player` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.7.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='steam:player' where `game_name` satisfies detection threshold for UC-25.7.4 ('Steam Gaming Time and Backlog Tracker'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `steam:player` events where `game_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.7.4."
   },
   "dataSources": "Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player/achievements (`steam:player`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and the *arr stack (Sonarr/Radarr) APIs and webhooks via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=steam:player\n| stats latest(playtime_forever_min) as total_min, latest(playtime_2weeks_min) as recent_min by game_name\n| eval total_hours=round(total_min/60,1), never_played=if(total_min=0,\"backlog\",\"played\")\n| sort - total_hours",
   "description": "Tracks how long you have spent in each game and flags the ever-growing backlog of titles you own but have never launched.",
-  "value": "The gaming backlog is a beloved running joke; quantifying it (and your actual playtime) helps you buy less and play more.",
+  "value": "Tracks how long you have spent in each game and flags the ever-growing backlog of titles you own but have n.... Timely UC-25.7.4 alerting on 'Steam Gaming Time and Backlog Tracker' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Steam owned-games and playtime; schedule weekly and review your playtime and backlog.",
   "visualization": "Table of games by total hours with a backlog flag.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Steam Gaming Time and Backlog Tracker'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `steam:player`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Steam Gaming Time and Backlog Tracker' stops polling `steam:player`; stale `game_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `steam:player`. Dedup with `stats latest(*) by game_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Vision Exam Interval Compliance' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_vision_exam_interval_compliance` (UC-25.114.4), SOC dashboard panel \"Personal — Vision Exam Interval Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='vision:exam' that satisfy the UC-25.114.4 SPL filters for 'Vision Exam Interval Compliance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `vision:exam` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.114.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='vision:exam' where `patient_id` satisfies `days_since` > 730 for UC-25.114.4 ('Vision Exam Interval Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `vision:exam` events where `patient_id` stays below `days_since` > 730, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.114.4."
   },
   "dataSources": "Contact lens orders (`contacts:order`), glasses prescriptions (`glasses:prescription`), vision exams (`vision:exam`), and lens replacement logs (`lens:replacement`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Contact lens order exports, glasses prescription records, vision exam logs, and lens replacement reminders ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=vision:exam patient_id=* exam_date=*\n| stats max(exam_date) as last_exam by patient_id\n| eval days_since=round((now()-strptime(last_exam,\"%Y-%m-%d\"))/86400,0)\n| where days_since>730\n| sort - days_since",
   "description": "Flags patients whose last vision exam was more than two years ago. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Biennial exams catch prescription drift and eye-health changes that daily lens wear masks.",
+  "value": "Flags patients whose last vision exam was more than two years ago. Timely UC-25.114.4 alerting on 'Vision Exam Interval Compliance' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Emit one `vision:exam` event per visit with ISO `exam_date` and review overdue patients annually.",
   "visualization": "Table of patients by days since last exam.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Vision Exam Interval Compliance'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vision:exam`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Vision Exam Interval Compliance' stops polling `vision:exam`; stale `patient_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vision:exam`. Dedup with `stats latest(*) by patient_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_since` > 730. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Resting Blood-Pressure Trend and Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_resting_blood_pressure_trend_and_alert` (UC-25.25.4), SOC dashboard panel \"Personal — Resting Blood-Pressure Trend and Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='bloodpressure:reading' that satisfy the UC-25.25.4 SPL filters for 'Resting Blood-Pressure Trend and Alert'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `bloodpressure:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.25.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='bloodpressure:reading' where `entity` satisfies `sys` > 135 for UC-25.25.4 ('Resting Blood-Pressure Trend and Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `bloodpressure:reading` events where `entity` stays below `sys` > 135, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.25.4."
   },
   "dataSources": "HRV (`hrv:reading`), blood oxygen (`spo2:reading`), lab panels (`bloodpanel:result`), supplements (`supplement:intake`), continuous glucose (`cgm:glucose`), sleep-apnea events (`apnea:event`), body composition (`bodycomp:measure`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Biohacking and advanced-health data — HRV chest straps, pulse oximeters, blood-pressure cuffs, continuous glucose monitors, body-composition scales, lab-result exports, and supplement logs — ingested to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=bloodpressure:reading\n| timechart span=1d avg(systolic) as sys, avg(diastolic) as dia\n| eval elevated=if(sys>135 OR dia>85,1,0)",
-  "description": "Trends your resting blood pressure over time and flags a sustained rise into the range that warrants attention.",
-  "value": "A single reading is noisy; a trend reveals genuine change and gives your doctor far more to work with than an occasional check.",
+  "description": "Trends your resting blood pressure over time and flags a sustained rise into the range that warrants attention. Searches `index=personal` with sourcetype `bloodpressure:reading` for UC-25.25.4, aggregating `avg` by `entity` over `1d`. Alerts when grouped results cross `sys` > 135 in the saved search. Gives Personal operators a repeatable signal for 'Resting Blood-Pressure Trend and Alert' without manual log review.",
+  "value": "Trends your resting blood pressure over time and flags a sustained rise into the range that warrants attention. Timely UC-25.25.4 alerting on 'Resting Blood-Pressure Trend and Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest cuff readings into `index=personal`; schedule daily and alert on a sustained elevation.",
   "visualization": "Line chart of daily blood pressure with a threshold band.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Resting Blood-Pressure Trend and Alert'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `bloodpressure:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Resting Blood-Pressure Trend and Alert' stops polling `bloodpressure:reading`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `bloodpressure:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `sys` > 135. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -13,8 +13,8 @@
   "exclusions": "Covers the detection logic documented for 'Compressed Air System Leak Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_compressed_air_system_leak_detection` (UC-21.2.13), SOC dashboard panel \"Operations — Compressed Air System Leak Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=mfg` sourcetype='air:compressor' that satisfy the UC-21.2.13 SPL filters for 'Compressed Air System Leak Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `mfg` / `air:compressor` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.2.13."
+    "positiveScenario": "Ingest synthetic events into `index=mfg` sourcetype='air:compressor' where `plant_id` satisfies `avg_cfm` > 20 for UC-21.2.13 ('Compressed Air System Leak Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `mfg` / `air:compressor` events where `plant_id` stays below `avg_cfm` > 20, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.2.13."
   },
   "dataSources": "`index=mfg` `sourcetype=\"air:compressor\"` (plant_id, kw, cfm, run_state), `sourcetype=\"mes:production\"` (plant_id, line_state) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Edge Hub, energy analytics — Universal Forwarder (Splunkbase 617)",
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Compressed Air System Leak Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `mfg` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `mfg`** — Planned work for 'Compressed Air System Leak Detection' shifts `avg` over `span=15m` while `plant_id` remains in-scope for UC-21.2.13. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `air:compressor`** — Scheduled automation elevates `_time` without crossing `avg_cfm` > 20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `plant_id`** — Health checks in `mfg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `air:compressor`** — First 48h baseline for `plant_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `plant_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub"
   ],

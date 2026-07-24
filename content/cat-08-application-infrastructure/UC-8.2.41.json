@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Microsoft IIS Worker Process CPU and Memory vs App Pool Limits' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_microsoft_iis_worker_process_cpu_and_memory_vs_a` (UC-8.2.41), SOC dashboard panel \"Operations — Microsoft IIS Worker Process CPU and Memory vs App Pool Limits\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=windows` sourcetype='WinHostMon' that satisfy the UC-8.2.41 SPL filters for 'Microsoft IIS Worker Process CPU and Memory vs App Pool Limits'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `windows` / `WinHostMon` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.41."
+    "positiveScenario": "Ingest synthetic events into `index=windows` sourcetype='WinHostMon' where `host` satisfies detection threshold for UC-8.2.41 ('Microsoft IIS Worker Process CPU and Memory vs App Pool Limits'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `windows` / `WinHostMon` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.41."
   },
   "dataSources": "`index=windows` `sourcetype=WinHostMon` process snapshots for `w3wp.exe` (configure `WinHostMon://Process`)",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`); Splunk Add-on for Microsoft IIS (Splunkbase 3185)",
   "spl": "index=windows sourcetype=\"WinHostMon\"\n| where Type=\"Process\" AND Name=\"w3wp*\"\n| eval cpu=tonumber(CpuPerc) mem_mb=tonumber(Memory)\n| timechart span=5m perc95(cpu) as p95_cpu perc95(mem_mb) as p95_mem by host",
   "description": "`w3wp.exe` CPU and working set reflect real pool cost versus `cpuLimit`, recycling limits, and VM size. Sustained pressure precedes automatic recycles that users perceive as random logouts.",
-  "value": "Aligns hardware, IIS application pool settings, and observed worker footprint before outages force emergency scale-up.",
+  "value": "`w3wp. Timely UC-8.2.41 alerting on 'Microsoft IIS Worker Process CPU and Memory vs App Pool Limits' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Enable `WinHostMon` process monitoring in `Splunk_TA_windows` `inputs.conf`. Compare with IIS `applicationPool` CPU throttling settings.",
   "visualization": "Stacked bars for status/substatus, Perfmon timecharts, top client tables.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Microsoft IIS Worker Process CPU and Memory vs App Pool Limits'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `windows` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `windows`** — Planned work for 'Microsoft IIS Worker Process CPU and Memory vs App Pool Limits' shifts `count` over `span=5m` while `host` remains in-scope for UC-8.2.41. Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinHostMon`** — Scheduled automation elevates `cpu` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `windows` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinHostMon`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "iis",
     "windows"

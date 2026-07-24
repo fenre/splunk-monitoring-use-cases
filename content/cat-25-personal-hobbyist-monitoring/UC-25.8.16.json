@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Raspberry Pi SD Card Wear Warning' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_raspberry_pi_sd_card_wear_warning` (UC-25.8.16), SOC dashboard panel \"Personal — Raspberry Pi SD Card Wear Warning\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rpi:metric' that satisfy the UC-25.8.16 SPL filters for 'Raspberry Pi SD Card Wear Warning'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `rpi:metric` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.16."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rpi:metric' where `host` satisfies `wear_pct` > 80 for UC-25.8.16 ('Raspberry Pi SD Card Wear Warning'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `rpi:metric` events where `host` stays below `wear_pct` > 80, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.16."
   },
   "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`), uptime probes (`uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=rpi:metric\n| stats latest(sd_card_wear_pct) as wear_pct, latest(io_error_count) as io_errors by host\n| where wear_pct>80 OR io_errors>0\n| sort - wear_pct",
   "description": "Uses SD-card wear and I/O errors as an early-warning signal for the most common Raspberry Pi failure mode in long-lived homelab setups.",
-  "value": "Single-board computers are charming right up until their boot media dies; this turns that risk into something you can replace proactively.",
+  "value": "Uses SD-card wear and I/O errors as an early-warning signal for the most common Raspberry Pi failure mode i.... Timely UC-25.8.16 alerting on 'Raspberry Pi SD Card Wear Warning' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward storage wear counters or smart export equivalents from each Pi; review weekly and reimage aging cards before they fail.",
   "visualization": "Table of Pi hosts by SD-card wear and I/O error count.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Raspberry Pi SD Card Wear Warning'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rpi:metric`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Raspberry Pi SD Card Wear Warning' stops polling `rpi:metric`; stale `host` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rpi:metric`. Dedup with `stats latest(*) by host`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `wear_pct` > 80. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "proxmox",

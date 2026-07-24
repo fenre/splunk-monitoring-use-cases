@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Encounter Damage Spike Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_encounter_damage_spike_watch` (UC-25.46.28), SOC dashboard panel \"Personal — Encounter Damage Spike Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rpg:combat' that satisfy the UC-25.46.28 SPL filters for 'Encounter Damage Spike Watch'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `rpg:combat` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.46.28."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rpg:combat' where `encounter_name` satisfies detection threshold for UC-25.46.28 ('Encounter Damage Spike Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `rpg:combat` events where `encounter_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.46.28."
   },
   "dataSources": "Character sheets (`rpg:character`), VTT sessions (`rpg:session`), initiative rounds (`rpg:initiative`), encounters (`rpg:combat`), campaign ops (`rpg:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tabletop campaign telemetry — D&D Beyond character exports, Roll20 session logs, initiative trackers, and campaign asset checklists — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=rpg:combat encounter_name=* damage_spike_pct=*\n| stats avg(damage_spike_pct) as avg_damage_spike_pct, count as events by encounter_name\n| sort - avg_damage_spike_pct",
   "description": "Shows average damage-spike percentage by encounter for combat burst damage. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Average damage-spike percentage by encounter helps compare combat burst damage across the factors that matter most.",
+  "value": "Shows average damage-spike percentage by encounter for combat burst damage. Timely UC-25.46.28 alerting on 'Encounter Damage Spike Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture `damage_spike_pct` on `rpg:combat` events and normalize `encounter_name` so Splunk can summarize performance by encounter.",
   "visualization": "Bar chart of average damage-spike percentage by encounter.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Encounter Damage Spike Watch'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rpg:combat`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Encounter Damage Spike Watch' stops polling `rpg:combat`; stale `encounter_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rpg:combat`. Dedup with `stats latest(*) by encounter_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Arista MLAG Health and Consistency (Arista)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_arista_mlag_health_and_consistency_arista` (UC-5.1.60), SOC dashboard panel \"Operations — Arista MLAG Health and Consistency (Arista)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='arista:eos' that satisfy the UC-5.1.60 SPL filters for 'Arista MLAG Health and Consistency (Arista)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `arista:eos` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.60."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='arista:eos' where `host` satisfies detection threshold for UC-5.1.60 ('Arista MLAG Health and Consistency (Arista)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `arista:eos` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.60."
   },
   "dataSources": "`sourcetype=arista:eos` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`arista:eos` via SC4S, syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"arista:eos\"\n| search Mlag OR MLAG OR mlag OR \"Mlag:\" OR \"Dual attached\" OR \"peer-link\" OR \"inactive\"\n| rex field=_raw \"(?i)Mlag:\\s*(?<mlag_msg>[^\\n]+)\"\n| stats count as mlag_events, latest(mlag_msg) as last_summary, values(_raw) as samples by host\n| sort -mlag_events",
   "description": "MLAG pairs depend on matching configuration and a healthy peer link; inconsistency or peer loss can lead to blackholed VLANs or asymmetric forwarding while both switches appear “up.” Catching `config-sanity` failures and peer state changes early prevents subtle application outages that load balancers and servers cannot retry away from. Splunk correlation across both peers speeds root cause when only one side logs the fault.",
-  "value": "NOC teams monitor Arista MLAG peer status, peer-link health, and configuration consistency to ensure dual-homed device redundancy and detect MLAG pair failures.",
+  "value": "MLAG pairs depend on matching configuration and a healthy peer link; inconsistency or peer loss can lead to.... Timely UC-5.1.60 alerting on 'Arista MLAG Health and Consistency (Arista)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest syslog from both MLAG peers with synchronized clocks. Alert on peer-link down, partial connectivity, or config-sanity failure strings present in your EOS version. Use a lookup pairing `mlag_domain` or neighbor hostname to open one incident for the pair. Validate against `show mlag` snapshots if you periodically scrape CLI into Splunk.",
   "visualization": "MLAG peer pair dashboard; red/amber status per domain; timeline of state transitions.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Arista MLAG Health and Consistency (Arista)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Arista MLAG Health and Consistency (Arista)' shifts `values` over `span=1h` while `host` remains in-scope for UC-5.1.60. Cross-check CMDB CHG.\n\n2. **Batch `values` on `arista:eos`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `arista:eos`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog"
   ],

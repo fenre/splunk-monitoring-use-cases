@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Beurer BP Monitor Systolic Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_beurer_bp_monitor_systolic_leaderboard` (UC-25.2.78), SOC dashboard panel \"Personal — Beurer BP Monitor Systolic Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='beurer:bp' that satisfy the UC-25.2.78 SPL filters for 'Beurer BP Monitor Systolic Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `beurer:bp` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.78."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='beurer:bp' where `cuff_size` satisfies detection threshold for UC-25.2.78 ('Beurer BP Monitor Systolic Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `beurer:bp` events where `cuff_size` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.78."
   },
   "dataSources": "Apple Health metrics (`apple:health`), Oura Ring daily readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings body/blood-pressure (`withings:measure`), Dexcom CGM glucose (`dexcom:egv`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Apple Health / Apple Watch exports (Health Auto Export, Shortcuts) via HEC; Oura, Whoop, Withings, Dexcom APIs via scripted REST inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=beurer:bp systolic_mmhg=*\n| stats sum(systolic_mmhg) as total_value, avg(systolic_mmhg) as avg_value by cuff_size\n| sort - total_value",
-  "description": "Ranks cuff size values by total and average systolic across Beurer blood pressure reading events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks cuff size values by total and average systolic across Beurer blood pressure reading events. Searches `index=personal` with sourcetype `beurer:bp` for UC-25.2.78, aggregating `sum` by `cuff_size` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Beurer BP Monitor Systolic Leaderboard' without manual log review.",
+  "value": "Ranks cuff size values by total and average systolic across Beurer blood pressure reading events. Timely UC-25.2.78 alerting on 'Beurer BP Monitor Systolic Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `systolic_mmhg` values for each Beurer blood pressure reading event and review total and average systolic by cuff size.",
   "visualization": "Table of entities ranked by total systolic.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Beurer BP Monitor Systolic Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `beurer:bp`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Beurer BP Monitor Systolic Leaderboard' stops polling `beurer:bp`; stale `cuff_size` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `beurer:bp`. Dedup with `stats latest(*) by cuff_size`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

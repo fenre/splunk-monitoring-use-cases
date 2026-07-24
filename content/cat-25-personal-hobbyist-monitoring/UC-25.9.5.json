@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'New Device Joined Network Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_new_device_joined_network_alert` (UC-25.9.5), SOC dashboard panel \"Personal — New Device Joined Network Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='unifi:event' that satisfy the UC-25.9.5 SPL filters for 'New Device Joined Network Alert'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `unifi:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.5."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='unifi:event' where `mac` satisfies `age_hours` < 24 for UC-25.9.5 ('New Device Joined Network Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `unifi:event` events where `mac` stays below `age_hours` < 24, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.5."
   },
   "dataSources": "UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=unifi:event event_key=\"EVT_LU_Connected\"\n| stats earliest(_time) as first_seen by mac hostname\n| eval age_hours=round((now()-first_seen)/3600,1)\n| where age_hours<24\n| sort - first_seen",
   "description": "Alerts when a device never seen before joins your Wi-Fi, catching both a neighbour on your password and a new gadget you forgot you set up.",
-  "value": "A rogue device on your network is a real privacy and security concern; first-seen detection is a simple, effective tripwire.",
+  "value": "Alerts when a device never seen before joins your Wi-Fi, catching both a neighbour on your password and a n.... Timely UC-25.9.5 alerting on 'New Device Joined Network Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward UniFi client-connect events; schedule hourly and alert on any newly seen MAC address.",
   "visualization": "Table of newly seen devices with first-seen time.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'New Device Joined Network Alert'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifi:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'New Device Joined Network Alert' stops polling `unifi:event`; stale `mac` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifi:event`. Dedup with `stats latest(*) by mac`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `age_hours` < 24. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "syslog"
   ],

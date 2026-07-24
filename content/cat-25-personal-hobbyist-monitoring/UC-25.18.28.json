@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'UniFi Protect Smart Detection by Zone' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_unifi_protect_smart_detection_by_zone` (UC-25.18.28), SOC dashboard panel \"Personal — UniFi Protect Smart Detection by Zone\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='unifiprotect:event' that satisfy the UC-25.18.28 SPL filters for 'UniFi Protect Smart Detection by Zone'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `unifiprotect:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.28."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='unifiprotect:event' where `zone` satisfies detection threshold for UC-25.18.28 ('UniFi Protect Smart Detection by Zone'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `unifiprotect:event` events where `zone` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.28."
   },
   "dataSources": "Home security telemetry (`reolink:event`, `unifiprotect:event`, `ring:event`, `nestprotect:event`, `frigate:event`, `camera:health`, `alarm:event`, `doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Reolink, UniFi Protect, Ring, Nest Protect, Frigate, and Home Assistant security integrations streamed to Splunk HEC via MQTT, webhooks, and vendor APIs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=unifiprotect:event event=smart_detect\n| bin _time span=1w\n| stats count as detections by zone object_type _time\n| sort - detections",
   "description": "Uses UniFi Protect smart detections telemetry to monitor weekly object-detection volume by camera zone in index=personal.",
-  "value": "Splunk turns the feed into an operational check for zones that are busy enough to need tighter rules or better filters, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses UniFi Protect smart detections telemetry to monitor weekly object-detection volume by camera zone in i.... Timely UC-25.18.28 alerting on 'UniFi Protect Smart Detection by Zone' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest UniFi Protect smart detections data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Weekly zone and object-type detection leaderboard.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'UniFi Protect Smart Detection by Zone'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifiprotect:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'UniFi Protect Smart Detection by Zone' stops polling `unifiprotect:event`; stale `zone` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifiprotect:event`. Dedup with `stats latest(*) by zone`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

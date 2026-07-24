@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'APC ATS SNMP Source Failover and Transfer Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_apc_ats_snmp_source_failover_and_transfer_events` (UC-15.4.8), SOC dashboard panel \"Operations — APC ATS SNMP Source Failover and Transfer Events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=power` sourcetype='snmp:apc:ats' that satisfy the UC-15.4.8 SPL filters for 'APC ATS SNMP Source Failover and Transfer Events'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `power` / `snmp:apc:ats` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.4.8."
+    "positiveScenario": "Ingest synthetic events into `index=power` sourcetype='snmp:apc:ats' where `ats_name` satisfies detection threshold for UC-15.4.8 ('APC ATS SNMP Source Failover and Transfer Events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `power` / `snmp:apc:ats` events where `ats_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.4.8."
   },
   "dataSources": "`index=power|cooling|environment` · `sourcetype=\"snmp:apc:ats\"` (APC PowerNet / AirIR / ATS / NetBotz OIDs per deployment) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions — Universal Forwarder (Splunkbase 617)",
   "spl": "index=power sourcetype=\"snmp:apc:ats\" earliest=-7d\n| eval src=coalesce(atsInputSourceStatus, atsActiveSource, source, \"\")\n| eval prev=coalesce(prev_source, \"\")\n| where match(lower(_raw), \"(?i)transfer|fail|source.*switch\") OR src!=prev\n| stats count by ats_name src",
-  "description": "ATS transfers indicate upstream utility or generator events; silent failures leave site on unintended source.",
-  "value": "Supports DR drills and utility SLA evidence. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "ATS transfers indicate upstream utility or generator events; silent failures leave site on unintended source. Searches `index=power` with sourcetype `snmp:apc:ats` for UC-15.4.8, aggregating `count` by `ats_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'APC ATS SNMP Source Failover and Transfer Events' without manual log review.",
+  "value": "ATS transfers indicate upstream utility or generator events; silent failures leave site on unintended source. Timely UC-15.4.8 alerting on 'APC ATS SNMP Source Failover and Transfer Events' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "(1) Normalize enum mapping for source A/B. (2) Correlate with genset logs.",
   "visualization": "Timeline transfers; count by week.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'APC ATS SNMP Source Failover and Transfer Events'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `power` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `power`** — Planned work for 'APC ATS SNMP Source Failover and Transfer Events' shifts `count` over `span=1h` while `ats_name` remains in-scope for UC-15.4.8. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:apc:ats`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ats_name`** — Health checks in `power` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:apc:ats`** — First 48h baseline for `ats_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ats_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apc_dc",
     "snmp"

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Water Bill Tracking Payment Overdue Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_water_bill_tracking_payment_overdue_alert` (UC-25.82.18), SOC dashboard panel \"Personal — Water Bill Tracking Payment Overdue Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='utility:bill' that satisfy the UC-25.82.18 SPL filters for 'Water Bill Tracking Payment Overdue Alert'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `utility:bill` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.82.18."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='utility:bill' where `entity` satisfies `days_overdue` > 0 for UC-25.82.18 ('Water Bill Tracking Payment Overdue Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `utility:bill` events where `entity` stays below `days_overdue` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.82.18."
   },
   "dataSources": "Utility bills (`utility:bill`), utility meter readings (`utility:meter`), utility rate changes (`utility:rate`), household accounts (`household:account`), utility payments (`utility:payment`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Electric, gas, and water bills, smart-meter readings, household-account records, and utility rate-plan changes streamed to Splunk HEC via portals, CSV exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=utility:bill bill_type=\"water\"\n| eval days_overdue=round((now()-due_epoch)/86400,1)\n| where payment_status!=\"paid\" AND days_overdue>0\n| table _time provider bill_amount days_overdue\n| sort - days_overdue",
   "description": "Lists unpaid water bill tracking items that are already past due. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Late utility payments are one of the easiest household problems to prevent with a small exception queue.",
+  "value": "Lists unpaid water bill tracking items that are already past due. Timely UC-25.82.18 alerting on 'Water Bill Tracking Payment Overdue Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Map provider payment state into a simple `payment_status` field and populate `due_epoch` from the statement.",
   "visualization": "Table of overdue utility payments by provider and overdue age.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Water Bill Tracking Payment Overdue Alert'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `utility:bill`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Water Bill Tracking Payment Overdue Alert' stops polling `utility:bill`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `utility:bill`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_overdue` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

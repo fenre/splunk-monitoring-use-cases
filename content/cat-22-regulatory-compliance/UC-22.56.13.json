@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Generate synthetic privileged Entra ID sign-in to AOC system with `authentication_methods_used=Password`. UC-22.56.13 MUST flag.",
-    "negativeScenario": "Same sign-in with MFA token. UC-22.56.13 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='azure:eventhub:aad' where `upn` satisfies `nonmfa_signins` > 0 for UC-22.56.13 ('TSA-SD Aviation CIP Control Family 2 — airport / airline access-control + MFA enforcement on operationally-critical systems'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `azure:eventhub:aad` events where `upn` stays below `nonmfa_signins` > 0, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.56.13."
   },
   "dataSources": "Microsoft Entra ID sign-in logs (`azure:eventhub:aad`). Okta sign-in logs (`OktaIM2:log`). CyberArk PAM (`cyberark:epv:audit`). Aviation IAM register (KV Store `aviation_iam_lookup`). Quarterly access-review (KV Store `aviation_iam_review_lookup`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for Okta Identity Cloud (Splunkbase 5577), Splunk Add-on for CyberArk (Splunkbase 4242).",
   "spl": "(sourcetype=\"azure:eventhub:aad\" OR sourcetype=\"OktaIM2:log\")\n| eval upn = coalesce(userPrincipalName, actor.alternateId)\n| lookup aviation_iam_lookup upn AS upn OUTPUT account_type aviation_in_scope target_system\n| where aviation_in_scope=true AND account_type IN (\"privileged\",\"service\",\"break_glass\")\n| eval mfa_satisfied = case(\n    match(coalesce(authenticationDetails, \"\"), \"(?i)(token|fido|certificate|phoneapp|push|sms|webauth)\"), \"true\",\n    1=1, \"false\")\n| eval acceptable_break_glass = if(account_type=\"break_glass\" AND match(coalesce(authenticationDetails, \"\"), \"(?i)(token|certificate)\"), \"true\", \"false\")\n| where mfa_satisfied=\"false\" AND acceptable_break_glass=\"false\"\n| stats count as nonmfa_signins values(account_type) as account_type values(target_system) as target_system by upn\n| where nonmfa_signins > 0\n| table upn account_type target_system nonmfa_signins",
-  "description": "Enforces MFA on aviation privileged + service accounts attached to AOC / DCS / BHS / NOTAM-relevant systems.",
-  "value": "Aviation-privileged-account compromise is the leading predicate to a NOTAM-affecting incident.",
+  "description": "Enforces MFA on aviation privileged + service accounts attached to AOC / DCS / BHS / NOTAM-relevant systems. Searches `index=target_index` with sourcetype `azure:eventhub:aad` for UC-22.56.13, aggregating `values` by `upn` over `the scheduled window`. Alerts when grouped results cross `nonmfa_signins` > 0 in the saved search. Gives Compliance operators a repeatable signal for 'TSA-SD Aviation CIP Control Family 2 — airport / airline access-control + MFA enforcement on operationally-critical systems' without manual log review.",
+  "value": "Enforces MFA on aviation privileged + service accounts attached to AOC / DCS / BHS / NOTAM-relevant systems. Timely UC-22.56.13 alerting on 'TSA-SD Aviation CIP Control Family 2 — airport / airline access-control + MFA enforcement on operationally-critical systems' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `aviation_iam_lookup`. (2) Maintain quarterly review `aviation_iam_review_lookup`. (3) Schedule UC-22.56.13 every 6 hours. (4) Build the `TSA Aviation Access Control Health` dashboard.",
   "visualization": "(Panel 1) Non-MFA sign-in count by target system. (Panel 2) Top-10 violating accounts. (Panel 3) Review cycle status. (Panel 4) Break-glass usage trend.",
   "cimModels": [
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **DCS kiosks**: airline DCS kiosks may use device-cert + worker-PIN; classify in IAM register.\n2. **AOC service accounts**: 24×7 service accounts may use cert-based; classify and exempt.\n3. **Vendor remote access**: covered by UC-22.56.16; treat differently.\n\n**Suppression mechanism**: KV Store `aviation_iam_lookup`.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD Aviation CIP Control Family 2 — airport / airline access-control + MFA enforcement on operationally-critical systems' (UC-22.56.13) on `upn` during scheduled clause TSA-SD-1582-21-01-s3.2 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `azure:eventhub:aad` without crossing `nonmfa_signins` > 0. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `upn`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `upn` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `upn`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1078",
     "T1556"

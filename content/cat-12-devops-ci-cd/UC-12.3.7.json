@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'Package Dependency Audit Alerts' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_package_dependency_audit_alerts` (UC-12.3.7), SOC dashboard panel \"Operations — Package Dependency Audit Alerts\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='sca:policy' that satisfy the UC-12.3.7 SPL filters for 'Package Dependency Audit Alerts'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `devops` / `sca:policy` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.3.7."
+    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='sca:policy' where `project` satisfies detection threshold for UC-12.3.7 ('Package Dependency Audit Alerts'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `devops` / `sca:policy` events where `project` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.3.7."
   },
   "dataSources": "Policy violation events `license_policy`, `dependency_policy` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "FOSSA, `npm audit` JSON, OSV — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"sca:policy\"\n| where policy_result=\"violation\" OR risk=\"blocked\"\n| stats count by project, package_name, policy_name\n| sort -count",
-  "description": "New AGPL/GPL or typosquat package names in lockfiles—policy engine output beyond CVE severity.",
+  "description": "New AGPL/GPL or typosquat package names in lockfiles—policy engine output beyond CVE severity. Searches `index=devops` with sourcetype `sca:policy` for UC-12.3.7, aggregating `count` by `project` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Package Dependency Audit Alerts' without manual log review.",
   "value": "Early 'Package Dependency Audit Alerts' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Map policies to Splunk alerts. Weekly license review for new copyleft in commercial products.",
   "visualization": "Table (violations), Bar chart (by policy), Timeline.",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Package Dependency Audit Alerts'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `devops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `devops`** — Planned work for 'Package Dependency Audit Alerts' shifts `count` over `span=1h` while `project` remains in-scope for UC-12.3.7. Cross-check CMDB CHG.\n\n2. **Batch `count` on `sca:policy`** — Scheduled automation elevates `package_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `project`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `sca:policy`** — First 48h baseline for `project` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `project`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

@@ -68,17 +68,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Clearing a Windows Security log on a CDE test host (EventCode 1102) fires the UC.",
-    "negativeScenario": "Normal log rotation via scheduled task (with matching ticket) does NOT fire.",
-    "fixtureRef": "",
-    "attackTechnique": "T1070.001",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=windows` sourcetype='WinEventLog:Security' EventCode=1102 where `entity` satisfies detection threshold for UC-22.11.99 ('PCI-DSS 10.3 — Audit log integrity: tampering/deletion detection on CDE log source'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `windows` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.99."
   },
   "dataSources": "`index=windows` EventCode IN (1102,104); `index=linux` auditd log clears, syslog `rotated-by-hand`.",
   "app": "Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833) (Splunkbase)",
   "spl": "search (index=windows sourcetype=WinEventLog:Security EventCode=1102) OR (index=windows sourcetype=WinEventLog:System EventCode=104) OR (index=linux sourcetype=auditd type=CONFIG_CHANGE op=remove_rule) earliest=-10m\n| eval action=case(EventCode=1102,\"audit_log_cleared\",EventCode=104,\"event_log_cleared\",op=\"remove_rule\",\"auditd_rule_removed\",true(),\"unknown\")\n| rename TargetUserName AS actor host AS host\n| table host action actor target_log",
   "description": "PCI-DSS 10.3 requires audit logs be protected from modification and deletion. This UC fires on the exact telemetry those operations emit.",
-  "value": "A cleared Windows Security log on a CDE host is a near-certain indicator of attacker presence. Closing the detection gap to 10 minutes saves forensics time.",
+  "value": "PCI-DSS 10. Timely UC-22.11.99 alerting on 'PCI-DSS 10.3 — Audit log integrity: tampering/deletion detection on CDE log source' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Forward Windows Security + System + Linux auditd to Splunk; (2) schedule UC every 10m; (3) hit opens a P1 to IR + isolates host; (4) quarterly IR drill validates response. Indexes required: `index=linux`, `index=windows`; Sourcetypes: `sourcetype=WinEventLog:Security`, `sourcetype=WinEventLog:System`, `sourcetype=auditd`.",
   "visualization": "Table of events by action, time chart, single value 'clears in last hour'.",
   "cimModels": [
@@ -113,7 +110,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised PCI DSS control testing** — Internal audit exercises 'PCI-DSS 10.3 — Audit log integrity: tampering/deletion detection on CDE log source' (UC-22.11.99) on `entity` during scheduled clause 10.3 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=windows` `WinEventLog:Security` without crossing evidence threshold. Cross-check engagement letter in `pci_dss_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `windows` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `pci_dss_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1070.001"
   ],

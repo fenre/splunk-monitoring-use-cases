@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Overhead Aircraft Log and Rare-Type Spotting' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_overhead_aircraft_log_and_rare_type_spotting` (UC-25.14.1), SOC dashboard panel \"Personal — Overhead Aircraft Log and Rare-Type Spotting\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='adsb:aircraft' that satisfy the UC-25.14.1 SPL filters for 'Overhead Aircraft Log and Rare-Type Spotting'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `adsb:aircraft` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='adsb:aircraft' where `hex` satisfies `fleet_seen` <= 3 for UC-25.14.1 ('Overhead Aircraft Log and Rare-Type Spotting'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `adsb:aircraft` events where `hex` stays below `fleet_seen` <= 3, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.1."
   },
   "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home ADS-B receiver (dump1090 / readsb / tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=adsb:aircraft\n| stats count as pings, min(altitude_ft) as low_alt, values(type) as types by hex callsign\n| eventstats count as fleet_seen by type\n| eval rarity=if(fleet_seen<=3,\"rare\",\"common\")\n| sort - pings",
   "description": "Rolls up every aircraft your home ADS-B receiver has heard, tagging the types you rarely see so an unusual visitor stands out.",
-  "value": "Turns a raw firehose of ADS-B pings into a browsable log where a once-a-year aircraft type is flagged instead of lost in the noise.",
+  "value": "Rolls up every aircraft your home ADS-B receiver has heard, tagging the types you rarely see so an unusual.... Timely UC-25.14.1 alerting on 'Overhead Aircraft Log and Rare-Type Spotting' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Point Splunk at your dump1090/readsb JSON feed into `index=personal`; schedule daily and alert when a `rare` type appears overhead.",
   "visualization": "Table of aircraft by callsign with a rarity tag and lowest altitude.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Overhead Aircraft Log and Rare-Type Spotting'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `adsb:aircraft`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Overhead Aircraft Log and Rare-Type Spotting' stops polling `adsb:aircraft`; stale `hex` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `min` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `adsb:aircraft`. Dedup with `stats latest(*) by hex`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `fleet_seen` <= 3. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

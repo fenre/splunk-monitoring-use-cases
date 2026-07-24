@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Arista EOS Agent Health Monitoring (Arista)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_arista_eos_agent_health_monitoring_arista` (UC-5.1.61), SOC dashboard panel \"Operations — Arista EOS Agent Health Monitoring (Arista)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='arista:eos' that satisfy the UC-5.1.61 SPL filters for 'Arista EOS Agent Health Monitoring (Arista)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `arista:eos` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.61."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='arista:eos' where `host` satisfies `restarts` > 0 for UC-5.1.61 ('Arista EOS Agent Health Monitoring (Arista)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `arista:eos` events where `host` stays below `restarts` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.61."
   },
   "dataSources": "`sourcetype=arista:eos` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`arista:eos` via SC4S, syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"arista:eos\"\n| search ProcMgr OR \"ProcMgr-worker\" OR \"Agent.*restart\" OR \"restarted\" OR \"%AGENT-\"\n| rex field=_raw \"(?i)(?<agent_name>[A-Za-z0-9_\\-]+)\\s+agent.*restart\"\n| stats count as restarts, values(agent_name) as agents by host\n| where restarts > 0\n| sort -restarts",
   "description": "EOS features run as processes under ProcMgr; unexpected agent restarts often precede control-plane instability, STP or routing anomalies, or memory pressure. Tracking restart frequency by agent name ties platform symptoms to a specific subsystem instead of generic “switch is slow” tickets. Trending restarts after code upgrades also validates stability before promoting images fleet-wide.",
-  "value": "Operations teams monitor Arista EOS agent health across all protocol agents, detecting agent crashes and restarts that indicate software bugs requiring TAC investigation and firmware upgrades.",
+  "value": "EOS features run as processes under ProcMgr; unexpected agent restarts often precede control-plane instabil.... Timely UC-5.1.61 alerting on 'Arista EOS Agent Health Monitoring (Arista)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Create a baseline of allowed occasional restarts per major version; alert when any host exceeds threshold per day or when critical agents (e.g., Stp, Bgp, Route) restart. Attach EOS version from inventory. Open problem ticket when restarts cluster after a specific feature toggle.",
   "visualization": "Table of hosts with agent restart counts; bar chart by agent name; sparkline of restarts over time.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Arista EOS Agent Health Monitoring (Arista)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Arista EOS Agent Health Monitoring (Arista)' shifts `values` over `span=1h` while `host` remains in-scope for UC-5.1.61. Cross-check CMDB CHG.\n\n2. **Batch `values` on `arista:eos`** — Scheduled automation elevates `src` without crossing `restarts` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `arista:eos`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog"
   ],

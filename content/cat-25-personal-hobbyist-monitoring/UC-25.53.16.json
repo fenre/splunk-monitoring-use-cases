@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Seating Conflict Hotspots' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_seating_conflict_hotspots` (UC-25.53.16), SOC dashboard panel \"Personal — Seating Conflict Hotspots\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='event:rsvp' that satisfy the UC-25.53.16 SPL filters for 'Seating Conflict Hotspots'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `event:rsvp` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.53.16."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='event:rsvp' where `table_name` satisfies detection threshold for UC-25.53.16 ('Seating Conflict Hotspots'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `event:rsvp` events where `table_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.53.16."
   },
   "dataSources": "Planning tasks (`event:task`), budget lines (`event:budget`), RSVPs (`event:rsvp`), vendor bookings (`event:vendor`), countdown milestones (`event:countdown`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Wedding and event planning — task and budget spreadsheets, RSVP platforms (Zola, The Knot), vendor contracts, and seating tools — streamed to Splunk HEC via CSV exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=event:rsvp seating_conflict=yes\n| stats count as conflicts by table_name conflict_type\n| sort - conflicts",
   "description": "Ranks tables and conflict types where seating constraints keep colliding. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Seating plans get hard because conflicts cluster, and hotspot analysis helps fix the worst tables first.",
+  "value": "Ranks tables and conflict types where seating constraints keep colliding. Timely UC-25.53.16 alerting on 'Seating Conflict Hotspots' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Tag seating conflicts in RSVP or seating-tool exports; count them by table and conflict type.",
   "visualization": "Heatmap table of seating conflicts by table and type.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Seating Conflict Hotspots'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `event:rsvp`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Seating Conflict Hotspots' stops polling `event:rsvp`; stale `table_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `event:rsvp`. Dedup with `stats latest(*) by table_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

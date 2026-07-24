@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Hikvision ISAPI Camera Tamper and Vandalism Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_hikvision_isapi_camera_tamper_and_vandalism_even` (UC-15.5.9), SOC dashboard panel \"Operations — Hikvision ISAPI Camera Tamper and Vandalism Events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=physical` sourcetype='hikvision:isapi' that satisfy the UC-15.5.9 SPL filters for 'Hikvision ISAPI Camera Tamper and Vandalism Events'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `physical` / `hikvision:isapi` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.5.9."
+    "positiveScenario": "Ingest synthetic events into `index=physical` sourcetype='hikvision:isapi' where `camera_id` satisfies detection threshold for UC-15.5.9 ('Hikvision ISAPI Camera Tamper and Vandalism Events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `physical` / `hikvision:isapi` events where `camera_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.5.9."
   },
   "dataSources": "`index=physical` · `sourcetype=\"hikvision:isapi\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom TA (NVR REST/syslog), ONVIF pull, Hikvision ISAPI HEC, or Milestone connector mapped to listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=physical sourcetype=\"hikvision:isapi\" earliest=-7d\n| where match(lower(event_type), \"(?i)tamper|vandal|cover|defocus\")\n| stats count by camera_id site",
-  "description": "Tamper events indicate physical interference or environmental displacement requiring guard response.",
-  "value": "Shortens response to sabotage attempts at sensitive perimeters. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Tamper events indicate physical interference or environmental displacement requiring guard response. Searches `index=physical` with sourcetype `hikvision:isapi` for UC-15.5.9, aggregating `count` by `camera_id` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Hikvision ISAPI Camera Tamper and Vandalism Events' without manual log review.",
+  "value": "Tamper events indicate physical interference or environmental displacement requiring guard response. Timely UC-15.5.9 alerting on 'Hikvision ISAPI Camera Tamper and Vandalism Events' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "(1) Enable ISAPI event subscription to HEC. (2) Deduplicate vibration spikes. (3) Correlate with access logs.",
   "visualization": "Timeline events; map pins.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Hikvision ISAPI Camera Tamper and Vandalism Events'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `physical` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `physical`** — Planned work for 'Hikvision ISAPI Camera Tamper and Vandalism Events' shifts `count` over `span=1h` while `camera_id` remains in-scope for UC-15.5.9. Cross-check CMDB CHG.\n\n2. **Batch `count` on `hikvision:isapi`** — Scheduled automation elevates `site` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `camera_id`** — Health checks in `physical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `hikvision:isapi`** — First 48h baseline for `camera_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `camera_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cctv",
     "syslog"

@@ -13,13 +13,13 @@
   "exclusions": "Covers the detection logic documented for 'ACH Origination Anomalies' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_ach_origination_anomalies` (UC-10.12.5), SOC dashboard panel \"Security Infra — ACH Origination Anomalies\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=payments` sourcetype='ach:origination' that satisfy the UC-10.12.5 SPL filters for 'ACH Origination Anomalies'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `payments` / `ach:origination` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.5."
+    "positiveScenario": "Ingest synthetic events into `index=payments` sourcetype='ach:origination' where `company_id` satisfies `batch_total` > 3 for UC-10.12.5 ('ACH Origination Anomalies'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `payments` / `ach:origination` events where `company_id` stays below `batch_total` > 3, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.5."
   },
   "dataSources": "`sourcetype=\"ach:origination\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "ACH/NACHA ingestion, treasury workstation — Universal Forwarder (Splunkbase 617)",
   "spl": "index=payments sourcetype=\"ach:origination\" sec_code=\"WEB\"\n| stats sum(amount) as batch_total, dc(individual_id) as distinct_receivers by company_id, file_id\n| eventstats avg(batch_total) as avg_batch by company_id\n| where batch_total > 3*avg_batch OR distinct_receivers > 500\n| sort -batch_total",
-  "description": "Surfaces unusual ACH batches (debit concentration, new originators) that may indicate fraud or operational error.",
+  "description": "Surfaces unusual ACH batches (debit concentration, new originators) that may indicate fraud or operational error. Searches `index=payments` with sourcetype `ach:origination` for UC-10.12.5, aggregating `sum` by `company_id` over `the scheduled window`. Alerts when grouped results cross `batch_total` > 3 in the saved search. Gives Security Infra operators a repeatable signal for 'ACH Origination Anomalies' without manual log review.",
   "value": "Early 'ACH Origination Anomalies' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Validate company_id against registered originators; alert on new SEC codes or return spikes after origination.",
   "visualization": "Table (suspicious batches), Line chart (ACH volume by company), Bar chart (returns vs. originations).",
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Approved vulnerability scanner** — Scanner `src` triggers high-severity signatures for 'ACH Origination Anomalies'. Join `scanner_ips` before threshold.\n\n2. **Signature definition update** — Vendor content push reclassifies benign traffic. Compare threat_id first_seen with content release date.\n\n3. **Red-team emulation** — Atomic test traffic from approved exercise hosts.\n\n4. **Backup replication traffic** — Off-hours bulk transfer matches lateral-movement heuristics.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `threat_id`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `payments`** — Planned work for 'ACH Origination Anomalies' shifts `sum` over `span=1h` while `company_id` remains in-scope for UC-10.12.5. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `ach:origination`** — Scheduled automation elevates `file_id` without crossing `batch_total` > 3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `company_id`** — Health checks in `payments` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ach:origination`** — First 48h baseline for `company_id` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `company_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365"
   ],

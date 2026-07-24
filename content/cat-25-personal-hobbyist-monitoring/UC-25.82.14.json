@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Gas Bill Tracking Feed Freshness Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_gas_bill_tracking_feed_freshness_gap` (UC-25.82.14), SOC dashboard panel \"Personal — Gas Bill Tracking Feed Freshness Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='utility:bill' that satisfy the UC-25.82.14 SPL filters for 'Gas Bill Tracking Feed Freshness Gap'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `utility:bill` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.82.14."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='utility:bill' where `provider` satisfies `hours_since` > 744 for UC-25.82.14 ('Gas Bill Tracking Feed Freshness Gap'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `utility:bill` events where `provider` stays below `hours_since` > 744, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.82.14."
   },
   "dataSources": "Utility bills (`utility:bill`), utility meter readings (`utility:meter`), utility rate changes (`utility:rate`), household accounts (`household:account`), utility payments (`utility:payment`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Electric, gas, and water bills, smart-meter readings, household-account records, and utility rate-plan changes streamed to Splunk HEC via portals, CSV exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=utility:bill bill_type=\"gas\"\n| stats max(_time) as last_seen by provider\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>744\n| sort - hours_since",
-  "description": "Detects providers or import paths that have stopped sending gas bill tracking data on time.",
-  "value": "Bill tracking loses trust quickly when one portal or export quietly breaks, so freshness monitoring is essential.",
+  "description": "Detects providers or import paths that have stopped sending gas bill tracking data on time. Searches `index=personal` with sourcetype `utility:bill` for UC-25.82.14, aggregating `max` by `provider` over `the scheduled window`. Alerts when grouped results cross `hours_since` > 744 in the saved search. Gives Personal operators a repeatable signal for 'Gas Bill Tracking Feed Freshness Gap' without manual log review.",
+  "value": "Detects providers or import paths that have stopped sending gas bill tracking data on time. Timely UC-25.82.14 alerting on 'Gas Bill Tracking Feed Freshness Gap' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Set the freshness threshold to your normal statement or tariff refresh cadence.",
   "visualization": "Table of providers by hours since last utility event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Gas Bill Tracking Feed Freshness Gap'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `utility:bill`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Gas Bill Tracking Feed Freshness Gap' stops polling `utility:bill`; stale `provider` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `utility:bill`. Dedup with `stats latest(*) by provider`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 744. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

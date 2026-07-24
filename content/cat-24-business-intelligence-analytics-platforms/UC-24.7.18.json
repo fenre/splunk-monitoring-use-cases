@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Airflow Connection and Variable Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_airflow_connection_and_variable_errors` (UC-24.7.18), SOC dashboard panel \"Operations — Airflow Connection and Variable Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='airflow:task' that satisfy the UC-24.7.18 SPL filters for 'Airflow Connection and Variable Errors'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `airflow:task` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.18."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='airflow:task' where `conn_id` satisfies detection threshold for UC-24.7.18 ('Airflow Connection and Variable Errors'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `airflow:task` events where `conn_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.18."
   },
   "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:worker`, `airflow:task`), REST API `/dags/*/dagRuns`, StatsD counters (`airflow:statsd`), and metadata tables via DB Connect. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=airflow:task (\"The conn_id\" AND \"isn't defined\") OR \"Variable * does not exist\"\n| rex \"conn_id `(?<conn_id>[^`]+)`\"\n| stats count as errors by conn_id, dag_id\n| sort - errors",
   "description": "Detects tasks failing because a referenced Airflow connection or variable is missing, a common cause of environment-specific pipeline breakage after a migration.",
-  "value": "Missing connections fail pipelines in ways unit tests miss; surfacing them by DAG accelerates fixes after promotions between environments.",
+  "value": "Detects tasks failing because a referenced Airflow connection or variable is missing, a common cause of env.... Timely UC-24.7.18 alerting on 'Airflow Connection and Variable Errors' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest task logs; schedule every 30 minutes and alert on new missing-connection errors, especially right after deployments.",
   "visualization": "Table of conn_id/DAG by error count.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Airflow Connection and Variable Errors'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Airflow Connection and Variable Errors' shifts `count` over `span=1h` while `conn_id` remains in-scope for UC-24.7.18. Cross-check CMDB CHG.\n\n2. **Batch `count` on `airflow:task`** — Scheduled automation elevates `dag_id` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `conn_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:task`** — First 48h baseline for `conn_id` is unstable; join `(?<conn_id>[^` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `conn_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "opentelemetry"

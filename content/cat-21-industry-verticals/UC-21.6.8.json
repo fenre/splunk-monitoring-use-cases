@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Store HVAC and Energy Consumption Optimization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_store_hvac_and_energy_consumption_optimization` (UC-21.6.8), SOC dashboard panel \"Operations — Store HVAC and Energy Consumption Optimization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=retail` sourcetype='store:energy' that satisfy the UC-21.6.8 SPL filters for 'Store HVAC and Energy Consumption Optimization'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `retail` / `store:energy` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.6.8."
+    "positiveScenario": "Ingest synthetic events into `index=retail` sourcetype='store:energy' where `store_id` satisfies `med_kwh` > 0 for UC-21.6.8 ('Store HVAC and Energy Consumption Optimization'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `retail` / `store:energy` events where `store_id` stays below `med_kwh` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.6.8."
   },
   "dataSources": "`index=retail` `sourcetype=\"store:energy\"` (store_id, kwh, zone_temp_f, hvac_mode, oa_temp_f) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "BMS / smart meter HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=retail sourcetype=\"store:energy\"\n| bin _time span=1h\n| stats sum(kwh) as kwh_h, avg(zone_temp_f) as avg_temp, values(hvac_mode) as modes by store_id, _time\n| eval wday=strftime(_time,\"%w\"), hour=strftime(_time,\"%H\")\n| eventstats median(kwh_h) as med_kwh by store_id, wday, hour\n| eval energy_ratio=if(med_kwh>0, round(kwh_h/med_kwh,2), null)\n| where energy_ratio > 1.35 OR avg_temp < 65 OR avg_temp > 78\n| table _time, store_id, kwh_h, med_kwh, energy_ratio, avg_temp, modes",
   "description": "HVAC anomalies increase energy spend and affect cold-chain adjacent zones; trending kWh against occupancy and outdoor air temperature supports sustainability KPIs.",
-  "value": "Service and risk leaders use signals from Store HVAC and Energy Consumption Optimization to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "Service and risk leaders use signals from Store HVAC and Energy Consumption Optimization to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Align BMS points to store open hours via lookup. Exclude demand-response events if tagged. Pair with foot traffic from `foottraffic:sensor` in a dashboard for joint review. **Domain context:** Retail energy intensity (kWh/ft²) appears in sustainability reporting (GRESB, CDP)—document methodology. **Splunk:** `eventstats median(kwh_h)` by `wday`/`hour` needs seasonal refresh for weather shifts.",
   "visualization": "Time chart (kWh vs baseline), Line chart (zone temp vs OA temp), Bar chart (energy ratio by store).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Store HVAC and Energy Consumption Optimization'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `retail` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `retail`** — Planned work for 'Store HVAC and Energy Consumption Optimization' shifts `sum` over `span=1h` while `store_id` remains in-scope for UC-21.6.8. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `store:energy`** — Scheduled automation elevates `_time` without crossing `med_kwh` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `store_id`** — Health checks in `retail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `store:energy`** — First 48h baseline for `store_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `store_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

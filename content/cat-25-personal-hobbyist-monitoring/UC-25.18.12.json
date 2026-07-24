@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Recording Storage Retention and Capacity' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_recording_storage_retention_and_capacity` (UC-25.18.12), SOC dashboard panel \"Personal — Recording Storage Retention and Capacity\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='camera:health' that satisfy the UC-25.18.12 SPL filters for 'Recording Storage Retention and Capacity'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `camera:health` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.12."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='camera:health' where `nvr` satisfies detection threshold for UC-25.18.12 ('Recording Storage Retention and Capacity'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `camera:health` events where `nvr` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.12."
   },
   "dataSources": "NVR object-detection (`frigate:event`), camera health (`camera:health`), alarm arm/disarm and life-safety (`alarm:event`), lock access (`lock:access`), plate recognition (`plate:detection`), doorbell (`doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Frigate / Blue Iris NVR object-detection events, camera health, alarm and smart-lock logs, and licence-plate recognition via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=camera:health event=storage\n| stats latest(used_gb) as used, latest(total_gb) as total, latest(oldest_clip_epoch) as oldest by nvr\n| eval used_pct=round(100*used/total,1), retention_days=round((now()-oldest)/86400,1)",
-  "description": "Tracks how full your NVR storage is and how many days of footage you are actually keeping.",
-  "value": "Security footage is worthless if it rolled off before you needed it; watching capacity and real retention keeps the evidence window honest.",
+  "description": "Tracks how full your NVR storage is and how many days of footage you are actually keeping. Searches `index=personal` with sourcetype `camera:health` for UC-25.18.12, aggregating `count` by `nvr` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Recording Storage Retention and Capacity' without manual log review.",
+  "value": "Tracks how full your NVR storage is and how many days of footage you are actually keeping. Timely UC-25.18.12 alerting on 'Recording Storage Retention and Capacity' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest NVR storage stats; schedule daily and surface used capacity and actual retention days.",
   "visualization": "Gauge of storage used with retention-days indicator.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Recording Storage Retention and Capacity'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `camera:health`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Recording Storage Retention and Capacity' stops polling `camera:health`; stale `nvr` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `camera:health`. Dedup with `stats latest(*) by nvr`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "cctv",
     "mqtt"

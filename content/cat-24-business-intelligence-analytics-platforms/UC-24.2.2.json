@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Power BI Dataset Refresh Duration SLA' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_power_bi_dataset_refresh_duration_sla` (UC-24.2.2), SOC dashboard panel \"Operations — Power BI Dataset Refresh Duration SLA\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='powerbi:admin:refreshes' that satisfy the UC-24.2.2 SPL filters for 'Power BI Dataset Refresh Duration SLA'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `powerbi:admin:refreshes` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.2.2."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='powerbi:admin:refreshes' where `datasetName` satisfies `p95_min` > 30 for UC-24.2.2 ('Power BI Dataset Refresh Duration SLA'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `powerbi:admin:refreshes` events where `datasetName` stays below `p95_min` > 30, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.2.2."
   },
   "dataSources": "Power BI activity events (`o365:management:activity` with `Workload=PowerBI`), Power BI REST Admin API (`/admin/groups`, `/datasets/refreshes`, `/capacities/refreshables`), on-prem data gateway `Mashup`/`GatewayInfo` logs, Premium capacity metrics. Collected via Splunk Add-on for Microsoft Office 365 (Splunkbase 4054) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Add-on for Microsoft Cloud Services / Microsoft 365 (`Splunk_TA_microsoft-cloudservices`) for the Power BI activity log; Power BI REST Admin API and on-prem data gateway logs via HEC scripted inputs. — Splunk Add-on for Microsoft Office 365 (Splunkbase 4054)",
   "spl": "index=bi sourcetype=powerbi:admin:refreshes status=Completed\n| eval duration_min=round((strptime(endTime,\"%Y-%m-%dT%H:%M:%S\")-strptime(startTime,\"%Y-%m-%dT%H:%M:%S\"))/60,1)\n| stats avg(duration_min) as avg_min, p95(duration_min) as p95_min by datasetName\n| where p95_min>30\n| sort - p95_min",
   "description": "Computes how long successful dataset refreshes take and flags datasets whose 95th-percentile duration breaches an SLA, indicating models that need optimisation or incremental refresh.",
-  "value": "Long refreshes consume Premium capacity and risk overrunning the refresh window; spotting the slowest datasets enables targeted model tuning.",
+  "value": "Computes how long successful dataset refreshes take and flags datasets whose 95th-percentile duration breac.... Timely UC-24.2.2 alerting on 'Power BI Dataset Refresh Duration SLA' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Compute duration from refresh start/end times; schedule daily; tune the threshold to your window. Recommend incremental refresh for repeat offenders.",
   "visualization": "Table by p95 duration, refresh-duration trend per dataset.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Power BI Dataset Refresh Duration SLA'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Power BI Dataset Refresh Duration SLA' shifts `avg` over `span=1h` while `datasetName` remains in-scope for UC-24.2.2. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `powerbi:admin:refreshes`** — Scheduled automation elevates `duration_min` without crossing `p95_min` > 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `datasetName`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `powerbi:admin:refreshes`** — First 48h baseline for `datasetName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `datasetName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure",
     "m365"

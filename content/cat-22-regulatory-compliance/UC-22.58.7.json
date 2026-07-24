@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Detect dual-regime entity submitting LPM incident without parallel NIS2 declaration. UC-22.58.7 MUST flag.",
-    "negativeScenario": "Dual-regime entity correlates incident across both regimes. UC-22.58.7 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-22.58.7 ('France LPM/NIS2 transposition tracker — Décret 2024-405 dual-regime reconciliation (OIV + REC/REI)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.58.7."
   },
   "dataSources": "Regulatory register `lpm_nis2_regime_lookup` (entity_id, regime, lpm_in_scope, nis2_rec_in_scope, nis2_rei_in_scope, anssi_obligations, sectoral_authority). ANSSI correspondence (`anssi:correspondence`). NIS2 sectoral-authority correspondence.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup lpm_nis2_regime_lookup\n| eval lpm_obligations = if(lpm_in_scope=\"true\", \"PSSI-MCAS+PASSI+CERT-FR\", \"none\")\n| eval nis2_obligations = case(\n    nis2_rec_in_scope=\"true\", \"REC+CISO+annual-audit+24h-72h-incident\",\n    nis2_rei_in_scope=\"true\", \"REI+self-attestation+24h-72h-incident\",\n    1=1, \"none\")\n| eval dual_regime = if(lpm_obligations != \"none\" AND nis2_obligations != \"none\", \"true\", \"false\")\n| eval reconciliation_state = case(\n    dual_regime=\"true\" AND last_review > (now() - 7776000), \"current\",\n    dual_regime=\"true\" AND isnotnull(last_review), \"due_for_review\",\n    dual_regime=\"true\" AND isnull(last_review), \"never_reviewed\",\n    1=1, \"single_regime\")\n| where reconciliation_state IN (\"due_for_review\",\"never_reviewed\")\n| table entity_id regime lpm_obligations nis2_obligations dual_regime reconciliation_state last_review",
-  "description": "Reconciles dual LPM/NIS2 obligations per entity; surfaces entities needing review.",
-  "value": "ANSSI inspector will ask: did you double-report under both regimes? The reconciliation matrix is the evidence.",
+  "description": "Reconciles dual LPM/NIS2 obligations per entity; surfaces entities needing review. Searches `index=target_index` with sourcetype `configured sourcetype` for UC-22.58.7, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'France LPM/NIS2 transposition tracker — Décret 2024-405 dual-regime reconciliation (OIV + REC/REI)' without manual log review.",
+  "value": "Reconciles dual LPM/NIS2 obligations per entity; surfaces entities needing review. Timely UC-22.58.7 alerting on 'France LPM/NIS2 transposition tracker — Décret 2024-405 dual-regime reconciliation (OIV + REC/REI)' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `lpm_nis2_regime_lookup` from current ANSSI/sectoral letters. (2) Schedule UC-22.58.7 daily. (3) Build the `LPM/NIS2 Reconciliation` dashboard.",
   "visualization": "(Panel 1) Regime distribution. (Panel 2) Dual-regime entities. (Panel 3) Reconciliation cadence. (Panel 4) Sectoral-authority correspondence.",
   "cimModels": [
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **In-flight transposition**: 2024-2026 transition period; tune `last_review` threshold.\n2. **Sectoral authority delay**: some sectoral authorities slower to issue REC/REI letters; pin status.\n3. **Multi-subsidiary group**: each legal entity has own regime; per-entity rows.\n\n**Suppression mechanism**: KV Store `lpm_22_58_7_exceptions` with Délégué OIV + Direction Juridique approval.",
+  "knownFalsePositives": "1. **Authorised FR LPM control testing** — Internal audit exercises 'France LPM/NIS2 transposition tracker — Décret 2024-405 dual-regime reconciliation (OIV + REC/REI)' (UC-22.58.7) on `entity` during scheduled clause FR-Decret-2024-405 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `fr_lpm_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `fr_lpm_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (regulatory transposition governance)"
   ],

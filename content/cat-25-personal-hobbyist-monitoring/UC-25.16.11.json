@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Fermentation pH Drift Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_fermentation_ph_drift_watch` (UC-25.16.11), SOC dashboard panel \"Personal — Fermentation pH Drift Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='brew:fermentation' that satisfy the UC-25.16.11 SPL filters for 'Fermentation pH Drift Watch'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `brew:fermentation` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.16.11."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='brew:fermentation' where `batch` satisfies detection threshold for UC-25.16.11 ('Fermentation pH Drift Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `brew:fermentation` events where `batch` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.16.11."
   },
   "dataSources": "Fermentation telemetry (`brew:fermentation`), brew-day records (`brew:batch`), mash probes (`brew:mash`), keg pressure (`kegerator:pressure`), tap pours (`kegerator:pour`), brew-fridge duty logs (`brewfridge:compressor`), cellar climate (`winecellar:reading`), and line-cleaning events (`tapline:clean`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Homebrewing telemetry from Tilt/iSpindel fermentation sensors, Brewfather batch exports, ESPHome mash and fridge probes, keg pressure sensors, tap flow meters, and cellar climate sensors streamed to Splunk HEC via MQTT and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=brew:fermentation\n| stats earliest(ph) as start_ph latest(ph) as current_ph by batch\n| eval ph_drift=round(current_ph-start_ph,2)\n| sort ph_drift",
-  "description": "Measures how far fermentation pH has moved from batch start so you can spot stalled or off-track fermentations.",
-  "value": "pH drift adds another lens beyond gravity and temperature, helping you catch batches that are behaving differently before flavor problems are obvious.",
+  "description": "Measures how far fermentation pH has moved from batch start so you can spot stalled or off-track fermentations. Searches `index=personal` with sourcetype `brew:fermentation` for UC-25.16.11, aggregating `count` by `batch` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Fermentation pH Drift Watch' without manual log review.",
+  "value": "Measures how far fermentation pH has moved from batch start so you can spot stalled or off-track fermentations. Timely UC-25.16.11 alerting on 'Fermentation pH Drift Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest pH readings from fermentation probes or batch annotations and review batches with unusual movement from their opening pH.",
   "visualization": "Bar chart of pH drift by active batch.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Fermentation pH Drift Watch'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `brew:fermentation`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Fermentation pH Drift Watch' stops polling `brew:fermentation`; stale `batch` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `brew:fermentation`. Dedup with `stats latest(*) by batch`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

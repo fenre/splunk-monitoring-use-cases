@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Fitbit Daily Step Goal Adherence' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_fitbit_daily_step_goal_adherence` (UC-25.1.6), SOC dashboard panel \"Personal — Fitbit Daily Step Goal Adherence\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='fitbit:activity' that satisfy the UC-25.1.6 SPL filters for 'Fitbit Daily Step Goal Adherence'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `fitbit:activity` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.6."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='fitbit:activity' where `_time` satisfies detection threshold for UC-25.1.6 ('Fitbit Daily Step Goal Adherence'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `fitbit:activity` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.6."
   },
   "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as file inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=fitbit:activity\n| bin _time span=1d\n| stats sum(steps) as steps by _time\n| eval goal=10000, met_goal=if(steps>=goal,1,0)\n| timechart span=1w sum(met_goal) as days_goal_met",
   "description": "Counts how many days each week you hit your daily step goal, turning a single day's number into a habit-strength signal.",
-  "value": "Consistency beats intensity for everyday health; counting goal-met days rewards the habit rather than a one-off big walk.",
+  "value": "Counts how many days each week you hit your daily step goal, turning a single day's number into a habit-str.... Timely UC-25.1.6 alerting on 'Fitbit Daily Step Goal Adherence' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Fitbit daily activity summaries; schedule weekly and review the count of goal-met days as your habit score.",
   "visualization": "Column chart of goal-met days per week out of seven.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Fitbit Daily Step Goal Adherence'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `fitbit:activity`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Fitbit Daily Step Goal Adherence' stops polling `fitbit:activity`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `fitbit:activity`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Idle Resource Identification by Account' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_idle_resource_identification_by_account` (UC-20.1.20), SOC dashboard panel \"Operations — Idle Resource Identification by Account\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=summary` sourcetype='cloud:idle_candidates' that satisfy the UC-20.1.20 SPL filters for 'Idle Resource Identification by Account'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `summary` / `cloud:idle_candidates` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-20.1.20."
+    "positiveScenario": "Ingest synthetic events into `index=summary` sourcetype='cloud:idle_candidates' where `lineItem_UsageAccountId` satisfies detection threshold for UC-20.1.20 ('Idle Resource Identification by Account'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `summary` / `cloud:idle_candidates` events where `lineItem_UsageAccountId` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-20.1.20."
   },
   "dataSources": "Idle detection output, `lineItem_UsageAccountId` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Cloud metrics, CUR, CMDB — Universal Forwarder (Splunkbase 617)",
   "spl": "index=summary sourcetype=\"cloud:idle_candidates\" earliest=-1d\n| stats sum(estimated_monthly_savings) as idle_dollars by lineItem_UsageAccountId\n| lookup aws_account_owner account_id AS lineItem_UsageAccountId OUTPUT owner_email\n| sort -idle_dollars\n| head 25",
-  "description": "Rolls up idle candidates (UC-20.1.4) to **account and owner** for FinOps accountability — same theme, executive view.",
+  "description": "Rolls up idle candidates (UC-20.1.4) to **account and owner** for FinOps accountability — same theme, executive view. Searches `index=summary` with sourcetype `cloud:idle_candidates` for UC-20.1.20, aggregating `sum` by `lineItem_UsageAccountId` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Idle Resource Identification by Account' without manual log review.",
   "value": "Early 'Idle Resource Identification by Account' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Populate `cloud:idle_candidates` from scheduled UC-20.1.4 logic. Monthly email to top account owners.",
   "visualization": "Bar chart (idle $ by account), Table (owner, idle $), Single value (fleet idle $).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Idle Resource Identification by Account'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `summary` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `summary`** — Planned work for 'Idle Resource Identification by Account' shifts `sum` over `span=1h` while `lineItem_UsageAccountId` remains in-scope for UC-20.1.20. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cloud:idle_candidates`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `lineItem_UsageAccountId`** — Health checks in `summary` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cloud:idle_candidates`** — First 48h baseline for `lineItem_UsageAccountId` is unstable; join `aws_account_owner` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `lineItem_UsageAccountId`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

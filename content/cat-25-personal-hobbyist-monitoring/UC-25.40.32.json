@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Personal Dashboard Freshness Guard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_personal_dashboard_freshness_guard` (UC-25.40.32), SOC dashboard panel \"Personal — Personal Dashboard Freshness Guard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='personalsla:status' that satisfy the UC-25.40.32 SPL filters for 'Personal Dashboard Freshness Guard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `personalsla:status` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.40.32."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='personalsla:status' where `dashboard_name` satisfies detection threshold for UC-25.40.32 ('Personal Dashboard Freshness Guard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `personalsla:status` events where `dashboard_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.40.32."
   },
   "dataSources": "Cross-stream correlations (`correlation:pair`), anomaly-day rollups (`anomalyday:score`), personal SLA checks (`personalsla:status`), and daily life scores (`lifescore:daily`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Meta-monitoring for every `index=personal` stream, turning cross-signal correlations, anomaly-day scoring, and personal SLA dashboards into Splunk-native analytics. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=personalsla:status\n| search freshness_ok=\"true\"\n| stats latest(_time) as last_seen count as events by dashboard_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| sort - hours_since",
   "description": "Shows which dashboardss have gone quiet for dashboard freshness checks. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "A freshness guard keeps the meta-dashboard from telling a stale story about the rest of the system.",
+  "value": "Shows which dashboardss have gone quiet for dashboard freshness checks. Timely UC-25.40.32 alerting on 'Personal Dashboard Freshness Guard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send dashboard freshness checks events to `index=personal` and alert when the gap since the last event grows beyond the expected cadence.",
   "visualization": "Table of dashboardss with time since last event.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Personal Dashboard Freshness Guard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `personalsla:status`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Personal Dashboard Freshness Guard' stops polling `personalsla:status`; stale `dashboard_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `personalsla:status`. Dedup with `stats latest(*) by dashboard_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -69,16 +69,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Engineer bob is in the prod-access group for customer-database but has no current DPO course record; the UC fires the next week.",
-    "negativeScenario": "All prod-access engineers have current training; no alert.",
-    "fixtureRef": "",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=lms` sourcetype='completion' where `user]` satisfies detection threshold for UC-22.46.5 ('Developer data-handling training — prod-access engineers lacking training'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `lms` / `completion` events where `user]` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.46.5."
   },
   "dataSources": "IdP prod-access group membership, LMS completion records for DPO-approved course ids.",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "| rest /services/identity/prod-access-groups splunk_server=*\n| fields user group scope\n| where scope=\"regulated\"\n| join user [search index=lms sourcetype=completion course_id=data_handling_v* earliest=-365d | stats max(_time) as last_completion by user]\n| where (now()-last_completion)>31536000 OR isnull(last_completion)\n| table user group scope last_completion",
   "description": "Prevents the 'developers with production access but stale training' anti-pattern that surfaces in GDPR Art.32 enforcement cases.",
-  "value": "Links IdP posture to training posture — the evidence auditors actually ask for. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Prevents the 'developers with production access but stale training' anti-pattern that surfaces in GDPR Art. Timely UC-22.46.5 alerting on 'Developer data-handling training — prod-access engineers lacking training' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Tag IdP groups for prod access with regulated scope; (2) publish DPO-approved course IDs; (3) run weekly; (4) auto-revoke access after configured overdue window. Indexes required: `index=lms`; Sourcetypes: `sourcetype=completion`.",
   "visualization": "Table of engineers without training, bar chart by team, single-value 'prod-access engineers with current training'. Key fields: `group`, `last_completion`, `scope`, `user`, `user]`.",
   "cimModels": [],
@@ -103,7 +101,7 @@
       "title": "EDPB — Guidelines & Recommendations"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised GDPR control testing** — Internal audit exercises 'Developer data-handling training — prod-access engineers lacking training' (UC-22.46.5) on `user]` during scheduled clause Art.32(4) sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=lms` `completion` without crossing evidence threshold. Cross-check engagement letter in `gdpr_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `lms` for `user]`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `user]` during normal service delivery.\n\n**Suppression mechanism:** `gdpr_exception_register.csv` keyed on `user]`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Anomaly",
   "securityDomain": "access",
   "requiredFields": [

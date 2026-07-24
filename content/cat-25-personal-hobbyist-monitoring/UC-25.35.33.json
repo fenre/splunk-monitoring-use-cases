@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Cross-Symptom Flare Days' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_cross_symptom_flare_days` (UC-25.35.33), SOC dashboard panel \"Personal — Cross-Symptom Flare Days\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='allergy:entry' that satisfy the UC-25.35.33 SPL filters for 'Cross-Symptom Flare Days'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `allergy:entry` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.35.33."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='allergy:entry' where `_time` satisfies detection threshold for UC-25.35.33 ('Cross-Symptom Flare Days'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `allergy:entry` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.35.33."
   },
   "dataSources": "Allergy symptoms (`allergy:entry`), migraine records (`migraine:entry`), bathroom visits (`bathroom:visit`), and sleep-talking events (`sleeptalk:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Symptom telemetry for allergy diaries, migraine aura tracking, bathroom frequency logging, and sleep-talking review sent to Splunk HEC via apps and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=allergy:entry\n| search migraine_flag=* bathroom_spike=* sleep_talk_flag=* allergy_flare=*\n| bin _time span=1d\n| stats max(allergy_flare) as allergy_flare max(migraine_flag) as migraine_flag max(bathroom_spike) as bathroom_spike max(sleep_talk_flag) as sleep_talk_flag by _time\n| eval flare_count=allergy_flare+migraine_flag+bathroom_spike+sleep_talk_flag\n| sort - flare_count",
   "description": "Examines days where multiple symptom systems flare together. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Cross-symptom days are often where a general overload story becomes visible across otherwise separate journals.",
+  "value": "Examines days where multiple symptom systems flare together. Timely UC-25.35.33 alerting on 'Cross-Symptom Flare Days' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send days where multiple symptom systems flare together events to `index=personal` with the fields used in this SPL and review the outliers or trend breaks regularly.",
   "visualization": "Table or chart of days where multiple symptom systems flare together, depending on the selected time range.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Cross-Symptom Flare Days'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `allergy:entry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Cross-Symptom Flare Days' stops polling `allergy:entry`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `allergy:entry`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

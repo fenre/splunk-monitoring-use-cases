@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Focus vs Distraction Time' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_focus_vs_distraction_time` (UC-25.13.1), SOC dashboard panel \"Personal — Focus vs Distraction Time\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rescuetime:activity' that satisfy the UC-25.13.1 SPL filters for 'Focus vs Distraction Time'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `rescuetime:activity` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.13.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rescuetime:activity' where `_time` satisfies `productivity` >= 1 for UC-25.13.1 ('Focus vs Distraction Time'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `rescuetime:activity` events where `_time` stays below `productivity` >= 1, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.13.1."
   },
   "dataSources": "RescueTime activity (`rescuetime:activity`), screen-time exports (`screentime:usage`), GitHub events (`github:personal`), habit-tracker logs (`habit:entry`), calendar exports. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Screen-time / RescueTime exports, GitHub personal activity, habit/journal trackers, and calendar feeds via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=rescuetime:activity\n| bin _time span=1d\n| stats sum(eval(if(productivity>=1,duration_s,0))) as focus_s, sum(eval(if(productivity<0,duration_s,0))) as distract_s by _time\n| eval focus_h=round(focus_s/3600,1), distract_h=round(distract_s/3600,1)\n| sort - _time",
   "description": "Splits your computer time into focused and distracting hours each day so you can see your real productivity, not how busy you felt.",
-  "value": "Perceived productivity is unreliable; an honest daily focus-versus-distraction split shows what your time actually went to.",
+  "value": "Splits your computer time into focused and distracting hours each day so you can see your real productivity.... Timely UC-25.13.1 alerting on 'Focus vs Distraction Time' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Export RescueTime activity to HEC; schedule daily and review the focus/distraction balance.",
   "visualization": "Stacked column chart of daily focus versus distraction hours.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Focus vs Distraction Time'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rescuetime:activity`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Focus vs Distraction Time' stops polling `rescuetime:activity`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rescuetime:activity`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `productivity` >= 1. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "github",
     "security_essentials"

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Hardware Sensor Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_hardware_sensor_monitoring` (UC-1.4.1), SOC dashboard panel \"Linux — Hardware Sensor Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=hardware` sourcetype='ipmi:sensor' that satisfy the UC-1.4.1 SPL filters for 'Hardware Sensor Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `hardware` / `ipmi:sensor` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.4.1."
+    "positiveScenario": "Ingest synthetic events into `index=hardware` sourcetype='ipmi:sensor' where `entity` satisfies detection threshold for UC-1.4.1 ('Hardware Sensor Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `hardware` / `ipmi:sensor` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.4.1."
   },
   "dataSources": "IPMI sensor data via scripted input, `sourcetype=ipmi:sensor` (custom) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (`ipmitool`), SNMP — Universal Forwarder (Splunkbase 617)",
   "spl": "index=hardware sourcetype=ipmi:sensor\n| eval is_critical = if(status=\"Critical\" OR status=\"Non-Recoverable\", 1, 0)\n| where is_critical=1\n| table _time host sensor_name reading unit status\n| sort -_time",
-  "description": "Temperature, voltage, and fan speed anomalies predict impending hardware failures before they cause unplanned downtime.",
-  "value": "Seeing power, thermal, and fan problems on the management controller before the host locks up gives the data center time to swap parts in a planned window instead of during an outage.",
+  "description": "Temperature, voltage, and fan speed anomalies predict impending hardware failures before they cause unplanned downtime. Searches `index=hardware` with sourcetype `ipmi:sensor` for UC-1.4.1, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Linux operators a repeatable signal for 'Hardware Sensor Monitoring' without manual log review.",
+  "value": "Temperature, voltage, and fan speed anomalies predict impending hardware failures before they cause unplann.... Timely UC-1.4.1 alerting on 'Hardware Sensor Monitoring' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Install `ipmitool` on hosts. Create scripted input: `ipmitool sensor list` (interval=300). Parse sensor name, reading, unit, and status. Alert on Critical/Non-Recoverable status. Alternatively, use SNMP to poll vendor-specific MIBs (Dell iDRAC, HP iLO, Lenovo IMM).",
   "visualization": "Table of critical sensors, Gauge per sensor type, Heatmap across hosts.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Hardware Sensor Monitoring'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `hardware` `ipmi:sensor`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `hardware`** — Package managers spike `host` metrics for 'Hardware Sensor Monitoring'. Correlate with apt/yum logs in the same `ipmi:sensor` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ipmi:sensor`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hardware_bmc",
     "snmp"

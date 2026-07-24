@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Meditation Dose vs Next-Day Mood Stability' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_meditation_dose_vs_next_day_mood_stability` (UC-25.25.18), SOC dashboard panel \"Personal — Meditation Dose vs Next-Day Mood Stability\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='meditation:session' that satisfy the UC-25.25.18 SPL filters for 'Meditation Dose vs Next-Day Mood Stability'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `meditation:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.25.18."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='meditation:session' where `style` satisfies detection threshold for UC-25.25.18 ('Meditation Dose vs Next-Day Mood Stability'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `meditation:session` events where `style` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.25.18."
   },
   "dataSources": "Continuous glucose (`cgm:glucose`), HRV (`hrv:reading`), mood check-ins (`mood:checkin`), ketone readings (`ketone:reading`), reaction-time trials (`reaction:trial`), sauna sessions (`sauna:session`), resting temperature (`temp:reading`), and meditation logs (`meditation:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Biohacking telemetry from CGMs, HRV devices, ketone meters, mood and meditation journals, reaction-time apps, sauna logs, and health sensors streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=meditation:session\n| stats sum(minutes) as minutes_meditated avg(next_day_mood_score) as avg_next_day_mood by style\n| sort - minutes_meditated",
-  "description": "Compares meditation styles by total time invested and the average mood score reported the following day.",
-  "value": "This turns a soft habit into a testable practice by asking which styles seem to pay off in the next day's steadiness.",
+  "description": "Compares meditation styles by total time invested and the average mood score reported the following day. Searches `index=personal` with sourcetype `meditation:session` for UC-25.25.18, aggregating `sum` by `style` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Meditation Dose vs Next-Day Mood Stability' without manual log review.",
+  "value": "Compares meditation styles by total time invested and the average mood score reported the following day. Timely UC-25.25.18 alerting on 'Meditation Dose vs Next-Day Mood Stability' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Track each meditation session with style and minutes, then attach the next day's mood score from your journal.",
   "visualization": "Scatter plot of meditation minutes versus next-day mood by style.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Meditation Dose vs Next-Day Mood Stability'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `meditation:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Meditation Dose vs Next-Day Mood Stability' stops polling `meditation:session`; stale `style` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `meditation:session`. Dedup with `stats latest(*) by style`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

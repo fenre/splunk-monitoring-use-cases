@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Kafka Invalid Message Batch and Corrupt Record Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_kafka_invalid_message_batch_and_corrupt_record_e` (UC-8.6.30), SOC dashboard panel \"Operations — Kafka Invalid Message Batch and Corrupt Record Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=kafka` sourcetype='kafka:serverLog' that satisfy the UC-8.6.30 SPL filters for 'Kafka Invalid Message Batch and Corrupt Record Errors'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `kafka` / `kafka:serverLog` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.6.30."
+    "positiveScenario": "Ingest synthetic events into `index=kafka` sourcetype='kafka:serverLog' where `host` satisfies `count` > 0 for UC-8.6.30 ('Kafka Invalid Message Batch and Corrupt Record Errors'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `kafka` / `kafka:serverLog` events where `host` stays below `count` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.6.30."
   },
   "dataSources": "Kafka broker log `sourcetype=kafka:serverLog` (record validation, CRC, and magic byte failures)",
   "app": "Splunk Add-on for Kafka (`Splunk_TA_kafka`, Splunkbase 2935)",
   "spl": "index=kafka sourcetype=\"kafka:serverLog\"\n| search \"CorruptRecordException\" OR \"InvalidRecordException\" OR \"Record batch\" OR \"INVALID_RECORD\" OR \"checksum\"\n| rex \"^\\[[^\\]]+\\]\\s+(?<log_level>\\w+)\"\n| where log_level IN (\"ERROR\",\"WARN\")\n| stats count by host\n| where count > 0",
   "description": "Broker-side parse and checksum errors usually mean poison messages, interrupted log segments, or incompatible producer serializers.",
-  "value": "Stops extended data corruption incidents from spreading across consumers and guides engineers to the offending topic/partition quickly.",
+  "value": "Broker-side parse and checksum errors usually mean poison messages, interrupted log segments, or incompatib.... Timely UC-8.6.30 alerting on 'Kafka Invalid Message Batch and Corrupt Record Errors' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Collect broker logs from all replicas. Include partition/topic regex extractions where your distribution logs them. Auto-open incidents when any broker exceeds zero errors in 5 minutes for tier-0 topics.",
   "visualization": "Timeline (corruption errors), Table (host, count), Single value (open error window).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Kafka Invalid Message Batch and Corrupt Record Errors'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `kafka` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `kafka`** — Planned work for 'Kafka Invalid Message Batch and Corrupt Record Errors' shifts `count` over `span=1h` while `host` remains in-scope for UC-8.6.30. Cross-check CMDB CHG.\n\n2. **Batch `count` on `kafka:serverLog`** — Scheduled automation elevates `src` without crossing `count` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:serverLog`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka"
   ],

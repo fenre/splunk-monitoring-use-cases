@@ -41,15 +41,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When the 90-day rolling click-rate rises above the programme baseline by +3 percentage points, or when an employee clicks on 3+ simulations in 180 days, the UC fires.",
-    "negativeScenario": "Click-rates within baseline and employees with ≤2 clicks do NOT fire.",
-    "fixtureRef": "sample-data/uc-22.46.2-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=phishing` sourcetype='knowbe4:campaign' where `_time` satisfies `drift` > 3 for UC-22.46.2 ('Phishing simulation efficacy — click-rate trend and repeat-clicker detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `phishing` / `knowbe4:campaign` events where `_time` stays below `drift` > 3, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.46.2."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=phishing sourcetype=knowbe4:campaign OR sourcetype=proofpoint:psa earliest=-180d\n| bin _time span=30d\n| stats count(eval(action=\"clicked\")) as clicks count as total by _time\n| eval click_rate=round(clicks/total*100,2)\n| stats last(click_rate) as current avg(click_rate) as baseline\n| eval drift=current-baseline\n| where drift>3\n| appendpipe [search index=phishing action=clicked earliest=-180d | stats dc(campaign_id) as clicks by employee | where clicks>=3]",
   "description": "Tracks efficacy: the programme is green only if click-rate stays within baseline and repeat-clickers are followed up. Drift above threshold is a programme-level finding.",
-  "value": "Turns the awareness programme into a measurable control, not an annual training badge.",
+  "value": "Tracks efficacy: the programme is green only if click-rate stays within baseline and repeat-clickers are fo.... Timely UC-22.46.2 alerting on 'Phishing simulation efficacy — click-rate trend and repeat-clicker detection' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Ingest campaign events from the phishing-sim platform; (2) compute baselines per quarter; (3) run monthly; (4) deliver repeat-clicker lists to HR for targeted training. Indexes required: `index=phishing`; Sourcetypes: `sourcetype=knowbe4:campaign`, `sourcetype=proofpoint:psa`.",
   "visualization": "Line chart of click rate over time with baseline band, table of repeat clickers, single-value 'current click rate vs baseline'.",
   "cimModels": [],
@@ -73,7 +72,7 @@
       "title": "ENISA — NIS2 Directive"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised NIS2 control testing** — Internal audit exercises 'Phishing simulation efficacy — click-rate trend and repeat-clicker detection' (UC-22.46.2) on `_time` during scheduled clause Art.21(2)(g) sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=phishing` `knowbe4:campaign` without crossing `drift` > 3. Cross-check engagement letter in `nis2_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `phishing` for `_time`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `_time` during normal service delivery.\n\n**Suppression mechanism:** `nis2_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Baseline",
   "securityDomain": "audit",
   "requiredFields": [

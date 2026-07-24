@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'After-School Pickup Geofence Gaps' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_after_school_pickup_geofence_gaps` (UC-25.23.18), SOC dashboard panel \"Personal — After-School Pickup Geofence Gaps\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='family:location' that satisfy the UC-25.23.18 SPL filters for 'After-School Pickup Geofence Gaps'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `family:location` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.23.18."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='family:location' where `child` satisfies detection threshold for UC-25.23.18 ('After-School Pickup Geofence Gaps'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `family:location` events where `child` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.23.18."
   },
   "dataSources": "Baby feedings (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), school departures (`school:departure`), stroller activity (`stroller:walk`), household chores (`chore:event`), and family geofence events (`family:location`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Family and baby telemetry from baby-tracking apps, school and geofence automations, stroller logs, chore trackers, and shared-home events streamed to Splunk HEC via APIs and Home Assistant. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=family:location event=\"pickup\"\n| stats avg(arrival_gap_min) as avg_arrival_gap_min max(arrival_gap_min) as max_arrival_gap_min by child location\n| sort - max_arrival_gap_min",
-  "description": "Measures the time gap between the expected and actual family pickup geofence events.",
-  "value": "Pickup timing issues are low-drama until they are not, and this metric helps you improve reliability before a true miss happens.",
+  "description": "Measures the time gap between the expected and actual family pickup geofence events. Searches `index=personal` with sourcetype `family:location` for UC-25.23.18, aggregating `avg` by `child` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'After-School Pickup Geofence Gaps' without manual log review.",
+  "value": "Measures the time gap between the expected and actual family pickup geofence events. Timely UC-25.23.18 alerting on 'After-School Pickup Geofence Gaps' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send pickup geofence events with an expected-versus-actual arrival gap from your family location automation.",
   "visualization": "Table of average and worst pickup gap by child and location.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'After-School Pickup Geofence Gaps'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `family:location`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'After-School Pickup Geofence Gaps' stops polling `family:location`; stale `child` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `family:location`. Dedup with `stats latest(*) by child`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

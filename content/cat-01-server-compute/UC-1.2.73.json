@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'LDAP Query Performance (DC Health)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_ldap_query_performance_dc_health` (UC-1.2.73), SOC dashboard panel \"Linux — LDAP Query Performance (DC Health)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=perfmon` sourcetype='Perfmon:NTDS' that satisfy the UC-1.2.73 SPL filters for 'LDAP Query Performance (DC Health)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `perfmon` / `Perfmon:NTDS` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.73."
+    "positiveScenario": "Ingest synthetic events into `index=perfmon` sourcetype='Perfmon:NTDS' where `counter` satisfies detection threshold for UC-1.2.73 ('LDAP Query Performance (DC Health)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `perfmon` / `Perfmon:NTDS` events where `counter` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.73."
   },
   "dataSources": "`sourcetype=Perfmon:NTDS` (counters: LDAP Searches/sec, LDAP Successful Binds/sec, LDAP Search Time) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=perfmon sourcetype=\"Perfmon:NTDS\" counter IN (\"LDAP Searches/sec\",\"LDAP Successful Binds/sec\",\"LDAP Client Sessions\")\n| timechart span=5m avg(Value) as value by counter, host",
   "description": "Slow LDAP queries on domain controllers degrade authentication, group policy processing, and application lookups across the entire domain.",
-  "value": "When domain controllers bog down on LDAP, logons and policy updates slow for everyone. Trending NTDS counters early helps capacity planning and catches attacks that hammer the directory.",
+  "value": "Slow LDAP queries on domain controllers degrade authentication, group policy processing, and application lo.... Timely UC-1.2.73 alerting on 'LDAP Query Performance (DC Health)' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Configure Perfmon inputs on domain controllers for NTDS object: `LDAP Searches/sec`, `LDAP Successful Binds/sec`, `LDAP Client Sessions`, `LDAP Active Threads` (interval=60). Also enable \"Expensive/Inefficient LDAP searches\" logging via registry (15 Field Engineering diagnostics). Alert when LDAP search rate drops suddenly (DC issues) or when client sessions exceed baseline by 2x (possible LDAP enumeration attack).",
   "visualization": "Line chart (LDAP operations/sec), Dual-axis (searches + bind rate), Table (DCs by load), Gauge (active sessions).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'LDAP Query Performance (DC Health)'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `perfmon` `Perfmon:NTDS`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `perfmon`** — Package managers spike `counter` metrics for 'LDAP Query Performance (DC Health)'. Correlate with apt/yum logs in the same `Perfmon:NTDS` window.\n\n2. **Nightly backup I/O on `counter`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `Perfmon:NTDS`** — Nagios/Zabbix polls `counter` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `counter` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `counter`, `valid_until`.",
   "equipment": [
     "windows"
   ],

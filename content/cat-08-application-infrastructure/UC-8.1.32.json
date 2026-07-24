@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'ActiveMQ Broker Memory Limit Pressure' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_activemq_broker_memory_limit_pressure` (UC-8.1.32), SOC dashboard panel \"Operations — ActiveMQ Broker Memory Limit Pressure\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='activemq:broker' that satisfy the UC-8.1.32 SPL filters for 'ActiveMQ Broker Memory Limit Pressure'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `messaging` / `activemq:broker` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.32."
+    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='activemq:broker' where `broker_name` satisfies `mem_pct` > 70 for UC-8.1.32 ('ActiveMQ Broker Memory Limit Pressure'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `messaging` / `activemq:broker` events where `broker_name` stays below `mem_pct` > 70, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.32."
   },
   "dataSources": "JMX `org.apache.activemq:type=Broker,brokerName=*` attributes `MemoryPercentUsage`, `MemoryLimit`",
   "app": "Splunk Add-on for JMX (Splunkbase 2647) or scripted Jolokia→HEC; JMS Messaging Modular Input (Splunkbase 1317) for message ingress patterns",
   "spl": "index=messaging sourcetype=\"activemq:broker\"\n| eval mem_pct=coalesce(MemoryPercentUsage, memory_percent_usage)\n| where mem_pct > 70\n| timechart span=5m max(mem_pct) as broker_memory_pct by broker_name",
   "description": "Broker memory percent tracks usage against the broker-wide memory limit before producers are blocked or messages are spooled to temp storage.",
-  "value": "Prevents broker-wide flow control and slow-consumer spirals by catching memory pressure before the store or temp limits are hit.",
+  "value": "Broker memory percent tracks usage against the broker-wide memory limit before producers are blocked or mes.... Timely UC-8.1.32 alerting on 'ActiveMQ Broker Memory Limit Pressure' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll broker MBean every 60s via JMX. Map attribute names to Splunk fields (`MemoryPercentUsage` is common on Classic brokers). Correlate with slow consumer advisories and destination memory usage. Alert at 70% sustained 10 minutes; tune per broker sizing.",
   "visualization": "Gauge (current memory %), Line chart (memory % trend), Table (brokers over threshold).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'ActiveMQ Broker Memory Limit Pressure'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `messaging` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging`** — Planned work for 'ActiveMQ Broker Memory Limit Pressure' shifts `max` over `span=5m` while `broker_name` remains in-scope for UC-8.1.32. Cross-check CMDB CHG.\n\n2. **Batch `max` on `activemq:broker`** — Scheduled automation elevates `mem_pct` without crossing `mem_pct` > 70. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `broker_name`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `activemq:broker`** — First 48h baseline for `broker_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `broker_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "activemq",
     "apache"

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Reaper Track Count vs Export Time' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_reaper_track_count_vs_export_time` (UC-25.45.24), SOC dashboard panel \"Personal — Reaper Track Count vs Export Time\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='music:project' that satisfy the UC-25.45.24 SPL filters for 'Reaper Track Count vs Export Time'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `music:project` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.45.24."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='music:project' where `project_size` satisfies detection threshold for UC-25.45.24 ('Reaper Track Count vs Export Time'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `music:project` events where `project_size` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.45.24."
   },
   "dataSources": "Release events (`music:distribution`), Bandcamp activity (`music:bandcamp`), project exports (`music:project`), streaming analytics (`music:streaming`), metadata tasks (`music:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Music-making and creator telemetry — DistroKid release exports, Bandcamp sales activity, Cockos Reaper project stats, and Spotify for Artists analytics — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=music:project project_size=* export_time_min=*\n| stats avg(export_time_min) as avg_export_time_min, count as events by project_size\n| sort - avg_export_time_min",
-  "description": "Shows average export time minutes by project size band for Reaper project exports.",
-  "value": "Average export time minutes by project size band helps compare Reaper project exports across the factors that matter most.",
+  "description": "Shows average export time minutes by project size band for Reaper project exports. Searches `index=personal` with sourcetype `music:project` for UC-25.45.24, aggregating `avg` by `project_size` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Reaper Track Count vs Export Time' without manual log review.",
+  "value": "Shows average export time minutes by project size band for Reaper project exports. Timely UC-25.45.24 alerting on 'Reaper Track Count vs Export Time' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture `export_time_min` on `music:project` events and normalize `project_size` so Splunk can summarize performance by project size band.",
   "visualization": "Bar chart of average export time minutes by project size band.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Reaper Track Count vs Export Time'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `music:project`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Reaper Track Count vs Export Time' stops polling `music:project`; stale `project_size` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `music:project`. Dedup with `stats latest(*) by project_size`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

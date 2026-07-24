@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Microsoft IIS HTTP 500.x Sub-Status Code Breakdown' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_microsoft_iis_http_500_x_sub_status_code_breakdo` (UC-8.2.40), SOC dashboard panel \"Operations — Microsoft IIS HTTP 500.x Sub-Status Code Breakdown\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='ms:iis:auto' that satisfy the UC-8.2.40 SPL filters for 'Microsoft IIS HTTP 500.x Sub-Status Code Breakdown'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `ms:iis:auto` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.40."
+    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='ms:iis:auto' where `sc_status` satisfies `sc_status` >= 500 for UC-8.2.40 ('Microsoft IIS HTTP 500.x Sub-Status Code Breakdown'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `web` / `ms:iis:auto` events where `sc_status` stays below `sc_status` >= 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.40."
   },
   "dataSources": "`index=web` `sourcetype=ms:iis:auto` W3C extended logs with `sc-status` and `sc-substatus` fields",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`); Splunk Add-on for Microsoft IIS (Splunkbase 3185)",
   "spl": "index=web sourcetype=\"ms:iis:auto\"\n| where sc_status >= 500 AND sc_status < 600\n| eval sub=coalesce('sc-substatus', sc_substatus, \"0\")\n| stats count by sc_status, sub, s_sitename\n| sort - count",
   "description": "IIS substatus codes differentiate configuration lockdown (500.19) from module crashes (500.0). Without `sc-substatus`, operations teams guess from sparse client errors instead of precise failure classes.",
-  "value": "Targets the right remediation playbook per failure class and shortens Sev-1 bridges.",
+  "value": "IIS substatus codes differentiate configuration lockdown (500. Timely UC-8.2.40 alerting on 'Microsoft IIS HTTP 500.x Sub-Status Code Breakdown' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Splunk Add-on for Microsoft IIS (Splunkbase 3185); ensure substatus field enabled in IIS logging. Map 500.19 to config errors, 500.0 to module crashes.",
   "visualization": "Stacked bars for status/substatus, Perfmon timecharts, top client tables.",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Microsoft IIS HTTP 500.x Sub-Status Code Breakdown'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `web` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'Microsoft IIS HTTP 500.x Sub-Status Code Breakdown' shifts `count` over `span=1h` while `sc_status` remains in-scope for UC-8.2.40. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ms:iis:auto`** — Scheduled automation elevates `sub` without crossing `sc_status` >= 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sc_status`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ms:iis:auto`** — First 48h baseline for `sc_status` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sc_status`, `exception_reason`, `valid_until`.",
   "equipment": [
     "iis",
     "windows"

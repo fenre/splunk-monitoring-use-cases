@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Cold & Flu Recovery Curve' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_cold_flu_recovery_curve` (UC-25.35.9), SOC dashboard panel \"Personal — Cold & Flu Recovery Curve\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='symptom:log' that satisfy the UC-25.35.9 SPL filters for 'Cold & Flu Recovery Curve'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `symptom:log` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.35.9."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='symptom:log' where `episode` satisfies detection threshold for UC-25.35.9 ('Cold & Flu Recovery Curve'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `symptom:log` events where `episode` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.35.9."
   },
   "dataSources": "Posture readings (`posture:reading`), symptom logs (`symptom:log`), bathroom visits (`bathroom:visit`), sneeze events (`sneeze:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Everyday body-signal logs — posture sensors, symptom and allergy journals, hydration-linked bathroom logs, and quirky personal counters — sent to Splunk HEC via wearables, MQTT, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=symptom:log episode=*\n| stats min(_time) as onset, max(_time) as recovered, max(severity) as peak by episode\n| eval duration_days=round((recovered-onset)/86400,1)\n| sort - onset",
-  "description": "Records how long each cold or illness lasted and how bad it got, building your personal recovery history.",
-  "value": "Knowing your typical recovery time sets expectations and flags when an illness is dragging on unusually long.",
+  "description": "Records how long each cold or illness lasted and how bad it got, building your personal recovery history. Searches `index=personal` with sourcetype `symptom:log` for UC-25.35.9, aggregating `min` by `episode` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Cold & Flu Recovery Curve' without manual log review.",
+  "value": "Records how long each cold or illness lasted and how bad it got, building your personal recovery history. Timely UC-25.35.9 alerting on 'Cold & Flu Recovery Curve' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Group symptom episodes in `index=personal`; review duration and peak severity per illness.",
   "visualization": "Table of illness episodes with duration and peak severity.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Cold & Flu Recovery Curve'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `symptom:log`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Cold & Flu Recovery Curve' stops polling `symptom:log`; stale `episode` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `min` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `symptom:log`. Dedup with `stats latest(*) by episode`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

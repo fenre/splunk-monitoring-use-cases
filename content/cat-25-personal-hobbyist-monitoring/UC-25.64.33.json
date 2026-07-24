@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Motorcycles & Powersports Cross-Feed Daily Correlation' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_motorcycles_powersports_cross_feed_daily_correla` (UC-25.64.33), SOC dashboard panel \"Personal — Motorcycles & Powersports Cross-Feed Daily Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rever:ride' that satisfy the UC-25.64.33 SPL filters for 'Motorcycles & Powersports Cross-Feed Daily Correlation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `rever:ride` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.64.33."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rever:ride' where `_time` satisfies detection threshold for UC-25.64.33 ('Motorcycles & Powersports Cross-Feed Daily Correlation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `rever:ride` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.64.33."
   },
   "dataSources": "Garmin Zumo ride data (`garmin:zumo`), motorcycle OBD-II telemetry (`obd:bike`), RaceChrono laps (`racechrono:lap`), REVER rides (`rever:ride`), and RevZilla orders (`revzilla:order`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Garmin Zumo ride exports, motorcycle OBD-II telemetry, RaceChrono track sessions, REVER ride logs, and RevZilla order history forwarded into Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "(index=personal sourcetype=rever:ride) OR (index=personal sourcetype=garmin:zumo)\n| bin _time span=1d\n| eval feed=case(sourcetype=\"rever:ride\",\"primary\",sourcetype=\"garmin:zumo\",\"secondary\",1=1,\"other\")\n| stats count as events by _time feed\n| chart sum(events) over _time by feed",
-  "description": "Lines up daily volume from rever:ride and garmin:zumo to see whether two motorcycles feeds move together.",
-  "value": "When two related exports diverge — one busy, one silent — it usually means a connector broke on only one path.",
+  "description": "Lines up daily volume from rever:ride and garmin:zumo to see whether two motorcycles feeds move together. Searches `index=personal` with sourcetype `rever:ride` for UC-25.64.33, aggregating `sum` by `_time` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Motorcycles & Powersports Cross-Feed Daily Correlation' without manual log review.",
+  "value": "Lines up daily volume from rever:ride and garmin:zumo to see whether two motorcycles feeds move together. Timely UC-25.64.33 alerting on 'Motorcycles & Powersports Cross-Feed Daily Correlation' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward both `rever:ride` and `garmin:zumo` into `index=personal` and compare daily counts on one chart.",
   "visualization": "Dual-line chart of daily events per sourcetype.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Motorcycles & Powersports Cross-Feed Daily Correlation'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rever:ride`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Motorcycles & Powersports Cross-Feed Daily Correlation' stops polling `rever:ride`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rever:ride`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Curology Prescription Days Supply Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_curology_prescription_days_supply_leaderboard` (UC-25.104.9), SOC dashboard panel \"Personal — Curology Prescription Days Supply Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='curology:prescription' that satisfy the UC-25.104.9 SPL filters for 'Curology Prescription Days Supply Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `curology:prescription` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.104.9."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='curology:prescription' where `formula_name` satisfies detection threshold for UC-25.104.9 ('Curology Prescription Days Supply Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `curology:prescription` events where `formula_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.104.9."
   },
   "dataSources": "Curology prescriptions (`curology:prescription`), skin diaries (`skin:diary`), dermatology appointments (`derm:appointment`), and UV exposure logs (`uv:exposure`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Curology prescription shipments, daily skin diary entries, dermatology appointment exports, and UV exposure tracker logs ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=curology:prescription bottle_days_supply=*\n| stats sum(bottle_days_supply) as total_value, avg(bottle_days_supply) as avg_value by formula_name\n| sort - total_value",
-  "description": "Ranks formula values by total and average days supply across Curology prescription events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks formula values by total and average days supply across Curology prescription events. Searches `index=personal` with sourcetype `curology:prescription` for UC-25.104.9, aggregating `sum` by `formula_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Curology Prescription Days Supply Leaderboard' without manual log review.",
+  "value": "Ranks formula values by total and average days supply across Curology prescription events. Timely UC-25.104.9 alerting on 'Curology Prescription Days Supply Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `bottle_days_supply` values for each Curology prescription event and review total and average days supply by formula.",
   "visualization": "Table of entities ranked by total days supply.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Curology Prescription Days Supply Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `curology:prescription`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Curology Prescription Days Supply Leaderboard' stops polling `curology:prescription`; stale `formula_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `curology:prescription`. Dedup with `stats latest(*) by formula_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

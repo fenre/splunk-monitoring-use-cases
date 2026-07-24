@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Firmware Version Compliance Across Fleet' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_firmware_version_compliance_across_fleet` (UC-14.1.12), SOC dashboard panel \"Operations — Firmware Version Compliance Across Fleet\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='snmp:inventory' that satisfy the UC-14.1.12 SPL filters for 'Firmware Version Compliance Across Fleet'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `snmp:inventory` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.1.12."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='snmp:inventory' where `device_name` satisfies detection threshold for UC-14.1.12 ('Firmware Version Compliance Across Fleet'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `snmp:inventory` events where `device_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.1.12."
   },
   "dataSources": "`sourcetype=\"snmp:inventory\"` (sysDescr, entPhysicalFirmwareRev) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "SNMP TA (ENTITY-MIB, vendor OIDs), SolarWinds/Prime export — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"snmp:inventory\"\n| stats latest(firmware_version) as fw by device_name, model\n| lookup approved_network_firmware.csv model OUTPUT approved_fw\n| where fw!=approved_fw\n| table device_name, model, fw, approved_fw",
-  "description": "Known-bad IOS/NX-OS/IOS-XE builds expose the network to CVEs; compliance reporting supports change windows.",
+  "description": "Known-bad IOS/NX-OS/IOS-XE builds expose the network to CVEs; compliance reporting supports change windows. Searches `index=network` with sourcetype `snmp:inventory` for UC-14.1.12, aggregating `count` by `device_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Firmware Version Compliance Across Fleet' without manual log review.",
   "value": "Early 'Firmware Version Compliance Across Fleet' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Poll ENTITY-MIB / vendor firmware revision OIDs on a weekly schedule. Maintain CSV of approved builds per platform. Drive remediation tickets for non-compliant devices.",
   "visualization": "Table (non-compliant devices), Pie chart (compliance %), Bar chart (by site).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Firmware Version Compliance Across Fleet'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Firmware Version Compliance Across Fleet' shifts `count` over `span=1h` while `device_name` remains in-scope for UC-14.1.12. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:inventory`** — Scheduled automation elevates `model` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `device_name`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:inventory`** — First 48h baseline for `device_name` is unstable; join `approved_network_firmware.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `device_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp"

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Configuration Drift Analysis' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_configuration_drift_analysis` (UC-10.13.42), SOC dashboard panel \"Security Infra — Configuration Drift Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' that satisfy the UC-10.13.42 SPL filters for 'Configuration Drift Analysis'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.42."
+    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' where `object_id` satisfies `count` > 5 for UC-10.13.42 ('Configuration Drift Analysis'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events where `object_id` stays below `count` > 5, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.42."
   },
   "dataSources": "`object_id`, `object_attrs` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Change CIM, config mgmt — Universal Forwarder (Splunkbase 617)",
   "spl": "index=security tag=change change_type=update\n| stats count by object_id, user\n| where count>5\n| lookup snow_changes object_id OUTPUT ticket\n| where isnull(ticket)",
-  "description": "Repeated `change_type=update` on same `object_id` without matching change record — drift vs. process.",
+  "description": "Repeated `change_type=update` on same `object_id` without matching change record — drift vs. process. Searches `index=security` with sourcetype `configured sourcetype` for UC-10.13.42, aggregating `count` by `object_id` over `the scheduled window`. Alerts when grouped results cross `count` > 5 in the saved search. Gives Security Infra operators a repeatable signal for 'Configuration Drift Analysis' without manual log review.",
   "value": "Early 'Configuration Drift Analysis' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Integrate Ansible Tower job IDs as authorized change keys.",
   "visualization": "Table (drift objects), Bar chart.",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Configuration Drift Analysis'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=security` `configured sourcetype`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `security`** — Planned work for 'Configuration Drift Analysis' shifts `count` over `span=1h` while `object_id` remains in-scope for UC-10.13.42. Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `user` without crossing `count` > 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `object_id`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `object_id` is unstable; join `snow_changes` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `object_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ansible",
     "servicenow"

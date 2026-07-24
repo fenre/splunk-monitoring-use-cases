@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Bandwidth Hog Identification' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_bandwidth_hog_identification` (UC-25.9.8), SOC dashboard panel \"Personal — Bandwidth Hog Identification\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='unifi:event' that satisfy the UC-25.9.8 SPL filters for 'Bandwidth Hog Identification'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `unifi:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='unifi:event' where `hostname` satisfies detection threshold for UC-25.9.8 ('Bandwidth Hog Identification'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `unifi:event` events where `hostname` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.8."
   },
   "dataSources": "UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=unifi:event\n| bin _time span=1d\n| stats sum(tx_bytes) as up_bytes, sum(rx_bytes) as down_bytes by hostname _time\n| eval total_gb=round((up_bytes+down_bytes)/1073741824,2)\n| stats avg(total_gb) as avg_daily_gb by hostname\n| sort - avg_daily_gb",
   "description": "Ranks which devices use the most data each day, explaining a slow connection or a data-capped plan creeping toward its limit.",
-  "value": "When the internet feels slow, the culprit is usually one device; ranking daily usage names it without guesswork.",
+  "value": "Ranks which devices use the most data each day, explaining a slow connection or a data-capped plan creeping.... Timely UC-25.9.8 alerting on 'Bandwidth Hog Identification' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward per-client traffic counters; schedule daily and review the heaviest users.",
   "visualization": "Bar chart of average daily data use by device.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Bandwidth Hog Identification'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifi:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Bandwidth Hog Identification' stops polling `unifi:event`; stale `hostname` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifi:event`. Dedup with `stats latest(*) by hostname`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "syslog"
   ],

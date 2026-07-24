@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Ambient Noise Level Monitoring and Trend Analysis (Meraki MT)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ambient_noise_level_monitoring_and_trend_analysi` (UC-14.1.21), SOC dashboard panel \"Operations — Ambient Noise Level Monitoring and Trend Analysis (Meraki MT)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=meraki` sourcetype='meraki:sensorreadingshistory' that satisfy the UC-14.1.21 SPL filters for 'Ambient Noise Level Monitoring and Trend Analysis (Meraki MT)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `meraki` / `meraki:sensorreadingshistory` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.1.21."
+    "positiveScenario": "Ingest synthetic events into `index=meraki` sourcetype='meraki:sensorreadingshistory' where `serial` satisfies detection threshold for UC-14.1.21 ('Ambient Noise Level Monitoring and Trend Analysis (Meraki MT)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `meraki` / `meraki:sensorreadingshistory` events where `serial` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.1.21."
   },
   "dataSources": "`index=meraki sourcetype=meraki:sensorreadingshistory metric=\"noise\"` from the `cisco_meraki_sensor_readings_history` input in `Splunk_TA_cisco_meraki` (Splunkbase 5580). Key fields: `serial`, `network.name`, `metric`, `noise.ambient.level` (dBA), `ts`.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:sensorreadingshistory\" metric=\"noise\"\n| rename \"noise.ambient.level\" as noise_db\n| timechart span=15m avg(noise_db) as avg_noise_db, max(noise_db) as peak_noise_db by serial limit=10",
-  "description": "Tracks noise levels to ensure comfortable working environment and detect anomalies.",
+  "description": "Tracks noise levels to ensure comfortable working environment and detect anomalies. Searches `index=meraki` with sourcetype `meraki:sensorreadingshistory` for UC-14.1.21, aggregating `avg` by `serial` over `15m`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Ambient Noise Level Monitoring and Trend Analysis (Meraki MT)' without manual log review.",
   "value": "Early 'Ambient Noise Level Monitoring and Trend Analysis (Meraki MT)' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Configure `cisco_meraki_sensor_readings_history` for MT15/MT20 sensors that include the ambient noise mic. Use `timechart` for trend visualisation. WHO recommends keeping office ambient noise below 55 dBA.",
   "visualization": "Noise level gauge; time-of-day heat map; location comparison chart.",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Ambient Noise Level Monitoring and Trend Analysis (Meraki MT)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `meraki` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki`** — Planned work for 'Ambient Noise Level Monitoring and Trend Analysis (Meraki MT)' shifts `avg` over `span=15m` while `serial` remains in-scope for UC-14.1.21. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `meraki:sensorreadingshistory`** — Scheduled automation elevates `limit=10` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `serial`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:sensorreadingshistory`** — First 48h baseline for `serial` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `serial`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

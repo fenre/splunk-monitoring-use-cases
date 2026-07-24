@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Pure Storage array alert storm detection from unified alert feed' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_pure_storage_array_alert_storm_detection_from_un` (UC-6.1.79), SOC dashboard panel \"Operations — Pure Storage array alert storm detection from unified alert feed\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='purestorage:alert' that satisfy the UC-6.1.79 SPL filters for 'Pure Storage array alert storm detection from unified alert feed'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `purestorage:alert` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.79."
+    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='purestorage:alert' where `arr` satisfies `alert_count` > 25 for UC-6.1.79 ('Pure Storage array alert storm detection from unified alert feed'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `storage` / `purestorage:alert` events where `arr` stays below `alert_count` > 25, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.79."
   },
   "dataSources": "Normalized alerts in `purestorage:alert` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Pure Storage Unified Add-on for Splunk (5513) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"purestorage:alert\" earliest=-15m\n| eval arr=coalesce(array_name, array)\n| stats count as alert_count dc(component) as components dc(message) as signatures by arr\n| where alert_count > 25 OR components > 10",
   "description": "Alert storms usually precede controller instability, fan-out of path failures, or misconfigured monitoring loops. Detecting burstiness triggers runbook steps before human fatigue sets in.",
-  "value": "Improves operator focus during incidents and prevents duplicate tickets from noisy dependencies.",
+  "value": "Alert storms usually precede controller instability, fan-out of path failures, or misconfigured monitoring.... Timely UC-6.1.79 alerting on 'Pure Storage array alert storm detection from unified alert feed' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Use `streamstats` for rolling rate if static thresholds fail. Join with network maintenance lookup to suppress known events.",
   "visualization": "Histogram of alert rate, table (array, count).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Pure Storage array alert storm detection from unified alert feed'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `storage` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'Pure Storage array alert storm detection from unified alert feed' shifts `dc` over `span=1h` while `arr` remains in-scope for UC-6.1.79. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `purestorage:alert`** — Scheduled automation elevates `arr` without crossing `alert_count` > 25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `arr`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `purestorage:alert`** — First 48h baseline for `arr` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `arr`, `exception_reason`, `valid_until`.",
   "equipment": [
     "pure_storage"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Varnish Cache Hit Ratio Trending (HIT vs MISS vs PASS)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_varnish_cache_hit_ratio_trending_hit_vs_miss_vs_` (UC-5.14.9), SOC dashboard panel \"Operations — Varnish Cache Hit Ratio Trending (HIT vs MISS vs PASS)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='varnish:vsl' that satisfy the UC-5.14.9 SPL filters for 'Varnish Cache Hit Ratio Trending (HIT vs MISS vs PASS)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `proxy` / `varnish:vsl` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.9."
+    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='varnish:vsl' where `entity` satisfies detection threshold for UC-5.14.9 ('Varnish Cache Hit Ratio Trending (HIT vs MISS vs PASS)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `proxy` / `varnish:vsl` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.9."
   },
   "dataSources": "`index=proxy` `sourcetype=varnish:vsl` (Varnish Shared Log / `varnishncsa` VSL tags) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"varnish:vsl\"\n| eval hit=if(match(_raw, \"(?i)\\bHIT\\b|VCL_hit\"),1,0)\n| eval miss=if(match(_raw, \"(?i)VCL_miss|\\bMISS\\b\"),1,0)\n| eval pass=if(match(_raw, \"(?i)VCL_pass|\\bPASS\\b\"),1,0)\n| bin _time span=5m\n| stats sum(hit) as hits sum(miss) as misses sum(pass) as passes\n| eval hit_ratio=round(100*hits/(hits+misses+passes+0.001),2)\n| timechart span=5m avg(hit_ratio) as hit_pct",
   "description": "Hit ratio ties origin cost and latency directly to cache effectiveness. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Operations teams trend Varnish cache hit, miss, and pass ratios over time, identifying cache effectiveness degradation and high-pass-rate endpoints that bypass caching.",
+  "value": "Hit ratio ties origin cost and latency directly to cache effectiveness. Timely UC-5.14.9 alerting on 'Varnish Cache Hit Ratio Trending (HIT vs MISS vs PASS)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ship VSL via `varnishncsa` custom format or HEC JSON lines. For counter view add `varnish:stats` companion panel.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Varnish Cache Hit Ratio Trending (HIT vs MISS vs PASS)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `proxy` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy`** — Planned work for 'Varnish Cache Hit Ratio Trending (HIT vs MISS vs PASS)' shifts `sum` over `span=5m` while `host` remains in-scope for UC-5.14.9. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `varnish:vsl`** — Scheduled automation elevates `hit` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `varnish:vsl`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog",
     "varnish"

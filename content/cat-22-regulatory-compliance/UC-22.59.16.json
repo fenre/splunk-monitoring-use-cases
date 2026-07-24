@@ -29,14 +29,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "A propulsion-control unit installed under UR E26 scope shows no E27 attestation 14 days after commissioning. UC-22.59.16 MUST flag status=breach-no-attestation.",
-    "negativeScenario": "An OEM-provided E27 attestation is current and the installed firmware matches the attested revision. UC-22.59.16 MUST record status=compliant."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-22.59.16 ('IACS UR E27 OT-equipment cyber-resilience attestation register — equipment-level evidence chain'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.59.16."
   },
   "dataSources": "KV Store `iacs_ur_e27_attestation_lookup` (equipment-level register). KV Store `imo_crar_components_lookup` (cyber-vulnerable component register, from UC-22.59.3). Cisco Cyber Vision / Claroty / Nozomi / Dragos firmware-discovery events (`cisco:cybervision:asset`, `claroty:ctd:asset`, `nozomi:guardian:asset`, `dragos:platform:asset`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Add-on for Claroty (Splunkbase 5018), Splunk Add-on for Nozomi Networks (Splunkbase 4894), Splunk Add-on for Dragos (Splunkbase 5048), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup imo_crar_components_lookup\n| where e27_in_scope = \"true\"\n| lookup iacs_ur_e27_attestation_lookup imo_number equipment_id OUTPUT attestation_id e27_revision attestation_at attested_firmware\n| eval now_ts = now()\n| eval status = case(\n    isnull(attestation_id), \"breach-no-attestation\",\n    isnotnull(attested_firmware) AND installed_firmware != attested_firmware, \"breach-firmware-mismatch\",\n    e27_revision != \"Rev.3\", \"breach-revision-mismatch\",\n    1=1, \"compliant\")\n| where status NOT IN (\"compliant\")\n| sort 0 imo_number equipment_id\n| table imo_number equipment_id equipment_type vendor model installed_firmware attested_firmware attestation_id e27_revision status",
   "description": "Tracks every E27-in-scope OT component against the vendor / class-society attestation register; raises an alert when no attestation exists, the installed firmware drifts from the attested version, or the attestation revision is outdated.",
-  "value": "E27 is the equipment-level counterpart of E26. Firmware drift between the attested baseline and the installed equipment is the single most common audit finding; this UC closes the gap.",
+  "value": "Tracks every E27-in-scope OT component against the vendor / class-society attestation register; raises an a.... Timely UC-22.59.16 alerting on 'IACS UR E27 OT-equipment cyber-resilience attestation register — equipment-level evidence chain' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Build the E27 attestation KV Store. (2) Wire the supply-chain / engineering department to register every OT component delivery against UR E27 scope. (3) Compare the OT-discovery feed against the attested firmware. (4) Schedule UC-22.59.16 daily; route P3 for drift findings.",
   "visualization": "(Panel 1) Fleet E27 equipment attestation table. (Panel 2) Firmware-drift count per vessel. (Panel 3) Top vendors by attestation gaps. (Panel 4) Attestation-revision mix.",
   "cimModels": [
@@ -64,7 +64,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Firmware-version aliasing**: the OEM ships v3.4.1 but the OT-discovery sensor reports v3.4.1-build42; align the comparison logic to ignore build-suffix differences. 2. **Replacement spare parts**: an emergency engine-control card swap may briefly create an attestation gap; honour a 14-day grace window before raising P3.\n\n**Suppression mechanism**: KV Store `imo_22_59_16_exceptions` with the Company Security Officer documented approval.",
+  "knownFalsePositives": "1. **Authorised IMO MSC 428 98 control testing** — Internal audit exercises 'IACS UR E27 OT-equipment cyber-resilience attestation register — equipment-level evidence chain' (UC-22.59.16) on `entity` during scheduled clause IACS-UR-E27-r3 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `imo_msc_428_98_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `imo_msc_428_98_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (compliance attestation register)"
   ],

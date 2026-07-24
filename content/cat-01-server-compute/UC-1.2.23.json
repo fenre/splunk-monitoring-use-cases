@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Non-Paged Pool Exhaustion' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_non_paged_pool_exhaustion` (UC-1.2.23), SOC dashboard panel \"Linux — Non-Paged Pool Exhaustion\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=perfmon` sourcetype='Perfmon:Memory' that satisfy the UC-1.2.23 SPL filters for 'Non-Paged Pool Exhaustion'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `perfmon` / `Perfmon:Memory` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.23."
+    "positiveScenario": "Ingest synthetic events into `index=perfmon` sourcetype='Perfmon:Memory' where `host` satisfies `nonpaged_pool_MB` > 256 for UC-1.2.23 ('Non-Paged Pool Exhaustion'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `perfmon` / `Perfmon:Memory` events where `host` stays below `nonpaged_pool_MB` > 256, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.23."
   },
   "dataSources": "`sourcetype=Perfmon:Memory` (counter: Pool Nonpaged Bytes) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=perfmon sourcetype=\"Perfmon:Memory\" counter=\"Pool Nonpaged Bytes\"\n| eval pool_MB = Value / 1048576\n| timechart span=15m avg(pool_MB) as nonpaged_pool_MB by host\n| where nonpaged_pool_MB > 256",
   "description": "Non-paged pool memory is limited kernel memory. Exhaustion causes BSOD (DRIVER_IRQL_NOT_LESS_OR_EQUAL). Often caused by driver leaks.",
-  "value": "Nonpaged pool exhaustion is a kernel-level stop risk—earlier than waiting for a random hang with no user-facing error code.",
+  "value": "Non-paged pool memory is limited kernel memory. Timely UC-1.2.23 alerting on 'Non-Paged Pool Exhaustion' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Add `Pool Nonpaged Bytes` and `Pool Nonpaged Allocs` to Memory Perfmon inputs (interval=60). Default limit is ~75% of RAM or registry-defined. Alert at 256MB+ or when growth is sustained over hours. Use `poolmon.exe` or `xperf` to identify the leaking driver tag on affected hosts.",
   "visualization": "Line chart (pool growth over time), Single value (current pool size), Alert threshold marker.",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Non-Paged Pool Exhaustion'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `perfmon` `Perfmon:Memory`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `perfmon`** — Package managers spike `host` metrics for 'Non-Paged Pool Exhaustion'. Correlate with apt/yum logs in the same `Perfmon:Memory` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `Perfmon:Memory`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `nonpaged_pool_MB` > 256.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Migration Chain Timeline' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_migration_chain_timeline` (UC-25.55.16), SOC dashboard panel \"Personal — Migration Chain Timeline\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ancestor:event' that satisfy the UC-25.55.16 SPL filters for 'Migration Chain Timeline'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `ancestor:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.55.16."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ancestor:event' where `ancestor_id` satisfies detection threshold for UC-25.55.16 ('Migration Chain Timeline'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `ancestor:event` events where `ancestor_id` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.55.16."
   },
   "dataSources": "Tree records (`genealogy:record`), DNA matches (`dna:match`), ancestor events (`ancestor:event`), archive documents (`archive:document`), tree nodes (`familytree:node`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Genealogy and family-history research — tree platforms (Ancestry, FamilySearch), DNA match exports (23andMe, MyHeritage), and document / archive catalogues — streamed to Splunk HEC via GEDCOM and CSV exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=ancestor:event event_type=migration\n| sort 0 ancestor_id _time\n| streamstats current=f last(location) as previous_location by ancestor_id\n| where isnotnull(previous_location)\n| stats count as moves by ancestor_id",
-  "description": "Counts documented migration steps for each ancestor to show which life journeys are richly traced versus barely known.",
-  "value": "Migration chains are central to family history storytelling and often reveal where the next record should exist.",
+  "description": "Counts documented migration steps for each ancestor to show which life journeys are richly traced versus barely known. Searches `index=personal` with sourcetype `ancestor:event` for UC-25.55.16, aggregating `count` by `ancestor_id` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Migration Chain Timeline' without manual log review.",
+  "value": "Counts documented migration steps for each ancestor to show which life journeys are richly traced versus ba.... Timely UC-25.55.16 alerting on 'Migration Chain Timeline' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture migration events with chronological location data and count sequential moves per ancestor.",
   "visualization": "Table of ancestors with documented migration move count.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Migration Chain Timeline'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ancestor:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Migration Chain Timeline' stops polling `ancestor:event`; stale `ancestor_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ancestor:event`. Dedup with `stats latest(*) by ancestor_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

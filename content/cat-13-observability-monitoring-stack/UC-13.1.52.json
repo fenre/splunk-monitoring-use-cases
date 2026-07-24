@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Prometheus Scrape Duration Seconds P99 Regression' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_prometheus_scrape_duration_seconds_p99_regressio` (UC-13.1.52), SOC dashboard panel \"Operations — Prometheus Scrape Duration Seconds P99 Regression\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=prometheus` sourcetype='target_sourcetype' that satisfy the UC-13.1.52 SPL filters for 'Prometheus Scrape Duration Seconds P99 Regression'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `prometheus` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.52."
+    "positiveScenario": "Ingest synthetic events into `index=prometheus` sourcetype='target_sourcetype' where `job` satisfies `avg_scrape` > 8 for UC-13.1.52 ('Prometheus Scrape Duration Seconds P99 Regression'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `prometheus` / `target_sourcetype` events where `job` stays below `avg_scrape` > 8, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.52."
   },
   "dataSources": "Splunk metrics index from Prometheus remote write or OTel (`metric_name=scrape_duration_seconds`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "OpenTelemetry Collector Prometheus receiver → Splunk Observability Cloud or Splunk Platform metrics — Universal Forwarder (Splunkbase 617)",
   "spl": "| mstats avg(_value) AS avg_scrape WHERE index=prometheus metric_name=\"scrape_duration_seconds\" span=5m BY job, instance\n| where avg_scrape > 8\n| sort - avg_scrape",
   "description": "Slow scrapes delay evaluations and can skip intervals on large targets. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects targets approaching scrape_timeout before silent metric gaps appear. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Slow scrapes delay evaluations and can skip intervals on large targets. Timely UC-13.1.52 alerting on 'Prometheus Scrape Duration Seconds P99 Regression' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ensure `job` and `instance` labels preserved; align `span` with scrape interval.",
   "visualization": "Line chart (p99 scrape duration), Table (worst targets).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Prometheus Scrape Duration Seconds P99 Regression'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `prometheus` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `prometheus`** — Planned work for 'Prometheus Scrape Duration Seconds P99 Regression' shifts `avg` over `span=5m` while `job` remains in-scope for UC-13.1.52. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `instance` without crossing `avg_scrape` > 8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job`** — Health checks in `prometheus` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `job` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job`, `exception_reason`, `valid_until`.",
   "equipment": [
     "opentelemetry",
     "prometheus"

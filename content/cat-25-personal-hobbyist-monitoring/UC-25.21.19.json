@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'FT8 Spot Volume by Band' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_ft8_spot_volume_by_band` (UC-25.21.19), SOC dashboard panel \"Personal — FT8 Spot Volume by Band\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ft8:spot' that satisfy the UC-25.21.19 SPL filters for 'FT8 Spot Volume by Band'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `ft8:spot` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.21.19."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ft8:spot' where `_time` satisfies detection threshold for UC-25.21.19 ('FT8 Spot Volume by Band'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `ft8:spot` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.21.19."
   },
   "dataSources": "FT8 spots (`ft8:spot`), JS8Call messages (`js8call:message`), PSKReporter receptions (`pskreporter:spot`), Direwolf TNC telemetry (`direwolf:packet`), and NOAA APT pass events (`noaaapt:pass`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Weak-signal and decoder telemetry from WSJT-X FT8, JS8Call, PSKReporter, Direwolf TNC, NOAA APT pass schedulers, and station-control scripts sent to Splunk HEC via APIs, ADIF/log exports, and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=ft8:spot\n| search mode=FT8\n| bin _time span=1d\n| stats count as spots, dc(dx_call) as dx_stations by _time band\n| sort - _time",
   "description": "Tracks FT8 spot volume over time and breaks it out by band. Runs scheduled SPL against `index=personal` to surface **FT8 Spot Volume by Band** so you can spot drift before it becomes a habit.",
-  "value": "Band-level spot counts show where propagation is really carrying your station. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Tracks FT8 spot volume over time and breaks it out by band. Timely UC-25.21.19 alerting on 'FT8 Spot Volume by Band' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send FT8 spot volume events to `index=personal` with the fields used in the breakdown and review the resulting trend at 1d granularity.",
   "visualization": "Stacked time chart of FT8 spot volume by band.",
   "cimModels": [],
@@ -54,7 +54,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'FT8 Spot Volume by Band'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ft8:spot`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'FT8 Spot Volume by Band' stops polling `ft8:spot`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `dc` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ft8:spot`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

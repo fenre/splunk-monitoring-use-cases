@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Email Volume Anomaly' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_email_volume_anomaly` (UC-10.13.30), SOC dashboard panel \"Security Infra — Email Volume Anomaly\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' that satisfy the UC-10.13.30 SPL filters for 'Email Volume Anomaly'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.30."
+    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' where `entity` satisfies `count` > 2 for UC-10.13.30 ('Email Volume Anomaly'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events where `entity` stays below `count` > 2, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.30."
   },
   "dataSources": "`Email` CIM Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Exchange, Proofpoint → Email — Universal Forwarder (Splunkbase 617)",
   "spl": "index=security tag=email\n| timechart span=1h count\n| predict count as prediction algorithm=LLP future_timespan=0\n| where count > 2*prediction",
-  "description": "Spike in `Email` model message count may indicate spam flood, phish campaign, or misconfigured relay.",
+  "description": "Spike in `Email` model message count may indicate spam flood, phish campaign, or misconfigured relay. Searches `index=security` with sourcetype `configured sourcetype` for UC-10.13.30, aggregating `count` by `entity` over `1h`. Alerts when grouped results cross `count` > 2 in the saved search. Gives Security Infra operators a repeatable signal for 'Email Volume Anomaly' without manual log review.",
   "value": "Early 'Email Volume Anomaly' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Seasonal business hours in `predict`; whitelist marketing bursts via subject lookup.",
   "visualization": "Line chart (actual vs. predicted), Single value (ratio).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Email Volume Anomaly'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=security` `configured sourcetype`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `security`** — Planned work for 'Email Volume Anomaly' shifts `count` over `span=1h` while `host` remains in-scope for UC-10.13.30. Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `src` without crossing `count` > 2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "exchange",
     "proofpoint"

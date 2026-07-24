@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Kindle Highlight Density by Book' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_kindle_highlight_density_by_book` (UC-25.47.26), SOC dashboard panel \"Personal — Kindle Highlight Density by Book\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reading:highlight' that satisfy the UC-25.47.26 SPL filters for 'Kindle Highlight Density by Book'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `reading:highlight` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.47.26."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reading:highlight' where `book_title` satisfies detection threshold for UC-25.47.26 ('Kindle Highlight Density by Book'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `reading:highlight` events where `book_title` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.47.26."
   },
   "dataSources": "Highlights (`reading:highlight`), book activity (`reading:book`), reviews (`reading:review`), paper libraries (`research:paper`), sync states (`reading:sync`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Reading and second-brain telemetry — Readwise review exports, Kindle highlights, Goodreads shelves, and Zotero research libraries — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=reading:highlight source_app=\"kindle\" book_title=* highlights_per_100_pages=*\n| stats avg(highlights_per_100_pages) as avg_highlights_per_100_pages, count as events by book_title\n| sort - avg_highlights_per_100_pages",
   "description": "Shows average highlights per 100 pages by book for Kindle annotation density. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Average highlights per 100 pages by book helps compare Kindle annotation density across the factors that matter most.",
+  "value": "Shows average highlights per 100 pages by book for Kindle annotation density. Timely UC-25.47.26 alerting on 'Kindle Highlight Density by Book' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture `highlights_per_100_pages` on `reading:highlight` events and normalize `book_title` so Splunk can summarize performance by book.",
   "visualization": "Bar chart of average highlights per 100 pages by book.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Kindle Highlight Density by Book'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reading:highlight`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Kindle Highlight Density by Book' stops polling `reading:highlight`; stale `book_title` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reading:highlight`. Dedup with `stats latest(*) by book_title`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

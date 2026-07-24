@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Portable Solar Recharge Recovery' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_portable_solar_recharge_recovery` (UC-25.65.1), SOC dashboard panel \"Personal — Portable Solar Recharge Recovery\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='victron:telemetry' that satisfy the UC-25.65.1 SPL filters for 'Portable Solar Recharge Recovery'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `victron:telemetry` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.65.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='victron:telemetry' where `system_name` satisfies `solar_input_watts` > 100 for UC-25.65.1 ('Portable Solar Recharge Recovery'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `victron:telemetry` events where `system_name` stays below `solar_input_watts` > 100, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.65.1."
   },
   "dataSources": "Victron telemetry (`victron:telemetry`), iOverlander place logs (`ioverlander:place`), Garmin inReach messages (`inreach:message`), and Mopeka propane readings (`mopeka:tank`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Victron Cerbo GX telemetry, iOverlander place exports, Garmin inReach check-ins, and Mopeka propane sensors streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=victron:telemetry solar_input_watts=* battery_soc_pct=*\n| sort 0 _time\n| streamstats current=f last(battery_soc_pct) as prev_soc by system_name\n| eval soc_gain=round(battery_soc_pct-prev_soc,1)\n| where solar_input_watts>100 AND soc_gain>0\n| stats avg(soc_gain) as avg_soc_gain, avg(charge_minutes) as avg_charge_minutes by system_name\n| sort - avg_soc_gain",
-  "description": "Measures how quickly the off-grid power system recovers charge when portable solar input is available.",
-  "value": "Recharge recovery tells you whether portable panels and battery settings are actually buying you resilience at camp.",
+  "description": "Measures how quickly the off-grid power system recovers charge when portable solar input is available. Searches `index=personal` with sourcetype `victron:telemetry` for UC-25.65.1, aggregating `avg` by `system_name` over `the scheduled window`. Alerts when grouped results cross `solar_input_watts` > 100 in the saved search. Gives Personal operators a repeatable signal for 'Portable Solar Recharge Recovery' without manual log review.",
+  "value": "Measures how quickly the off-grid power system recovers charge when portable solar input is available. Timely UC-25.65.1 alerting on 'Portable Solar Recharge Recovery' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward Victron solar and battery fields into Splunk and calculate charge gain after each meaningful solar window.",
   "visualization": "Table of systems with average SOC gain and charge duration.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Portable Solar Recharge Recovery'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `victron:telemetry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Portable Solar Recharge Recovery' stops polling `victron:telemetry`; stale `system_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `victron:telemetry`. Dedup with `stats latest(*) by system_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `solar_input_watts` > 100. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Ambient Weather Rain Gauge Clog Suspect' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_ambient_weather_rain_gauge_clog_suspect` (UC-25.10.34), SOC dashboard panel \"Personal — Ambient Weather Rain Gauge Clog Suspect\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ambientweather:obs' that satisfy the UC-25.10.34 SPL filters for 'Ambient Weather Rain Gauge Clog Suspect'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `ambientweather:obs` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.34."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ambientweather:obs' where `station_id` satisfies `wind_kmh` > 20 for UC-25.10.34 ('Ambient Weather Rain Gauge Clog Suspect'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `ambientweather:obs` events where `station_id` stays below `wind_kmh` > 20, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.34."
   },
   "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture/greenhouse sensors, aquarium controllers (`aquarium:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=ambientweather:obs rain_mm=0 wind_kmh>20\n| stats count by station_id",
   "description": "Flags Ambient stations reporting zero rain during windy storms. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Surfacing ambient weather rain gauge clog suspect helps you act before small issues become habits.",
+  "value": "Surfacing ambient weather rain gauge clog suspect helps you act before small issues become habits reduces missed training goals, stale hobby data, and connector failures by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Ingest the relevant weather, environment & garden export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Ambient Weather Rain Gauge Clog Suspect'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ambientweather:obs`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Ambient Weather Rain Gauge Clog Suspect' stops polling `ambientweather:obs`; stale `station_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ambientweather:obs`. Dedup with `stats latest(*) by station_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `wind_kmh` > 20. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

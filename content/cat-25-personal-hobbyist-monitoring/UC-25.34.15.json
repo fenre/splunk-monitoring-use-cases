@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'No-Spend Streak Recovery Time' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_no_spend_streak_recovery_time` (UC-25.34.15), SOC dashboard panel \"Personal — No-Spend Streak Recovery Time\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='nospend:day' that satisfy the UC-25.34.15 SPL filters for 'No-Spend Streak Recovery Time'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `nospend:day` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.34.15."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='nospend:day' where `entity` satisfies detection threshold for UC-25.34.15 ('No-Spend Streak Recovery Time'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `nospend:day` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.34.15."
   },
   "dataSources": "Micro-spend transactions (`microspend:txn`), no-spend days (`nospend:day`), price-per-use items (`priceperuse:item`), cash-back rewards (`cashback:reward`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Bank-transaction exports categorised for micro-spending, no-spend-day trackers, price-per-use logs, and cash-back / rewards feeds — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=nospend:day\n| sort 0 _time\n| eval no_spend=if(status=\"success\",1,0)\n| streamstats current=t sum(eval(if(no_spend=1,1,0))) as streak reset_after=\"(no_spend=0)\"\n| stats max(streak) as best_streak, avg(streak) as avg_streak, latest(streak) as current_streak",
   "description": "Shows how quickly you get back into a no-spend rhythm after a broken streak. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Recovery after a miss is the difference between a useful habit and an all-or-nothing one.",
+  "value": "Shows how quickly you get back into a no-spend rhythm after a broken streak. Timely UC-25.34.15 alerting on 'No-Spend Streak Recovery Time' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log each no-spend day with success or failure status; track best, average, and current streaks.",
   "visualization": "Streak summary tile with best, average, and current values.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'No-Spend Streak Recovery Time'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nospend:day`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'No-Spend Streak Recovery Time' stops polling `nospend:day`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nospend:day`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Download Queue Stall Detection (arr Stack)' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_download_queue_stall_detection_arr_stack` (UC-25.7.7), SOC dashboard panel \"Personal — Download Queue Stall Detection (arr Stack)\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='sonarr:event' that satisfy the UC-25.7.7 SPL filters for 'Download Queue Stall Detection (arr Stack)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `sonarr:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.7.7."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='sonarr:event' where `indexer` satisfies `problems` > 0 for UC-25.7.7 ('Download Queue Stall Detection (arr Stack)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `sonarr:event` events where `indexer` stays below `problems` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.7.7."
   },
   "dataSources": "Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player/achievements (`steam:player`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and the *arr stack (Sonarr/Radarr) APIs and webhooks via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=sonarr:event\n| stats count as events, sum(eval(status=\"warning\" OR status=\"failed\")) as problems, max(_time) as last_grab by indexer\n| eval hours_since_grab=round((now()-last_grab)/3600,1)\n| where problems>0 OR hours_since_grab>48\n| sort - problems",
   "description": "Catches when your automated download manager stalls, whether from a failing indexer or a queue that has gone quiet for too long.",
-  "value": "A silently stalled download stack means your shows just stop appearing; monitoring indexers and grab recency keeps the pipeline flowing.",
+  "value": "Catches when your automated download manager stalls, whether from a failing indexer or a queue that has gon.... Timely UC-25.7.7 alerting on 'Download Queue Stall Detection (arr Stack)' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward Sonarr/Radarr events; schedule every few hours and alert on failing indexers or a stalled queue.",
   "visualization": "Table of indexers by problem count and time since last grab.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Download Queue Stall Detection (arr Stack)'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sonarr:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Download Queue Stall Detection (arr Stack)' stops polling `sonarr:event`; stale `indexer` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sonarr:event`. Dedup with `stats latest(*) by indexer`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `problems` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,7 +12,7 @@
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:networkhealth\"\n| where healthScore > 0\n| timechart span=1h latest(healthScore) as health_score\n| eval health_score=round(health_score,1)",
   "description": "Tracks the aggregate network health score over time, revealing trends invisible in a single snapshot — the gradual post-upgrade improvement, the seasonal holiday dip, the slow degradation that's been masked by daily fluctuations. This is the line graph your CIO will look at in the quarterly business review.",
-  "value": "UC-5.13.16 shows today's number. This UC shows the *story behind the number*. A network health score of 85 today is meaningless without context — was it 90 last month (degradation) or 75 (improvement)? The trend line answers three executive questions: (1) Is the network getting better or worse? (2) Did that infrastructure investment pay off? (3) When should we expect to breach our SLA based on the current trajectory? Since this sourcetype is only ~48 KB/day, you can retain 365+ days for year-over-year comparison at negligible cost.",
+  "value": "Tracks the aggregate network health score over time, revealing trends invisible in a single snapshot — the.... Timely UC-5.13.17 alerting on 'Network Health Score Trending' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Same data feed as UC-5.13.16 — no additional input. Ensure the `catalyst` index has 365+ day retention for this sourcetype (it's so lightweight that cost is not a concern). Place the timechart as a full-width panel on the executive and NOC dashboards.",
   "visualization": "(1) Line chart: `health_score` over the selected range with y-axis 0–100 and an SLO reference line at 85. (2) Stat panel: current score, 7-day average, 30-day average, and 90-day average — showing improvement/degradation at each timescale. (3) Change-window annotations: vertical markers for firmware pushes, major incidents, and infrastructure changes from `catalyst_maintenance_windows` or `index=catalyst sourcetype=\"cisco:dnac:audit:logs\"`. (4) Week-over-week overlay: this week's line vs last week's for quick comparison.",
   "references": [
@@ -33,7 +33,7 @@
       "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Timechart"
     }
   ],
-  "knownFalsePositives": "**Planned maintenance window causing expected health score dip.** During firmware upgrades or network redesign work, the health score temporarily drops and then recovers. Distinguish by correlating with ITSM change records or audit logs. Suppress by annotating the chart with maintenance windows so viewers understand the dip was planned.\n\n**Assurance recomputation creating brief dips to 0.** The `| where healthScore > 0` filter in the SPL handles this by excluding recomputation artifacts. Without the filter, brief drops to 0 appear as dramatic dips in the trend.\n\n**Catalyst Center upgrade changing the scoring algorithm.** A Catalyst Center version upgrade may recalibrate how `healthScore` is computed, creating a step-change in the trend line that doesn't reflect an actual network change. Distinguish by checking whether the step-change coincides with a Catalyst Center upgrade date. Annotate the trend with the upgrade date.\n\n**Seasonal patterns (holidays, campus closures).** During holidays or semester breaks, reduced traffic and fewer connected devices can cause the health score to rise (fewer failure sources) or fall (standby devices not maintained). Distinguish by overlaying the trend with a calendar of closures.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Network Health Score Trending' shifts `count` over `span=1h` while `host` remains in-scope for UC-5.13.17. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:networkhealth`** — Scheduled automation elevates `health_score` without crossing `healthScore` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:networkhealth`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -52,5 +52,9 @@
   "prerequisiteUseCases": [
     "UC-5.13.16"
   ],
-  "wave": "crawl"
+  "wave": "crawl",
+  "controlTest": {
+    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:networkhealth' where `entity` satisfies `healthScore` > 0 for UC-5.13.17 ('Network Health Score Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:networkhealth` events where `entity` stays below `healthScore` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.17."
+  }
 }

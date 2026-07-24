@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Database Availability Group Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_database_availability_group_health` (UC-7.1.12), SOC dashboard panel \"Operations — Database Availability Group Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='dbconnect:ag_status' that satisfy the UC-7.1.12 SPL filters for 'Database Availability Group Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `dbconnect:ag_status` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.12."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='dbconnect:ag_status' where `entity` satisfies detection threshold for UC-7.1.12 ('Database Availability Group Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `dbconnect:ag_status` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.12."
   },
   "dataSources": "`sys.dm_hadr_availability_replica_states` (SQL Server), Oracle CRS logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "DB Connect, Splunk_TA_microsoft-sqlserver — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"dbconnect:ag_status\"\n| where synchronization_health_desc!=\"HEALTHY\" OR connected_state_desc!=\"CONNECTED\"\n| table _time, ag_name, replica_server_name, role_desc, synchronization_health_desc",
-  "description": "AG/RAC cluster health is essential for HA. Detecting unhealthy replicas prevents unplanned failover failures.",
+  "description": "AG/RAC cluster health is essential for HA. Detecting unhealthy replicas prevents unplanned failover failures. Searches `index=database` with sourcetype `dbconnect:ag_status` for UC-7.1.12, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Database Availability Group Health' without manual log review.",
   "value": "Early 'Database Availability Group Health' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Poll AG replica state DMVs every 5 minutes. Alert on any non-HEALTHY or non-CONNECTED state. Track failover events from SQL Server error log. Create dashboard showing full AG topology and health.",
   "visualization": "Status grid (replica × health state), Table (unhealthy replicas), Timeline (failover events).",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Database Availability Group Health'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Database Availability Group Health' shifts `count` over `span=1h` while `host` remains in-scope for UC-7.1.12. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbconnect:ag_status`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:ag_status`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mssql",

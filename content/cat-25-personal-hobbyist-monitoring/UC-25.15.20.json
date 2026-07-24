@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Anova Temperature Stability Warning' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_anova_temperature_stability_warning` (UC-25.15.20), SOC dashboard panel \"Personal — Anova Temperature Stability Warning\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='anova:session' that satisfy the UC-25.15.20 SPL filters for 'Anova Temperature Stability Warning'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `anova:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.15.20."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='anova:session' where `session_id` satisfies `avg_temp_error_c` > 0.5 for UC-25.15.20 ('Anova Temperature Stability Warning'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `anova:session` events where `session_id` stays below `avg_temp_error_c` > 0.5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.15.20."
   },
   "dataSources": "Kitchen telemetry (`meater:cook`, `anova:session`, `instantpot:cook`, `kitchen:appliance`, `bbq:probe`, `pantry:item`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Meater probes, Anova Precision Cooker sessions, Instant Pot logs, wine-fridge sensors, ESPHome kitchen sensors, and pantry inventory feeds via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=anova:session\n| eval temp_error_c=abs(temp_delta_c)\n| stats avg(temp_error_c) as avg_temp_error_c, max(temp_error_c) as max_temp_error_c by session_id\n| where avg_temp_error_c>0.5 OR max_temp_error_c>1.5\n| sort - avg_temp_error_c",
   "description": "Uses Anova sous-vide sessions telemetry to monitor how tightly the bath stayed near target temperature in index=personal.",
-  "value": "Splunk turns the feed into an operational check for heating sessions that wandered enough to affect texture, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Anova sous-vide sessions telemetry to monitor how tightly the bath stayed near target temperature in i.... Timely UC-25.15.20 alerting on 'Anova Temperature Stability Warning' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Anova sous-vide sessions data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Session table of average and max temperature error.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Anova Temperature Stability Warning'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `anova:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Anova Temperature Stability Warning' stops polling `anova:session`; stale `session_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `anova:session`. Dedup with `stats latest(*) by session_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_temp_error_c` > 0.5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Pool and Spa Chemistry Balance' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_pool_and_spa_chemistry_balance` (UC-25.19.7), SOC dashboard panel \"Personal — Pool and Spa Chemistry Balance\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='pool:chemistry' that satisfy the UC-25.19.7 SPL filters for 'Pool and Spa Chemistry Balance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `pool:chemistry` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.19.7."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='pool:chemistry' where `entity` satisfies `ph` >= 7.2 for UC-25.19.7 ('Pool and Spa Chemistry Balance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `pool:chemistry` events where `entity` stays below `ph` >= 7.2, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.19.7."
   },
   "dataSources": "Whole-home water flow (`watermeter:flow`), sump pump (`sumppump:event`), well pump (`wellpump:event`), pool/spa chemistry (`pool:chemistry`), water softener (`watersoftener:status`), irrigation zones (`irrigation:zone`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Smart water meters (Flume / Flo / HomeWizard), sump- and well-pump sensors, pool/spa controllers, water-softener and irrigation controllers via vendor APIs, MQTT, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=pool:chemistry\n| stats latest(ph) as ph, latest(orp_mv) as orp, latest(temp_c) as temp\n| eval ph_ok=if(ph>=7.2 AND ph<=7.8,\"good\",\"adjust\"), sanitiser_ok=if(orp>=650,\"good\",\"low\")",
-  "description": "Tracks pool or spa pH and sanitiser level so the water stays safe and comfortable without constant test strips.",
-  "value": "Unbalanced pool water irritates skin and eyes and lets algae bloom; continuous chemistry keeps it safe with far less fuss.",
+  "description": "Tracks pool or spa pH and sanitiser level so the water stays safe and comfortable without constant test strips. Searches `index=personal` with sourcetype `pool:chemistry` for UC-25.19.7, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `ph` >= 7.2 in the saved search. Gives Personal operators a repeatable signal for 'Pool and Spa Chemistry Balance' without manual log review.",
+  "value": "Tracks pool or spa pH and sanitiser level so the water stays safe and comfortable without constant test strips. Timely UC-25.19.7 alerting on 'Pool and Spa Chemistry Balance' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest a pool controller's pH and ORP readings; alert when either drifts out of the safe range.",
   "visualization": "Single-value panels for pH and sanitiser level with safe bands.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Pool and Spa Chemistry Balance'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pool:chemistry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Pool and Spa Chemistry Balance' stops polling `pool:chemistry`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pool:chemistry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `ph` >= 7.2. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

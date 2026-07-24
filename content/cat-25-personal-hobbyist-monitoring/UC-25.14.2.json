@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Military and Emergency Squawk Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_military_and_emergency_squawk_alert` (UC-25.14.2), SOC dashboard panel \"Personal — Military and Emergency Squawk Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='adsb:aircraft' that satisfy the UC-25.14.2 SPL filters for 'Military and Emergency Squawk Alert'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `adsb:aircraft` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='adsb:aircraft' where `condition` satisfies detection threshold for UC-25.14.2 ('Military and Emergency Squawk Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `adsb:aircraft` events where `condition` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.2."
   },
   "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home ADS-B receiver (dump1090 / readsb / tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=adsb:aircraft (squawk=7500 OR squawk=7600 OR squawk=7700 OR is_military=\"true\")\n| eval condition=case(squawk=\"7500\",\"hijack\",squawk=\"7600\",\"radio failure\",squawk=\"7700\",\"general emergency\",is_military=\"true\",\"military\",1=1,\"other\")\n| stats count by condition callsign\n| sort - count",
   "description": "Watches the ADS-B stream for emergency transponder codes and military aircraft, surfacing the handful of flights that are genuinely notable.",
-  "value": "Emergency squawks and military traffic are needles in a huge haystack; a standing alert catches them the moment they appear in your sky.",
+  "value": "Watches the ADS-B stream for emergency transponder codes and military aircraft, surfacing the handful of fl.... Timely UC-25.14.2 alerting on 'Military and Emergency Squawk Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest ADS-B with squawk and category fields; schedule every few minutes and push a notification when an emergency code is seen.",
   "visualization": "Table of flagged flights grouped by emergency or military condition.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Military and Emergency Squawk Alert'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `adsb:aircraft`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Military and Emergency Squawk Alert' stops polling `adsb:aircraft`; stale `condition` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `adsb:aircraft`. Dedup with `stats latest(*) by condition`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

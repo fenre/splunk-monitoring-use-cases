@@ -51,15 +51,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When a control owner has not completed an access review for a scoped application in 90+ days, the UC fires with the owner, app_id, and last_review_at.",
-    "negativeScenario": "Applications with reviews certified within the 90-day window do NOT fire.",
-    "fixtureRef": "sample-data/uc-22.40.3-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=grc` sourcetype='iam:access_review' where `app_id` satisfies `days_since` > 90 for UC-22.40.3 ('Periodic access review SLA — stale certifications by control owner'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `grc` / `iam:access_review` events where `app_id` stays below `days_since` > 90, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.40.3."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=grc sourcetype=iam:access_review earliest=-365d\n| stats max(_time) as last_review by app_id reviewer\n| eval days_since=round((now()-last_review)/86400,0)\n| where days_since>90\n| lookup app_inventory.csv app_id OUTPUT owner criticality\n| table owner app_id criticality last_review days_since",
   "description": "Tracks the age of the most recent access review per application and control owner. Applications falling outside the 90-day cadence drive follow-up tickets.",
-  "value": "Access review is the #1 ITGC deficiency in typical public-company audits; turning it into a green/red KPI changes the operating rhythm.",
+  "value": "Tracks the age of the most recent access review per application and control owner. Timely UC-22.40.3 alerting on 'Periodic access review SLA — stale certifications by control owner' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Ingest review-completion events from the GRC tool; (2) refresh app_inventory.csv weekly; (3) run daily. Indexes required: `index=grc`; Sourcetypes: `sourcetype=iam:access_review`.",
   "visualization": "Heatmap of owner × application age, table of overdue, single-value '% of apps reviewed within 90 days'.",
   "cimModels": [],
@@ -84,7 +83,7 @@
       "title": "NIST SP 800-53 Rev. 5"
     }
   ],
-  "knownFalsePositives": "1. **Authorised security assessment activities** — Planned security control assessments, continuous monitoring scans, and Plan of Action and Milestones (POA&M) validation tests generate expected control deviation signals that are part of the Assessment & Authorisation process.\n\n2. **System authorisation boundary changes** — During ATO re-authorisation, system boundary expansions, or inheritance model updates, temporary control gaps may appear in the monitoring baseline until the updated security plan is approved by the Authorising Official.\n\n3. **Interconnection Security Agreement (ISA) activity** — Data exchanges with authorised external systems operating under signed ISAs produce cross-boundary traffic that triggers network monitoring alerts but is covered by the formal interconnection agreement.\n\n4. **FIPS 199 impact-level re-categorisation** — When system categorisation changes (e.g., Moderate to High), the transition period produces control baseline mismatches until the enhanced controls are fully implemented per the approved implementation schedule.\n\n**Suppression mechanism:** Maintain a `nist_800_53_exception_filter` KV Store lookup containing approved assessment schedule entries, POA&M IDs, ISA identifiers, and system re-categorisation project IDs. The correlation search filters against this lookup and suppresses matches with valid exception entries.",
+  "knownFalsePositives": "1. **Authorised NIST 800 53 control testing** — Internal audit exercises 'Periodic access review SLA — stale certifications by control owner' (UC-22.40.3) on `app_id` during scheduled clause AC-2 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=grc` `iam:access_review` without crossing `days_since` > 90. Cross-check engagement letter in `nist_800_53_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `grc` for `app_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `app_id` during normal service delivery.\n\n**Suppression mechanism:** `nist_800_53_exception_register.csv` keyed on `app_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "identity",
   "requiredFields": [

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Restoration Vendor Turnaround by Format' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_restoration_vendor_turnaround_by_format` (UC-25.55.31), SOC dashboard panel \"Personal — Restoration Vendor Turnaround by Format\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='genealogy:photo' that satisfy the UC-25.55.31 SPL filters for 'Restoration Vendor Turnaround by Format'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `genealogy:photo` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.55.31."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='genealogy:photo' where `format_type` satisfies detection threshold for UC-25.55.31 ('Restoration Vendor Turnaround by Format'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `genealogy:photo` events where `format_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.55.31."
   },
   "dataSources": "Hints (`genealogy:hint`), cemetery visits (`genealogy:cemetery`), family-photo work (`genealogy:photo`), research ops (`genealogy:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Genealogy and family-history telemetry — Ancestry hints, cemetery visit logs, and photo-restoration queues — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=genealogy:photo format_type=* submitted_epoch=* returned_epoch=*\n| eval lag_days=round((returned_epoch-submitted_epoch)/86400,1)\n| stats avg(lag_days) as avg_lag_days, max(lag_days) as worst_lag_days by format_type\n| sort - avg_lag_days",
   "description": "Measures vendor turnaround by format type for restoration vendors. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Lag tracking shows which format type create the slowest handoffs, syncs, or review loops inside restoration vendors.",
+  "value": "Measures vendor turnaround by format type for restoration vendors. Timely UC-25.55.31 alerting on 'Restoration Vendor Turnaround by Format' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture the timestamps needed to compute `vendor turnaround` on `genealogy:photo` events and aggregate them by `format_type`.",
   "visualization": "Table of format type with average and worst vendor turnaround.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Restoration Vendor Turnaround by Format'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `genealogy:photo`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Restoration Vendor Turnaround by Format' stops polling `genealogy:photo`; stale `format_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `genealogy:photo`. Dedup with `stats latest(*) by format_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

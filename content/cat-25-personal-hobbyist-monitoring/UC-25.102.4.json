@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Payment Before Deadline Compliance' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_payment_before_deadline_compliance` (UC-25.102.4), SOC dashboard panel \"Personal — Payment Before Deadline Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tax:payment' that satisfy the UC-25.102.4 SPL filters for 'Payment Before Deadline Compliance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tax:payment` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.102.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tax:payment' where `tax_year` satisfies `days_before_deadline` < 0 for UC-25.102.4 ('Payment Before Deadline Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `tax:payment` events where `tax_year` stays below `days_before_deadline` < 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.102.4."
   },
   "dataSources": "TurboTax returns (`turbotax:return`), IRS transcripts (`irs:transcript`), tax estimates (`tax:estimate`), tax payments (`tax:payment`), and W-2 imports (`w2:import`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "TurboTax return exports, IRS transcript pulls, tax estimate calculators, payment confirmations, and W-2 import logs ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tax:payment days_before_deadline=* payment_status=*\n| eval late=if(days_before_deadline<0 OR match(lower(payment_status),\"late|failed\"),1,0)\n| stats sum(late) as late_payments, count as total_payments by tax_year\n| eval late_pct=round(100*late_payments/total_payments,1)\n| sort tax_year",
-  "description": "Measures what percentage of tax payments were late or submitted after the deadline each year.",
-  "value": "Late payment history triggers penalties and audit attention that a simple compliance view prevents.",
+  "description": "Measures what percentage of tax payments were late or submitted after the deadline each year. Searches `index=personal` with sourcetype `tax:payment` for UC-25.102.4, aggregating `sum` by `tax_year` over `the scheduled window`. Alerts when grouped results cross `days_before_deadline` < 0 in the saved search. Gives Personal operators a repeatable signal for 'Payment Before Deadline Compliance' without manual log review.",
+  "value": "Measures what percentage of tax payments were late or submitted after the deadline each year. Timely UC-25.102.4 alerting on 'Payment Before Deadline Compliance' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Include `days_before_deadline` and `payment_status` on every payment confirmation export.",
   "visualization": "Column chart of late payment percentage by tax year.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Payment Before Deadline Compliance'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tax:payment`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Payment Before Deadline Compliance' stops polling `tax:payment`; stale `tax_year` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tax:payment`. Dedup with `stats latest(*) by tax_year`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_before_deadline` < 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

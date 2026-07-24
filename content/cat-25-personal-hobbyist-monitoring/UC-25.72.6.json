@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Yousician Lesson Session Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_yousician_lesson_session_sync_gap_watch` (UC-25.72.6), SOC dashboard panel \"Personal — Yousician Lesson Session Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='yousician:lesson' that satisfy the UC-25.72.6 SPL filters for 'Yousician Lesson Session Sync Gap Watch'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `yousician:lesson` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.72.6."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='yousician:lesson' where `instrument_name` satisfies `hours_since` > 24 for UC-25.72.6 ('Yousician Lesson Session Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `yousician:lesson` events where `instrument_name` stays below `hours_since` > 24, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.72.6."
   },
   "dataSources": "Yousician lessons (`yousician:lesson`), Simply Piano practice (`simplypiano:session`), TonalEnergy tuning (`tonalenergy:tuning`), Pro Metronome sessions (`prometronome:session`), and forScore practice (`forscore:practice`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Yousician lessons, Simply Piano practice, TonalEnergy tuning logs, Pro Metronome sessions, and forScore sheet-music practice exports ingested into Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=yousician:lesson\n| stats max(_time) as last_seen by instrument_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>24\n| sort - hours_since",
-  "description": "Detects when Yousician lesson session data has stopped arriving for a given instrument name.",
-  "value": "Personal telemetry is only useful when it is current; sync-gap alerts catch failed exports and broken credentials early.",
+  "description": "Detects when Yousician lesson session data has stopped arriving for a given instrument name. Searches `index=personal` with sourcetype `yousician:lesson` for UC-25.72.6, aggregating `max` by `instrument_name` over `the scheduled window`. Alerts when grouped results cross `hours_since` > 24 in the saved search. Gives Personal operators a repeatable signal for 'Yousician Lesson Session Sync Gap Watch' without manual log review.",
+  "value": "Detects when Yousician lesson session data has stopped arriving for a given instrument name. Timely UC-25.72.6 alerting on 'Yousician Lesson Session Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Track the latest event time per instrument name and alert when the feed is older than 24 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Yousician Lesson Session Sync Gap Watch'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `yousician:lesson`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Yousician Lesson Session Sync Gap Watch' stops polling `yousician:lesson`; stale `instrument_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `yousician:lesson`. Dedup with `stats latest(*) by instrument_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 24. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -54,16 +54,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Setting a test risk's last_reviewed to now()-cadence_days-7d causes the UC to surface it with days_overdue=7.",
-    "negativeScenario": "A risk reviewed within its cadence window is absent from the output.",
-    "fixtureRef": "",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=grc` sourcetype='target_sourcetype' where `risk_id` satisfies `days_overdue` > 0 for UC-22.6.46 ('ISO/IEC 27001:2022 Clause 6.1 — Risk-assessment evidence: live risk register decay'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `grc` / `target_sourcetype` events where `risk_id` stays below `days_overdue` > 0, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.6.46."
   },
   "dataSources": "`index=grc` sourcetype=archer:risk OR sourcetype=servicenow:grc_risk; ISMS cadence lookup `iso_27001_risk_cadence.csv` (per category, review frequency in days). (Splunkbase 1621 — Splunk CIM Add-on)",
   "app": "Splunk Enterprise Security, Splunk Add-on for ServiceNow",
   "spl": "index=grc sourcetype IN (archer:risk,servicenow:grc_risk) earliest=-1d\n| stats latest(last_reviewed) AS last_reviewed latest(category) AS category latest(owner) AS owner BY risk_id\n| lookup iso_27001_risk_cadence.csv category OUTPUT cadence_days\n| eval days_overdue=round((now()-last_reviewed)/86400,0)-cadence_days\n| where days_overdue>0\n| table risk_id category owner last_reviewed cadence_days days_overdue",
   "description": "Continuously measures how many risks in the register are past their per-category review cadence. Clause 6.1 requires planning that 'addresses risks and opportunities'; a register that has decayed is not planning.",
-  "value": "Produces the evidence the external auditor expects at stage-2: proof that each risk line in the ISMS register was reviewed within its cadence, identifying exact owners of overdue entries.",
+  "value": "Continuously measures how many risks in the register are past their per-category review cadence. Timely UC-22.6.46 alerting on 'ISO/IEC 27001:2022 Clause 6.1 — Risk-assessment evidence: live risk register decay' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Export GRC risk register daily to Splunk; (2) maintain iso_27001_risk_cadence.csv by risk category; (3) schedule UC daily; (4) overdue > 0 opens a task to the risk owner; (5) Board quarterly report uses the rolling 90-day mean of overdue risks. Indexes required: `index=grc`; Sourcetypes: `sourcetype=archer:risk`, `sourcetype=servicenow:grc_risk`, `sourcetype=servicenow:grc_risk;`.",
   "visualization": "Histogram of days_overdue by category, table of top-overdue risks, single value 'total risks overdue today'.",
   "cimModels": [
@@ -83,7 +81,7 @@
       "url": "https://docs.splunk.com/Documentation/ES/latest/User/Overview"
     }
   ],
-  "knownFalsePositives": "1. **Assessment cycle alignment** — Control assessments following annual cycles may show brief non-current periods between assessment completion and report publication.\n\n2. **Finding remediation within SLA** — Open findings within their documented remediation timeline are being addressed per policy, not neglected or overlooked.\n\n3. **Framework version transitions** — Migration between control framework versions (ISO 27001:2013 to 2022) creates temporary mapping gaps during the documented transition period.\n\n4. **Accepted residual risk items** — Findings formally accepted through the risk management governance process with documented compensating controls and management sign-off.\n\n5. **Evidence collection cadence differences** — Controls with different evidence generation frequencies (real-time vs. quarterly) show varying currency in compliance dashboards.\n\n**Operational suppression:** Maintain a lookup table (`iso27001_approved_exceptions.csv`) mapping known legitimate activities by control owner, risk acceptance reference, and expiry date. Filter the SPL results against this lookup to suppress documented exceptions and reduce alert fatigue. Review and rotate entries at each ISMS management review cycle.",
+  "knownFalsePositives": "1. **Authorised ISO 27001 control testing** — Internal audit exercises 'ISO/IEC 27001:2022 Clause 6.1 — Risk-assessment evidence: live risk register decay' (UC-22.6.46) on `risk_id` during scheduled clause 6.1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=grc` `configured sourcetype` without crossing `days_overdue` > 0. Cross-check engagement letter in `iso_27001_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `grc` for `risk_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `risk_id` during normal service delivery.\n\n**Suppression mechanism:** `iso_27001_exception_register.csv` keyed on `risk_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Baseline",
   "securityDomain": "audit",
   "requiredFields": [

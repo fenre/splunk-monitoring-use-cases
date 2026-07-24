@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Meal Plan Leftover Utilisation by Week' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_meal_plan_leftover_utilisation_by_week` (UC-25.36.27), SOC dashboard panel \"Personal — Meal Plan Leftover Utilisation by Week\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mealplan:item' that satisfy the UC-25.36.27 SPL filters for 'Meal Plan Leftover Utilisation by Week'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `mealplan:item` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.36.27."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mealplan:item' where `_time` satisfies detection threshold for UC-25.36.27 ('Meal Plan Leftover Utilisation by Week'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `mealplan:item` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.36.27."
   },
   "dataSources": "Amazon order records (`amazon:order`), meal-plan inventory (`mealplan:item`), and pharmacy refill events (`pharmacy:refill`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Household logistics telemetry from Amazon order history, meal-plan inventory tools, and pharmacy refill portals sent to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=mealplan:item\n| search leftover_use_pct=*\n| bin _time span=1w\n| stats avg(leftover_use_pct) as avg_leftover_use_pct count as meal_items by _time week_name\n| sort - _time",
   "description": "Tracks leftover utilisation over time and breaks it out by week. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Leftover utilisation is a simple truth-teller for whether the plan is reducing waste or just moving it around.",
+  "value": "Tracks leftover utilisation over time and breaks it out by week. Timely UC-25.36.27 alerting on 'Meal Plan Leftover Utilisation by Week' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send leftover utilisation events to `index=personal` with the fields used in the breakdown and review the resulting trend at 1w granularity.",
   "visualization": "Stacked time chart of leftover utilisation by week.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Meal Plan Leftover Utilisation by Week'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mealplan:item`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Meal Plan Leftover Utilisation by Week' stops polling `mealplan:item`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mealplan:item`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

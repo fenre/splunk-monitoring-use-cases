@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Reef-Pi Reading Daily Event Volume' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_reef_pi_reading_daily_event_volume` (UC-25.27.60), SOC dashboard panel \"Personal — Reef-Pi Reading Daily Event Volume\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reefpi:reading' that satisfy the UC-25.27.60 SPL filters for 'Reef-Pi Reading Daily Event Volume'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `reefpi:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.27.60."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reefpi:reading' where `_time` satisfies detection threshold for UC-25.27.60 ('Reef-Pi Reading Daily Event Volume'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `reefpi:reading` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.27.60."
   },
   "dataSources": "Reef-tank parameters (`reeftank:param`), vivarium climate (`vivarium:climate`), fish feeder (`fishfeeder:event`), auto-doser (`doser:event`), auto-top-off (`ato:event`), pond sensors (`pondsensor:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Aquarium and vivarium controllers — reef-tank parameter monitors, auto-dosers, auto-top-off, reptile terrarium climate/UVB, and pond sensors — via MQTT and controller APIs (Apex, GHL, ESPHome). — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=reefpi:reading\n| bin _time span=1d\n| stats count as events, dc(input_name) as distinct_entities by _time\n| sort - _time",
-  "description": "Counts how many Reef-Pi reading events land each day and how many distinct input values are represented.",
-  "value": "Daily volume is the fastest way to spot a dead feed, a sudden burst, or a workflow that quietly changed.",
+  "description": "Counts how many Reef-Pi reading events land each day and how many distinct input values are represented. Searches `index=personal` with sourcetype `reefpi:reading` for UC-25.27.60, aggregating `dc` by `_time` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Reef-Pi Reading Daily Event Volume' without manual log review.",
+  "value": "Counts how many Reef-Pi reading events land each day and how many distinct input values are represented. Timely UC-25.27.60 alerting on 'Reef-Pi Reading Daily Event Volume' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Reef-Pi reading records into `index=personal`; schedule daily and compare count and distinct input values against your normal baseline.",
   "visualization": "Column chart of daily event count with a line for distinct entities.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Reef-Pi Reading Daily Event Volume'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reefpi:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Reef-Pi Reading Daily Event Volume' stops polling `reefpi:reading`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `dc` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reefpi:reading`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

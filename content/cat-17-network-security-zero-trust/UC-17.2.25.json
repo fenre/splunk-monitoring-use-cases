@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Akamai Guardicore Asset Label and Segmentation Group Drift' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_akamai_guardicore_asset_label_and_segmentation_g` (UC-17.2.25), SOC dashboard panel \"Network — Akamai Guardicore Asset Label and Segmentation Group Drift\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=microseg` sourcetype='guardicore:agent' that satisfy the UC-17.2.25 SPL filters for 'Akamai Guardicore Asset Label and Segmentation Group Drift'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `microseg` / `guardicore:agent` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.2.25."
+    "positiveScenario": "Ingest synthetic events into `index=microseg` sourcetype='guardicore:agent' where `agent_id` satisfies detection threshold for UC-17.2.25 ('Akamai Guardicore Asset Label and Segmentation Group Drift'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `microseg` / `guardicore:agent` events where `agent_id` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.2.25."
   },
   "dataSources": "Guardicore inventory or policy sync events, `sourcetype=guardicore:agent` or `guardicore:inventory` (confirm per TA version)",
   "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=microseg sourcetype=\"guardicore:agent\" earliest=-7d\n| eval labels=coalesce(labels, asset_labels, segmentation_labels)\n| eval app=coalesce(application, app_name, hostname)\n| stats latest(labels) as current_labels, earliest(_time) as first_seen by agent_id, hostname\n| lookup guardicore_asset_baseline.csv hostname OUTPUT expected_labels\n| where isnotnull(expected_labels) AND current_labels!=expected_labels\n| table hostname, expected_labels, current_labels, first_seen",
   "description": "Microsegmentation only stays accurate when workload labels reflect the current application owner, environment, and compliance tier. Drift between expected labels from CMDB and labels observed in Guardicore indicates missed decommission steps, cloning errors, or unauthorised workload promotion.",
-  "value": "Microsegmentation teams detect when asset labels change or disappear, catching configuration drift that silently removes assets from their intended security policy groups.",
+  "value": "Microsegmentation only stays accurate when workload labels reflect the current application owner, environme.... Timely UC-17.2.25 alerting on 'Akamai Guardicore Asset Label and Segmentation Group Drift' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Export a weekly baseline CSV from Guardicore or CMDB with authoritative `hostname → expected_labels`. Schedule this search daily; exceptions require CAB approval. For large container fleets, key on orchestration cluster plus pod template hash instead of hostname alone.",
   "visualization": "Table (drifted assets), Bar chart (drift by business unit), Trend (count of drifts per week).",
   "cimModels": [],
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Akamai Guardicore Asset Label and Segmentation Group Drift'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `microseg`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `guardicore:agent` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `microseg`** — Planned work for 'Akamai Guardicore Asset Label and Segmentation Group Drift' shifts `count` over `span=1h` while `agent_id` remains in-scope for UC-17.2.25. Cross-check CMDB CHG.\n\n2. **Batch `count` on `guardicore:agent`** — Scheduled automation elevates `hostname` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `agent_id`** — Health checks in `microseg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `guardicore:agent`** — First 48h baseline for `agent_id` is unstable; join `guardicore_asset_baseline.csv` prior to threshold.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `agent_id`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "guardicore"

@@ -68,14 +68,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Replay ten synthetic `index=wineventlog sourcetype=WinEventLog:Security EventCode=4625` events for `Account_Name=testuser` from the same `Source_Network_Address` within 15 minutes. Run the UC-9.1.1 SPL and confirm one row with `count > 10`.",
-    "negativeScenario": "Ingest scattered 4625 failures (three per account from distinct sources) or exclude `Account_Name` via `iam_exception_register.csv` during an approved scanner window. Confirm zero rows above threshold."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4625 where `Account_Name` satisfies `count` > 10 for UC-9.1.1 ('Brute-Force Login Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events where `Account_Name` stays below `count` > 10, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.1.1."
   },
   "dataSources": "Windows Security Event Log (Event ID 4625 — failed logon) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4625\n| stats count by Account_Name, Source_Network_Address\n| where count > 10\n| sort -count",
   "description": "Correlates Windows Security Event ID 4625 failed logons in `index=wineventlog` and fires when a single `Account_Name` and `Source_Network_Address` pair exceeds ten failures, indicating password spraying or online brute-force against Active Directory.",
-  "value": "Credential stuffing against domain accounts is one of the fastest paths to lateral movement. Catching the burst while 4625 volume is elevated lets IAM disable the source IP or force password reset before a successful 4624 logon occurs.",
+  "value": "Correlates Windows Security Event ID 4625 failed logons in `index=wineventlog` and fires when a single `Acc.... Timely UC-9.1.1 alerting on 'Brute-Force Login Detection' reduces account takeover risk, help-desk load, and audit findings before manual triage or audit channels escalate.",
   "implementation": "Deploy the Universal Forwarder on all Domain Controllers with `[WinEventLog://Security]` enabled. Ensure the GPO enables Audit Logon Success and Failure. Alert with `stats count by Account_Name, src span=15m` when count exceeds 10. Suppress break-glass and service accounts via a `privileged_accounts` lookup to reduce false positives.",
   "visualization": "Table (accounts with failure counts), Line chart (failure rate over time), Geo map (source IPs).",
   "cimModels": [
@@ -105,7 +105,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Password spray below threshold** — Attackers rotate one or two attempts per account; this UC counts per (`Account_Name`, `Source_Network_Address`) pair. Escalate to UC-9.1.x spray variant if `dc(user) > 50` with low per-user counts.\n\n2. **Service account Kerberos failure after password rotation** — Backup or batch service accounts generate clustered 4625 events post-rotation. Cross-check `privileged_accounts` lookup for `rotation_window=true` and active CHG ticket.\n\n3. **Break-glass administrator testing** — Quarterly credential exercises produce intentional failure bursts from jump hosts. Filter accounts in `break_glass_accounts.csv` with non-expired `valid_until`.\n\n4. **Approved vulnerability scanner** — Qualys/Tenable credentialed scans from `approved_scanners.csv` netblocks mimic brute-force. Exclude `Source_Network_Address` via CIDR lookup or match `Logon_Process=Advapi` scanner signature.\n\n**Suppression mechanism:** KV Store lookup `iam_exception_register.csv` with `account`, `source_ip`, `reason`, `valid_until`, `approved_by`. Join before `where count > 10`: `| lookup iam_exception_register Account_Name as account Source_Network_Address as source_ip OUTPUT valid_until | where isnull(valid_until) OR now()>valid_until`.",
+  "knownFalsePositives": "1. **Password spray below per-pair threshold** — Attacker rotates accounts; this UC thresholds on (`Account_Name`, `Source_Network_Address`). Escalate to spray analytics if distinct accounts spike.\n\n2. **Service account Kerberos failure after rotation** — Clustered 4625 from `index=wineventlog` `WinEventLog:Security` post-password change.\n\n3. **Break-glass testing** — Intentional failures from jump hosts during exercise.\n\n4. **Approved scanner netblock** — Qualys/Tenable credentialed scan from `approved_scanners.csv`.\n\n**Suppression mechanism:** Join `iam_exception_register.csv` before threshold filter.",
   "mitreAttack": [
     "T1110",
     "T1110.001"

@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set an SR with `sr_target_sl=3` but `sr_achieved_sl=2`. UC-22.55.8 MUST flag `sr_status=\"sl_gap\"`.",
-    "negativeScenario": "Implement SR to target SL, sign test evidence; UC-22.55.8 MUST record `sr_status=\"compliant\"`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-22.55.8 ('CLC/TS 50701 System Security Requirements (SRs) Implementation — IEC 62443-3-3 SRs deployed per zone with verification evidence'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.55.8."
   },
   "dataSources": "KV Store `rail_sr_implementation_lookup`. ServiceNow GRC SR-task records. SOAR `rail-sr-test-sync` playbook.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_sr_implementation_lookup\n| where sr_in_scope=true\n| eval sr_status = case(\n    isnull(sr_implemented_at), \"not_implemented\",\n    isnull(sr_test_passed_at), \"implemented_untested\",\n    sr_achieved_sl < sr_target_sl, \"sl_gap\",\n    isnull(sr_evidence_url) OR sr_evidence_url=\"\", \"evidence_missing\",\n    1=1, \"compliant\")\n| where sr_status != \"compliant\"\n| table sr_id sr_iec_reference zone_id sr_target_sl sr_achieved_sl sr_implemented_at sr_implemented_by sr_test_passed_at sr_evidence_url sr_status",
-  "description": "Audits every in-scope SR against its target SL with implementation, test, and evidence records.",
-  "value": "Without SR-level instrumentation, the operator cannot show how SL-T translates into deployed controls. NB will check this on every assessment.",
+  "description": "Audits every in-scope SR against its target SL with implementation, test, and evidence records. Searches `index=target_index` with sourcetype `configured sourcetype` for UC-22.55.8, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'CLC/TS 50701 System Security Requirements (SRs) Implementation — IEC 62443-3-3 SRs deployed per zone with verification evidence' without manual log review.",
+  "value": "Audits every in-scope SR against its target SL with implementation, test, and evidence records. Timely UC-22.55.8 alerting on 'CLC/TS 50701 System Security Requirements (SRs) Implementation — IEC 62443-3-3 SRs deployed per zone with verification evidence' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Map IEC 62443-3-3 SRs to operator zones in `rail_sr_implementation_lookup`. (2) Engineering implements SRs; QA tests; evidence stored. (3) Schedule UC-22.55.8 weekly Monday 05:00.",
   "visualization": "(Panel 1) SR coverage matrix (zone vs SR). (Panel 2) Gap queue. (Panel 3) Achievement vs target trend.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Compensating control** — SR may have approved compensating control; tag `sr_status_override=compensating_control_approved`.\n\n**Suppression mechanism**: KV Store `clc_22_55_8_exceptions` with documented Rail-CISO approval and 90-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 System Security Requirements (SRs) Implementation — IEC 62443-3-3 SRs deployed per zone with verification evidence' (UC-22.55.8) on `entity` during scheduled clause CLC-TS-50701-c7-2 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (system-requirement governance)"
   ],

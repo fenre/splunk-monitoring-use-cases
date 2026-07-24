@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Radiology Reading Turnaround Time' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_radiology_reading_turnaround_time` (UC-21.3.10), SOC dashboard panel \"Operations — Radiology Reading Turnaround Time\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=healthcare` sourcetype='ris:report' that satisfy the UC-21.3.10 SPL filters for 'Radiology Reading Turnaround Time'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `healthcare` / `ris:report` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.3.10."
+    "positiveScenario": "Ingest synthetic events into `index=healthcare` sourcetype='ris:report' where `modality` satisfies `tat_min` > 0 for UC-21.3.10 ('Radiology Reading Turnaround Time'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `healthcare` / `ris:report` events where `modality` stays below `tat_min` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.3.10."
   },
   "dataSources": "`index=healthcare` `sourcetype=\"ris:report\"` fields `accession`, `modality`, `priority`, `exam_complete_time`, `report_finalized_time` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "RIS/PACS integration via HL7 or HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=healthcare sourcetype=\"ris:report\"\n| eval tat_min=round((report_finalized_time-exam_complete_time)/60,1)\n| where tat_min > 0\n| stats avg(tat_min) as avg_tat, perc95(tat_min) as p95_tat by modality, priority\n| sort priority, -p95_tat\n| table modality, priority, avg_tat, p95_tat",
   "description": "Radiology report TAT affects clinical decisions and patient discharge timing. Tracking by modality and priority ensures SLA compliance and identifies workflow bottlenecks.",
-  "value": "Service and risk leaders use signals from Radiology Reading Turnaround Time to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "Service and risk leaders use signals from Radiology Reading Turnaround Time to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Parse RIS events for exam completion and report finalization timestamps. Track by modality (CT, MR, XR) and priority (stat, urgent, routine). Alert on stat studies exceeding 1-hour TAT. **Domain context:** Joint Commission and operational targets often use modality-specific TAT; peer review and resident reads can skew distributions—segment when possible. **Splunk:** Use `strptime` if times are strings; ensure `exam_complete_time` reflects acquisition end, not order start.",
   "visualization": "Bar chart (TAT by modality), Line chart (TAT trend), Table (exams exceeding SLA).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Radiology Reading Turnaround Time'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `healthcare` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `healthcare`** — Planned work for 'Radiology Reading Turnaround Time' shifts `avg` over `span=1h` while `modality` remains in-scope for UC-21.3.10. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `ris:report`** — Scheduled automation elevates `priority` without crossing `tat_min` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `modality`** — Health checks in `healthcare` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ris:report`** — First 48h baseline for `modality` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `modality`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

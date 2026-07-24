@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Keg Punk Pour Foam-Over Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_keg_punk_pour_foam_over_rate` (UC-25.16.41), SOC dashboard panel \"Personal — Keg Punk Pour Foam-Over Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='kegpunk:pour' that satisfy the UC-25.16.41 SPL filters for 'Keg Punk Pour Foam-Over Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `kegpunk:pour` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.16.41."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='kegpunk:pour' where `tap_name` satisfies `volume_ml` < 200 for UC-25.16.41 ('Keg Punk Pour Foam-Over Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `kegpunk:pour` events where `tap_name` stays below `volume_ml` < 200, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.16.41."
   },
   "dataSources": "Fermentation gravity/temperature (`brew:fermentation`), kegerator pours (`kegerator:pour`), wine-cellar climate (`winecellar:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Fermentation sensors (Tilt/iSpindel hydrometer, temperature), kegerator flow meters and scales, and wine-cellar climate sensors via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=kegpunk:pour volume_ml<200 flow_rate_ml_s>15\n| stats count as foam_overs by tap_name",
   "description": "Counts Keg Punk pours suggesting excessive foam. Runs scheduled SPL against `index=personal` to surface **Keg Punk Pour Foam-Over Rate** so you can spot drift before it becomes a habit.",
-  "value": "Surfacing keg punk pour foam-over rate helps you act before small issues become habits.",
+  "value": "Surfacing keg punk pour foam-over rate helps you act before small issues become habits reduces missed training goals, stale hobby data, and connector failures by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Ingest the relevant homebrewing, beer & wine export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Keg Punk Pour Foam-Over Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `kegpunk:pour`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Keg Punk Pour Foam-Over Rate' stops polling `kegpunk:pour`; stale `tap_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `kegpunk:pour`. Dedup with `stats latest(*) by tap_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `volume_ml` < 200. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

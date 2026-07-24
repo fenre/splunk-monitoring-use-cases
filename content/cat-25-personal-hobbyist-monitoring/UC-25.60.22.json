@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Calibration Bin Overconfidence Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_calibration_bin_overconfidence_watch` (UC-25.60.22), SOC dashboard panel \"Personal — Calibration Bin Overconfidence Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='forecast:calibration' that satisfy the UC-25.60.22 SPL filters for 'Calibration Bin Overconfidence Watch'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `forecast:calibration` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.60.22."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='forecast:calibration' where `bin_name` satisfies detection threshold for UC-25.60.22 ('Calibration Bin Overconfidence Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `forecast:calibration` events where `bin_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.60.22."
   },
   "dataSources": "Forecasts (`forecast:personal`), journal reviews (`forecast:journal`), resolved outcomes (`forecast:resolution`), calibration scores (`forecast:calibration`), ops reviews (`forecast:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal forecasting telemetry — Metaculus personal predictions, private prediction-journal entries, and calibration-bin scoring — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=forecast:calibration bin_name=* overconfident=*\n| stats count as total, sum(eval(if(overconfident=\"yes\",1,0))) as matched by bin_name\n| eval overconfidence_pct=round(100*matched/total,1)\n| sort - overconfidence_pct",
-  "description": "Measures the percentage of calibration reviews that end with overconfidence by calibration bin.",
-  "value": "Completion and exception percentages make it easier to spot which calibration bin are helping or hurting calibration reviews.",
+  "description": "Measures the percentage of calibration reviews that end with overconfidence by calibration bin. Searches `index=personal` with sourcetype `forecast:calibration` for UC-25.60.22, aggregating `sum` by `bin_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Calibration Bin Overconfidence Watch' without manual log review.",
+  "value": "Measures the percentage of calibration reviews that end with overconfidence by calibration bin. Timely UC-25.60.22 alerting on 'Calibration Bin Overconfidence Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store a normalized flag for `overconfidence` on `forecast:calibration` events and summarize the hit rate by `bin_name`.",
   "visualization": "Table of calibration bin with percentage of calibration reviews ending with overconfidence.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Calibration Bin Overconfidence Watch'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `forecast:calibration`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Calibration Bin Overconfidence Watch' stops polling `forecast:calibration`; stale `bin_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `forecast:calibration`. Dedup with `stats latest(*) by bin_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

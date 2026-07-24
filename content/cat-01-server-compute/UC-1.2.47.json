@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Application Crash (WER) Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_application_crash_wer_trending` (UC-1.2.47), SOC dashboard panel \"Linux — Application Crash (WER) Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Application' that satisfy the UC-1.2.47 SPL filters for 'Application Crash (WER) Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Application` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.47."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Application' where `host` satisfies `count` > 3 for UC-1.2.47 ('Application Crash (WER) Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Application` events where `host` stays below `count` > 3, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.47."
   },
   "dataSources": "`sourcetype=WinEventLog:Application` (EventCode 1000, 1001, 1002) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Application\" EventCode IN (1000, 1002)\n| eval crash_app=coalesce(Application, param1)\n| stats count by host, crash_app, EventCode\n| where count > 3\n| sort -count",
   "description": "Windows Error Reporting captures crash details for all applications. Trending reveals systemic instability, bad patches, or problematic application versions.",
-  "value": "Repeat crashes are a leading indicator of bad patches, bad code, and dependency drift—trend, not a single 1000 event.",
+  "value": "Windows Error Reporting captures crash details for all applications. Timely UC-1.2.47 alerting on 'Application Crash (WER) Trending' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "EventCode 1000=application crash with fault details (module, exception code, offset), 1002=application hang detected. Aggregate by faulting application and module across the fleet. Spikes after patch deployment indicate regression. Alert on critical applications (e.g., w3wp.exe, sqlservr.exe, lsass.exe). Use EventCode 1001 (WER bucket data) for deduplication.",
   "visualization": "Bar chart (top crashing apps), Timechart (crash rate over time), Table (crash details by module).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Application Crash (WER) Trending'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `WinEventLog:Application`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Application Crash (WER) Trending'. Correlate with apt/yum logs in the same `WinEventLog:Application` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Application`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 3.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Tip Logging Missing Shift Days' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_tip_logging_missing_shift_days` (UC-25.34.24), SOC dashboard panel \"Personal — Tip Logging Missing Shift Days\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tiplog:shift' that satisfy the UC-25.34.24 SPL filters for 'Tip Logging Missing Shift Days'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tiplog:shift` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.34.24."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tiplog:shift' where `job_name` satisfies detection threshold for UC-25.34.24 ('Tip Logging Missing Shift Days'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `tiplog:shift` events where `job_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.34.24."
   },
   "dataSources": "Micro-spend transactions (`microspend:txn`), cashback events (`cashback:event`), price tracker alerts (`pricetrack:alert`), and tip logs (`tiplog:shift`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Micro-finance telemetry for latte-factor spending, cashback apps, price tracking, and tip logging sent to Splunk HEC via finance exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tiplog:shift\n| search shift_logged=\"true\"\n| stats latest(_time) as last_seen count as events by job_name\n| eval days_since=round((now()-last_seen)/86400,1)\n| sort - days_since",
   "description": "Shows which jobss have gone quiet for tip logging. Runs scheduled SPL against `index=personal` to surface **Tip Logging Missing Shift Days** so you can spot drift before it becomes a habit.",
-  "value": "A missing shift day means the cash and tax picture is already getting fuzzier than it should be.",
+  "value": "Shows which jobss have gone quiet for tip logging. Timely UC-25.34.24 alerting on 'Tip Logging Missing Shift Days' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send tip logging events to `index=personal` and alert when the gap since the last event grows beyond the expected cadence.",
   "visualization": "Table of jobss with time since last event.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Tip Logging Missing Shift Days'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tiplog:shift`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Tip Logging Missing Shift Days' stops polling `tiplog:shift`; stale `job_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tiplog:shift`. Dedup with `stats latest(*) by job_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

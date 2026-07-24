@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Pressure Crash Storm Heads-Up' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_pressure_crash_storm_heads_up` (UC-25.10.10), SOC dashboard panel \"Personal — Pressure Crash Storm Heads-Up\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='weatherflow:obs' that satisfy the UC-25.10.10 SPL filters for 'Pressure Crash Storm Heads-Up'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `weatherflow:obs` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.10."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='weatherflow:obs' where `_time` satisfies `drop_hpa` > 4 for UC-25.10.10 ('Pressure Crash Storm Heads-Up'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `weatherflow:obs` events where `_time` stays below `drop_hpa` > 4, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.10."
   },
   "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture and greenhouse sensors (`plant:sensor`), aquarium controllers (`aquarium:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=weatherflow:obs\n| bin _time span=1h\n| stats earliest(pressure_hpa) as start_p, latest(pressure_hpa) as end_p by _time\n| eval drop_hpa=round(start_p-end_p,1)\n| where drop_hpa>4\n| sort - drop_hpa",
   "description": "Watches for rapid barometric pressure drops that often arrive ahead of rough weather, giving you a local storm heads-up from your own sensor instead of a national feed.",
-  "value": "Fast pressure moves are one of the oldest forecasting clues around, and they become much more actionable when tracked against your own location.",
+  "value": "Watches for rapid barometric pressure drops that often arrive ahead of rough weather, giving you a local st.... Timely UC-25.10.10 alerting on 'Pressure Crash Storm Heads-Up' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward WeatherFlow or Tempest observations hourly; alert when pressure falls sharply within an hour and compare it against later conditions.",
   "visualization": "Hourly bar chart of barometric pressure drops.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Pressure Crash Storm Heads-Up'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `weatherflow:obs`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Pressure Crash Storm Heads-Up' stops polling `weatherflow:obs`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1h` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `weatherflow:obs`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `drop_hpa` > 4. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

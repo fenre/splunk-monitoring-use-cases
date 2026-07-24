@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Trakt Scrobble Weekly Runtime Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_trakt_scrobble_weekly_runtime_trend` (UC-25.7.57), SOC dashboard panel \"Personal — Trakt Scrobble Weekly Runtime Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='trakt:scrobble' that satisfy the UC-25.7.57 SPL filters for 'Trakt Scrobble Weekly Runtime Trend'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `trakt:scrobble` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.7.57."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='trakt:scrobble' where `_time` satisfies detection threshold for UC-25.7.57 ('Trakt Scrobble Weekly Runtime Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `trakt:scrobble` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.7.57."
   },
   "dataSources": "Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player/achievements (`steam:player`), Sonarr/Radarr events (`sonarr:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and *arr stack (Sonarr/Radarr) APIs and webhooks via HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=trakt:scrobble runtime_min=*\n| bin _time span=1w\n| stats avg(runtime_min) as avg_duration, max(runtime_min) as worst_duration by _time\n| sort _time",
   "description": "Trends the average and worst runtime for Trakt scrobble events each week. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Weekly timing trends show whether a process is becoming slower, more erratic, or healthier over time.",
+  "value": "Trends the average and worst runtime for Trakt scrobble events each week. Timely UC-25.7.57 alerting on 'Trakt Scrobble Weekly Runtime Trend' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture runtime_min on each event and review weekly averages plus worst cases during your personal ops review.",
   "visualization": "Line chart of weekly average runtime with markers for the worst week.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Trakt Scrobble Weekly Runtime Trend'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `trakt:scrobble`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Trakt Scrobble Weekly Runtime Trend' stops polling `trakt:scrobble`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `trakt:scrobble`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -13,7 +13,7 @@
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:client\"\n| stats avg(healthScore{}.score) as avg_health dc(macAddress) as client_count count(eval(healthScore{}.score<50)) as poor_clients by siteId\n| eval poor_pct=round(poor_clients*100/client_count,1)\n| lookup catalyst_site_lookup siteId OUTPUT siteName\n| eval site_label=coalesce(siteName, siteId)\n| sort -poor_pct\n| head 20",
   "description": "Ranks Catalyst Center sites by client experience quality — showing which buildings and campuses have the highest concentration of users with poor connectivity, so operations can prioritise site-specific remediation (AP placement, DHCP scope, cabling) over fleet-wide changes that may not address localised problems.",
-  "value": "UC-5.13.12 tells you which SSID is the problem; this UC tells you *where*. A corporate SSID with 75% healthy clients campus-wide may hide the fact that Building A is at 90% while Building C is at 40% — because Building C had a renovation that introduced RF-blocking walls. Without the site split, you'd optimise RRM globally when you only need to add APs in one building. The ranked list also identifies sites for proactive Wi-Fi surveys before users complain, and tracks whether a site-specific remediation (AP install, switch upgrade) actually improved the user experience at that location.",
+  "value": "Ranks Catalyst Center sites by client experience quality — showing which buildings and campuses have the hi.... Timely UC-5.13.13 alerting on 'Client Health by Site' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Requires the `client` detail input (same as UC-5.13.12). For human-readable site names, use the `catalyst_site_lookup` from UC-5.13.5 or UC-5.13.51. Schedule as a weekly report for regional operations teams.",
   "visualization": "(1) Table: site_label, client_count, avg_health, poor_clients, poor_pct — sorted worst-first. Drilldown to UC-5.13.12 filtered by `siteId`. (2) Bar chart: poor_pct by site, red/yellow/green colour coding. (3) Optional choropleth or tile map if geo-coordinates are available per site. (4) Trellis sparklines: one per top-10 site showing avg_health over 7 days for trend context.",
   "references": [
@@ -34,7 +34,7 @@
       "url": "https://developer.cisco.com/docs/catalyst-center/#!get-site-topology"
     }
   ],
-  "knownFalsePositives": "**Small-population sites with volatile percentages.** A branch office with 5 connected clients where 1 is unhealthy shows 20% poor — alarming but representing a single device. Distinguish by checking `client_count`. Suppress by filtering `| where client_count >= 20` for the ranked chart.\n\n**Conference/event venues with temporary client surges.** A convention centre or auditorium may show poor client health during events due to density and device diversity, then recover to near-100% when empty. Distinguish by checking whether `client_count` spiked in the same window. Suppress by using time-of-day-aware baselines for event venues.\n\n**Overnight shift sites with different baselines.** A 24/7 data centre has fundamentally different usage patterns than a 9-to-5 office. Comparing them in the same ranked list is misleading. Suppress by adding a `site_category` column from a lookup (office/DC/retail/warehouse) and comparing within categories.\n\n**Site hierarchy reorganisation shifting clients between siteIds.** Same issue as UC-5.13.5 — a hierarchy change can make one site appear to improve while another degrades. Distinguish by tracking `dc(macAddress)` per site over time.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Client Health by Site' shifts `avg` over `span=1h` while `siteId` remains in-scope for UC-5.13.13. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `cisco:dnac:client`** — Scheduled automation elevates `poor_pct` without crossing `score` < 50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `siteId`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:client`** — First 48h baseline for `siteId` is unstable; join `catalyst_site_lookup` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `siteId`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "m365"
@@ -54,5 +54,9 @@
   "prerequisiteUseCases": [
     "UC-5.13.9"
   ],
-  "wave": "walk"
+  "wave": "walk",
+  "controlTest": {
+    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:client' where `siteId` satisfies `score` < 50 for UC-5.13.13 ('Client Health by Site'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:client` events where `siteId` stays below `score` < 50, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.13."
+  }
 }

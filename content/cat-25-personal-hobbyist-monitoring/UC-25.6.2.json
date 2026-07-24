@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Solar Panel Underperformance Detection' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_solar_panel_underperformance_detection` (UC-25.6.2), SOC dashboard panel \"Personal — Solar Panel Underperformance Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='enphase:production' that satisfy the UC-25.6.2 SPL filters for 'Solar Panel Underperformance Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `enphase:production` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.6.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='enphase:production' where `inverter_serial` satisfies `pct_of_fleet` < 80 for UC-25.6.2 ('Solar Panel Underperformance Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `enphase:production` events where `inverter_serial` stays below `pct_of_fleet` < 80, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.6.2."
   },
   "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=enphase:production\n| stats avg(power_w) as avg_power by inverter_serial\n| eventstats avg(avg_power) as fleet_avg\n| eval pct_of_fleet=round(100*avg_power/fleet_avg,1)\n| where pct_of_fleet<80\n| sort pct_of_fleet",
   "description": "Compares each micro-inverter or panel against the average of the array and flags any that consistently underperform, pointing at shading, dirt, or a fault.",
-  "value": "A single failing panel can go unnoticed for months; peer comparison surfaces it so you can clean, unshade, or warranty-claim it.",
+  "value": "Compares each micro-inverter or panel against the average of the array and flags any that consistently unde.... Timely UC-25.6.2 alerting on 'Solar Panel Underperformance Detection' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest per-panel production; schedule daily over daylight hours and alert when a panel lags its peers.",
   "visualization": "Bar chart of panels by percentage of array average.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Solar Panel Underperformance Detection'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `enphase:production`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Solar Panel Underperformance Detection' stops polling `enphase:production`; stale `inverter_serial` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `enphase:production`. Dedup with `stats latest(*) by inverter_serial`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `pct_of_fleet` < 80. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

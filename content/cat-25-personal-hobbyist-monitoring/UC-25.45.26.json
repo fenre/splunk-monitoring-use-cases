@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Spotify for Artists Playlist Lift Persistence' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_spotify_for_artists_playlist_lift_persistence` (UC-25.45.26), SOC dashboard panel \"Personal — Spotify for Artists Playlist Lift Persistence\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='music:streaming' that satisfy the UC-25.45.26 SPL filters for 'Spotify for Artists Playlist Lift Persistence'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `music:streaming` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.45.26."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='music:streaming' where `_time` satisfies detection threshold for UC-25.45.26 ('Spotify for Artists Playlist Lift Persistence'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `music:streaming` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.45.26."
   },
   "dataSources": "Release events (`music:distribution`), Bandcamp activity (`music:bandcamp`), project exports (`music:project`), streaming analytics (`music:streaming`), metadata tasks (`music:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Music-making and creator telemetry — DistroKid release exports, Bandcamp sales activity, Cockos Reaper project stats, and Spotify for Artists analytics — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=music:streaming playlist_name=* stream_lift_pct=*\n| bin _time span=1mon\n| stats avg(stream_lift_pct) as metric by _time playlist_name\n| sort 0 _time playlist_name",
-  "description": "Trends monthly playlist lift percentage by playlist for playlist placement effects.",
-  "value": "Monthly trend lines show whether playlist placement effects are improving, stalling, or becoming unbalanced over time.",
+  "description": "Trends monthly playlist lift percentage by playlist for playlist placement effects. Searches `index=personal` with sourcetype `music:streaming` for UC-25.45.26, aggregating `avg` by `_time` over `1m`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Spotify for Artists Playlist Lift Persistence' without manual log review.",
+  "value": "Trends monthly playlist lift percentage by playlist for playlist placement effects. Timely UC-25.45.26 alerting on 'Spotify for Artists Playlist Lift Persistence' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Normalize `playlist_name` on `music:streaming` events and store the fields needed to calculate monthly playlist lift percentage.",
   "visualization": "Line chart of monthly playlist lift percentage by playlist.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Spotify for Artists Playlist Lift Persistence'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `music:streaming`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Spotify for Artists Playlist Lift Persistence' stops polling `music:streaming`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `music:streaming`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

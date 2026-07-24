@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'ActiveMQ Combined Memory and Persistent Store Percent Usage' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_activemq_combined_memory_and_persistent_store_pe` (UC-8.5.32), SOC dashboard panel \"Operations — ActiveMQ Combined Memory and Persistent Store Percent Usage\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='activemq:broker' that satisfy the UC-8.5.32 SPL filters for 'ActiveMQ Combined Memory and Persistent Store Percent Usage'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `messaging` / `activemq:broker` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.5.32."
+    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='activemq:broker' where `entity` satisfies `mem_pct` > 75 for UC-8.5.32 ('ActiveMQ Combined Memory and Persistent Store Percent Usage'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `messaging` / `activemq:broker` events where `entity` stays below `mem_pct` > 75, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.5.32."
   },
   "dataSources": "`index=messaging` `sourcetype=activemq:broker` JMX `org.apache.activemq:type=Broker` attributes `MemoryPercentUsage`, `StorePercentUsage` (and byte/limit pairs if your collector normalizes to `memory_used`/`store_used`)",
   "app": "Splunk Add-on for JMX (Splunkbase 2647) or scripted Jolokia→HEC poller",
   "spl": "index=messaging sourcetype=\"activemq:broker\" earliest=-4h\n| eval mem_pct=coalesce(MemoryPercentUsage, memory_percent_usage, round(memory_used*100/nullif(memory_limit,0),1))\n| eval store_pct=coalesce(StorePercentUsage, store_percent_usage, round(store_used*100/nullif(store_limit,0),1))\n| where mem_pct > 75 OR store_pct > 75\n| table _time, broker_name, mem_pct, store_pct, TempPercentUsage",
   "description": "Classic brokers enforce separate limits for JVM memory (`MemoryLimit`) and the persistence store (`StoreLimit`). Either limit triggers producer blocking or paging, so a single view of both percentages avoids blind spots where memory is fine but disk-backed store is pegged, or the reverse.",
-  "value": "Gives operators one alert surface for the two dominant resource ceilings that throttle messaging throughput.",
+  "value": "Classic brokers enforce separate limits for JVM memory (`MemoryLimit`) and the persistence store (`StoreLim.... Timely UC-8.5.32 alerting on 'ActiveMQ Combined Memory and Persistent Store Percent Usage' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll broker MBeans every 60–300s. Align thresholds with `systemUsage` configuration. Include `TempPercentUsage` in the same dashboard row for non-persistent spillover.",
   "visualization": "Dual-axis line chart (memory % vs store %), gauge pair per broker, table of breaches.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'ActiveMQ Combined Memory and Persistent Store Percent Usage'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `messaging` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging`** — Planned work for 'ActiveMQ Combined Memory and Persistent Store Percent Usage' shifts `count` over `span=1h` while `host` remains in-scope for UC-8.5.32. Cross-check CMDB CHG.\n\n2. **Batch `count` on `activemq:broker`** — Scheduled automation elevates `mem_pct` without crossing `mem_pct` > 75. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `activemq:broker`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "activemq",
     "apache"

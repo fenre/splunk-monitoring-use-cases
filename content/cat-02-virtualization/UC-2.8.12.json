@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'oVirt MAC Address Pool Utilization and Exhaustion Warning' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_ovirt_mac_address_pool_utilization_and_exhaustio` (UC-2.8.12), SOC dashboard panel \"Linux — oVirt MAC Address Pool Utilization and Exhaustion Warning\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ovirt` sourcetype='ovirt:audit' that satisfy the UC-2.8.12 SPL filters for 'oVirt MAC Address Pool Utilization and Exhaustion Warning'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ovirt` / `ovirt:audit` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.8.12."
+    "positiveScenario": "Ingest synthetic events into `index=ovirt` sourcetype='ovirt:audit' where `pool_name` satisfies `pct` >= 85 for UC-2.8.12 ('oVirt MAC Address Pool Utilization and Exhaustion Warning'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ovirt` / `ovirt:audit` events where `pool_name` stays below `pct` >= 85, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.8.12."
   },
   "dataSources": "`index=ovirt` `sourcetype=\"ovirt:audit\"` or `ovirt:engine` — `pool_name`, `used`, `total`, `threshold_pct` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scheduled inventory search pushing metrics to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ovirt (sourcetype=\"ovirt:audit\" OR sourcetype=\"ovirt:engine\") earliest=-24h\n| eval used=tonumber(used_macs), tot=tonumber(total_macs)\n| eval pct=round(100*used/tot,2)\n| where pct>=85 OR match(lower(_raw), \"(?i)mac.*pool.*full\")\n| stats latest(pct) as util_pct by pool_name",
-  "description": "Exhausted MAC pools block new vNICs during scale events. Tracking utilization avoids midnight provisioning failures.",
-  "value": "Prevents automation breakage during burst scaling and lab sprawl. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Exhausted MAC pools block new vNICs during scale events. Tracking utilization avoids midnight provisioning failures. Searches `index=ovirt` with sourcetype `ovirt:audit` for UC-2.8.12, aggregating `count` by `pool_name` over `the scheduled window`. Alerts when grouped results cross `pct` >= 85 in the saved search. Gives Linux operators a repeatable signal for 'oVirt MAC Address Pool Utilization and Exhaustion Warning' without manual log review.",
+  "value": "Exhausted MAC pools block new vNICs during scale events. Timely UC-2.8.12 alerting on 'oVirt MAC Address Pool Utilization and Exhaustion Warning' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Export pool stats nightly. Alert above 85% default. Document pool expansion runbook.",
   "visualization": "Gauge utilization; table pools; forecast linear trend.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'oVirt MAC Address Pool Utilization and Exhaustion Warning'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `ovirt` `ovirt:audit`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `ovirt`** — Package managers spike `pool_name` metrics for 'oVirt MAC Address Pool Utilization and Exhaustion Warning'. Correlate with apt/yum logs in the same `ovirt:audit` window.\n\n2. **Nightly backup I/O on `pool_name`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ovirt:audit`** — Nagios/Zabbix polls `pool_name` and mimics sustained load without crossing `pct` >= 85.\n\n4. **New host onboarding** — `pool_name` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `pool_name`, `valid_until`.",
   "equipment": [
     "ovirt"
   ],

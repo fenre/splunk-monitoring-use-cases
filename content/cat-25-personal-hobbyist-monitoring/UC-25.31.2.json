@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'What Lifts My Mood — Activity Correlation' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_what_lifts_my_mood_activity_correlation` (UC-25.31.2), SOC dashboard panel \"Personal — What Lifts My Mood — Activity Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mood:entry' that satisfy the UC-25.31.2 SPL filters for 'What Lifts My Mood — Activity Correlation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `mood:entry` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.31.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mood:entry' where `activity` satisfies `days` >= 5 for UC-25.31.2 ('What Lifts My Mood — Activity Correlation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `mood:entry` events where `activity` stays below `days` >= 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.31.2."
   },
   "dataSources": "Mood entries (`mood:entry`), meditation sessions (`meditation:session`), journal entries (`journal:entry`), gratitude logs (`gratitude:log`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Mood, mindfulness and journaling apps — Daylio / How We Feel mood exports, Headspace / Insight Timer meditation logs, journaling and gratitude entries — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=mood:entry\n| eval activity=mvindex(split(tags,\",\"),0)\n| stats avg(mood_score) as avg_mood, count as days by activity\n| where days>=5\n| sort - avg_mood",
-  "description": "Compares your average mood across the activities you tag, revealing which things reliably lift you up.",
-  "value": "Learning that, say, exercise or seeing friends consistently raises your mood turns vague advice into personal evidence.",
+  "description": "Compares your average mood across the activities you tag, revealing which things reliably lift you up. Searches `index=personal` with sourcetype `mood:entry` for UC-25.31.2, aggregating `avg` by `activity` over `the scheduled window`. Alerts when grouped results cross `days` >= 5 in the saved search. Gives Personal operators a repeatable signal for 'What Lifts My Mood — Activity Correlation' without manual log review.",
+  "value": "Compares your average mood across the activities you tag, revealing which things reliably lift you up. Timely UC-25.31.2 alerting on 'What Lifts My Mood — Activity Correlation' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest mood entries with activity tags; review average mood by tagged activity.",
   "visualization": "Bar chart of average mood by tagged activity.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'What Lifts My Mood — Activity Correlation'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mood:entry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'What Lifts My Mood — Activity Correlation' stops polling `mood:entry`; stale `activity` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mood:entry`. Dedup with `stats latest(*) by activity`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days` >= 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'BeyondTrust Jump Client Offline Status and Connectivity Loss' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_beyondtrust_jump_client_offline_status_and_conne` (UC-9.8.3), SOC dashboard panel \"IAM — BeyondTrust Jump Client Offline Status and Connectivity Loss\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=pam` sourcetype='beyondtrust:audit' that satisfy the UC-9.8.3 SPL filters for 'BeyondTrust Jump Client Offline Status and Connectivity Loss'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `pam` / `beyondtrust:audit` events outside the detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.8.3."
+    "positiveScenario": "Ingest synthetic events into `index=pam` sourcetype='beyondtrust:audit' where `jc` satisfies detection threshold for UC-9.8.3 ('BeyondTrust Jump Client Offline Status and Connectivity Loss'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `pam` / `beyondtrust:audit` events where `jc` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.8.3."
   },
   "dataSources": "`sourcetype=beyondtrust:audit` Jump Client health, disconnect, or tunnel audit events Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Add-on for BeyondTrust PRA or API export to `beyondtrust:audit` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pam sourcetype=\"beyondtrust:audit\" earliest=-24h\n| eval jc=coalesce(jump_client, JumpClient, client_name, host, \"\")\n| eval msg=coalesce(message, Message, event, Event, _raw)\n| where match(lower(msg), \"(?i)offline|unreachable|disconnect|tunnel.*down|heartbeat.*miss|agent.*stop\")\n| eval site=coalesce(site_name, Site, location, \"\")\n| stats latest(_time) as last_event count by jc site\n| eval mins_ago=round((now()-last_event)/60,1)\n| sort -count",
   "description": "Jump Clients extend PRA into segmented networks; when they go dark, support and incident responders lose path diversity. Clustered offline signals may indicate maintenance—or targeted disruption.",
-  "value": "Improves operational resilience of remote access and helps distinguish planned outages from potential security events affecting OT or DMZ enclaves.",
+  "value": "Jump Clients extend PRA into segmented networks; when they go dark, support and incident responders lose pa.... Timely UC-9.8.3 alerting on 'BeyondTrust Jump Client Offline Status and Connectivity Loss' reduces account takeover risk, help-desk load, and audit findings before manual triage or audit channels escalate.",
   "implementation": "(1) Classify Jump Clients by criticality in a lookup. (2) Correlate with network change windows. (3) Alert when more than N clients in a site drop within minutes. (4) Integrate with NMS ICMP where available. (5) Track MTTR for reconnect.",
   "visualization": "Map or site-based status panel, table (Jump Client, last event age), single-value (offline count).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled IAM maintenance** — Planned directory or IdP change generates expected deviations for 'BeyondTrust Jump Client Offline Status and Connectivity Loss'. Cross-check change records.\n\n2. **Onboarding burst** — New accounts or apps produce atypical `pam` volume.\n\n3. **Monitoring synthetic bind checks** — Health probes from known scanner hosts.\n\n4. **Stale application credential** — Single entity dominates `beyondtrust:audit` failures.\n\n**Suppression mechanism:** `iam_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `pam`** — Planned work for 'BeyondTrust Jump Client Offline Status and Connectivity Loss' shifts `count` over `span=1h` while `jc` remains in-scope for UC-9.8.3. Cross-check CMDB CHG.\n\n2. **Batch `count` on `beyondtrust:audit`** — Scheduled automation elevates `site` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `jc`** — Health checks in `pam` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `beyondtrust:audit`** — First 48h baseline for `jc` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `jc`, `exception_reason`, `valid_until`.",
   "securityDomain": "access",
   "equipment": [
     "beyondtrust"

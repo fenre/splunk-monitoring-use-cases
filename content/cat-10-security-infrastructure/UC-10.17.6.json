@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'SonicWall SSL-VPN Concurrent Sessions vs Licensed Capacity (SonicWall)' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_sonicwall_ssl_vpn_concurrent_sessions_vs_license` (UC-10.17.6), SOC dashboard panel \"Security Infra — SonicWall SSL-VPN Concurrent Sessions vs Licensed Capacity (SonicWall)\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=netops` sourcetype='dell:sonicwall' that satisfy the UC-10.17.6 SPL filters for 'SonicWall SSL-VPN Concurrent Sessions vs Licensed Capacity (SonicWall)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `netops` / `dell:sonicwall` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.17.6."
+    "positiveScenario": "Ingest synthetic events into `index=netops` sourcetype='dell:sonicwall' where `host` satisfies `pct` >= 80 for UC-10.17.6 ('SonicWall SSL-VPN Concurrent Sessions vs Licensed Capacity (SonicWall)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `netops` / `dell:sonicwall` events where `host` stays below `pct` >= 80, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.17.6."
   },
   "dataSources": "`sourcetype=dell:sonicwall` management or SSL-VPN session summary events Indexes: netops. Sourcetypes: dell:sonicwall. Key fields: host, pct. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Dell SonicWall Add-on for Splunk (Splunkbase 6203)",
   "spl": "index=netops sourcetype=\"dell:sonicwall\" earliest=-4h\n| where match(_raw,\"(?i)ssl-vpn|NetExtender|session\")\n| rex field=_raw \"(?i)active[\\s_]*sessions[\\s:=]+(?<sessions>\\d+)\"\n| stats latest(sessions) as active_sessions by host\n| eval license_limit=250\n| eval pct=round(100*active_sessions/license_limit,1)\n| where pct>=80",
   "description": "VPN license exhaustion blocks remote workers during incidents or weather events. Session counts should be tracked like any other capacity metric.",
-  "value": "Prevents emergency license purchases and documents growth for budget planning. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "VPN license exhaustion blocks remote workers during incidents or weather events. Timely UC-10.17.6 alerting on 'SonicWall SSL-VPN Concurrent Sessions vs Licensed Capacity (SonicWall)' reduces missed threat campaigns, control regressions, and SOC SLA breaches before manual triage or audit channels escalate.",
   "implementation": "Enable SSL-VPN session logging. If only available via SNMP/API, ingest via scripted input into `sourcetype=sonicwall:vpn:metrics`.",
   "visualization": "Single value (sessions vs cap), timechart (concurrent sessions).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'SonicWall SSL-VPN Concurrent Sessions vs Licensed Capacity (SonicWall)'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=netops` `dell:sonicwall`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `netops`** — Planned work for 'SonicWall SSL-VPN Concurrent Sessions vs Licensed Capacity (SonicWall)' shifts `count` over `span=1h` while `host` remains in-scope for UC-10.17.6. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dell:sonicwall`** — Scheduled automation elevates `license_limit` without crossing `pct` >= 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `netops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dell:sonicwall`** — First 48h baseline for `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "snmp",

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Kubernetes PVC Free Space Under Fifteen Percent' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_kubernetes_pvc_free_space_under_fifteen_percent` (UC-25.8.20), SOC dashboard panel \"Personal — Kubernetes PVC Free Space Under Fifteen Percent\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='kubernetes:pod' that satisfy the UC-25.8.20 SPL filters for 'Kubernetes PVC Free Space Under Fifteen Percent'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `kubernetes:pod` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.20."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='kubernetes:pod' where `pvc` satisfies `free_pct` < 15 for UC-25.8.20 ('Kubernetes PVC Free Space Under Fifteen Percent'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `kubernetes:pod` events where `pvc` stays below `free_pct` < 15, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.20."
   },
   "dataSources": "Homelab services (`kubernetes:pod`, `proxmox:metric`, `vaultwarden:event`, `paperless:document`, `immich:job`, `adguard:query`, `docker:stats`, `truenas:pool`, `nut:ups`, `uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Kubernetes homelab clusters, Proxmox, Vaultwarden, Paperless-ngx, Immich, AdGuard Home, Docker, TrueNAS, and NUT metrics via APIs, logs, Telegraf, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=kubernetes:pod metric=pvc\n| stats latest(free_pct) as free_pct by pvc namespace\n| where free_pct<15\n| sort free_pct",
   "description": "Uses Kubernetes persistent-volume metrics telemetry to monitor which PVCs are closest to running out of space in index=personal.",
-  "value": "Splunk turns the feed into an operational check for storage that needs extension before workloads fail, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Kubernetes persistent-volume metrics telemetry to monitor which PVCs are closest to running out of spa.... Timely UC-25.8.20 alerting on 'Kubernetes PVC Free Space Under Fifteen Percent' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Kubernetes persistent-volume metrics data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "PVC table of remaining free percentage.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Kubernetes PVC Free Space Under Fifteen Percent'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `kubernetes:pod`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Kubernetes PVC Free Space Under Fifteen Percent' stops polling `kubernetes:pod`; stale `pvc` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `kubernetes:pod`. Dedup with `stats latest(*) by pvc`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `free_pct` < 15. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "hashicorp",

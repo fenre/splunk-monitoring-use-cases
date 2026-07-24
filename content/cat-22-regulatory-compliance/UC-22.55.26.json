@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Deploy a new signalling subsystem without alignment to reference architecture. UC-22.55.26 MUST flag `ref_arch_status=\"drift_unapproved\"`.",
-    "negativeScenario": "Document drift, get architect sign-off, register exemption; UC-22.55.26 MUST record `ref_arch_status=\"aligned_with_documented_drift\"` or `compliant`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies `drift_findings_count` > 0 for UC-22.55.26 ('CLC/TS 50701 Rail Reference Security Architecture Compliance — deployments aligned to operator-approved reference architecture'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `drift_findings_count` > 0, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.55.26."
   },
   "dataSources": "KV Store `rail_ref_arch_lookup`. Architecture-review pipeline (Confluence, JIRA architecture-review process). Cisco Cyber Vision flow analysis for actual topology verification.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_ref_arch_lookup\n| where deployment_status=\"active\"\n| eval now_ts = now()\n| eval ref_arch_status = case(\n    isnull(deployment_signed_at), \"alignment_review_missing\",\n    drift_findings_count > 0 AND isnull(architect_drift_signed_at), \"drift_unapproved\",\n    isnotnull(architect_drift_signed_at), \"aligned_with_documented_drift\",\n    1=1, \"compliant\")\n| where ref_arch_status != \"compliant\"\n| table deployment_id ref_arch_version deployment_signed_at drift_findings_count ref_arch_status",
-  "description": "Tracks rail-OT deployments against operator's reference architecture, flagging drift and missing reviews.",
-  "value": "Reference architectures provide proven security patterns; unmanaged drift erodes those patterns.",
+  "description": "Tracks rail-OT deployments against operator's reference architecture, flagging drift and missing reviews. Searches `index=target_index` with sourcetype `configured sourcetype` for UC-22.55.26, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `drift_findings_count` > 0 in the saved search. Gives Compliance operators a repeatable signal for 'CLC/TS 50701 Rail Reference Security Architecture Compliance — deployments aligned to operator-approved reference architecture' without manual log review.",
+  "value": "Tracks rail-OT deployments against operator's reference architecture, flagging drift and missing reviews. Timely UC-22.55.26 alerting on 'CLC/TS 50701 Rail Reference Security Architecture Compliance — deployments aligned to operator-approved reference architecture' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Document reference architecture. (2) Architecture-review process logs to Splunk. (3) Schedule UC-22.55.26 monthly on 1st 10:00.",
   "visualization": "(Panel 1) Architecture status. (Panel 2) Drift queue. (Panel 3) Architecture-coverage by zone.",
   "cimModels": [
@@ -76,7 +76,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Phase rollout** — architectures may have intentional staged drift. Suppression: tracked under rollout-plan.\n\n**Suppression mechanism**: KV Store `clc_22_55_26_exceptions` with documented Rail Cybersecurity Architect approval and 90-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Rail Reference Security Architecture Compliance — deployments aligned to operator-approved reference architecture' (UC-22.55.26) on `entity` during scheduled clause CLC-TS-50701-c7-3 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `drift_findings_count` > 0. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (architecture governance)"
   ],

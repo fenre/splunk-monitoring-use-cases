@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Plex Transcode Overload Warning' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_plex_transcode_overload_warning` (UC-25.7.2), SOC dashboard panel \"Personal — Plex Transcode Overload Warning\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tautulli:play' that satisfy the UC-25.7.2 SPL filters for 'Plex Transcode Overload Warning'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tautulli:play` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.7.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tautulli:play' where `_time` satisfies `concurrent_transcodes` > 2 for UC-25.7.2 ('Plex Transcode Overload Warning'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `tautulli:play` events where `_time` stays below `concurrent_transcodes` > 2, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.7.2."
   },
   "dataSources": "Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player/achievements (`steam:player`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and the *arr stack (Sonarr/Radarr) APIs and webhooks via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tautulli:play transcode_decision=transcode\n| bin _time span=5m\n| stats dc(session_id) as concurrent_transcodes by _time\n| where concurrent_transcodes>2\n| sort - _time",
   "description": "Watches for too many simultaneous video transcodes on your Plex server, the main cause of buffering and an overloaded home server.",
-  "value": "Transcoding is CPU-hungry; catching concurrent transcode spikes explains buffering complaints and tells you when to nudge clients to direct play.",
+  "value": "Watches for too many simultaneous video transcodes on your Plex server, the main cause of buffering and an.... Timely UC-25.7.2 alerting on 'Plex Transcode Overload Warning' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward Tautulli sessions; schedule frequently and alert when concurrent transcodes exceed your server's comfortable limit.",
   "visualization": "Timeline of concurrent transcodes with a threshold line.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Plex Transcode Overload Warning'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tautulli:play`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Plex Transcode Overload Warning' stops polling `tautulli:play`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `dc` over `5m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tautulli:play`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `5m` bins on UTC vs local schedule skew `concurrent_transcodes` > 2. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

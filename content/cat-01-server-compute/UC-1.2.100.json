@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'PKI / Certificate Authority Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_pki_certificate_authority_health` (UC-1.2.100), SOC dashboard panel \"Linux — PKI / Certificate Authority Health\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=4886 that satisfy the UC-1.2.100 SPL filters for 'PKI / Certificate Authority Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.100."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=4886 where `Action` satisfies detection threshold for UC-1.2.100 ('PKI / Certificate Authority Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events where `Action` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.100."
   },
   "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4886, 4887, 4888), `sourcetype=WinEventLog:Application` Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog EventCode IN (4886, 4887, 4888, 4890, 4891, 4893)\n| eval Action=case(EventCode=4886,\"CertRequest_Received\", EventCode=4887,\"CertRequest_Approved\", EventCode=4888,\"CertRequest_Denied\", EventCode=4890,\"CA_Settings_Changed\", EventCode=4891,\"CA_Config_Changed\", EventCode=4893,\"CA_Archived_Key\", 1=1,\"Other\")\n| stats count by Action, host, SubjectUserName, RequesterName\n| sort -count",
   "description": "An enterprise CA issues certificates for authentication, encryption, and code signing. CA failures break SSO, VPN, Wi-Fi, and TLS across the organization.",
-  "value": "When the issuing CA struggles, certificates for VPN, Wi-Fi, apps, and domain trust can all fail together. Watching request, deny, and config events keeps PKI issues a small incident, not a company-wide outage.",
+  "value": "An enterprise CA issues certificates for authentication, encryption, and code signing. Timely UC-1.2.100 alerting on 'PKI / Certificate Authority Health' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Enable CA-specific audit events via certsrv MMC. Monitor certificate request lifecycle: received (4886), approved (4887), denied (4888). Alert on CA configuration changes (4890/4891) and key archival (4893). Track CRL publishing failures in Application log. Monitor CA certificate expiration (alert 90/60/30 days before). Detect ESC1-ESC8 ADCS attack patterns (misconfigurations in certificate templates).",
   "visualization": "Timechart (cert requests), Table (CA changes), Alert on config changes and template modifications.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'PKI / Certificate Authority Health'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `configured sourcetype`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `Action` metrics for 'PKI / Certificate Authority Health'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `Action`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `Action` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `Action` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `Action`, `valid_until`.",
   "equipment": [
     "cert_pki",
     "windows"

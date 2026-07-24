@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Cloudflare Page Rules and Redirect Chain Depth Analysis (`cloudflare:json`)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_cloudflare_page_rules_and_redirect_chain_depth_a` (UC-17.4.5), SOC dashboard panel \"Network — Cloudflare Page Rules and Redirect Chain Depth Analysis (`cloudflare:json`)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cdn` sourcetype='cloudflare:json' that satisfy the UC-17.4.5 SPL filters for 'Cloudflare Page Rules and Redirect Chain Depth Analysis (`cloudflare:json`)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cdn` / `cloudflare:json` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.4.5."
+    "positiveScenario": "Ingest synthetic events into `index=cdn` sourcetype='cloudflare:json' where `ClientRequestHost` satisfies `redirects` > 3 for UC-17.4.5 ('Cloudflare Page Rules and Redirect Chain Depth Analysis (`cloudflare:json`)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cdn` / `cloudflare:json` events where `ClientRequestHost` stays below `redirects` > 3, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.4.5."
   },
   "dataSources": "Cloudflare Logpush JSON delivered to Splunk HEC/S3 with `sourcetype=cloudflare:json` (HTTP requests, firewall, Workers, DNS, Access as configured)",
   "app": "Cloudflare App for Splunk (Splunkbase 4501) + Logpush JSON (`cloudflare:json`)",
   "spl": "index=cdn sourcetype=\"cloudflare:json\" earliest=-7d\n| spath ClientRequestURI\n| spath EdgeResponseStatus\n| where EdgeResponseStatus IN (301,302,307,308)\n| eval hops=1\n| stats sum(hops) as redirects by ClientRequestHost, ClientRequestURI\n| where redirects>3\n| sort -redirects",
   "description": "Redirect loops and excessive hops hurt SEO and mobile latency. HTTP request logs expose chains that configuration UIs hide.",
-  "value": "Web platform and SEO teams detect redirect loops and excessive hop chains caused by misconfigured Page Rules, preventing crawl-budget waste and mobile latency degradation before search rankings drop.",
+  "value": "Redirect loops and excessive hops hurt SEO and mobile latency. Timely UC-17.4.5 alerting on 'Cloudflare Page Rules and Redirect Chain Depth Analysis (`cloudflare:json`)' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Configure Logpush jobs per dataset; route all into a unified `cloudflare:json` sourcetype or use transforms to normalize. Use `spath` for PascalCase fields. Create macros per zone name.",
   "visualization": "Sankey or table (from→to status), histogram (hop count).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Cloudflare Page Rules and Redirect Chain Depth Analysis (`cloudflare:json`)'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `cdn`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `cloudflare:json` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `cdn`** — Planned work for 'Cloudflare Page Rules and Redirect Chain Depth Analysis (`cloudflare:json`)' shifts `sum` over `span=1h` while `ClientRequestHost` remains in-scope for UC-17.4.5. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cloudflare:json`** — Scheduled automation elevates `ClientRequestURI` without crossing `redirects` > 3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ClientRequestHost`** — Health checks in `cdn` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cloudflare:json`** — First 48h baseline for `ClientRequestHost` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `ClientRequestHost`, `exception_reason`, `valid_until`.",
   "securityDomain": "cloud",
   "equipment": [
     "cloudflare"

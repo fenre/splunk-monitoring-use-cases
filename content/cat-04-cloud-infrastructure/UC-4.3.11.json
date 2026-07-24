@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'Cloud Storage (GCS) Request Metrics and Cost' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cloud_storage_gcs_request_metrics_and_cost` (UC-4.3.11), SOC dashboard panel \"Operations — Cloud Storage (GCS) Request Metrics and Cost\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='google:gcp:pubsub:message' that satisfy the UC-4.3.11 SPL filters for 'Cloud Storage (GCS) Request Metrics and Cost'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `gcp` / `google:gcp:pubsub:message` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.11."
+    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='google:gcp:pubsub:message' where `method` satisfies detection threshold for UC-4.3.11 ('Cloud Storage (GCS) Request Metrics and Cost'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `gcp` / `google:gcp:pubsub:message` events where `method` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.11."
   },
   "dataSources": "Cloud Monitoring (storage.googleapis.com/request_count), Billing export Collected via Splunk Add-on for Google Cloud Platform (Splunkbase 3084) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_google-cloudplatform` — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
   "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"storage.googleapis.com\"\n| spath output=method path=protoPayload.methodName\n| stats count by method resource.labels.bucket_name\n| sort -count",
-  "description": "GCS request count and latency support performance tuning. Cost tracking by bucket/class prevents bill shock.",
+  "description": "GCS request count and latency support performance tuning. Cost tracking by bucket/class prevents bill shock. Searches `index=gcp` with sourcetype `google:gcp:pubsub:message` for UC-4.3.11, aggregating `count` by `method` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Cloud Storage (GCS) Request Metrics and Cost' without manual log review.",
   "value": "Early 'Cloud Storage (GCS) Request Metrics and Cost' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Enable GCS request logging to Cloud Logging; sink to Pub/Sub for Splunk. Collect storage metrics. Ingest billing export for cost by bucket. Alert on anomalous request volume or cost spike.",
   "visualization": "Line chart (requests, cost by bucket), Table (bucket, method, count), Bar chart (cost by bucket).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cloud Storage (GCS) Request Metrics and Cost'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `gcp` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `gcp`** — Planned work for 'Cloud Storage (GCS) Request Metrics and Cost' shifts `count` over `span=1h` while `method` remains in-scope for UC-4.3.11. Cross-check CMDB CHG.\n\n2. **Batch `count` on `google:gcp:pubsub:message`** — Scheduled automation elevates `resource.labels.bucket_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `method`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `google:gcp:pubsub:message`** — First 48h baseline for `method` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `method`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1619",
     "T1530"

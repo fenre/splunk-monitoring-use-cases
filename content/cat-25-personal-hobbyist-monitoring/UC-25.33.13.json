@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Nicotine-Free Morning Streak' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_nicotine_free_morning_streak` (UC-25.33.13), SOC dashboard panel \"Personal — Nicotine-Free Morning Streak\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='vice:log' that satisfy the UC-25.33.13 SPL filters for 'Nicotine-Free Morning Streak'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `vice:log` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.33.13."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='vice:log' where `_time` satisfies `hour` < 12 for UC-25.33.13 ('Nicotine-Free Morning Streak'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `vice:log` events where `_time` stays below `hour` < 12, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.33.13."
   },
   "dataSources": "Alcohol drinks (`alcohol:drink`), vice logs (`vice:log`), hydration intake (`hydration:intake`), swear-jar entries (`swearjar:entry`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Habit and sobriety trackers, alcohol-unit and hydration logs, vaping/smoking cessation apps, and a smart swear jar — sent to Splunk HEC via scripted inputs and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=vice:log habit=nicotine\n| eval hour=tonumber(strftime(_time,\"%H\"))\n| bin _time span=1d\n| stats min(eval(if(hour<12,1,0))) as morning_use by _time\n| eval nicotine_free_morning=if(morning_use=1,0,1)\n| streamstats current=t sum(eval(if(nicotine_free_morning=1,1,0))) as streak reset_after=\"(nicotine_free_morning=0)\"\n| sort - _time",
-  "description": "Tracks the streak of mornings where nicotine was pushed back beyond midday or skipped entirely.",
-  "value": "Winning the first half of the day is often the strongest predictor that cutback plans are really taking hold.",
+  "description": "Tracks the streak of mornings where nicotine was pushed back beyond midday or skipped entirely. Searches `index=personal` with sourcetype `vice:log` for UC-25.33.13, aggregating `min` by `_time` over `1d`. Alerts when grouped results cross `hour` < 12 in the saved search. Gives Personal operators a repeatable signal for 'Nicotine-Free Morning Streak' without manual log review.",
+  "value": "Tracks the streak of mornings where nicotine was pushed back beyond midday or skipped entirely. Timely UC-25.33.13 alerting on 'Nicotine-Free Morning Streak' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log nicotine events to `index=personal`; calculate whether each morning stayed clear and maintain a rolling streak.",
   "visualization": "Daily streak chart for nicotine-free mornings.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Nicotine-Free Morning Streak'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vice:log`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Nicotine-Free Morning Streak' stops polling `vice:log`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `min` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vice:log`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `hour` < 12. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

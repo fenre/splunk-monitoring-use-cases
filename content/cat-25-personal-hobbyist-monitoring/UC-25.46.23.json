@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Initiative Tracker Slow-Round Hotspots' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_initiative_tracker_slow_round_hotspots` (UC-25.46.23), SOC dashboard panel \"Personal — Initiative Tracker Slow-Round Hotspots\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rpg:initiative' that satisfy the UC-25.46.23 SPL filters for 'Initiative Tracker Slow-Round Hotspots'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `rpg:initiative` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.46.23."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rpg:initiative' where `encounter_type` satisfies detection threshold for UC-25.46.23 ('Initiative Tracker Slow-Round Hotspots'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `rpg:initiative` events where `encounter_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.46.23."
   },
   "dataSources": "Character sheets (`rpg:character`), VTT sessions (`rpg:session`), initiative rounds (`rpg:initiative`), encounters (`rpg:combat`), campaign ops (`rpg:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tabletop campaign telemetry — D&D Beyond character exports, Roll20 session logs, initiative trackers, and campaign asset checklists — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=rpg:initiative encounter_type=* round_duration_sec=*\n| stats avg(round_duration_sec) as avg_round_duration_sec, count as events by encounter_type\n| sort - avg_round_duration_sec",
   "description": "Shows average round duration seconds by encounter type for initiative rounds. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Average round duration seconds by encounter type helps compare initiative rounds across the factors that matter most.",
+  "value": "Shows average round duration seconds by encounter type for initiative rounds. Timely UC-25.46.23 alerting on 'Initiative Tracker Slow-Round Hotspots' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture `round_duration_sec` on `rpg:initiative` events and normalize `encounter_type` so Splunk can summarize performance by encounter type.",
   "visualization": "Bar chart of average round duration seconds by encounter type.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Initiative Tracker Slow-Round Hotspots'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rpg:initiative`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Initiative Tracker Slow-Round Hotspots' stops polling `rpg:initiative`; stale `encounter_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rpg:initiative`. Dedup with `stats latest(*) by encounter_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

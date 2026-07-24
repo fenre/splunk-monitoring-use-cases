@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Sisense Failures by Dashboard' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_sisense_failures_by_dashboard` (UC-24.6.36), SOC dashboard panel \"Operations — Sisense Failures by Dashboard\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='sisense:audit' that satisfy the UC-24.6.36 SPL filters for 'Sisense Failures by Dashboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `sisense:audit` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.6.36."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='sisense:audit' where `dashboard_id` satisfies `failures` > 0 for UC-24.6.36 ('Sisense Failures by Dashboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `sisense:audit` events where `dashboard_id` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.6.36."
   },
   "dataSources": "Sisense usage/build events (`sisense:audit`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Sisense usage analytics and build logs via the Sisense REST API to HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=sisense:audit event=\"build.failed\"\n| stats count as failures, latest(_time) as last_failure by dashboard_id\n| where failures>0\n| sort - failures",
   "description": "Counts Sisense failures grouped by dashboard so operators immediately see which specific dashboards are broken rather than a single global failure number.",
-  "value": "Object-level failure attribution turns a vague 'Sisense is failing' alert into an actionable list of exactly what to fix first.",
+  "value": "Counts Sisense failures grouped by dashboard so operators immediately see which specific dashboards are bro.... Timely UC-24.6.36 alerting on 'Sisense Failures by Dashboard' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest Sisense failure events; schedule every 15 minutes and alert on failures for business-critical dashboards.",
   "visualization": "Table of dashboard by failure count and last failure time.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Sisense Failures by Dashboard'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Sisense Failures by Dashboard' shifts `count` over `span=1h` while `dashboard_id` remains in-scope for UC-24.6.36. Cross-check CMDB CHG.\n\n2. **Batch `count` on `sisense:audit`** — Scheduled automation elevates `src` without crossing `failures` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dashboard_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `sisense:audit`** — First 48h baseline for `dashboard_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dashboard_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

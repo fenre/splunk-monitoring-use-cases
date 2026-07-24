@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Screenshot Clutter and Cleanup Queue' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_screenshot_clutter_and_cleanup_queue` (UC-25.58.11), SOC dashboard panel \"Personal — Screenshot Clutter and Cleanup Queue\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='photo:capture' that satisfy the UC-25.58.11 SPL filters for 'Screenshot Clutter and Cleanup Queue'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `photo:capture` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.58.11."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='photo:capture' where `device` satisfies detection threshold for UC-25.58.11 ('Screenshot Clutter and Cleanup Queue'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `photo:capture` events where `device` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.58.11."
   },
   "dataSources": "Photos (`photo:capture`), places visited (`location:visit`), voice memos (`voicememo:note`), logged moments (`lifelog:moment`), timeline events (`timeline:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Life-logging and memory telemetry — photo libraries (Google Photos, Immich), location history, voice memos, and daily-moment journals — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=photo:capture media_type=screenshot\n| stats count as screenshots, sum(eval(if(curated=\"yes\",1,0))) as curated by device\n| eval cleanup_backlog=screenshots-curated\n| sort - cleanup_backlog",
   "description": "Measures how many screenshots are piling up uncurated on each device. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Screenshots accumulate faster than real memories and can bury the moments you actually want to keep.",
+  "value": "Measures how many screenshots are piling up uncurated on each device. Timely UC-25.58.11 alerting on 'Screenshot Clutter and Cleanup Queue' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Flag screenshot captures and whether they were curated; rank devices by cleanup backlog.",
   "visualization": "Table of devices with screenshot cleanup backlog.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Screenshot Clutter and Cleanup Queue'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `photo:capture`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Screenshot Clutter and Cleanup Queue' stops polling `photo:capture`; stale `device` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `photo:capture`. Dedup with `stats latest(*) by device`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

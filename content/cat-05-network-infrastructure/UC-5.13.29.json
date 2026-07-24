@@ -37,7 +37,7 @@
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:compliance\" complianceStatus=\"NON_COMPLIANT\"\n| stats latest(complianceType) as violation_type latest(_time) as last_seen by deviceName, managementIpAddress\n| eval hours_noncompliant=round((now()-last_seen)/3600,1)\n| sort -hours_noncompliant",
   "description": "Fires an alert when any managed device falls out of compliance with Catalyst Center's golden-template policies, providing the device name, IP, violation type, and duration of non-compliance — so the security and operations teams can remediate configuration drift before it becomes a security vulnerability or audit finding.",
-  "value": "UC-5.13.28 shows the compliance posture. This UC *pages you* when it degrades. A device that drifts from the golden template is running an unapproved configuration — which could mean a missing ACL, a disabled security feature, or an outdated protocol setting. Every hour that config drift goes undetected is an hour of elevated risk. For PCI-scoped devices, non-compliance triggers a potential assessment finding. For NIST CM-6, it's a control failure that must be documented and remediated. This alert closes the gap between Catalyst Center detecting the drift and your team fixing it.",
+  "value": "Fires an alert when any managed device falls out of compliance with Catalyst Center's golden-template polic.... Timely UC-5.13.29 alerting on 'Non-Compliant Device Alerting' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Same `compliance` input as UC-5.13.28. Schedule as alert: cron `*/30 * * * *`, time range `-1h to now`, trigger on any results. Throttle by `deviceName` for 4 hours (to handle bulk template pushes gracefully). Route to the change management or security operations team.",
   "visualization": "(1) Alert results table: deviceName, managementIpAddress, violation_type, hours_noncompliant — sorted by duration. (2) Single value: count of non-compliant devices (red ≥ 1). (3) Context: drilldown to UC-5.13.28 (compliance posture) and UC-5.13.33 (violation detail) for remediation guidance.",
   "references": [
@@ -58,7 +58,7 @@
       "url": "https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_0/home?element=CM-6"
     }
   ],
-  "knownFalsePositives": "**Golden template update causing a wave of non-compliance alerts.** When the golden template is updated in Catalyst Center, all devices are re-evaluated against the new template. Devices that were compliant under the old template may now be non-compliant. Distinguish by correlating with `index=catalyst sourcetype=\"cisco:dnac:audit:logs\"` for template changes. Suppress by allowing 24 hours after a template change before triggering non-compliance alerts.\n\n**Device in the middle of a configuration push showing temporary non-compliance.** During a staged configuration deployment, devices transition through a non-compliant state. Distinguish by checking whether `complianceStatus` changes to COMPLIANT on the next poll. Suppress by requiring non-compliance to persist across 2+ consecutive polls.\n\n**Lab or pilot device running non-standard configuration.** Test equipment may intentionally deviate from the golden template. Distinguish by checking `deviceName` against lab naming conventions. Suppress with a `catalyst_compliance_exceptions` lookup.\n\n**Compliance check failure due to API timeout on large configurations.** Devices with very large running configurations may cause the compliance check to time out, returning ERROR instead of a valid status. Distinguish by checking `index=_internal` for timeout errors. Suppress by treating ERROR separately from NON_COMPLIANT.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Non-Compliant Device Alerting' shifts `count` over `span=1h` while `deviceName` remains in-scope for UC-5.13.29. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:compliance`** — Scheduled automation elevates `managementIpAddress` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `deviceName`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:compliance`** — First 48h baseline for `deviceName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `deviceName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -77,5 +77,9 @@
   "prerequisiteUseCases": [
     "UC-5.13.28"
   ],
-  "wave": "crawl"
+  "wave": "crawl",
+  "controlTest": {
+    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:compliance' where `deviceName` satisfies detection threshold for UC-5.13.29 ('Non-Compliant Device Alerting'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:compliance` events where `deviceName` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.29."
+  }
 }

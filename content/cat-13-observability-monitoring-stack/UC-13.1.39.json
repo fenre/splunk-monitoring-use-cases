@@ -52,13 +52,13 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=_audit` sourcetype='target_sourcetype' that satisfy the UC-13.1.39 SPL filters for 'Role and Capability Change Detection (_audit)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `_audit` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.39."
+    "positiveScenario": "Ingest synthetic events into `index=_audit` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-13.1.39 ('Role and Capability Change Detection (_audit)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `_audit` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.39."
   },
   "dataSources": "`index=_audit` (authentication/authorization changes) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Audit trail — Universal Forwarder (Splunkbase 617)",
   "spl": "index=_audit object_type IN (\"user\",\"role\",\"capabilities\")\n| search action IN (\"create\",\"update\",\"delete\",\"edit_user\",\"edit_role\")\n| table _time, user, action, object, target_user, roles_added\n| sort -_time",
-  "description": "Privilege escalation via new roles/capabilities must be detected in minutes, not days.",
+  "description": "Privilege escalation via new roles/capabilities must be detected in minutes, not days. Searches `index=_audit` with sourcetype `configured sourcetype` for UC-13.1.39, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Role and Capability Change Detection (_audit)' without manual log review.",
   "value": "Early 'Role and Capability Change Detection (_audit)' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Field names vary by version—verify with `| metadata type=sourcetypes index=_audit`. Alert on any `admin` role grant or `edit_user` outside IT hours.",
   "visualization": "Timeline (privilege changes), Table (recent role mappings).",
@@ -88,7 +88,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Role and Capability Change Detection (_audit)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `_audit` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `_audit`** — Planned work for 'Role and Capability Change Detection (_audit)' shifts `count` over `span=1h` while `host` remains in-scope for UC-13.1.39. Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `_audit` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

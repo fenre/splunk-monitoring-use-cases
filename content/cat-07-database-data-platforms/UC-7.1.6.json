@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Backup Success Verification' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_backup_success_verification` (UC-7.1.6), SOC dashboard panel \"Operations — Backup Success Verification\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='dbconnect:backup_history' that satisfy the UC-7.1.6 SPL filters for 'Backup Success Verification'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `dbconnect:backup_history` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.6."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='dbconnect:backup_history' where `database_name` satisfies `hours_since` > 24 for UC-7.1.6 ('Backup Success Verification'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `dbconnect:backup_history` events where `database_name` stays below `hours_since` > 24, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.6."
   },
   "dataSources": "`msdb.dbo.backupset` (SQL Server), `v$rman_backup_job_details` (Oracle), PostgreSQL `pg_basebackup` logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "DB Connect, Splunk_TA_microsoft-sqlserver — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"dbconnect:backup_history\"\n| stats latest(backup_finish_date) as last_backup, latest(type) as backup_type by database_name, server_name\n| eval hours_since=round((now()-strptime(last_backup,\"%Y-%m-%d %H:%M:%S\"))/3600,1)\n| where hours_since > 24\n| table server_name, database_name, last_backup, backup_type, hours_since",
-  "description": "Database backups are the last line of defense. Verifying success prevents discovering backup failures during a crisis.",
+  "description": "Database backups are the last line of defense. Verifying success prevents discovering backup failures during a crisis. Searches `index=database` with sourcetype `dbconnect:backup_history` for UC-7.1.6, aggregating `count` by `database_name` over `the scheduled window`. Alerts when grouped results cross `hours_since` > 24 in the saved search. Gives Operations operators a repeatable signal for 'Backup Success Verification' without manual log review.",
   "value": "Early 'Backup Success Verification' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Query backup history tables via DB Connect daily. Alert on any database without a successful backup in the expected window. Cross-reference with CMDB for backup classification (full/diff/log) requirements.",
   "visualization": "Table (databases with backup status), Single value (databases missing backup), Status grid (database × backup type).",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Backup Success Verification'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Backup Success Verification' shifts `count` over `span=1h` while `database_name` remains in-scope for UC-7.1.6. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbconnect:backup_history`** — Scheduled automation elevates `server_name` without crossing `hours_since` > 24. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `database_name`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:backup_history`** — First 48h baseline for `database_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `database_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mssql",

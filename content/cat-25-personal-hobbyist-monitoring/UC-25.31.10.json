@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Screen-Time vs Mood Trade-off' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_screen_time_vs_mood_trade_off` (UC-25.31.10), SOC dashboard panel \"Personal — Screen-Time vs Mood Trade-off\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mood:entry' that satisfy the UC-25.31.10 SPL filters for 'Screen-Time vs Mood Trade-off'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `mood:entry` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.31.10."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mood:entry' where `_time` satisfies `screen` > 240 for UC-25.31.10 ('Screen-Time vs Mood Trade-off'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `mood:entry` events where `_time` stays below `screen` > 240, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.31.10."
   },
   "dataSources": "Mood entries (`mood:entry`), meditation sessions (`meditation:session`), journal entries (`journal:entry`), gratitude logs (`gratitude:log`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Mood, mindfulness and journaling apps — Daylio / How We Feel mood exports, Headspace / Insight Timer meditation logs, journaling and gratitude entries — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal (sourcetype=mood:entry OR sourcetype=screentime:usage)\n| bin _time span=1d\n| stats avg(mood_score) as mood, sum(minutes) as screen by _time\n| eval heavy=if(screen>240,\"heavy screen\",\"lighter\")\n| stats avg(mood) as avg_mood by heavy",
-  "description": "Compares your mood on heavy-screen days versus lighter ones, testing whether more scrolling really means feeling worse.",
-  "value": "Seeing your own mood dip on high-screen days is far more motivating than generic warnings about screen time.",
+  "description": "Compares your mood on heavy-screen days versus lighter ones, testing whether more scrolling really means feeling worse. Searches `index=personal` with sourcetype `mood:entry` for UC-25.31.10, aggregating `avg` by `_time` over `1d`. Alerts when grouped results cross `screen` > 240 in the saved search. Gives Personal operators a repeatable signal for 'Screen-Time vs Mood Trade-off' without manual log review.",
+  "value": "Compares your mood on heavy-screen days versus lighter ones, testing whether more scrolling really means fe.... Timely UC-25.31.10 alerting on 'Screen-Time vs Mood Trade-off' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Join mood with screen-time in `index=personal`; compare average mood by screen load.",
   "visualization": "Bar chart of average mood on heavy versus light screen days.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Screen-Time vs Mood Trade-off'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mood:entry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Screen-Time vs Mood Trade-off' stops polling `mood:entry`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mood:entry`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `screen` > 240. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

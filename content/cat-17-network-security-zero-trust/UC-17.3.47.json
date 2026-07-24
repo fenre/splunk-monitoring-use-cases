@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Check Point Harmony SASE Admin Audit (Check Point)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_check_point_harmony_sase_admin_audit_check_point` (UC-17.3.47), SOC dashboard panel \"Network — Check Point Harmony SASE Admin Audit (Check Point)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=checkpoint` sourcetype='cp_log' that satisfy the UC-17.3.47 SPL filters for 'Check Point Harmony SASE Admin Audit (Check Point)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `checkpoint` / `cp_log` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.47."
+    "positiveScenario": "Ingest synthetic events into `index=checkpoint` sourcetype='cp_log' where `administrator` satisfies detection threshold for UC-17.3.47 ('Check Point Harmony SASE Admin Audit (Check Point)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `checkpoint` / `cp_log` events where `administrator` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.47."
   },
   "dataSources": "`sourcetype=cp_log` (audit/admin logs) Indexes: checkpoint. Sourcetypes: cp_log. Key fields: administrator, object_name. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Check Point App for Splunk (Splunkbase 4293)",
   "spl": "index=checkpoint sourcetype=\"cp_log\" product=\"SmartConsole\" earliest=-30d\n| where match(lower(operation),\"(?i)create|modify|delete|publish|install\")\n| stats count earliest(_time) as first latest(_time) as last values(operation) as ops by administrator, object_name\n| sort -last",
   "description": "Centralized SASE policy changes affect all connected users and sites. Audit logs enable compliance, change correlation, and accountability.",
-  "value": "Security governance teams track all Check Point Harmony SASE administrative operations — policy installs, rule deletions, and permission changes — flagging high-impact modifications and out-of-hours activity that bypasses the change review process.",
+  "value": "Centralized SASE policy changes affect all connected users and sites. Timely UC-17.3.47 alerting on 'Check Point Harmony SASE Admin Audit (Check Point)' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Forward audit logs via Log Exporter or Smart-1 Cloud. Alert on after-hours changes or policy publishes without change ticket. Correlate access anomalies with recent policy changes.",
   "visualization": "Table (recent changes), Timeline (admin activity), Bar chart (changes by admin).",
   "cimModels": [
@@ -51,7 +51,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Check Point Harmony SASE Admin Audit (Check Point)'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `checkpoint`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `cp_log` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `checkpoint`** — Planned work for 'Check Point Harmony SASE Admin Audit (Check Point)' shifts `values` over `span=1h` while `administrator` remains in-scope for UC-17.3.47. Cross-check CMDB CHG.\n\n2. **Batch `values` on `cp_log`** — Scheduled automation elevates `object_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `administrator`** — Health checks in `checkpoint` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cp_log`** — First 48h baseline for `administrator` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `administrator`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1562.004",
     "T1133"

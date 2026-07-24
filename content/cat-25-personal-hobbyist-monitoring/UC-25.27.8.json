@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Garden Pond Oxygen and Temperature' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_garden_pond_oxygen_and_temperature` (UC-25.27.8), SOC dashboard panel \"Personal — Garden Pond Oxygen and Temperature\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='pondsensor:reading' that satisfy the UC-25.27.8 SPL filters for 'Garden Pond Oxygen and Temperature'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `pondsensor:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.27.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='pondsensor:reading' where `entity` satisfies `oxygen` < 5 for UC-25.27.8 ('Garden Pond Oxygen and Temperature'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `pondsensor:reading` events where `entity` stays below `oxygen` < 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.27.8."
   },
   "dataSources": "Reef-tank parameters (`reeftank:param`), vivarium climate (`vivarium:climate`), fish feeder (`fishfeeder:event`), auto-doser (`doser:event`), auto-top-off (`ato:event`), pond sensors (`pondsensor:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Aquarium and vivarium controllers — reef-tank parameter monitors, auto-dosers, auto-top-off, reptile terrarium climate/UVB, and pond sensors — streamed to Splunk HEC via MQTT and controller APIs (e.g. Apex, GHL, ESPHome). — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=pondsensor:reading\n| timechart span=1h avg(do_mg_l) as oxygen, avg(temp_c) as temp\n| eval low_oxygen=if(oxygen<5,1,0)",
-  "description": "Watches dissolved oxygen and temperature in a garden pond, flagging the hot, still nights when fish can suffocate.",
-  "value": "Warm water holds less oxygen; a low-oxygen alert on summer nights can save a pond full of fish from a silent die-off.",
+  "description": "Watches dissolved oxygen and temperature in a garden pond, flagging the hot, still nights when fish can suffocate. Searches `index=personal` with sourcetype `pondsensor:reading` for UC-25.27.8, aggregating `avg` by `entity` over `1h`. Alerts when grouped results cross `oxygen` < 5 in the saved search. Gives Personal operators a repeatable signal for 'Garden Pond Oxygen and Temperature' without manual log review.",
+  "value": "Watches dissolved oxygen and temperature in a garden pond, flagging the hot, still nights when fish can suf.... Timely UC-25.27.8 alerting on 'Garden Pond Oxygen and Temperature' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest pond sensors into `index=personal`; alert when dissolved oxygen falls too low.",
   "visualization": "Time chart of pond oxygen and temperature with a low-oxygen line.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Garden Pond Oxygen and Temperature'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pondsensor:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Garden Pond Oxygen and Temperature' stops polling `pondsensor:reading`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1h` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pondsensor:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `oxygen` < 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

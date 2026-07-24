@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Remote Desktop Gateway Session Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_remote_desktop_gateway_session_monitoring` (UC-1.2.92), SOC dashboard panel \"Linux — Remote Desktop Gateway Session Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=300 that satisfy the UC-1.2.92 SPL filters for 'Remote Desktop Gateway Session Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.92."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=300 where `host` satisfies detection threshold for UC-1.2.92 ('Remote Desktop Gateway Session Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.92."
   },
   "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational` Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational\"\n| eval EventAction=case(EventCode=300,\"Connected\", EventCode=302,\"Disconnected\", EventCode=303,\"AuthFailed\", EventCode=304,\"AuthZ_Failed\", 1=1,\"Other\")\n| stats count by host, UserName, ClientIP, ResourceName, EventAction\n| where EventAction=\"AuthFailed\" OR EventAction=\"AuthZ_Failed\"",
   "description": "RD Gateway is the entry point for remote workers. Monitoring session lifecycle detects unauthorized access, session hijacking, and resource abuse.",
-  "value": "The RD Gateway is where remote desktop meets the public edge. Unusual session or failure patterns here often show brute force, cert issues, or capacity pain before the help desk fills up.",
+  "value": "RD Gateway is the entry point for remote workers. Timely UC-1.2.92 alerting on 'Remote Desktop Gateway Session Monitoring' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Collect RD Gateway Operational logs. Track connection (300), disconnect (302), authentication failures (303), and authorization failures (304). Alert on brute-force patterns (multiple 303s from same IP), connections from unusual geolocations, and access to unauthorized resources. Monitor session duration for anomalies.",
   "visualization": "Geo map (client IPs), Table (session details), Timechart (connections by hour).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Remote Desktop Gateway Session Monitoring'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `configured sourcetype`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Remote Desktop Gateway Session Monitoring'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

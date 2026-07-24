@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Anchor Settle Time After Drop' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_anchor_settle_time_after_drop` (UC-25.43.11), SOC dashboard panel \"Personal — Anchor Settle Time After Drop\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mooring:status' that satisfy the UC-25.43.11 SPL filters for 'Anchor Settle Time After Drop'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `mooring:status` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.43.11."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mooring:status' where `anchorage` satisfies detection threshold for UC-25.43.11 ('Anchor Settle Time After Drop'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `mooring:status` events where `anchorage` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.43.11."
   },
   "dataSources": "NMEA/SignalK data (`nmea:reading`), bilge pump (`bilge:event`), mooring/anchor watch (`mooring:status`), marine weather (`marineweather:forecast`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Marine electronics — NMEA 2000 / SignalK boat networks, bilge, battery and shore-power sensors, anchor-watch GPS, and marine weather feeds — streamed to Splunk HEC via SignalK and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=mooring:status state=anchored\n| stats avg(settle_min) as avg_settle_min, perc90(settle_min) as p90_settle_min, count as drops by anchorage\n| sort - avg_settle_min",
   "description": "Tracks how long anchor setups usually take to settle and look trustworthy. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Long settle times can hint at poor bottoms, rushed technique, or weather that deserves more caution.",
+  "value": "Tracks how long anchor setups usually take to settle and look trustworthy. Timely UC-25.43.11 alerting on 'Anchor Settle Time After Drop' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send anchor-watch status changes to `index=personal`; compare settle times by anchorage.",
   "visualization": "Anchorage table of average and p90 anchor-settle minutes.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Anchor Settle Time After Drop'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mooring:status`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Anchor Settle Time After Drop' stops polling `mooring:status`; stale `anchorage` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mooring:status`. Dedup with `stats latest(*) by anchorage`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

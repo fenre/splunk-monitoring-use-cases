@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Broadcast-Band Occupancy by Hour' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_broadcast_band_occupancy_by_hour` (UC-25.21.16), SOC dashboard panel \"Personal — Broadcast-Band Occupancy by Hour\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='sdr:spectrum' that satisfy the UC-25.21.16 SPL filters for 'Broadcast-Band Occupancy by Hour'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `sdr:spectrum` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.21.16."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='sdr:spectrum' where `band` satisfies detection threshold for UC-25.21.16 ('Broadcast-Band Occupancy by Hour'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `sdr:spectrum` events where `band` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.21.16."
   },
   "dataSources": "Aircraft messages (`adsb:message`), APRS packets (`aprs:packet`), AIS vessel messages (`ais:message`), rtl_433 decodes (`rtl433:sensor`), RF occupancy summaries (`sdr:spectrum`), satellite observations (`satnogs:observation`), and repeater use (`repeater:activity`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Radio and SDR telemetry from WSPR, APRS, ADS-B, AIS, rtl_433, SatNOGS, and local receiver health feeds streamed to Splunk HEC via APIs, MQTT, and log shippers. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=sdr:spectrum\n| eval hour=strftime(_time,\"%H\")\n| stats avg(active_bins) as avg_active_bins by band hour\n| sort band hour",
-  "description": "Measures how occupied each monitored band is through the day based on active frequency bins.",
-  "value": "Occupancy trends turn waterfall screenshots into something you can compare and learn from over weeks or months.",
+  "description": "Measures how occupied each monitored band is through the day based on active frequency bins. Searches `index=personal` with sourcetype `sdr:spectrum` for UC-25.21.16, aggregating `avg` by `band` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Broadcast-Band Occupancy by Hour' without manual log review.",
+  "value": "Measures how occupied each monitored band is through the day based on active frequency bins. Timely UC-25.21.16 alerting on 'Broadcast-Band Occupancy by Hour' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Summarize waterfall captures into active-bin counts for each band and send hourly aggregates to Splunk.",
   "visualization": "Heat map of average active bins by band and hour.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Broadcast-Band Occupancy by Hour'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sdr:spectrum`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Broadcast-Band Occupancy by Hour' stops polling `sdr:spectrum`; stale `band` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sdr:spectrum`. Dedup with `stats latest(*) by band`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

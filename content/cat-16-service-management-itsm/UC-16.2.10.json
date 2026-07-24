@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'Undocumented Server Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_undocumented_server_detection` (UC-16.2.10), SOC dashboard panel \"Operations — Undocumented Server Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=inventory` sourcetype='vmware:inv:vm' that satisfy the UC-16.2.10 SPL filters for 'Undocumented Server Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `inventory` / `vmware:inv:vm` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.2.10."
+    "positiveScenario": "Ingest synthetic events into `index=inventory` sourcetype='vmware:inv:vm' where `host_key` satisfies detection threshold for UC-16.2.10 ('Undocumented Server Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `inventory` / `vmware:inv:vm` events where `host_key` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.2.10."
   },
   "dataSources": "`sourcetype=inventory` or `vmware:inv:vm`, `sourcetype=snow:cmdb_ci` Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder inventory, AD, vCenter — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
   "spl": "index=inventory sourcetype=\"vmware:inv:vm\" earliest=-4h\n| eval host_key=lower(mvindex(split(name,\".\"),0))\n| stats latest(_time) as seen by host_key\n| join type=left max=1 host_key [ search index=itsm sourcetype=\"snow:cmdb_ci\" ci_class=\"cmdb_ci_server\" | eval host_key=lower(mvindex(split(name,\".\"),0)) | table host_key, sys_id ]\n| where isnull(sys_id)\n| table host_key, seen",
-  "description": "Finds servers visible to monitoring or AD but missing from CMDB — classic gap for incident routing and security scope.",
+  "description": "Finds servers visible to monitoring or AD but missing from CMDB — classic gap for incident routing and security scope. Searches `index=inventory` with sourcetype `vmware:inv:vm` for UC-16.2.10, aggregating `count` by `host_key` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Undocumented Server Detection' without manual log review.",
   "value": "Early 'Undocumented Server Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Compare monitored/VM inventory hostnames (lowercased, short name) to CMDB server CIs. Tune for naming conventions (strip domain). Feed gaps to CMDB onboarding queue.",
   "visualization": "Table (undocumented hosts), Single value (gap count), Line chart (gap trend).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Undocumented Server Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `inventory` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `inventory`** — Planned work for 'Undocumented Server Detection' shifts `count` over `span=1h` while `host_key` remains in-scope for UC-16.2.10. Cross-check CMDB CHG.\n\n2. **Batch `count` on `vmware:inv:vm`** — Scheduled automation elevates `host_key` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host_key`** — Health checks in `inventory` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `vmware:inv:vm`** — First 48h baseline for `host_key` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host_key`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow",
     "vmware"

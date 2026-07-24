@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Ceph pool PG autoscaler adjustment and target PG change events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ceph_pool_pg_autoscaler_adjustment_and_target_pg` (UC-6.2.29), SOC dashboard panel \"Operations — Ceph pool PG autoscaler adjustment and target PG change events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='ceph:log' that satisfy the UC-6.2.29 SPL filters for 'Ceph pool PG autoscaler adjustment and target PG change events'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `ceph:log` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.29."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='ceph:log' where `pool_name` satisfies detection threshold for UC-6.2.29 ('Ceph pool PG autoscaler adjustment and target PG change events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `ceph:log` events where `pool_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.29."
   },
   "dataSources": "Cluster logs `ceph:log` and `ceph:status` mentioning `pg_autoscaler` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Forwarder on mgr/mon hosts — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=\"ceph:log\" earliest=-24h\n| search pg_autoscaler OR \"suggested pgs\" OR \"target pg\"\n| rex field=_raw \"(?i)pool\\s+'?(?<pool_name>[A-Za-z0-9_-]+)'?\"\n| stats count as adjustments latest(_time) as last_seen by pool_name, cluster_name\n| sort - adjustments",
   "description": "Autoscaler changes affect placement group counts and can trigger backfill storms. Tracking adjustments explains sudden load increases after capacity events.",
-  "value": "Helps operators correlate performance changes with configuration—not mystery hardware faults.",
+  "value": "Autoscaler changes affect placement group counts and can trigger backfill storms. Timely UC-6.2.29 alerting on 'Ceph pool PG autoscaler adjustment and target PG change events' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Increase log verbosity temporarily during expansions; tag events with change ticket via lookup on `pool_name`.",
   "visualization": "Event timeline, table (pool, adjustments).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Ceph pool PG autoscaler adjustment and target PG change events'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `os` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `os`** — Planned work for 'Ceph pool PG autoscaler adjustment and target PG change events' shifts `count` over `span=1h` while `pool_name` remains in-scope for UC-6.2.29. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ceph:log`** — Scheduled automation elevates `cluster_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pool_name`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:log`** — First 48h baseline for `pool_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pool_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ceph"
   ],

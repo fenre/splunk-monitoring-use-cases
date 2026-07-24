@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Community Share vs Disposal Balance' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_community_share_vs_disposal_balance` (UC-25.50.29), SOC dashboard panel \"Personal — Community Share vs Disposal Balance\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='sustain:share' that satisfy the UC-25.50.29 SPL filters for 'Community Share vs Disposal Balance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `sustain:share` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.50.29."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='sustain:share' where `disposition` satisfies detection threshold for UC-25.50.29 ('Community Share vs Disposal Balance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `sustain:share` events where `disposition` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.50.29."
   },
   "dataSources": "Sharing activity (`sustain:share`), repairs (`sustain:repair`), compost logs (`sustain:compost`), solar telemetry (`sustain:solar`), sustainability audits (`sustain:audit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Sustainability telemetry — Olio sharing activity, Repair Cafe repair logs, compost-weight records, and solar-offset telemetry — streamed to Splunk HEC via APIs, exports, and smart-home integrations. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=sustain:share disposition=*\n| stats count as items by disposition\n| eventstats sum(items) as total\n| eval share_pct=round(100*items/total,1)\n| sort - share_pct",
-  "description": "Shows how shared-item outcomes split across disposition for reuse versus disposal.",
-  "value": "Share-of-total views make it easier to see imbalance, over-concentration, and neglected areas inside reuse versus disposal.",
+  "description": "Shows how shared-item outcomes split across disposition for reuse versus disposal. Searches `index=personal` with sourcetype `sustain:share` for UC-25.50.29, aggregating `sum` by `disposition` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Community Share vs Disposal Balance' without manual log review.",
+  "value": "Shows how shared-item outcomes split across disposition for reuse versus disposal. Timely UC-25.50.29 alerting on 'Community Share vs Disposal Balance' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture each shared-item outcomes event in `sustain:share` and normalize `disposition` so Splunk can compute the share by disposition.",
   "visualization": "Table of disposition with item count and share percentage.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Community Share vs Disposal Balance'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sustain:share`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Community Share vs Disposal Balance' stops polling `sustain:share`; stale `disposition` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sustain:share`. Dedup with `stats latest(*) by disposition`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "dell_emc"
   ],

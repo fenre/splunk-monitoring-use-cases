@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Checkride Prep Task Backlog' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_checkride_prep_task_backlog` (UC-25.42.25), SOC dashboard panel \"Personal — Checkride Prep Task Backlog\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='checkride:prep' that satisfy the UC-25.42.25 SPL filters for 'Checkride Prep Task Backlog'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `checkride:prep` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.25."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='checkride:prep' where `topic` satisfies `backlog` > 0 for UC-25.42.25 ('Checkride Prep Task Backlog'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `checkride:prep` events where `topic` stays below `backlog` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.25."
   },
   "dataSources": "Flight logs (`flight:log`), flight-plan snapshots (`simbrief:plan`), network sessions (`vatsim:session`), prep tasks (`checkride:prep`), export syncs (`flight:export`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Aviation and flight-sim telemetry — ForeFlight exports, SimBrief flight plans, VATSIM session logs, and checkride-prep trackers — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=checkride:prep topic=* task_state=*\n| stats sum(eval(if(task_state!=\"done\",1,0))) as backlog, count as total by topic\n| where backlog>0\n| sort - backlog",
   "description": "Lists pending prep tasks backlog by checkride topic for checkride preparation. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Backlog counts expose where small unfinished tasks accumulate and create hidden drag inside checkride preparation.",
+  "value": "Lists pending prep tasks backlog by checkride topic for checkride preparation. Timely UC-25.42.25 alerting on 'Checkride Prep Task Backlog' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Mark each `checkride:prep` record with a pending-state flag and summarize backlog totals by `topic`.",
   "visualization": "Table of checkride topic with pending prep tasks counts.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Checkride Prep Task Backlog'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `checkride:prep`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Checkride Prep Task Backlog' stops polling `checkride:prep`; stale `topic` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `checkride:prep`. Dedup with `stats latest(*) by topic`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `backlog` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

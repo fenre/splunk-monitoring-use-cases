@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'SBOM Generation Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_sbom_generation_compliance` (UC-12.3.9), SOC dashboard panel \"Operations — SBOM Generation Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='release:build' that satisfy the UC-12.3.9 SPL filters for 'SBOM Generation Compliance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cicd` / `release:build` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.3.9."
+    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='release:build' where `entity` satisfies detection threshold for UC-12.3.9 ('SBOM Generation Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cicd` / `release:build` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.3.9."
   },
   "dataSources": "`sbom_generated=true`, artifact `sbom_path` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Syft, build pipeline attestations — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cicd sourcetype=\"release:build\"\n| where sbom_present=\"false\" AND environment=\"release\"\n| table _time, application, version, build_id\n| sort -_time",
-  "description": "CycloneDX/SPDX missing for release builds breaks supply-chain attestation requirements (EO 14028).",
+  "description": "CycloneDX/SPDX missing for release builds breaks supply-chain attestation requirements (EO 14028). Searches `index=cicd` with sourcetype `release:build` for UC-12.3.9, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'SBOM Generation Compliance' without manual log review.",
   "value": "Early 'SBOM Generation Compliance' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Fail release stage if SBOM not uploaded to blob store. Track SBOM format version (CycloneDX 1.5).",
   "visualization": "Table (missing SBOM), Single value (compliance %), Line chart (trend).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'SBOM Generation Compliance'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `cicd` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `cicd`** — Planned work for 'SBOM Generation Compliance' shifts `count` over `span=1h` while `host` remains in-scope for UC-12.3.9. Cross-check CMDB CHG.\n\n2. **Batch `count` on `release:build`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `release:build`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

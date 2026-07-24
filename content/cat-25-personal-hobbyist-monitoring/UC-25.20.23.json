@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Allsky Meteor Peak Hour' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_allsky_meteor_peak_hour` (UC-25.20.23), SOC dashboard panel \"Personal — Allsky Meteor Peak Hour\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='allsky:capture' that satisfy the UC-25.20.23 SPL filters for 'Allsky Meteor Peak Hour'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `allsky:capture` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.20.23."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='allsky:capture' where `camera` satisfies `meteors` > 0 for UC-25.20.23 ('Allsky Meteor Peak Hour'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `allsky:capture` events where `camera` stays below `meteors` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.20.23."
   },
   "dataSources": "Citizen-science telemetry (`seismo:reading`, `geiger:cpm`, `lightning:strike`, `airgradient:sensor`, `radon:reading`, `allsky:capture`, `magnetometer:reading`, `weatherstation:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Raspberry Shake, Safecast, Blitzortung-compatible lightning sensors, AirGradient CO2 sensors, radon monitors, allsky cameras, and magnetometers streamed to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=allsky:capture\n| bin _time span=1h\n| stats count(eval(event_type=\"meteor\")) as meteors by camera _time\n| where meteors>0\n| sort - meteors",
-  "description": "Uses Allsky camera captures telemetry to monitor which hours saw the most meteor detections in index=personal.",
-  "value": "Splunk turns the feed into an operational check for nights worth reviewing or sharing, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses Allsky camera captures telemetry to monitor which hours saw the most meteor detections in index=personal. Searches `index=personal` with sourcetype `allsky:capture` for UC-25.20.23, aggregating `count` by `camera` over `1h`. Alerts when grouped results cross `meteors` > 0 in the saved search. Gives Personal operators a repeatable signal for 'Allsky Meteor Peak Hour' without manual log review.",
+  "value": "Uses Allsky camera captures telemetry to monitor which hours saw the most meteor detections in index=personal. Timely UC-25.20.23 alerting on 'Allsky Meteor Peak Hour' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Allsky camera captures data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Hourly leaderboard of meteor detections.",
   "cimModels": [],
@@ -60,7 +60,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Allsky Meteor Peak Hour'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `allsky:capture`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Allsky Meteor Peak Hour' stops polling `allsky:capture`; stale `camera` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1h` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `allsky:capture`. Dedup with `stats latest(*) by camera`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `meteors` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

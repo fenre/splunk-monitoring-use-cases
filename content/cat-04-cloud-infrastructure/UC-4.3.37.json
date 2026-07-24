@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Cloud CDN Cache Performance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cloud_cdn_cache_performance` (UC-4.3.37), SOC dashboard panel \"Operations — Cloud CDN Cache Performance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='google:gcp:pubsub:message' that satisfy the UC-4.3.37 SPL filters for 'Cloud CDN Cache Performance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `gcp` / `google:gcp:pubsub:message` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.37."
+    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='google:gcp:pubsub:message' where `resource.labels.url_map_name` satisfies `hit_ratio` < 60 for UC-4.3.37 ('Cloud CDN Cache Performance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `gcp` / `google:gcp:pubsub:message` events where `resource.labels.url_map_name` stays below `hit_ratio` < 60, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.37."
   },
   "dataSources": "HTTP(S) LB logs with cache fill/lookup fields, `sourcetype=google:gcp:monitoring` (cdn metrics) Collected via Splunk Add-on for Google Cloud Platform (Splunkbase 3084) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_google-cloudplatform` — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
   "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" httpRequest.latency!=\"\"\n| eval cache_hit=if(match(_raw,\"cacheHit|CACHE_HIT\"),1,0)\n| stats sum(cache_hit) as hits, count as total by resource.labels.url_map_name\n| eval hit_ratio=round(100*hits/total,2)\n| where hit_ratio < 60 AND total > 1000\n| sort hit_ratio",
-  "description": "Low hit ratio raises origin load and latency; optimizing cache keys and TTL improves cost and user experience.",
+  "description": "Low hit ratio raises origin load and latency; optimizing cache keys and TTL improves cost and user experience. Searches `index=gcp` with sourcetype `google:gcp:pubsub:message` for UC-4.3.37, aggregating `sum` by `resource.labels.url_map_name` over `the scheduled window`. Alerts when grouped results cross `hit_ratio` < 60 in the saved search. Gives Operations operators a repeatable signal for 'Cloud CDN Cache Performance' without manual log review.",
   "value": "Early 'Cloud CDN Cache Performance' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Parse cache hit/miss from load balancer logs. Segment by content type and geography. Alert when hit ratio drops vs 14-day baseline. Review cache mode and Vary headers.",
   "visualization": "Line chart (hit ratio by URL map), Bar chart (origin egress), Table (backend, hit %).",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cloud CDN Cache Performance'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `gcp` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `gcp`** — Planned work for 'Cloud CDN Cache Performance' shifts `sum` over `span=1h` while `resource.labels.url_map_name` remains in-scope for UC-4.3.37. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `google:gcp:pubsub:message`** — Scheduled automation elevates `cache_hit` without crossing `hit_ratio` < 60. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `resource.labels.url_map_name`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `google:gcp:pubsub:message`** — First 48h baseline for `resource.labels.url_map_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `resource.labels.url_map_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "gcp"
   ],

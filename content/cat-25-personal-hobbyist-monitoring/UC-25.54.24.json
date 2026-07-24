@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Photo Evidence Missing-Room Coverage' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_photo_evidence_missing_room_coverage` (UC-25.54.24), SOC dashboard panel \"Personal — Photo Evidence Missing-Room Coverage\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reno:photo' that satisfy the UC-25.54.24 SPL filters for 'Photo Evidence Missing-Room Coverage'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `reno:photo` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.54.24."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reno:photo' where `room` satisfies detection threshold for UC-25.54.24 ('Photo Evidence Missing-Room Coverage'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `reno:photo` events where `room` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.54.24."
   },
   "dataSources": "Schedules (`reno:gantt`), punch lists (`reno:punchlist`), photo logs (`reno:photo`), permits (`reno:permit`), project controls (`reno:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home-renovation project telemetry — Gantt plans, punch-list updates, inspection photo logs, and permit expiry trackers — streamed to Splunk HEC via builder-tool exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=reno:photo room=* evidence_complete=*\n| stats count as total, sum(eval(if(evidence_complete=\"no\",1,0))) as matched by room\n| eval missing_evidence_pct=round(100*matched/total,1)\n| sort - missing_evidence_pct",
-  "description": "Measures the percentage of inspection photo sets that end with missing evidence by room.",
-  "value": "Completion and exception percentages make it easier to spot which room are helping or hurting inspection photo sets.",
+  "description": "Measures the percentage of inspection photo sets that end with missing evidence by room. Searches `index=personal` with sourcetype `reno:photo` for UC-25.54.24, aggregating `sum` by `room` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Photo Evidence Missing-Room Coverage' without manual log review.",
+  "value": "Measures the percentage of inspection photo sets that end with missing evidence by room. Timely UC-25.54.24 alerting on 'Photo Evidence Missing-Room Coverage' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store a normalized flag for `missing evidence` on `reno:photo` events and summarize the hit rate by `room`.",
   "visualization": "Table of room with percentage of inspection photo sets ending with missing evidence.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Photo Evidence Missing-Room Coverage'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reno:photo`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Photo Evidence Missing-Room Coverage' stops polling `reno:photo`; stale `room` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reno:photo`. Dedup with `stats latest(*) by room`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

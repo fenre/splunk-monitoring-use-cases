@@ -52,15 +52,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When a scheduled CIS/osquery scan reports a deviation at severity ≥ medium on a host tagged regulated=true, the UC fires naming the host, rule_id, and deviation detail.",
-    "negativeScenario": "Hosts fully compliant with their baseline produce no finding.",
-    "fixtureRef": "sample-data/uc-22.42.2-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=baseline` sourcetype='osquery:cis' where `entity` satisfies detection threshold for UC-22.42.2 ('Configuration baseline drift — regulated hosts deviating from CIS benchmark'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `baseline` / `osquery:cis` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.42.2."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=baseline sourcetype=osquery:cis OR sourcetype=ciscat earliest=-24h severity>=medium\n| join host [search index=asset regulated=true | fields host tenant classification]\n| table host tenant classification rule_id severity deviation",
   "description": "Continuously compares live configuration to the approved CIS / osquery baseline. Only deviations on regulated systems are escalated to avoid alert fatigue.",
-  "value": "Turns baseline drift from a quarterly scan artefact into a continuous control that auditors can review any day.",
+  "value": "Continuously compares live configuration to the approved CIS / osquery baseline. Timely UC-22.42.2 alerting on 'Configuration baseline drift — regulated hosts deviating from CIS benchmark' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Schedule osquery/CIS-CAT agents; (2) publish baselines via config-management tooling; (3) run daily; (4) on finding, open a P2 ticket. Indexes required: `index=asset`, `index=baseline`; Sourcetypes: `sourcetype=ciscat`, `sourcetype=osquery:cis`.",
   "visualization": "Heatmap of tenants × controls, bar chart of findings by severity, single-value 'regulated hosts in compliance'.",
   "cimModels": [
@@ -87,7 +86,7 @@
       "title": "NIST 800-53 Controls Catalog"
     }
   ],
-  "knownFalsePositives": "1. **Authorised security assessment activities** — Planned security control assessments, continuous monitoring scans, and Plan of Action and Milestones (POA&M) validation tests generate expected control deviation signals that are part of the Assessment & Authorisation process.\n\n2. **System authorisation boundary changes** — During ATO re-authorisation, system boundary expansions, or inheritance model updates, temporary control gaps may appear in the monitoring baseline until the updated security plan is approved by the Authorising Official.\n\n3. **Interconnection Security Agreement (ISA) activity** — Data exchanges with authorised external systems operating under signed ISAs produce cross-boundary traffic that triggers network monitoring alerts but is covered by the formal interconnection agreement.\n\n4. **FIPS 199 impact-level re-categorisation** — When system categorisation changes (e.g., Moderate to High), the transition period produces control baseline mismatches until the enhanced controls are fully implemented per the approved implementation schedule.\n\n**Suppression mechanism:** Maintain a `nist_800_53_exception_filter` KV Store lookup containing approved assessment schedule entries, POA&M IDs, ISA identifiers, and system re-categorisation project IDs. The correlation search filters against this lookup and suppresses matches with valid exception entries.",
+  "knownFalsePositives": "1. **Authorised NIST 800 53 control testing** — Internal audit exercises 'Configuration baseline drift — regulated hosts deviating from CIS benchmark' (UC-22.42.2) on `entity` during scheduled clause CM-2 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=baseline` `osquery:cis` without crossing evidence threshold. Cross-check engagement letter in `nist_800_53_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `baseline` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `nist_800_53_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "audit",
   "requiredFields": [

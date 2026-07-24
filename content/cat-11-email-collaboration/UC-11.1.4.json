@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Teams Usage Analytics' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_teams_usage_analytics` (UC-11.1.4), SOC dashboard panel \"Operations — Teams Usage Analytics\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=o365` sourcetype='o365:management:activity' that satisfy the UC-11.1.4 SPL filters for 'Teams Usage Analytics'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `o365` / `o365:management:activity` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.1.4."
+    "positiveScenario": "Ingest synthetic events into `index=o365` sourcetype='o365:management:activity' where `Operation` satisfies detection threshold for UC-11.1.4 ('Teams Usage Analytics'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `o365` / `o365:management:activity` events where `Operation` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.1.4."
   },
   "dataSources": "M365 Teams activity reports, Teams call quality data Collected via Splunk Add-on for Microsoft Office 365 (Splunkbase 4054) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_MS_O365` — Splunk Add-on for Microsoft Office 365 (Splunkbase 4054)",
   "spl": "index=o365 sourcetype=\"o365:management:activity\" Workload=\"MicrosoftTeams\"\n| stats count by Operation\n| sort -count",
-  "description": "Teams adoption and quality metrics inform collaboration strategy and help identify user experience issues.",
+  "description": "Teams adoption and quality metrics inform collaboration strategy and help identify user experience issues. Searches `index=o365` with sourcetype `o365:management:activity` for UC-11.1.4, aggregating `count` by `Operation` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Teams Usage Analytics' without manual log review.",
   "value": "Early 'Teams Usage Analytics' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ingest Teams activity reports via Graph API. Track meetings, messages, calls, and file sharing volumes. Monitor call quality metrics (jitter, packet loss). Report on adoption trends per department.",
   "visualization": "Line chart (Teams activity trend), Bar chart (activity by type), Table (call quality issues).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Teams Usage Analytics'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `o365` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `o365`** — Planned work for 'Teams Usage Analytics' shifts `count` over `span=1h` while `Operation` remains in-scope for UC-11.1.4. Cross-check CMDB CHG.\n\n2. **Batch `count` on `o365:management:activity`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `Operation`** — Health checks in `o365` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `o365:management:activity`** — First 48h baseline for `Operation` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `Operation`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365"
   ],

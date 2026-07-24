@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'TCP Retransmission Rate Elevation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_tcp_retransmission_rate_elevation` (UC-1.1.51), SOC dashboard panel \"Linux — TCP Retransmission Rate Elevation\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='netstat' that satisfy the UC-1.1.51 SPL filters for 'TCP Retransmission Rate Elevation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `netstat` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.51."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='netstat' where `host` satisfies detection threshold for UC-1.1.51 ('TCP Retransmission Rate Elevation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `netstat` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.51."
   },
   "dataSources": "`sourcetype=netstat` (or a structured `custom:tcp_retrans` input from `/proc/net/snmp`) with `retransSegs` per interval Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix` (netstat) and/or a scripted companion for exact SNMP-style counters — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=netstat host=*\n| bin _time span=5m\n| stats sum(retransSegs) as retrans by host, _time\n| streamstats window=100 avg(retrans) as baseline stdev(retrans) as stddev by host\n| eval upper=baseline+(2*stddev)\n| where retrans > upper",
   "description": "Flags hosts where TCP retransmission segments in each five-minute bucket jump well above a host-specific rolling mean, a strong hint of loss, congestion, or driver issues on the path.",
-  "value": "Rising retrans rates usually hit throughput and tail latency at the same time; catching the slope early shortens network and application war rooms.",
+  "value": "Flags hosts where TCP retransmission segments in each five-minute bucket jump well above a host-specific ro.... Timely UC-1.1.51 alerting on 'TCP Retransmission Rate Elevation' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Ingest retransmission counters (here `retransSegs` from a netstat-class feed) at a steady interval, bucket to five minutes, and compare each bucket to a rolling `streamstats` band so occasional spikes in healthy churn do not false-positive constantly.",
   "visualization": "Timechart, Anomaly Chart",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'TCP Retransmission Rate Elevation'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `netstat`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'TCP Retransmission Rate Elevation'. Correlate with apt/yum logs in the same `netstat` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `sum` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `netstat`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "snmp"

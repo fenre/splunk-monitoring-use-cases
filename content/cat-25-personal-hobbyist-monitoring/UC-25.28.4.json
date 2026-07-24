@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Cycling Power Interval Compliance' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_cycling_power_interval_compliance` (UC-25.28.4), SOC dashboard panel \"Personal — Cycling Power Interval Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='powermeter:interval' that satisfy the UC-25.28.4 SPL filters for 'Cycling Power Interval Compliance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `powermeter:interval` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.28.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='powermeter:interval' where `workout` satisfies detection threshold for UC-25.28.4 ('Cycling Power Interval Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `powermeter:interval` events where `workout` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.28.4."
   },
   "dataSources": "Bar-velocity reps (`vbt:rep`), running gait (`gait:metric`), hangboard sessions (`hangboard:session`), golf-swing metrics (`golfswing:metric`), power-meter intervals (`powermeter:interval`), basketball shot arcs (`shotarc:make`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Sports and skill sensors — velocity-based-training bar trackers, running-form IMUs, climbing hangboard load cells, golf launch monitors, cycling power meters, and computer-vision shot trackers — logged to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=powermeter:interval\n| eval in_zone=if(avg_watts>=target_watts*0.95 AND avg_watts<=target_watts*1.05,1,0)\n| stats sum(in_zone) as hit, count as intervals by workout\n| eval compliance=round(100*hit/intervals,1)\n| sort compliance",
   "description": "Measures how many training intervals you actually held in the target power band, grading how well you executed the workout.",
-  "value": "A structured session only works if the intervals hit target; a compliance score separates a great workout from a sloppy one.",
+  "value": "Measures how many training intervals you actually held in the target power band, grading how well you execu.... Timely UC-25.28.4 alerting on 'Cycling Power Interval Compliance' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest power-meter interval data into `index=personal`; review target-band compliance per workout.",
   "visualization": "Bar chart of interval compliance by workout.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Cycling Power Interval Compliance'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `powermeter:interval`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Cycling Power Interval Compliance' stops polling `powermeter:interval`; stale `workout` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `powermeter:interval`. Dedup with `stats latest(*) by workout`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

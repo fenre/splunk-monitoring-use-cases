@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'NetApp ONTAP SVM Administrative State Not Running' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_netapp_ontap_svm_administrative_state_not_runnin` (UC-6.1.39), SOC dashboard panel \"Operations — NetApp ONTAP SVM Administrative State Not Running\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ontap` sourcetype='ontap:vserver' that satisfy the UC-6.1.39 SPL filters for 'NetApp ONTAP SVM Administrative State Not Running'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ontap` / `ontap:vserver` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.39."
+    "positiveScenario": "Ingest synthetic events into `index=ontap` sourcetype='ontap:vserver' where `cluster_name` satisfies detection threshold for UC-6.1.39 ('NetApp ONTAP SVM Administrative State Not Running'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ontap` / `ontap:vserver` events where `cluster_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.39."
   },
   "dataSources": "Cluster vserver inventory from `TA-netapp_ontap` (`sourcetype=ontap:vserver`) Indexes: ontap, storage. Sourcetypes: ontap:vserver. Key fields: cluster_name, svm. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Add-on for NetApp Data ONTAP / `TA-netapp_ontap` (Splunkbase 3418)",
   "spl": "index=ontap OR index=storage sourcetype=\"ontap:vserver\"\n| eval state=lower(coalesce(administrative_state, state, vserver_admin_state))\n| eval svm=coalesce(vserver, vserver_name, name)\n| where state!=\"running\" AND isnotnull(svm)\n| stats latest(state) as admin_state latest(type) as svm_type by cluster_name svm\n| sort cluster_name svm",
   "description": "A storage virtual machine that is stopped or mis-administered drops all hosted NFS, SMB, and SAN endpoints for its tenants—often during DR tests or automation mistakes.",
-  "value": "Detects accidental `vserver stop` operations or failed migrations before helpdesk volume explodes with \"share unavailable\" tickets.",
+  "value": "A storage virtual machine that is stopped or mis-administered drops all hosted NFS, SMB, and SAN endpoints.... Timely UC-6.1.39 alerting on 'NetApp ONTAP SVM Administrative State Not Running' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ensure Hydra inventory jobs collect vserver objects. If field names differ between cluster-mode releases, add `FIELDALIAS` in `props.conf`. Exclude template SVMs used for cloning via a lookup. Page on any production-tagged SVM not `running` for more than one poll interval.",
   "visualization": "Table (cluster, SVM, state), map or icon panel by datacenter.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'NetApp ONTAP SVM Administrative State Not Running'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `ontap` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `ontap`** — Planned work for 'NetApp ONTAP SVM Administrative State Not Running' shifts `count` over `span=1h` while `cluster_name` remains in-scope for UC-6.1.39. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ontap:vserver`** — Scheduled automation elevates `svm` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cluster_name`** — Health checks in `ontap` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ontap:vserver`** — First 48h baseline for `cluster_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cluster_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netapp"
   ],

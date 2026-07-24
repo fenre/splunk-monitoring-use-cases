@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Traefik Mutual TLS Client Certificate Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_traefik_mutual_tls_client_certificate_errors` (UC-5.14.49), SOC dashboard panel \"Operations — Traefik Mutual TLS Client Certificate Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='traefik:access' that satisfy the UC-5.14.49 SPL filters for 'Traefik Mutual TLS Client Certificate Errors'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `proxy` / `traefik:access` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.49."
+    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='traefik:access' where `RouterName` satisfies `count` > 15 for UC-5.14.49 ('Traefik Mutual TLS Client Certificate Errors'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `proxy` / `traefik:access` events where `RouterName` stays below `count` > 15, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.49."
   },
   "dataSources": "`index=proxy` `sourcetype=traefik:access` with TLS fields Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"traefik:access\"\n| where DownstreamStatus==401 OR match(_raw, \"(?i)(unknown ca|certificate required|handshake failure)\")\n| stats count by RouterName, ClientAddr\n| where count > 15",
   "description": "mTLS ecosystems break silently when CAs rotate. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Operations teams classify Traefik mutual TLS client certificate failures by error type (expired, untrusted CA, missing cert), enabling targeted client communication for certificate renewal.",
+  "value": "mTLS ecosystems break silently when CAs rotate. Timely UC-5.14.49 alerting on 'Traefik Mutual TLS Client Certificate Errors' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Configure `tls.options.clientAuthType`; never log private keys or full chains in access logs.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Traefik Mutual TLS Client Certificate Errors'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `proxy` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy`** — Planned work for 'Traefik Mutual TLS Client Certificate Errors' shifts `count` over `span=1h` while `RouterName` remains in-scope for UC-5.14.49. Cross-check CMDB CHG.\n\n2. **Batch `count` on `traefik:access`** — Scheduled automation elevates `ClientAddr` without crossing `count` > 15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `RouterName`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `traefik:access`** — First 48h baseline for `RouterName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `RouterName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog",
     "traefik"

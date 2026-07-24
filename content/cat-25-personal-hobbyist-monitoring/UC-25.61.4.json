@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Power-Outage Checklist Recovery Time' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_power_outage_checklist_recovery_time` (UC-25.61.4), SOC dashboard panel \"Personal — Power-Outage Checklist Recovery Time\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='homeassistant:event' that satisfy the UC-25.61.4 SPL filters for 'Power-Outage Checklist Recovery Time'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `homeassistant:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.61.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='homeassistant:event' where `circuit` satisfies detection threshold for UC-25.61.4 ('Power-Outage Checklist Recovery Time'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `homeassistant:event` events where `circuit` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.61.4."
   },
   "dataSources": "Life service health (`lifeos:service`), personal scorecards (`lifeos:score`), breach notifications (`hibp:breach`), location visits (`location:visit`), runbook checklists (`runbook:checklist`), and Home Assistant outage events (`homeassistant:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Apple and Google location exports, Have I Been Pwned breach alerts, Todoist-style personal runbooks, and Home Assistant outage events streamed into Splunk HEC under `index=personal`. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=homeassistant:event event_type=\"grid_outage\"\n| stats count as outages, avg(recovery_minutes) as avg_recovery_min, max(recovery_minutes) as worst_recovery_min by circuit\n| sort - worst_recovery_min",
-  "description": "Tracks how long each power-outage incident takes to recover, including checklist-driven recovery tasks.",
-  "value": "Recovery-time data tells you whether backup power, flashlight placement, and outage procedures are genuinely working.",
+  "description": "Tracks how long each power-outage incident takes to recover, including checklist-driven recovery tasks. Searches `index=personal` with sourcetype `homeassistant:event` for UC-25.61.4, aggregating `avg` by `circuit` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Power-Outage Checklist Recovery Time' without manual log review.",
+  "value": "Tracks how long each power-outage incident takes to recover, including checklist-driven recovery tasks. Timely UC-25.61.4 alerting on 'Power-Outage Checklist Recovery Time' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward Home Assistant outage and recovery markers into Splunk and attach a `recovery_minutes` field once the incident closes.",
   "visualization": "Bar chart of average and worst recovery time by circuit.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Power-Outage Checklist Recovery Time'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homeassistant:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Power-Outage Checklist Recovery Time' stops polling `homeassistant:event`; stale `circuit` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homeassistant:event`. Dedup with `stats latest(*) by circuit`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

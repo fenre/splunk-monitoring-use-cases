@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'CPU and Memory Right-Sizing (Host and VM)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cpu_and_memory_right_sizing_host_and_vm` (UC-20.2.21), SOC dashboard panel \"Operations — CPU and Memory Right-Sizing (Host and VM)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=virtualization` sourcetype='vmware:host:perf' that satisfy the UC-20.2.21 SPL filters for 'CPU and Memory Right-Sizing (Host and VM)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `virtualization` / `vmware:host:perf` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-20.2.21."
+    "positiveScenario": "Ingest synthetic events into `index=virtualization` sourcetype='vmware:host:perf' where `host` satisfies `cpu` > 85 for UC-20.2.21 ('CPU and Memory Right-Sizing (Host and VM)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `virtualization` / `vmware:host:perf` events where `host` stays below `cpu` > 85, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-20.2.21."
   },
   "dataSources": "`vmware:host:perf` Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_vmware`, `Splunk_TA_windows` (Hyper-V Perfmon) — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
   "spl": "index=virtualization sourcetype=\"vmware:host:perf\" earliest=-7d\n| stats avg(cpu_used_pct) as cpu, avg(mem_used_pct) as mem by host\n| eval overcommit_risk=if(cpu>85 OR mem>90,1,0)\n| where overcommit_risk=1\n| table host, cpu, mem",
-  "description": "Host-level overcommit risk and VM-level downsize candidates — pairs with VM view (UC-20.2.5).",
+  "description": "Host-level overcommit risk and VM-level downsize candidates — pairs with VM view (UC-20.2.5). Searches `index=virtualization` with sourcetype `vmware:host:perf` for UC-20.2.21, aggregating `avg` by `host` over `the scheduled window`. Alerts when grouped results cross `cpu` > 85 in the saved search. Gives Operations operators a repeatable signal for 'CPU and Memory Right-Sizing (Host and VM)' without manual log review.",
   "value": "Early 'CPU and Memory Right-Sizing (Host and VM)' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Combine with cluster headroom (UC-20.2.18). Alert on chronic host saturation.",
   "visualization": "Table (hot hosts), Heatmap (host × day), Gauge.",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'CPU and Memory Right-Sizing (Host and VM)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `virtualization` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `virtualization`** — Planned work for 'CPU and Memory Right-Sizing (Host and VM)' shifts `avg` over `span=1h` while `host` remains in-scope for UC-20.2.21. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `vmware:host:perf`** — Scheduled automation elevates `overcommit_risk` without crossing `cpu` > 85. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `virtualization` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `vmware:host:perf`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "hyperv",
     "vmware",

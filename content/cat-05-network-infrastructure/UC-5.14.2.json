@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'HAProxy Connection Retry and Redispatch Volume' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_haproxy_connection_retry_and_redispatch_volume` (UC-5.14.2), SOC dashboard panel \"Operations — HAProxy Connection Retry and Redispatch Volume\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='haproxy:http' that satisfy the UC-5.14.2 SPL filters for 'HAProxy Connection Retry and Redispatch Volume'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `proxy` / `haproxy:http` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.2."
+    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='haproxy:http' where `backend` satisfies `retries` > 100 for UC-5.14.2 ('HAProxy Connection Retry and Redispatch Volume'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `proxy` / `haproxy:http` events where `backend` stays below `retries` > 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.2."
   },
   "dataSources": "`index=proxy` `sourcetype=haproxy:http` with optional `%rc`/`%rd` style captures in `log-format` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"haproxy:http\"\n| regex field=_raw \"(?i)retry=(?<retry>\\d+)\"\n| stats sum(retry) as retries by backend, server\n| where retries > 100",
-  "description": "Retries absorb brief faults but high volume masks systemic overload or brownouts.",
+  "description": "Retries absorb brief faults but high volume masks systemic overload or brownouts. Searches `index=proxy` with sourcetype `haproxy:http` for UC-5.14.2, aggregating `sum` by `backend` over `the scheduled window`. Alerts when grouped results cross `retries` > 100 in the saved search. Gives Operations operators a repeatable signal for 'HAProxy Connection Retry and Redispatch Volume' without manual log review.",
   "value": "Operations teams track HAProxy connection retry and redispatch volumes per backend to identify intermittently failing servers and prevent cascading failures from retry storms.",
   "implementation": "Extend `log-format` to include retry/redispatch counters; validate with `show stat`. Baseline per service.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'HAProxy Connection Retry and Redispatch Volume'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `proxy` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy`** — Planned work for 'HAProxy Connection Retry and Redispatch Volume' shifts `sum` over `span=1h` while `backend` remains in-scope for UC-5.14.2. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `haproxy:http`** — Scheduled automation elevates `server` without crossing `retries` > 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `backend`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `haproxy:http`** — First 48h baseline for `backend` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `backend`, `exception_reason`, `valid_until`.",
   "equipment": [
     "haproxy",
     "redis",

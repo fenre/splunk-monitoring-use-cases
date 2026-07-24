@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Sentry Mode Idle Drain Cost' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_sentry_mode_idle_drain_cost` (UC-25.3.17), SOC dashboard panel \"Personal — Sentry Mode Idle Drain Cost\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tesla:vehicle' that satisfy the UC-25.3.17 SPL filters for 'Sentry Mode Idle Drain Cost'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tesla:vehicle` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.17."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tesla:vehicle' where `vin` satisfies `kwh_used` > 1 for UC-25.3.17 ('Sentry Mode Idle Drain Cost'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `tesla:vehicle` events where `vin` stays below `kwh_used` > 1, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.17."
   },
   "dataSources": "Tesla vehicle and charge state (`tesla:vehicle`, `tesla:charge`), OBD-II PIDs (`obd:pid`), Smart EV charger sessions (`evcharger:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tesla Fleet API / TeslaMate, TeslaFi, and generic OBD-II / Smartcar / charger APIs via HEC scripted inputs and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tesla:vehicle parked=\"true\" sentry_mode=\"true\"\n| bin _time span=1d\n| stats earliest(battery_kwh) as start_kwh, latest(battery_kwh) as end_kwh by vin _time\n| eval kwh_used=round(start_kwh-end_kwh,2)\n| where kwh_used>1\n| sort - kwh_used",
   "description": "Measures the energy used while Sentry Mode is active so you can decide where the security trade-off is worth the battery trade-off.",
-  "value": "A visible idle-cost number makes it easier to choose smarter parking behaviour than vague worries about range loss.",
+  "value": "Measures the energy used while Sentry Mode is active so you can decide where the security trade-off is wort.... Timely UC-25.3.17 alerting on 'Sentry Mode Idle Drain Cost' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward parked battery-energy values alongside Sentry state; review daily and compare drain across common parking situations.",
   "visualization": "Daily bar chart of Sentry-related energy use.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Sentry Mode Idle Drain Cost'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tesla:vehicle`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Sentry Mode Idle Drain Cost' stops polling `tesla:vehicle`; stale `vin` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tesla:vehicle`. Dedup with `stats latest(*) by vin`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `kwh_used` > 1. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

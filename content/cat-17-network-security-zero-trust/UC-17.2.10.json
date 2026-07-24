@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'mTLS Certificate Rotation Tracking' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_mtls_certificate_rotation_tracking` (UC-17.2.10), SOC dashboard panel \"Network — mTLS Certificate Rotation Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=certs` sourcetype='cert:inventory' that satisfy the UC-17.2.10 SPL filters for 'mTLS Certificate Rotation Tracking'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `certs` / `cert:inventory` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.2.10."
+    "positiveScenario": "Ingest synthetic events into `index=certs` sourcetype='cert:inventory' where `entity` satisfies `days_to_expiry` < 60 for UC-17.2.10 ('mTLS Certificate Rotation Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `certs` / `cert:inventory` events where `entity` stays below `days_to_expiry` < 60, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.2.10."
   },
   "dataSources": "Certificate inventory scan (serial, subject, expiry), Istio/Linkerd cert rotation logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom (certificate inventory, service mesh telemetry) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=certs (sourcetype=\"cert:inventory\" OR sourcetype=\"istio:cert\" OR sourcetype=\"linkerd:cert\")\n| eval expiry_epoch=if(isnum(expiry_time), expiry_time, strptime(expiry_time, \"%Y-%m-%dT%H:%M:%SZ\"))\n| eval days_to_expiry=floor((expiry_epoch - now())/86400)\n| where days_to_expiry < 60 OR days_to_expiry < 0\n| eval status=case(days_to_expiry < 0, \"EXPIRED\", days_to_expiry < 14, \"CRITICAL\", days_to_expiry < 30, \"WARNING\", 1=1, \"OK\")\n| table _time, subject, serial, expiry_epoch, days_to_expiry, status, workload, namespace\n| sort days_to_expiry",
   "description": "Mutual TLS certificates approaching expiry in zero-trust architectures (service-to-service auth). Expired certs cause service outages and authentication failures.",
-  "value": "PKI and platform teams track mTLS certificate lifecycles across services and infrastructure, catching expiring certificates before they cause authentication failures in zero-trust service-to-service communication.",
+  "value": "Mutual TLS certificates approaching expiry in zero-trust architectures (service-to-service auth). Timely UC-17.2.10 alerting on 'mTLS Certificate Rotation Tracking' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Run periodic certificate inventory scans (OpenSSL, cert-manager, HashiCorp Vault) and forward to Splunk. Ingest Istio/Linkerd cert rotation logs for service mesh. Parse subject, serial, notAfter. Alert when cert expires in <30 days; critical alert at <14 days. Track rotation success/failure from mesh logs. Report on cert distribution by workload and expiry timeline. Integrate with automation for cert renewal.",
   "visualization": "Table (certs expiring soon), Single value (expired count), Bar chart (expiry by month), Timeline (rotation events).",
   "cimModels": [],
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'mTLS Certificate Rotation Tracking'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `certs`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `cert:inventory` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `certs`** — Planned work for 'mTLS Certificate Rotation Tracking' shifts `count` over `span=1h` while `host` remains in-scope for UC-17.2.10. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cert:inventory`** — Scheduled automation elevates `expiry_epoch` without crossing `days_to_expiry` < 60. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `certs` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cert:inventory`** — First 48h baseline for `host` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1573.001",
     "T1573.002"

@@ -56,14 +56,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Skip the quarterly attestation for the current quarter; UC-22.54.26 MUST flag `attestation_status=\"overdue\"` within 14 days of quarter-end.",
-    "negativeScenario": "General Counsel signs the attestation within 14 days of quarter-end, capturing the four posture fields. UC-22.54.26 MUST record `attestation_status=\"current\"`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-22.54.26 ('CIRCIA Quarterly Compliance Attestation — General Counsel signs end-to-end compliance posture across statutory + NPRM clauses'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.54.26."
   },
   "dataSources": "KV Store `circia_attestation_lookup`. Aggregate of UC-22.54.2, UC-22.54.3, UC-22.54.4, UC-22.54.5 quarterly summary metrics from `audit_evidence`.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup circia_attestation_lookup\n| eval now_ts = now()\n| eval quarter_end_at = case(\n    attestation_period_quarter=\"Q1\", strptime(attestation_period_year . \"-04-15\", \"%Y-%m-%d\"),\n    attestation_period_quarter=\"Q2\", strptime(attestation_period_year . \"-07-15\", \"%Y-%m-%d\"),\n    attestation_period_quarter=\"Q3\", strptime(attestation_period_year . \"-10-15\", \"%Y-%m-%d\"),\n    attestation_period_quarter=\"Q4\", strptime(attestation_period_year+1 . \"-01-15\", \"%Y-%m-%d\"))\n| eval attestation_status = case(\n    isnull(posture_signed_at) AND quarter_end_at < now_ts, \"overdue\",\n    isnull(posture_signed_at), \"pending\",\n    isnull(posture_signed_by), \"unsigned\",\n    posture_signed_at < (now_ts - 365 * 86400), \"stale\",\n    1=1, \"current\")\n| where attestation_status IN (\"overdue\", \"unsigned\", \"stale\")\n| table attestation_id attestation_period_quarter attestation_period_year quarter_end_at posture_72hr_sla posture_24hr_sla posture_supplemental_sla posture_preservation posture_signed_at posture_signed_by attestation_status",
   "description": "Tracks the quarterly General-Counsel attestation across the four CIRCIA-SLA postures. Surfaces overdue or unsigned attestations.",
-  "value": "An executive-signed quarterly attestation gives the board, auditors, and external counsel a single source of truth on CIRCIA posture. Without it, the entity has to reconstruct posture under pressure.",
+  "value": "Tracks the quarterly General-Counsel attestation across the four CIRCIA-SLA postures. Timely UC-22.54.26 alerting on 'CIRCIA Quarterly Compliance Attestation — General Counsel signs end-to-end compliance posture across statutory + NPRM clauses' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) SOAR `circia-attestation-prefill` aggregates UC-22.54.2, .3, .4, .5 summaries into a quarterly snapshot. (2) General Counsel reviews and signs within 14 days of quarter-end. (3) Schedule UC-22.54.26 weekly Monday 06:00.",
   "visualization": "(Panel 1) Quarterly attestation history with all four postures. (Panel 2) SLA-trend chart over rolling 4 quarters. (Panel 3) Overdue queue. (Panel 4) Posture-deterioration alerts.",
   "cimModels": [
@@ -97,7 +97,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Holiday-period delays** — Q4 attestation may legitimately slip into January-second-half due to year-end. Suppression: extend Q4 grace to Feb 15.\n\n**Suppression mechanism**: KV Store `circia_22_54_26_exceptions` with documented CISO approval and 30-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CIRCIA control testing** — Internal audit exercises 'CIRCIA Quarterly Compliance Attestation — General Counsel signs end-to-end compliance posture across statutory + NPRM clauses' (UC-22.54.26) on `entity` during scheduled clause CIRCIA-s2242b sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `circia_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `circia_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (compliance attestation workflow)"
   ],

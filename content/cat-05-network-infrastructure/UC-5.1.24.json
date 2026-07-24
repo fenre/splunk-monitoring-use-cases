@@ -69,14 +69,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='config_backup' that satisfy the UC-5.1.24 SPL filters for 'Network Device Configuration Backup Freshness'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `config_backup` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.24."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='config_backup' where `host` satisfies `age_hours` > 24 for UC-5.1.24 ('Network Device Configuration Backup Freshness'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `config_backup` events where `host` stays below `age_hours` > 24, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.24."
   },
   "dataSources": "Backup system logs (timestamps of last successful backup per device) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom (Oxidized/RANCID output, SolarWinds NCM equivalent), `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=config_backup OR sourcetype=oxidized OR sourcetype=rancid\n| stats latest(_time) as last_backup by host, device_hostname\n| eval age_hours=round((now()-last_backup)/3600,1)\n| where age_hours > 24 OR isnull(last_backup)\n| table device_hostname host last_backup age_hours",
   "description": "Last backup age tracking; stale backups risk config loss during failures. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Operations teams monitor network device configuration backup freshness, identifying stale backups that risk data loss during device failure or RMA replacement.",
+  "value": "Operations teams monitor network device configuration backup freshness, identifying stale backups that risk data loss during device failure or RMA replacement reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Ingest backup job output from Oxidized, RANCID, or NCM. Parse success/failure and timestamp. Create lookup or index with device→last_backup mapping. Alert when last successful backup exceeds 24 hours. Schedule backup jobs daily; verify Splunk receives logs via scripted input or syslog.",
   "visualization": "Table (device, last backup, age), Single value (devices with stale backup), Gauge (hours since last backup).",
   "cimModels": [],
@@ -102,7 +102,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Network Device Configuration Backup Freshness'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Network Device Configuration Backup Freshness' shifts `count` over `span=1h` while `host` remains in-scope for UC-5.1.24. Cross-check CMDB CHG.\n\n2. **Batch `count` on `config_backup`** — Scheduled automation elevates `device_hostname` without crossing `age_hours` > 24. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `config_backup`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"

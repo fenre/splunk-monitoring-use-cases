@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Lambda Layer Version Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_lambda_layer_version_compliance` (UC-4.1.76), SOC dashboard panel \"Operations — Lambda Layer Version Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudtrail' that satisfy the UC-4.1.76 SPL filters for 'Lambda Layer Version Compliance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudtrail` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.76."
+    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudtrail' where `userIdentity.arn` satisfies detection threshold for UC-4.1.76 ('Lambda Layer Version Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `aws` / `aws:cloudtrail` events where `userIdentity.arn` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.76."
   },
   "dataSources": "`sourcetype=aws:cloudtrail` (lambda:GetFunction, PublishLayerVersion), Config custom rule output Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudtrail\" eventSource=\"lambda.amazonaws.com\" eventName=\"UpdateFunctionConfiguration\"\n| spath path=requestParameters.layers{}\n| mvexpand requestParameters.layers{} limit=200\n| eval layer_arn=requestParameters.layers{}\n| lookup approved_lambda_layers layer_arn OUTPUT approved\n| where isnull(approved)\n| stats count by userIdentity.arn, requestParameters.functionName, layer_arn",
-  "description": "Outdated layers carry vulnerable dependencies; enforcing approved layer ARNs avoids shadow IT libraries in functions.",
+  "description": "Outdated layers carry vulnerable dependencies; enforcing approved layer ARNs avoids shadow IT libraries in functions. Searches `index=aws` with sourcetype `aws:cloudtrail` for UC-4.1.76, aggregating `count` by `userIdentity.arn` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Lambda Layer Version Compliance' without manual log review.",
   "value": "Early 'Lambda Layer Version Compliance' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Maintain CSV lookup of approved layer version ARNs. Alert on attach of unapproved layer or version drift weekly scan via `ListFunctions`. Integrate with CI/CD to block deploys pre-merge.",
   "visualization": "Table (function, layer, user), Bar chart (non-compliant functions), Timeline (changes).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Lambda Layer Version Compliance'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `aws` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Lambda Layer Version Compliance' shifts `count` over `span=1h` while `userIdentity.arn` remains in-scope for UC-4.1.76. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudtrail`** — Scheduled automation elevates `requestParameters.functionName` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `userIdentity.arn`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for `userIdentity.arn` is unstable; join `approved_lambda_layers` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `userIdentity.arn`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

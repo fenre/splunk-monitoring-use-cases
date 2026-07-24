@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Foundation Tilt and Settlement Monitor' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_foundation_tilt_and_settlement_monitor` (UC-25.37.4), SOC dashboard panel \"Personal — Foundation Tilt and Settlement Monitor\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='structural:tilt' that satisfy the UC-25.37.4 SPL filters for 'Foundation Tilt and Settlement Monitor'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `structural:tilt` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.37.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='structural:tilt' where `point` satisfies `drift` > 0.05 for UC-25.37.4 ('Foundation Tilt and Settlement Monitor'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `structural:tilt` events where `point` stays below `drift` > 0.05, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.37.4."
   },
   "dataSources": "Mould risk (`mould:risk`), crack meters (`crackmeter:reading`), HVAC filter life (`hvacfilter:life`), structural tilt (`structural:tilt`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Building-health sensors — indoor humidity / mould-risk monitors, crack and tilt meters, HVAC filter-life trackers, and damp sensors — streamed to Splunk HEC via MQTT and ESPHome. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=structural:tilt\n| timechart span=1d avg(tilt_deg) as tilt by point\n| streamstats current=f last(tilt) as prev by point\n| eval drift=abs(tilt-prev), alert=if(drift>0.05,1,0)",
-  "description": "Monitors tilt sensors on the structure for slow changes that can indicate settlement or movement.",
-  "value": "Structural movement is gradual and easy to miss; a tilt trend gives early, quantified warning worth a surveyor's visit.",
+  "description": "Monitors tilt sensors on the structure for slow changes that can indicate settlement or movement. Searches `index=personal` with sourcetype `structural:tilt` for UC-25.37.4, aggregating `avg` by `point` over `1d`. Alerts when grouped results cross `drift` > 0.05 in the saved search. Gives Personal operators a repeatable signal for 'Foundation Tilt and Settlement Monitor' without manual log review.",
+  "value": "Monitors tilt sensors on the structure for slow changes that can indicate settlement or movement. Timely UC-25.37.4 alerting on 'Foundation Tilt and Settlement Monitor' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest tilt-sensor data into `index=personal`; alert on sustained tilt drift.",
   "visualization": "Line chart of structural tilt over time by point.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Foundation Tilt and Settlement Monitor'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `structural:tilt`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Foundation Tilt and Settlement Monitor' stops polling `structural:tilt`; stale `point` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `structural:tilt`. Dedup with `stats latest(*) by point`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `drift` > 0.05. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

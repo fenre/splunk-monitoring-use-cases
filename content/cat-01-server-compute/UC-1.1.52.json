@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Connection Tracking Table Exhaustion' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_connection_tracking_table_exhaustion` (UC-1.1.52), SOC dashboard panel \"Linux — Connection Tracking Table Exhaustion\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='custom:conntrack' that satisfy the UC-1.1.52 SPL filters for 'Connection Tracking Table Exhaustion'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `custom:conntrack` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.52."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='custom:conntrack' where `host` satisfies `usage_pct` > 80 for UC-1.1.52 ('Connection Tracking Table Exhaustion'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `custom:conntrack` events where `host` stays below `usage_pct` > 80, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.52."
   },
   "dataSources": "`sourcetype=custom:conntrack` (samples of `nf_conntrack_count` vs `nf_conntrack_max`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix` with a custom scripted input for conntrack counters — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:conntrack host=*\n| stats latest(current_count) as current, latest(max_size) as maximum by host\n| eval usage_pct=(current/maximum)*100\n| where usage_pct > 80",
   "description": "Detects when the netfilter connection tracking table on a host is most of the way to its hard maximum, a condition that will soon block or drop new flow setups.",
-  "value": "Avoiding a full conntrack table protects stateful firewalls, NAT, and any service that cannot accept “cannot allocate new connection” style failures during busy periods.",
+  "value": "Detects when the netfilter connection tracking table on a host is most of the way to its hard maximum, a co.... Timely UC-1.1.52 alerting on 'Connection Tracking Table Exhaustion' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Sample `current_count` and `max_size` (from `/proc/sys/net/netfilter/nf_conntrack_max` or equivalent) into Splunk, compute utilization, and page before you reach the drop regime above roughly ninety percent in most shops.",
   "visualization": "Gauge, Alert",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Connection Tracking Table Exhaustion'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `custom:conntrack`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Connection Tracking Table Exhaustion'. Correlate with apt/yum logs in the same `custom:conntrack` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:conntrack`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `usage_pct` > 80.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],

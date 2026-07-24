@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set `clearance_revoked_date` in HR feed for a user with active access. Within 4 hours UC-22.56.21 MUST flag.",
-    "negativeScenario": "Disable access within 24h. UC-22.56.21 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='workday:hcm' where `userPrincipalName` satisfies `days_since_change` > 1 for UC-22.56.21 ('TSA-SD multi-modal personnel-security + insider-threat detection (clearance, role-change, anomalous-access)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `workday:hcm` events where `userPrincipalName` stays below `days_since_change` > 1, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.56.21."
   },
   "dataSources": "Workday HR feed (`workday:hcm`). Microsoft Entra ID (`azure:eventhub:aad`). ServiceNow HRSD (`snow:hr_case`). TSA badging system (`tsa:idms`). Splunk UBA scores (`uba:user_score`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk User Behavior Analytics (Splunkbase 4974), Splunk Add-on for Workday (Splunkbase 4179).",
   "spl": "(sourcetype=\"workday:hcm\" event_type=clearance_change OR sourcetype=\"workday:hcm\" event_type=termination)\n| eval upn = lower(email)\n| join type=left upn [search sourcetype=\"azure:eventhub:aad\" earliest=-7d | stats latest(_time) as last_signin by userPrincipalName | rename userPrincipalName as upn]\n| eval days_since_change = round((now() - event_timestamp) / 86400, 0)\n| eval risk_state = case(\n    event_type=\"termination\" AND isnotnull(last_signin) AND last_signin > event_timestamp, \"post_termination_access\",\n    event_type=\"clearance_change\" AND isnotnull(last_signin) AND last_signin > event_timestamp AND days_since_change > 1, \"clearance_lag\",\n    1=1, \"normal\")\n| where risk_state IN (\"post_termination_access\",\"clearance_lag\")\n| table upn event_type event_timestamp last_signin days_since_change risk_state",
-  "description": "Cross-references HR clearance/termination events with active sign-ins to detect access not yet rescinded.",
-  "value": "Insider risk on TSA-regulated systems is enforcement-critical. Late access rescission is a frequent finding.",
+  "description": "Cross-references HR clearance/termination events with active sign-ins to detect access not yet rescinded. Searches `index=target_index` with sourcetype `workday:hcm` for UC-22.56.21, aggregating `count` by `userPrincipalName` over `the scheduled window`. Alerts when grouped results cross `days_since_change` > 1 in the saved search. Gives Compliance operators a repeatable signal for 'TSA-SD multi-modal personnel-security + insider-threat detection (clearance, role-change, anomalous-access)' without manual log review.",
+  "value": "Cross-references HR clearance/termination events with active sign-ins to detect access not yet rescinded. Timely UC-22.56.21 alerting on 'TSA-SD multi-modal personnel-security + insider-threat detection (clearance, role-change, anomalous-access)' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Wire Workday HR feed. (2) Wire Entra ID sign-in feed. (3) Schedule UC-22.56.21 every 4 hours. (4) Build `TSA Insider Risk` dashboard.",
   "visualization": "(Panel 1) Risk-state counts. (Panel 2) Days-to-rescission trend. (Panel 3) Top-10 lagging UPNs. (Panel 4) UBA top-risk overlay.",
   "cimModels": [
@@ -67,7 +67,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **HR system lag**: Workday-Splunk feed may lag; tune `expected_silence_hours`.\n2. **Contractor with multiple identities**: ensure contractor merge logic is correct.\n3. **Cross-organization moves**: documented business moves shouldn't be flagged; consume `transfer_type` from Workday.\n\n**Suppression mechanism**: KV Store `tsa_insider_exception_lookup`.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD multi-modal personnel-security + insider-threat detection (clearance, role-change, anomalous-access)' (UC-22.56.21) on `userPrincipalName` during scheduled clause TSA-SCAS-personnel-security sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `workday:hcm` without crossing `days_since_change` > 1. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `userPrincipalName`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `userPrincipalName` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `userPrincipalName`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1078",
     "T1078.004"

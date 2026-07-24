@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'TCP Connection State Monitoring (Windows)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_tcp_connection_state_monitoring_windows` (UC-1.2.62), SOC dashboard panel \"Linux — TCP Connection State Monitoring (Windows)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=perfmon` sourcetype='Perfmon:TCPv4' that satisfy the UC-1.2.62 SPL filters for 'TCP Connection State Monitoring (Windows)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `perfmon` / `Perfmon:TCPv4` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.62."
+    "positiveScenario": "Ingest synthetic events into `index=perfmon` sourcetype='Perfmon:TCPv4' where `counter` satisfies `value` > 10000 for UC-1.2.62 ('TCP Connection State Monitoring (Windows)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `perfmon` / `Perfmon:TCPv4` events where `counter` stays below `value` > 10000, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.62."
   },
   "dataSources": "`sourcetype=Perfmon:TCPv4` (counters: Connections Established, Connection Failures) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=perfmon sourcetype=\"Perfmon:TCPv4\" counter IN (\"Connections Established\",\"Connection Failures\",\"Connections Reset\")\n| timechart span=5m avg(Value) as value by counter, host\n| where value > 10000",
   "description": "Excessive TIME_WAIT, CLOSE_WAIT, or ESTABLISHED connections indicate connection leaks, exhausted ephemeral ports, or application hanging. Causes service unavailability.",
-  "value": "Connection-state failure modes are a classic *ops-scale* class—fire drills start when a host runs out of ephemeral ports, not at 90% CPU.",
+  "value": "Excessive TIME_WAIT, CLOSE_WAIT, or ESTABLISHED connections indicate connection leaks, exhausted ephemeral.... Timely UC-1.2.62 alerting on 'TCP Connection State Monitoring (Windows)' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Configure Perfmon inputs for TCPv4 object: `Connections Established`, `Connection Failures`, `Connections Reset`, `Segments Retransmitted/sec` (interval=60). Also deploy a scripted input running `netstat -an | find /c \"TIME_WAIT\"` for state-level counts. Alert when established connections exceed application baseline by 2x or TIME_WAIT exceeds 5000 (ephemeral port exhaustion risk). Default ephemeral port range: 49152-65535 (16K ports).",
   "visualization": "Line chart (connection states over time), Gauge (established connections), Single value (TIME_WAIT count).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'TCP Connection State Monitoring (Windows)'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `perfmon` `Perfmon:TCPv4`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `perfmon`** — Package managers spike `counter` metrics for 'TCP Connection State Monitoring (Windows)'. Correlate with apt/yum logs in the same `Perfmon:TCPv4` window.\n\n2. **Nightly backup I/O on `counter`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `Perfmon:TCPv4`** — Nagios/Zabbix polls `counter` and mimics sustained load without crossing `value` > 10000.\n\n4. **New host onboarding** — `counter` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `counter`, `valid_until`.",
   "equipment": [
     "windows"
   ],

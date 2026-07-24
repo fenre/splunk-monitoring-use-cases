@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Compost Maturity Hold-Time' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_compost_maturity_hold_time` (UC-25.24.30), SOC dashboard panel \"Personal — Compost Maturity Hold-Time\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='compost:reading' that satisfy the UC-25.24.30 SPL filters for 'Compost Maturity Hold-Time'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `compost:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.24.30."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='compost:reading' where `pile_id` satisfies detection threshold for UC-25.24.30 ('Compost Maturity Hold-Time'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `compost:reading` events where `pile_id` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.24.30."
   },
   "dataSources": "Hive metrics (`flowhive:reading`), egg counter events (`eggcounter:event`), goat RFID visits (`goattag:scan`), goat watering and feed logs (`goatcare:event`), and compost readings (`compost:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Smallholding and backyard telemetry from Flow Hive scales, chicken coop counters, RFID goat tags, compost thermometers, and camera-driven chore logs sent to Splunk HEC via MQTT and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=compost:reading\n| search stage=\"curing\" days_in_cure=*\n| stats avg(days_in_cure) as avg_days_in_cure perc90(days_in_cure) as p90_days_in_cure count as samples by pile_id\n| sort 0 - avg_days_in_cure",
   "description": "Measures compost maturity hold time by pile. Runs scheduled SPL against `index=personal` to surface **Compost Maturity Hold-Time** so you can spot drift before it becomes a habit.",
-  "value": "Hold time in curing helps you avoid using compost that looks done but has not stabilized long enough.",
+  "value": "Measures compost maturity hold time by pile. Timely UC-25.24.30 alerting on 'Compost Maturity Hold-Time' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send the relevant duration field for compost maturity hold time to `index=personal` and review both average and p90 latency instead of relying on single examples.",
   "visualization": "Table of average and p90 compost maturity hold time.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Compost Maturity Hold-Time'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `compost:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Compost Maturity Hold-Time' stops polling `compost:reading`; stale `pile_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `compost:reading`. Dedup with `stats latest(*) by pile_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

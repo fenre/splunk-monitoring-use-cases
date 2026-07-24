@@ -55,16 +55,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "An incident closed 8 days ago with no PIR record returns pir_sla_met=0.",
-    "negativeScenario": "An incident closed 3 days ago with a PIR created 4 days ago returns pir_sla_met=1.",
-    "fixtureRef": "",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=soar` sourcetype='phantom:incident' where `incident_id` satisfies detection threshold for UC-22.8.35 ('SOC 2 CC7.4 — Incident response: post-incident review completion SLA'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `soar` / `phantom:incident` events where `incident_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.8.35."
   },
   "dataSources": "`index=soar` sourcetype=phantom:incident; `index=ticketing` sourcetype=jira:issue (PIR project).",
   "app": "Splunk SOAR (Splunkbase)",
   "spl": "index=soar sourcetype=phantom:incident state=closed earliest=-30d\n| stats latest(closed_at) AS closed_at BY incident_id\n| join type=outer incident_id\n  [search index=ticketing sourcetype=jira:issue project=PIR earliest=-60d\n   | stats latest(_time) AS pir_completed_at BY incident_id]\n| eval pir_sla_met=if(isnotnull(pir_completed_at) AND pir_completed_at<=closed_at+604800,1,0)\n| where pir_sla_met=0\n| table incident_id closed_at pir_completed_at pir_sla_met",
   "description": "CC7.4 requires the entity to 'respond, including by establishing a post-incident review'. This UC measures 7-day PIR completion SLA per closed incident.",
-  "value": "Surfaces PIR backlog before it becomes an audit finding. Board sees a rolling '% of PIRs on time' metric.",
+  "value": "CC7. Timely UC-22.8.35 alerting on 'SOC 2 CC7.4 — Incident response: post-incident review completion SLA' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Ensure PIR Jira project is populated; (2) schedule UC daily; (3) pir_sla_met=0 opens a reminder ticket; (4) weekly SOC report; (5) quarterly Board report. Indexes required: `index=soar`, `index=ticketing`; Sourcetypes: `sourcetype=jira:issue`, `sourcetype=phantom:incident`, `sourcetype=phantom:incident;`.",
   "visualization": "Waterfall of incidents → PIR completed → on time, single value 'open incidents overdue PIR'. Key fields: `closed_at`, `incident_id`, `incident_id]`, `pir_completed_at`, `pir_sla_met`.",
   "cimModels": [
@@ -91,7 +89,7 @@
       "title": "NIST Cybersecurity Framework"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised SOC 2 control testing** — Internal audit exercises 'SOC 2 CC7.4 — Incident response: post-incident review completion SLA' (UC-22.8.35) on `incident_id` during scheduled clause CC7.4 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=soar` `phantom:incident` without crossing evidence threshold. Cross-check engagement letter in `soc_2_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `soar` for `incident_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `incident_id` during normal service delivery.\n\n**Suppression mechanism:** `soc_2_exception_register.csv` keyed on `incident_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Baseline",
   "securityDomain": "audit",
   "requiredFields": [

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Shadow IT Discovery' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_shadow_it_discovery` (UC-10.5.20), SOC dashboard panel \"Security Infra — Shadow IT Discovery\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='zscaler:web' that satisfy the UC-10.5.20 SPL filters for 'Shadow IT Discovery'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `proxy` / `zscaler:web` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.5.20."
+    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='zscaler:web' where `app_name` satisfies detection threshold for UC-10.5.20 ('Shadow IT Discovery'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `proxy` / `zscaler:web` events where `app_name` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.5.20."
   },
   "dataSources": "`sourcetype=zscaler:web`, `sourcetype=pan:traffic` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Zscaler, Umbrella, firewall logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"zscaler:web\" earliest=-24h\n| stats sum(bytes_in) as bytes by app_name, user\n| lookup approved_saas_apps.csv app_name OUTPUT approved\n| where isnull(approved)\n| sort -bytes\n| head 50",
-  "description": "Identifies SaaS and unsanctioned apps via proxy/DNS logs not mapped to approved services in CMDB or SSO.",
+  "description": "Identifies SaaS and unsanctioned apps via proxy/DNS logs not mapped to approved services in CMDB or SSO. Searches `index=proxy` with sourcetype `zscaler:web` for UC-10.5.20, aggregating `sum` by `app_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'Shadow IT Discovery' without manual log review.",
   "value": "Early 'Shadow IT Discovery' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Maintain `approved_saas_apps.csv` from architecture/ITAM. Top unapproved apps by volume; correlate with CMDB business service owner for intake.",
   "visualization": "Table (shadow apps), Bar chart (bytes by app), Pie chart (approved vs unknown).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Shadow IT Discovery'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=proxy` `zscaler:web`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy`** — Planned work for 'Shadow IT Discovery' shifts `sum` over `span=1h` while `app_name` remains in-scope for UC-10.5.20. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `zscaler:web`** — Scheduled automation elevates `user` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `app_name`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zscaler:web`** — First 48h baseline for `app_name` is unstable; join `approved_saas_apps.csv` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `app_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "zscaler"
   ],

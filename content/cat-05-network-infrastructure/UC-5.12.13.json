@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Voicemail System Health Monitoring (Unity, Exchange UM)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_voicemail_system_health_monitoring_unity_exchang` (UC-5.12.13), SOC dashboard panel \"Operations — Voicemail System Health Monitoring (Unity, Exchange UM)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=voicemail` sourcetype='cisco:unity:diag' that satisfy the UC-5.12.13 SPL filters for 'Voicemail System Health Monitoring (Unity, Exchange UM)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `voicemail` / `cisco:unity:diag` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.12.13."
+    "positiveScenario": "Ingest synthetic events into `index=voicemail` sourcetype='cisco:unity:diag' where `vm_component` satisfies `count` > 20 for UC-5.12.13 ('Voicemail System Health Monitoring (Unity, Exchange UM)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `voicemail` / `cisco:unity:diag` events where `vm_component` stays below `count` > 20, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.12.13."
   },
   "dataSources": "`index=voicemail` or `index=msexchange` with `sourcetype=\"cisco:unity:diag\"`, `sourcetype=\"unity:tomcat\"`, SMTP/MWI SIP traces (`stream:sip`), Exchange UM operational logs (`MSExchangeUM_*`), Active Directory replication latency feeds correlated by `mailbox_id`; optional `sourcetype=\"perfmon\"` for UM worker CPU/memory. Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "Cisco Unity Connection syslog/diagnostic export TA, Microsoft Exchange Add-on / Windows TA for UM roles — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "(index=voicemail OR index=msexchange OR index=windows)\n(sourcetype=\"cisco:unity:diag\" OR sourcetype=\"MSExchangeUM*\" OR sourcetype=\"WinEventLog:Application\")\n(error OR fail OR timeout OR MWI OR \"storage\")\n| rex field=_raw max_match=1 \"(?i)(?<vm_component>Unity|UMWorkerProcess|MSExchangeUM)\"\n| stats count by vm_component, host\n| where count > 20\n| sort -count",
   "description": "Surfaces voicemail platform faults—Unity Connection stack errors, Exchange UM worker crashes, MWI signaling delays, and mailbox database latency—so greeting playback and message waiting lamps stay dependable.",
-  "value": "Unified communications teams restore voicemail services quickly when UM processes wedge or storage thresholds trip, preventing silent subscriber failures where calls roll to generic recordings without generating tickets.",
+  "value": "Surfaces voicemail platform faults—Unity Connection stack errors, Exchange UM worker crashes, MWI signaling.... Timely UC-5.12.13 alerting on 'Voicemail System Health Monitoring (Unity, Exchange UM)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Normalize Unity and Exchange timestamps to UTC; tag UM role hosts; alert on error burst deltas vs. seven-day baseline; pair with synthetic deposit tests weekly.",
   "visualization": "Split comparison chart Unity vs Exchange UM errors; table of top mailbox_ids impacted; single-value MWI failure percentage.",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Voicemail System Health Monitoring (Unity, Exchange UM)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `voicemail` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `voicemail`** — Planned work for 'Voicemail System Health Monitoring (Unity, Exchange UM)' shifts `count` over `span=1h` while `vm_component` remains in-scope for UC-5.12.13. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:unity:diag`** — Scheduled automation elevates `host` without crossing `count` > 20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `vm_component`** — Health checks in `voicemail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:unity:diag`** — First 48h baseline for `vm_component` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `vm_component`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "dell_emc",

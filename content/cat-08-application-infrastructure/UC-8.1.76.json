@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Apache Tomcat JDBC Pool Utilization (active vs idle vs max)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_apache_tomcat_jdbc_pool_utilization_active_vs_id` (UC-8.1.76), SOC dashboard panel \"Operations — Apache Tomcat JDBC Pool Utilization (active vs idle vs max)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='jmx:tomcat:datasource' that satisfy the UC-8.1.76 SPL filters for 'Apache Tomcat JDBC Pool Utilization (active vs idle vs max)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `jmx:tomcat:datasource` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.76."
+    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='jmx:tomcat:datasource' where `entity` satisfies `max` > 0 for UC-8.1.76 ('Apache Tomcat JDBC Pool Utilization (active vs idle vs max)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `web` / `jmx:tomcat:datasource` events where `entity` stays below `max` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.76."
   },
   "dataSources": "`index=web` `sourcetype=jmx:tomcat:datasource` (or `tomcat:jmx`) with Tomcat JDBC pool MBean fields `numActive`, `numIdle`, `maxActive` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder; Splunk Add-on for JMX (`Splunk_TA_jmx`) for metrics; file inputs for `tomcat:catalina`, `tomcat:access`, `tomcat:manager` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web (sourcetype=\"jmx:tomcat:datasource\" OR sourcetype=\"tomcat:jmx\")\n| search mbean=\"*DataSource*\" OR mbean=\"*ConnectionPool*\"\n| eval active=tonumber(numActive), idle=tonumber(numIdle), max=tonumber(maxActive)\n| eval pool_pct=if(max>0, round(100*active/max,1), null())\n| where pool_pct >= 85\n| table _time, host, mbean, active, idle, max, pool_pct",
   "description": "JDBC pool exhaustion manifests as slow responses even when CPU is low. Tracking `numActive` against `maxActive` shows when the database or pool sizing blocks the servlet tier.",
-  "value": "Separates database contention from application bugs and guides pool and DB scale decisions.",
+  "value": "JDBC pool exhaustion manifests as slow responses even when CPU is low. Timely UC-8.1.76 alerting on 'Apache Tomcat JDBC Pool Utilization (active vs idle vs max)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Enable JMX on Tomcat (`setenv.sh` CATALINA_OPTS). Map datasource MBeans in `Splunk_TA_jmx`. Create lookup from `name` to application service.",
   "visualization": "Time charts for utilization, tables for top URIs and deploy events, single-value alerts.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Apache Tomcat JDBC Pool Utilization (active vs idle vs max)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `web` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'Apache Tomcat JDBC Pool Utilization (active vs idle vs max)' shifts `count` over `span=1h` while `host` remains in-scope for UC-8.1.76. Cross-check CMDB CHG.\n\n2. **Batch `count` on `jmx:tomcat:datasource`** — Scheduled automation elevates `active` without crossing `max` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jmx:tomcat:datasource`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "tomcat"
   ],

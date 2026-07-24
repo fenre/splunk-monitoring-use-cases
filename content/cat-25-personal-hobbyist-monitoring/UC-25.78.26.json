@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Voter Registration Readiness Status Breakdown' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_voter_registration_readiness_status_breakdown` (UC-25.78.26), SOC dashboard panel \"Personal — Voter Registration Readiness Status Breakdown\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='voter:registration' that satisfy the UC-25.78.26 SPL filters for 'Voter Registration Readiness Status Breakdown'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `voter:registration` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.78.26."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='voter:registration' where `registration_status` satisfies detection threshold for UC-25.78.26 ('Voter Registration Readiness Status Breakdown'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `voter:registration` events where `registration_status` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.78.26."
   },
   "dataSources": "Life-admin document records (`lifeadmin:document`), passport status (`passport:status`), warranty registrations (`warranty:registration`), document-scan index (`documentscan:index`), voter-registration records (`voter:registration`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Passport and document trackers, warranty-registration forms, document-scan indexes, and voter-registration reminders streamed to Splunk HEC via scripted inputs and mobile capture workflows. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=voter:registration\n| stats count as items by registration_status\n| eventstats sum(items) as total\n| eval pct=round(100*items/total,1)\n| sort - items",
   "description": "Shows the current mix of voter registration readiness records by status so blocked or incomplete work stands out quickly.",
-  "value": "A status split is the fastest way to explain the shape of the queue without reading every record.",
+  "value": "Shows the current mix of voter registration readiness records by status so blocked or incomplete work stand.... Timely UC-25.78.26 alerting on 'Voter Registration Readiness Status Breakdown' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Keep status names small and well controlled so the split is readable and action-oriented.",
   "visualization": "Pie chart or bar chart of current records by status.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Voter Registration Readiness Status Breakdown'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `voter:registration`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Voter Registration Readiness Status Breakdown' stops polling `voter:registration`; stale `registration_status` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `voter:registration`. Dedup with `stats latest(*) by registration_status`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Cost Management Anomaly Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cost_management_anomaly_detection` (UC-4.2.35), SOC dashboard panel \"Operations — Cost Management Anomaly Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=azure` sourcetype='mscs:azure:cost' that satisfy the UC-4.2.35 SPL filters for 'Cost Management Anomaly Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `azure` / `mscs:azure:cost` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.2.35."
+    "positiveScenario": "Ingest synthetic events into `index=azure` sourcetype='mscs:azure:cost' where `ServiceName` satisfies `sigma` > 0 for UC-4.2.35 ('Cost Management Anomaly Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `azure` / `mscs:azure:cost` events where `ServiceName` stays below `sigma` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.2.35."
   },
   "dataSources": "`sourcetype=mscs:azure:cost` or amortized cost CSV to blob/Event Hub Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_microsoft-cloudservices`, Cost Management export — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=azure sourcetype=\"mscs:azure:cost\"\n| timechart span=1d sum(pretax_cost) as daily by ServiceName\n| eventstats avg(daily) as mu, stdev(daily) as sigma by ServiceName\n| eval z=if(sigma>0, (daily-mu)/sigma, 0)\n| where z > 3",
-  "description": "Built-in Cost Management alerts help, but statistical baselines on daily spend catch unusual service charges early.",
+  "description": "Built-in Cost Management alerts help, but statistical baselines on daily spend catch unusual service charges early. Searches `index=azure` with sourcetype `mscs:azure:cost` for UC-4.2.35, aggregating `sum` by `ServiceName` over `1d`. Alerts when grouped results cross `sigma` > 0 in the saved search. Gives Operations operators a repeatable signal for 'Cost Management Anomaly Detection' without manual log review.",
   "value": "Early 'Cost Management Anomaly Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ingest daily actual cost by service and resource group. Use `predict` or manual z-score as shown. Alert finance and owners on anomalies. Exclude known one-time purchases via lookup.",
   "visualization": "Line chart (daily cost by service), Table (service, z-score), Single value (anomaly count).",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cost Management Anomaly Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `azure` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `azure`** — Planned work for 'Cost Management Anomaly Detection' shifts `sum` over `span=1d` while `ServiceName` remains in-scope for UC-4.2.35. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `mscs:azure:cost`** — Scheduled automation elevates `z` without crossing `sigma` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ServiceName`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:cost`** — First 48h baseline for `ServiceName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ServiceName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure",
     "m365"

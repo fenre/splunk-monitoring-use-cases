@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Thermostat Runtime and Efficiency' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_thermostat_runtime_and_efficiency` (UC-25.5.8), SOC dashboard panel \"Personal — Thermostat Runtime and Efficiency\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ecobee:thermostat' that satisfy the UC-25.5.8 SPL filters for 'Thermostat Runtime and Efficiency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `ecobee:thermostat` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ecobee:thermostat' where `_time` satisfies detection threshold for UC-25.5.8 ('Thermostat Runtime and Efficiency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `ecobee:thermostat` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.8."
   },
   "dataSources": "Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue events (`hue:event`), thermostats (`ecobee:thermostat`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT bridged to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=ecobee:thermostat\n| bin _time span=1d\n| stats sum(heat_runtime_s) as heat_s, sum(cool_runtime_s) as cool_s, avg(outdoor_temp_c) as outdoor by _time\n| eval heat_hours=round(heat_s/3600,1), cool_hours=round(cool_s/3600,1)\n| sort - _time",
   "description": "Trends how many hours your heating and cooling actually ran each day alongside the outdoor temperature so you can judge efficiency.",
-  "value": "Runtime versus outdoor temperature is the honest measure of your home's efficiency; a rising trend at the same weather hints at a failing system or lost insulation.",
+  "value": "Trends how many hours your heating and cooling actually ran each day alongside the outdoor temperature so y.... Timely UC-25.5.8 alerting on 'Thermostat Runtime and Efficiency' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Ecobee/Nest runtime and weather fields; schedule daily and watch runtime against outdoor temperature.",
   "visualization": "Chart of daily heating/cooling hours overlaid with outdoor temperature.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Thermostat Runtime and Efficiency'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ecobee:thermostat`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Thermostat Runtime and Efficiency' stops polling `ecobee:thermostat`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ecobee:thermostat`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "f5",
     "mqtt"

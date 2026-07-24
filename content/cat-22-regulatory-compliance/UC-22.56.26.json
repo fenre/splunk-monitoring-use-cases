@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Inject synthetic incident with `safety_impacting=true` and `phmsa_reportable=true` without PHMSA notification. UC-22.56.26 MUST flag.",
-    "negativeScenario": "Pin PHMSA NRC report ID. UC-22.56.26 MUST record `phmsa_clock=on_time`."
+    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:sn_si_incident' where `entity` satisfies `hours_since_awareness` > 2 for UC-22.56.26 ('TSA-SD Pipeline + PHMSA dual-clock coordination — safety-impacting cyber incidents'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `itsm` / `snow:sn_si_incident` events where `entity` stays below `hours_since_awareness` > 2, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.56.26."
   },
   "dataSources": "ServiceNow SIR with `phmsa_reportable`, `nrc_notification_time`, `nrc_report_id`. PHMSA notification log. Pipeline leak-detection events (`pipeline:lds:event`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928).",
   "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" tsa_pipeline_in_scope=true safety_impacting=true\n| eval awareness_time = coalesce(tsa_awareness_time, opened_at)\n| eval hours_since_awareness = round((now() - awareness_time) / 3600, 2)\n| eval phmsa_status = case(\n    isnotnull(nrc_notification_time), \"notified\",\n    hours_since_awareness > 2 AND phmsa_reportable=true, \"overdue\",\n    1=1, \"in_window\")\n| where phmsa_status IN (\"overdue\")\n| table incident_id facility_id awareness_time hours_since_awareness phmsa_reportable phmsa_status nrc_report_id",
   "description": "Tracks PHMSA NRC clock on safety-impacting pipeline cyber events (2-hour clock for hazardous releases under 49 CFR 191).",
-  "value": "Failure to dual-report to PHMSA on safety-impacting cyber events is a serious PHMSA enforcement event AND a TSA-coordination failure.",
+  "value": "Tracks PHMSA NRC clock on safety-impacting pipeline cyber events (2-hour clock for hazardous releases under.... Timely UC-22.56.26 alerting on 'TSA-SD Pipeline + PHMSA dual-clock coordination — safety-impacting cyber incidents' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Add `safety_impacting`, `phmsa_reportable`, `nrc_notification_time`, `nrc_report_id` to SIR. (2) Schedule UC-22.56.26 every 5 minutes. (3) SOAR `pipeline_dual_clock_submission` playbook drives parallel CISA + PHMSA. (4) Build dashboard.",
   "visualization": "(Panel 1) Open dual-clock events. (Panel 2) Clock-burn (CISA + PHMSA). (Panel 3) NRC notification log. (Panel 4) 12-month dual-submission performance.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **PHMSA vs TSA threshold dispute**: CC + Safety Officer determination governs.\n2. **Phantom-release LDS false positive**: leak-detection-system false positives shouldn't trigger PHMSA report; pin via CC.\n\n**Suppression mechanism**: KV Store `tsa_phmsa_exception_lookup`.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD Pipeline + PHMSA dual-clock coordination — safety-impacting cyber incidents' (UC-22.56.26) on `entity` during scheduled clause TSA-SCAS-phmsa-dual sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=itsm` `snow:sn_si_incident` without crossing `hours_since_awareness` > 2. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `itsm` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T0814",
     "T0879"

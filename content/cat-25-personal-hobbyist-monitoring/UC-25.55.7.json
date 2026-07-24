@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Geographic Origin Map' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_geographic_origin_map` (UC-25.55.7), SOC dashboard panel \"Personal — Geographic Origin Map\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ancestor:event' that satisfy the UC-25.55.7 SPL filters for 'Geographic Origin Map'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `ancestor:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.55.7."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ancestor:event' where `birth_country` satisfies detection threshold for UC-25.55.7 ('Geographic Origin Map'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `ancestor:event` events where `birth_country` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.55.7."
   },
   "dataSources": "Tree records (`genealogy:record`), DNA matches (`dna:match`), ancestor events (`ancestor:event`), archive documents (`archive:document`), tree nodes (`familytree:node`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Genealogy and family-history research — tree platforms (Ancestry, FamilySearch), DNA match exports (23andMe, MyHeritage), and document / archive catalogues — streamed to Splunk HEC via GEDCOM and CSV exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=ancestor:event event=birth\n| stats count as births by birth_country\n| sort - births",
-  "description": "Counts where your ancestors were born so you can map the countries and regions your family came from.",
-  "value": "A map of origins turns a list of names into a story of migration you can share with relatives.",
+  "description": "Counts where your ancestors were born so you can map the countries and regions your family came from. Searches `index=personal` with sourcetype `ancestor:event` for UC-25.55.7, aggregating `count` by `birth_country` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Geographic Origin Map' without manual log review.",
+  "value": "Counts where your ancestors were born so you can map the countries and regions your family came from. Timely UC-25.55.7 alerting on 'Geographic Origin Map' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest birth events with locations into `index=personal`; count by country or region.",
   "visualization": "Map or bar chart of ancestor birth counts by country.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Geographic Origin Map'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ancestor:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Geographic Origin Map' stops polling `ancestor:event`; stale `birth_country` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ancestor:event`. Dedup with `stats latest(*) by birth_country`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

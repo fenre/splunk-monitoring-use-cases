@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Add a vendor providing essential service to a CII without CIISP registration. UC-22.57.8 MUST flag.",
-    "negativeScenario": "Vendor on CIISP register with signed COP-CIISP. UC-22.57.8 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies `days_since_audit` > 730 for UC-22.57.8 ('SG Cyber Act (2024 amendment) Critical Information Infrastructure Service Provider (CIISP) register + obligations tracker'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `days_since_audit` > 730, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.57.8."
   },
   "dataSources": "KV Store `csa_ciisp_lookup` (vendor_id, vendor_name, cii_ids, service_type, registration_date, cop_signed_at, last_audit_date). ServiceNow vendor master (`snow:cmdb_ci_vendor`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928).",
   "spl": "| inputlookup csa_ciisp_lookup\n| eval days_since_audit = round((now() - last_audit_date) / 86400, 0)\n| eval ciisp_status = case(\n    isnull(registration_date), \"unregistered\",\n    isnull(cop_signed_at), \"cop_missing\",\n    isnull(last_audit_date), \"never_audited\",\n    days_since_audit > 730, \"audit_overdue\",\n    1=1, \"current\")\n| where ciisp_status IN (\"unregistered\",\"cop_missing\",\"never_audited\",\"audit_overdue\")\n| table vendor_id vendor_name cii_ids service_type registration_date cop_signed_at last_audit_date days_since_audit ciisp_status",
   "description": "Tracks the CIISP supplier register and their CIISP-COP + audit status. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "2024 amendment imposes CIISP regulatory obligations on suppliers. Missing registration is a hard violation.",
+  "value": "Tracks the CIISP supplier register and their CIISP-COP + audit status. Timely UC-22.57.8 alerting on 'SG Cyber Act (2024 amendment) Critical Information Infrastructure Service Provider (CIISP) register + obligations tracker' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `csa_ciisp_lookup` from vendor master + CIISP designation letters. (2) Schedule UC-22.57.8 daily. (3) Build the `CSA CIISP Register` dashboard.",
   "visualization": "(Panel 1) CIISP status by service type. (Panel 2) Top-10 missing-COP. (Panel 3) Audit-overdue. (Panel 4) New-supplier onboarding.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit or GRC exercises 'SG Cyber Act (2024 amendment) Critical Information Infrastructure Service Provider (CIISP) register + obligations tracker' during scheduled clause SG-CA-s14(2) evidence collection. Match compliance programme calendar and accounts tagged `compliance_ops=true`.\n\n2. **External assessor sampling** — QSA or regulator sampling temporarily spikes `index=audit_evidence` `configured sourcetype` volume. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB-approved change pauses or reshapes ingestion to `audit_evidence`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected cross-boundary events during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
+  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit exercises 'SG Cyber Act (2024 amendment) Critical Information Infrastructure Service Provider (CIISP) register + obligations tracker' (UC-22.57.8) on `entity` during scheduled clause SG-CA-s14(2) sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `days_since_audit` > 730. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1195"
   ],

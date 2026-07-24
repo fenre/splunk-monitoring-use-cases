@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Change Order Approval Cycle Time' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_change_order_approval_cycle_time` (UC-25.54.31), SOC dashboard panel \"Personal — Change Order Approval Cycle Time\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reno:ops' that satisfy the UC-25.54.31 SPL filters for 'Change Order Approval Cycle Time'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `reno:ops` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.54.31."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reno:ops' where `change_type` satisfies detection threshold for UC-25.54.31 ('Change Order Approval Cycle Time'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `reno:ops` events where `change_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.54.31."
   },
   "dataSources": "Schedules (`reno:gantt`), punch lists (`reno:punchlist`), photo logs (`reno:photo`), permits (`reno:permit`), project controls (`reno:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home-renovation project telemetry — Gantt plans, punch-list updates, inspection photo logs, and permit expiry trackers — streamed to Splunk HEC via builder-tool exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=reno:ops change_type=* requested_epoch=* approved_epoch=*\n| eval lag_days=round((approved_epoch-requested_epoch)/86400,1)\n| stats avg(lag_days) as avg_lag_days, max(lag_days) as worst_lag_days by change_type\n| sort - avg_lag_days",
   "description": "Measures approval cycle time by change type for change orders. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Lag tracking shows which change type create the slowest handoffs, syncs, or review loops inside change orders.",
+  "value": "Measures approval cycle time by change type for change orders. Timely UC-25.54.31 alerting on 'Change Order Approval Cycle Time' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture the timestamps needed to compute `approval cycle time` on `reno:ops` events and aggregate them by `change_type`.",
   "visualization": "Table of change type with average and worst approval cycle time.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Change Order Approval Cycle Time'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reno:ops`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Change Order Approval Cycle Time' stops polling `reno:ops`; stale `change_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reno:ops`. Dedup with `stats latest(*) by change_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

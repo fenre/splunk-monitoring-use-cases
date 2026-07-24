@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Pharmacy Pickup Wait Outlier' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_pharmacy_pickup_wait_outlier` (UC-25.110.4), SOC dashboard panel \"Personal — Pharmacy Pickup Wait Outlier\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='pharmacy:pickup' that satisfy the UC-25.110.4 SPL filters for 'Pharmacy Pickup Wait Outlier'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `pharmacy:pickup` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.110.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='pharmacy:pickup' where `pharmacy_name` satisfies `z_score` >= 2 for UC-25.110.4 ('Pharmacy Pickup Wait Outlier'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `pharmacy:pickup` events where `pharmacy_name` stays below `z_score` >= 2, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.110.4."
   },
   "dataSources": "GoodRx prices (`goodrx:price`), CVS refills (`cvs:refill`), pharmacy pickups (`pharmacy:pickup`), and prescription adherence logs (`prescription:adherence`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "GoodRx price lookups, CVS refill confirmations, pharmacy pickup logs, and prescription adherence trackers streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=pharmacy:pickup pharmacy_name=* pickup_wait_minutes=*\n| eventstats avg(pickup_wait_minutes) as avg_wait, stdev(pickup_wait_minutes) as wait_stdev by pharmacy_name\n| eval z_score=round((pickup_wait_minutes-avg_wait)/nullif(wait_stdev,0),2)\n| where z_score>=2\n| table _time pharmacy_name pickup_wait_minutes avg_wait z_score",
-  "description": "Detects pharmacy pickups whose wait time exceeded two standard deviations above the store average.",
-  "value": "Wait outliers flag understaffed locations or fill backlog worth switching pharmacies for recurring scripts.",
+  "description": "Detects pharmacy pickups whose wait time exceeded two standard deviations above the store average. Searches `index=personal` with sourcetype `pharmacy:pickup` for UC-25.110.4, aggregating `avg` by `pharmacy_name` over `the scheduled window`. Alerts when grouped results cross `z_score` >= 2 in the saved search. Gives Personal operators a repeatable signal for 'Pharmacy Pickup Wait Outlier' without manual log review.",
+  "value": "Detects pharmacy pickups whose wait time exceeded two standard deviations above the store average. Timely UC-25.110.4 alerting on 'Pharmacy Pickup Wait Outlier' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log `pickup_wait_minutes` per visit and review z-score outliers when choosing a default pharmacy.",
   "visualization": "Table of outlier pickup waits by pharmacy.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Pharmacy Pickup Wait Outlier'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pharmacy:pickup`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Pharmacy Pickup Wait Outlier' stops polling `pharmacy:pickup`; stale `pharmacy_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pharmacy:pickup`. Dedup with `stats latest(*) by pharmacy_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `z_score` >= 2. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "snmp"
   ],

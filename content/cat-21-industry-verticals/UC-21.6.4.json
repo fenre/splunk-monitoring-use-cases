@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Foot Traffic Analytics' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_foot_traffic_analytics` (UC-21.6.4), SOC dashboard panel \"Operations — Foot Traffic Analytics\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=retail` sourcetype='foottraffic:sensor' that satisfy the UC-21.6.4 SPL filters for 'Foot Traffic Analytics'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `retail` / `foottraffic:sensor` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.6.4."
+    "positiveScenario": "Ingest synthetic events into `index=retail` sourcetype='foottraffic:sensor' where `store_id` satisfies `med_ent` > 0 for UC-21.6.4 ('Foot Traffic Analytics'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `retail` / `foottraffic:sensor` events where `store_id` stays below `med_ent` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.6.4."
   },
   "dataSources": "`index=retail` `sourcetype=\"foottraffic:sensor\"` (store_id, zone_id, inbound_count, outbound_count) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Retail IoT / people-counting platform via HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=retail sourcetype=\"foottraffic:sensor\"\n| eval net_flow=inbound_count-outbound_count\n| bin _time span=1h\n| stats sum(inbound_count) as entries, sum(outbound_count) as exits by store_id, zone_id, _time\n| eval dow=strftime(_time,\"%w\"), hr=strftime(_time,\"%H\")\n| eventstats median(entries) as med_ent by store_id, zone_id, dow, hr\n| eval ratio=if(med_ent>0, entries/med_ent, null)\n| where ratio < 0.5 OR ratio > 1.8\n| table _time, store_id, zone_id, entries, exits, med_ent, ratio",
   "description": "People-counting trends validate staffing and layout changes; anomaly detection on ingress rates highlights sensor drift or blocked entrances.",
-  "value": "Service and risk leaders use signals from Foot Traffic Analytics to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "Service and risk leaders use signals from Foot Traffic Analytics to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Align counts to store local time and exclude maintenance windows via a lookup. Compare same day-of-week baselines; investigate zones with sudden drops (blocked sensor) or spikes (configuration error). **Domain context:** People-counting is used for labor scheduling and lease performance—GDPR/CCPA may apply if combined with identifiers; use aggregates only. **Splunk:** `eventstats median` needs several weeks of history for stable `med_ent` per `dow`/`hr`.",
   "visualization": "Time chart (entries by zone), Heatmap (store × hour), Bar chart (week-over-week delta).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Foot Traffic Analytics'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `retail` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `retail`** — Planned work for 'Foot Traffic Analytics' shifts `sum` over `span=1h` while `store_id` remains in-scope for UC-21.6.4. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `foottraffic:sensor`** — Scheduled automation elevates `zone_id` without crossing `med_ent` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `store_id`** — Health checks in `retail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `foottraffic:sensor`** — First 48h baseline for `store_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `store_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365"
   ],

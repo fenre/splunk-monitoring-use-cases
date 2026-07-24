@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'BeyondTrust Privilege Elevation Request Denial Rate Monitoring' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_beyondtrust_privilege_elevation_request_denial_r` (UC-9.8.4), SOC dashboard panel \"IAM — BeyondTrust Privilege Elevation Request Denial Rate Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=pam` sourcetype='beyondtrust:pam' that satisfy the UC-9.8.4 SPL filters for 'BeyondTrust Privilege Elevation Request Denial Rate Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `pam` / `beyondtrust:pam` events outside the detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.8.4."
+    "positiveScenario": "Ingest synthetic events into `index=pam` sourcetype='beyondtrust:pam' where `entity` satisfies `total` >= 10 for UC-9.8.4 ('BeyondTrust Privilege Elevation Request Denial Rate Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `pam` / `beyondtrust:pam` events where `entity` stays below `total` >= 10, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.8.4."
   },
   "dataSources": "`sourcetype=beyondtrust:pam` elevation, run-as, or approval workflow events with granted/denied outcomes Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Add-on for BeyondTrust Privilege Management / PRA mapped to `beyondtrust:pam` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pam sourcetype=\"beyondtrust:pam\" earliest=-30d@d\n| eval res=coalesce(result, Result, outcome, Outcome, status, \"\")\n| eval user=coalesce(user, UserName, requester, \"\")\n| eval app=coalesce(application, Application, target_app, \"\")\n| bin _time span=1d\n| stats count(eval(match(lower(res),\"(?i)denied|reject|fail\"))) as denied count as total by _time user\n| eval deny_pct=round(100*denied/total,2)\n| where total>=10 AND deny_pct>50\n| sort -deny_pct",
   "description": "A sustained high denial rate can mean over-tight policies (hurting IT productivity) or attackers probing elevation paths. Tracking denials per user and day balances usability with detection of abusive requests.",
-  "value": "Guides policy tuning for BeyondTrust elevation workflows and highlights accounts that may be compromised or insider testing boundaries.",
+  "value": "A sustained high denial rate can mean over-tight policies (hurting IT productivity) or attackers probing el.... Timely UC-9.8.4 alerting on 'BeyondTrust Privilege Elevation Request Denial Rate Monitoring' reduces account takeover risk, help-desk load, and audit findings before manual triage or audit channels escalate.",
   "implementation": "(1) Standardize result field values across Windows and Mac agents. (2) Exclude known service accounts. (3) Baseline denial rates by team. (4) Cross-check with IdP risky sign-ins. (5) Offer self-service training when denial spikes follow application upgrades.",
   "visualization": "Line chart (denial % over time), bar chart (top users), heatmap (user × day).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled IAM maintenance** — Planned directory or IdP change generates expected deviations for 'BeyondTrust Privilege Elevation Request Denial Rate Monitoring'. Cross-check change records.\n\n2. **Onboarding burst** — New accounts or apps produce atypical `pam` volume.\n\n3. **Monitoring synthetic bind checks** — Health probes from known scanner hosts.\n\n4. **Stale application credential** — Single entity dominates `beyondtrust:pam` failures.\n\n**Suppression mechanism:** `iam_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `pam`** — Planned work for 'BeyondTrust Privilege Elevation Request Denial Rate Monitoring' shifts `count` over `span=1d` while `host` remains in-scope for UC-9.8.4. Cross-check CMDB CHG.\n\n2. **Batch `count` on `beyondtrust:pam`** — Scheduled automation elevates `res` without crossing `total` >= 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `pam` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `beyondtrust:pam`** — First 48h baseline for `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "securityDomain": "identity",
   "equipment": [
     "beyondtrust"

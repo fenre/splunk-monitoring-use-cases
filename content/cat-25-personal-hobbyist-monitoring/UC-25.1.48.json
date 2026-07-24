@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Polar Flow Workout Calories Burned Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_polar_flow_workout_calories_burned_leaderboard` (UC-25.1.48), SOC dashboard panel \"Personal — Polar Flow Workout Calories Burned Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='polar:activity' that satisfy the UC-25.1.48 SPL filters for 'Polar Flow Workout Calories Burned Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `polar:activity` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.48."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='polar:activity' where `sport_type` satisfies detection threshold for UC-25.1.48 ('Polar Flow Workout Calories Burned Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `polar:activity` events where `sport_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.48."
   },
   "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=polar:activity calories_kcal=*\n| stats sum(calories_kcal) as total_value, avg(calories_kcal) as avg_value by sport_type\n| sort - total_value",
-  "description": "Ranks sport values by total and average calories burned across Polar Flow workout events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks sport values by total and average calories burned across Polar Flow workout events. Searches `index=personal` with sourcetype `polar:activity` for UC-25.1.48, aggregating `sum` by `sport_type` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Polar Flow Workout Calories Burned Leaderboard' without manual log review.",
+  "value": "Ranks sport values by total and average calories burned across Polar Flow workout events. Timely UC-25.1.48 alerting on 'Polar Flow Workout Calories Burned Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `calories_kcal` values for each Polar Flow workout event and review total and average calories burned by sport.",
   "visualization": "Table of entities ranked by total calories burned.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Polar Flow Workout Calories Burned Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `polar:activity`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Polar Flow Workout Calories Burned Leaderboard' stops polling `polar:activity`; stale `sport_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `polar:activity`. Dedup with `stats latest(*) by sport_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

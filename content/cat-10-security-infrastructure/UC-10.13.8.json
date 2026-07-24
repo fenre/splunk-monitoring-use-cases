@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Password Spray Detection via CIM' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_password_spray_detection_via_cim` (UC-10.13.8), SOC dashboard panel \"Security Infra — Password Spray Detection via CIM\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' that satisfy the UC-10.13.8 SPL filters for 'Password Spray Detection via CIM'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.8."
+    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' where `src` satisfies `ucount` > 20 for UC-10.13.8 ('Password Spray Detection via CIM'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events where `src` stays below `ucount` > 20, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.8."
   },
   "dataSources": "`action=failure` with `signature` password-related Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "AD, IdP → Authentication — Universal Forwarder (Splunkbase 617)",
   "spl": "index=security tag=authentication action=failure\n| stats dc(user) as ucount by src\n| where ucount>20",
-  "description": "Many users with single failure from same `src` — classic spray pattern visible after CIM normalization.",
+  "description": "Many users with single failure from same `src` — classic spray pattern visible after CIM normalization. Searches `index=security` with sourcetype `configured sourcetype` for UC-10.13.8, aggregating `dc` by `src` over `the scheduled window`. Alerts when grouped results cross `ucount` > 20 in the saved search. Gives Security Infra operators a repeatable signal for 'Password Spray Detection via CIM' without manual log review.",
   "value": "Early 'Password Spray Detection via CIM' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Require minimum event volume per `src`; correlate with geo ASN blocklist.",
   "visualization": "Table (spray sources), Map.",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Password Spray Detection via CIM'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=security` `configured sourcetype`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `security`** — Planned work for 'Password Spray Detection via CIM' shifts `dc` over `span=1h` while `src` remains in-scope for UC-10.13.8. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `configured_sourcetype`** — Scheduled automation elevates `src` without crossing `ucount` > 20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `src` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Partition Leader Elections' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_partition_leader_elections` (UC-8.3.9), SOC dashboard panel \"Operations — Partition Leader Elections\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=kafka` sourcetype='kafka:controller' that satisfy the UC-8.3.9 SPL filters for 'Partition Leader Elections'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `kafka` / `kafka:controller` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.3.9."
+    "positiveScenario": "Ingest synthetic events into `index=kafka` sourcetype='kafka:controller' where `entity` satisfies `elections` > 10 for UC-8.3.9 ('Partition Leader Elections'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `kafka` / `kafka:controller` events where `entity` stays below `elections` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.3.9."
   },
   "dataSources": "Kafka JMX (`LeaderElectionRateAndTimeMs`), controller logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "JMX, Kafka controller logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=kafka sourcetype=\"kafka:controller\"\n| search \"leader\" \"election\"\n| timechart span=15m count as elections\n| where elections > 10",
-  "description": "Frequent leader elections indicate broker instability, causing temporary unavailability for affected partitions.",
+  "description": "Frequent leader elections indicate broker instability, causing temporary unavailability for affected partitions. Searches `index=kafka` with sourcetype `kafka:controller` for UC-8.3.9, aggregating `count` by `entity` over `15m`. Alerts when grouped results cross `elections` > 10 in the saved search. Gives Operations operators a repeatable signal for 'Partition Leader Elections' without manual log review.",
   "value": "Early 'Partition Leader Elections' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Monitor Kafka controller logs and JMX metrics. Track leader election rate and duration. Alert on elevated election rates. Correlate with broker restarts, network events, and ZooKeeper/KRaft issues.",
   "visualization": "Line chart (elections over time), Single value (elections per hour), Table (affected topics/partitions).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Partition Leader Elections'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `kafka` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `kafka`** — Planned work for 'Partition Leader Elections' shifts `count` over `span=15m` while `host` remains in-scope for UC-8.3.9. Cross-check CMDB CHG.\n\n2. **Batch `count` on `kafka:controller`** — Scheduled automation elevates `src` without crossing `elections` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:controller`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka",
     "zookeeper"

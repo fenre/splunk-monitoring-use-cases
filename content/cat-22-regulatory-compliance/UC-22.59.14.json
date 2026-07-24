@@ -43,14 +43,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "A vessel completed its last cyber-drill 400 days ago. UC-22.59.14 MUST flag status=overdue.",
-    "negativeScenario": "Vessel completed a tabletop 90 days ago and all action items closed. UC-22.59.14 MUST record status=current."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies `days_since_drill` > 365 for UC-22.59.14 ('Annual cyber-drill + tabletop after-action register — recover function MSC-FAL.1/Circ.3 §2.5 and ISM §8.2 evidence chain'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `days_since_drill` > 365, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.59.14."
   },
   "dataSources": "KV Store `imo_cyber_drill_lookup` (drill register). ServiceNow ITSM tasks for action items (`snow:task`). Splunk SOAR drill-related playbooks (`soar:case` where `case_type=cyber_drill`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup imo_cyber_drill_lookup\n| eval now_ts = now()\n| eval days_since_drill = round((now_ts - last_drill_completed_at) / 86400, 1)\n| eval drill_status = case(\n    days_since_drill > 365, \"overdue\",\n    days_since_drill > 330, \"due-soon\",\n    1=1, \"current\")\n| eval action_overdue_count = if(isnotnull(action_items_overdue), action_items_overdue, 0)\n| eval status = case(\n    drill_status = \"overdue\", \"breach-no-drill\",\n    drill_status = \"due-soon\", \"warning-drill-due\",\n    action_overdue_count > 0, \"breach-actions-overdue\",\n    1=1, \"compliant\")\n| where status NOT IN (\"compliant\")\n| sort 0 -days_since_drill\n| table vessel_or_fleet imo_number last_drill_completed_at drill_type drill_scenario days_since_drill action_items_open action_items_overdue status",
   "description": "Validates that every vessel in the fleet has performed at least one cyber-drill within the past 365 days, that the drill scenario and lessons-learned are documented, and that action items from the after-action review are closed within the SLA.",
-  "value": "ISM emergency-preparedness drills are a known PSC inspection item; cyber drills are now in scope. Without an evidence chain, the auditor records the gap as a major non-conformity; the same finding can lead to detention at PSC inspection.",
+  "value": "Validates that every vessel in the fleet has performed at least one cyber-drill within the past 365 days, t.... Timely UC-22.59.14 alerting on 'Annual cyber-drill + tabletop after-action register — recover function MSC-FAL.1/Circ.3 §2.5 and ISM §8.2 evidence chain' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Build the drill register KV Store. (2) Wire the company training department to log drill completion + after-action items into the register. (3) Wire ServiceNow tasks to feed action-item-closure status. (4) Schedule UC-22.59.14 weekly; route as P2 for overdue drills and P3 for action-item closure breach.",
   "visualization": "(Panel 1) Fleet drill currency table (days since last drill). (Panel 2) Overdue-action histogram. (Panel 3) Drill cadence trend (last 24 months). (Panel 4) Top scenario types.",
   "cimModels": [
@@ -78,7 +78,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **New-build vessels**: a vessel under construction or delivered <30 days has no drill history; honour a 90-day onboarding grace window. 2. **Fleet-level drills**: a single SCAREX tabletop may cover multiple vessels; the drill register must enumerate every vessel attending.\n\n**Suppression mechanism**: KV Store `imo_22_59_14_exceptions` with the Company Security Officer documented approval.",
+  "knownFalsePositives": "1. **Authorised IMO MSC 428 98 control testing** — Internal audit exercises 'Annual cyber-drill + tabletop after-action register — recover function MSC-FAL.1/Circ.3 §2.5 and ISM §8.2 evidence chain' (UC-22.59.14) on `entity` during scheduled clause IMO-MSC-FAL-Circ-3-s2-5 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `days_since_drill` > 365. Cross-check engagement letter in `imo_msc_428_98_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `imo_msc_428_98_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (training and preparedness control)"
   ],

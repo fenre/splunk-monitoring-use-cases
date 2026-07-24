@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Repeat-Vehicle and Stranger-Car Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_repeat_vehicle_and_stranger_car_alert` (UC-25.18.8), SOC dashboard panel \"Personal — Repeat-Vehicle and Stranger-Car Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='plate:detection' that satisfy the UC-25.18.8 SPL filters for 'Repeat-Vehicle and Stranger-Car Alert'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `plate:detection` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='plate:detection' where `plate` satisfies `sightings` >= 5 for UC-25.18.8 ('Repeat-Vehicle and Stranger-Car Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `plate:detection` events where `plate` stays below `sightings` >= 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.8."
   },
   "dataSources": "NVR object-detection (`frigate:event`), camera health (`camera:health`), alarm arm/disarm and life-safety (`alarm:event`), lock access (`lock:access`), plate recognition (`plate:detection`), doorbell (`doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Frigate / Blue Iris NVR object-detection events, camera health, alarm and smart-lock logs, and licence-plate recognition via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=plate:detection\n| stats count as sightings, earliest(_time) as first_seen by plate\n| eval known=if(sightings>=5,\"regular\",\"infrequent\"), brand_new=if(first_seen>relative_time(now(),\"-1d\"),1,0)\n| where known=\"infrequent\" AND brand_new=1",
   "description": "Flags vehicles seen on your street for the first time against the regulars, useful context for a quiet neighbourhood watch.",
-  "value": "Distinguishing a new car from the daily regulars turns plate recognition into a gentle heads-up rather than constant noise.",
+  "value": "Flags vehicles seen on your street for the first time against the regulars, useful context for a quiet neig.... Timely UC-25.18.8 alerting on 'Repeat-Vehicle and Stranger-Car Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Feed plate-recognition results into `index=personal`; alert on brand-new plates that are not among the regulars.",
   "visualization": "Table of newly seen plates with sighting counts.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Repeat-Vehicle and Stranger-Car Alert'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `plate:detection`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Repeat-Vehicle and Stranger-Car Alert' stops polling `plate:detection`; stale `plate` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `plate:detection`. Dedup with `stats latest(*) by plate`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `sightings` >= 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "cctv",
     "mqtt"

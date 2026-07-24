@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Door Sensor Night Access Summary' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_door_sensor_night_access_summary` (UC-25.5.16), SOC dashboard panel \"Personal — Door Sensor Night Access Summary\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='zigbee2mqtt:device' that satisfy the UC-25.5.16 SPL filters for 'Door Sensor Night Access Summary'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `zigbee2mqtt:device` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.16."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='zigbee2mqtt:device' where `sensor` satisfies `hour` >= 23 for UC-25.5.16 ('Door Sensor Night Access Summary'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `zigbee2mqtt:device` events where `sensor` stays below `hour` >= 23, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.16."
   },
   "dataSources": "Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue bridge events (`hue:event`), Nest/Ecobee thermostat (`ecobee:thermostat`), door/leak/motion sensors. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=zigbee2mqtt:device sensor_type=contact state=open\n| eval hour=strftime(_time,\"%H\")\n| where hour>=23 OR hour<5\n| bin _time span=1d\n| stats count as opens by sensor _time\n| where opens>0\n| sort - _time",
   "description": "Lists door and window opens during the overnight hours, useful both for security awareness and for catching the family member who keeps letting heat out.",
-  "value": "A simple after-hours contact log gives you just enough household audit trail without turning the whole house into a surveillance system.",
+  "value": "Lists door and window opens during the overnight hours, useful both for security awareness and for catching.... Timely UC-25.5.16 alerting on 'Door Sensor Night Access Summary' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward contact-sensor state changes; review the overnight summary each morning or alert on selected sensors immediately.",
   "visualization": "Daily table of overnight contact openings by sensor.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Door Sensor Night Access Summary'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `zigbee2mqtt:device`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Door Sensor Night Access Summary' stops polling `zigbee2mqtt:device`; stale `sensor` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `zigbee2mqtt:device`. Dedup with `stats latest(*) by sensor`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `hour` >= 23. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "f5",
     "mqtt"

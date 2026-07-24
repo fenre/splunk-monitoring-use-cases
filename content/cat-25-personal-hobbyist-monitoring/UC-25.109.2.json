@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Robot Vacuum Coverage Gap by Room' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_robot_vacuum_coverage_gap_by_room` (UC-25.109.2), SOC dashboard panel \"Personal — Robot Vacuum Coverage Gap by Room\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='roborock:session' that satisfy the UC-25.109.2 SPL filters for 'Robot Vacuum Coverage Gap by Room'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `roborock:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.109.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='roborock:session' where `_time` satisfies detection threshold for UC-25.109.2 ('Robot Vacuum Coverage Gap by Room'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `roborock:session` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.109.2."
   },
   "dataSources": "Roborock sessions (`roborock:session`), Tidy schedules (`tidy:schedule`), cleaning checklists (`cleaning:checklist`), and vacuum runtime logs (`vacuum:runtime`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Roborock vacuum session exports, Tidy scheduling logs, cleaning checklists, and runtime telemetry from robot vacuums ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=roborock:session room_name=* area_sqm=*\n| bin _time span=1w\n| stats sum(area_sqm) as weekly_sqm, count as sessions by _time room_name\n| eventstats avg(weekly_sqm) as avg_sqm by room_name\n| eval below_avg=if(weekly_sqm<avg_sqm*0.5,1,0)\n| where below_avg=1\n| table _time room_name weekly_sqm avg_sqm",
-  "description": "Flags weeks where Roborock cleaned less than half the usual area for a given room.",
-  "value": "Coverage gaps often mean blocked doors, moved furniture, or a map that needs remapping after layout changes.",
+  "description": "Flags weeks where Roborock cleaned less than half the usual area for a given room. Searches `index=personal` with sourcetype `roborock:session` for UC-25.109.2, aggregating `sum` by `_time` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Robot Vacuum Coverage Gap by Room' without manual log review.",
+  "value": "Flags weeks where Roborock cleaned less than half the usual area for a given room. Timely UC-25.109.2 alerting on 'Robot Vacuum Coverage Gap by Room' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Include `area_sqm` and `room_name` on each session and compare weekly totals to room baselines.",
   "visualization": "Heat map or table of under-cleaned rooms by week.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Robot Vacuum Coverage Gap by Room'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `roborock:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Robot Vacuum Coverage Gap by Room' stops polling `roborock:session`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `roborock:session`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

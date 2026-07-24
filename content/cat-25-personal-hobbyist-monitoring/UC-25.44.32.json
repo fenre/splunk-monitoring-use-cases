@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Harvest Processing Queue Age' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_harvest_processing_queue_age` (UC-25.44.32), SOC dashboard panel \"Personal — Harvest Processing Queue Age\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='outdoor:queue' that satisfy the UC-25.44.32 SPL filters for 'Harvest Processing Queue Age'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `outdoor:queue` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.44.32."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='outdoor:queue' where `processing_state` satisfies `backlog` > 0 for UC-25.44.32 ('Harvest Processing Queue Age'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `outdoor:queue` events where `processing_state` stays below `backlog` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.44.32."
   },
   "dataSources": "Catch trips (`outdoor:trip`), hunt map activity (`hunt:map`), foraging observations (`forage:observation`), smoker sessions (`cook:smoker`), harvest queues (`outdoor:queue`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Fishing, hunting, foraging, and outdoor-cooking telemetry — Fishbrain catch logs, onX Hunt map exports, iNaturalist observations, and ThermoWorks smoker probes — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=outdoor:queue item_type=\"harvest\" processing_state=*\n| stats sum(eval(if(processing_state!=\"complete\",1,0))) as backlog, count as total by processing_state\n| where backlog>0\n| sort - backlog",
-  "description": "Lists pending harvest items backlog by processing state for post-trip processing.",
-  "value": "Backlog counts expose where small unfinished tasks accumulate and create hidden drag inside post-trip processing.",
+  "description": "Lists pending harvest items backlog by processing state for post-trip processing. Searches `index=personal` with sourcetype `outdoor:queue` for UC-25.44.32, aggregating `sum` by `processing_state` over `the scheduled window`. Alerts when grouped results cross `backlog` > 0 in the saved search. Gives Personal operators a repeatable signal for 'Harvest Processing Queue Age' without manual log review.",
+  "value": "Lists pending harvest items backlog by processing state for post-trip processing. Timely UC-25.44.32 alerting on 'Harvest Processing Queue Age' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Mark each `outdoor:queue` record with a pending-state flag and summarize backlog totals by `processing_state`.",
   "visualization": "Table of processing state with pending harvest items counts.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Harvest Processing Queue Age'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `outdoor:queue`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Harvest Processing Queue Age' stops polling `outdoor:queue`; stale `processing_state` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `outdoor:queue`. Dedup with `stats latest(*) by processing_state`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `backlog` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

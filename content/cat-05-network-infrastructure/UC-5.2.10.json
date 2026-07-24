@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Admin Access Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_admin_access_audit` (UC-5.2.10), SOC dashboard panel \"Operations — Admin Access Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=firewall` sourcetype='pan:system' that satisfy the UC-5.2.10 SPL filters for 'Admin Access Audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `firewall` / `pan:system` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.2.10."
+    "positiveScenario": "Ingest synthetic events into `index=firewall` sourcetype='pan:system' where `admin_user` satisfies detection threshold for UC-5.2.10 ('Admin Access Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `firewall` / `pan:system` events where `admin_user` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.2.10."
   },
   "dataSources": "Firewall system/auth logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=firewall sourcetype=\"pan:system\" (\"login\" OR \"logout\" OR \"auth\")\n| eval status=case(match(_raw,\"success\"),\"Success\", match(_raw,\"fail\"),\"Failed\", 1=1,\"Other\")\n| stats count by admin_user, src, status | sort -count",
-  "description": "Firewall admin access is highly privileged. Audit trail is a compliance must-have.",
-  "value": "Security teams audit firewall admin access attempts, detecting brute force attacks, suspicious external logins, and successful authentication following multiple failures.",
+  "description": "Firewall admin access is highly privileged. Audit trail is a compliance must-have. Searches `index=firewall` with sourcetype `pan:system` for UC-5.2.10, aggregating `count` by `admin_user` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Admin Access Audit' without manual log review.",
+  "value": "Firewall admin access is highly privileged. Timely UC-5.2.10 alerting on 'Admin Access Audit' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Forward system/auth logs. Alert on failed admin logins. Track all successful logins. Alert on unexpected source IPs.",
   "visualization": "Table (admin, source, status), Timeline, Bar chart.",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Admin Access Audit'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `firewall` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `firewall`** — Planned work for 'Admin Access Audit' shifts `count` over `span=1h` while `admin_user` remains in-scope for UC-5.2.10. Cross-check CMDB CHG.\n\n2. **Batch `count` on `pan:system`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `admin_user`** — Health checks in `firewall` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pan:system`** — First 48h baseline for `admin_user` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `admin_user`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "fortinet",

@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Airport Wi-Fi Capacity and Congestion Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_airport_wi_fi_capacity_and_congestion_monitoring` (UC-21.7.6), SOC dashboard panel \"Operations — Airport Wi-Fi Capacity and Congestion Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=airport` sourcetype='airport:wifi' that satisfy the UC-21.7.6 SPL filters for 'Airport Wi-Fi Capacity and Congestion Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `airport` / `airport:wifi` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.7.6."
+    "positiveScenario": "Ingest synthetic events into `index=airport` sourcetype='airport:wifi' where `ap_name` satisfies `avg_util` > 75 for UC-21.7.6 ('Airport Wi-Fi Capacity and Congestion Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `airport` / `airport:wifi` events where `ap_name` stays below `avg_util` > 75, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.7.6."
   },
   "dataSources": "`index=airport` `sourcetype=\"airport:wifi\"` (ap_name, terminal_id, channel_util_pct, client_count, retry_rate_pct) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "WLAN controller syslog via HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=airport sourcetype=\"airport:wifi\"\n| bin _time span=5m\n| stats avg(channel_util_pct) as avg_util, max(client_count) as max_clients, avg(retry_rate_pct) as avg_retry by ap_name, terminal_id, _time\n| where avg_util > 75 OR avg_retry > 15 OR max_clients > 200\n| table _time, terminal_id, ap_name, avg_util, max_clients, avg_retry",
   "description": "Passenger Wi-Fi saturation during banks degrades airline apps and airport services; tracking airtime utilization and retries guides AP density and backhaul upgrades.",
-  "value": "Service and risk leaders use signals from Airport Wi-Fi Capacity and Congestion Monitoring to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "Service and risk leaders use signals from Airport Wi-Fi Capacity and Congestion Monitoring to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Normalize vendor metrics to `channel_util_pct` and `retry_rate_pct`. Compare concourse peers; exclude maintenance SSIDs. Correlate with passenger counts from `terminal:flow` when available. **Domain context:** High-density Wi-Fi (802.11ax) in terminals is interference-limited—`channel_util_pct` above ~75% often correlates with retries and sticky clients. **Splunk:** Vendor-specific metrics may need `eval` scaling (0–1 vs 0–100).",
   "visualization": "Heatmap (AP × hour utilization), Line chart (client count), Bar chart (top congested APs).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Airport Wi-Fi Capacity and Congestion Monitoring'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `airport` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `airport`** — Planned work for 'Airport Wi-Fi Capacity and Congestion Monitoring' shifts `avg` over `span=5m` while `ap_name` remains in-scope for UC-21.7.6. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `airport:wifi`** — Scheduled automation elevates `terminal_id` without crossing `avg_util` > 75. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ap_name`** — Health checks in `airport` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airport:wifi`** — First 48h baseline for `ap_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ap_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog"
   ],

@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Drop T1 coverage for any 1-hour window in `tsa_soc_coverage_lookup`. UC-22.56.27 MUST flag.",
-    "negativeScenario": "Maintain 24x7 T1/T2/T3 coverage. UC-22.56.27 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `tier` satisfies `unique_hours` < 24 for UC-22.56.27 ('TSA-SD multi-modal Cybersecurity Operations Centre (CSOC / SOC) tier coverage + on-call attestation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `tier` stays below `unique_hours` < 24, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.56.27."
   },
   "dataSources": "KV Store `tsa_soc_coverage_lookup` (tier, start, end, analyst_id). PagerDuty schedule API (`pagerduty:schedule`). Splunk SOAR analyst engagement (`soar:analyst_engagement`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for PagerDuty (Splunkbase 4180).",
   "spl": "| inputlookup tsa_soc_coverage_lookup\n| eval coverage_hour_start = strftime(start, \"%Y-%m-%dT%H\")\n| eval coverage_hour_end = strftime(end, \"%Y-%m-%dT%H\")\n| stats values(analyst_id) as analysts by tier coverage_hour_start coverage_hour_end\n| eval expected = 1\n| stats sum(expected) as covered_hours dc(coverage_hour_start) as unique_hours by tier\n| eval coverage_gap = if(unique_hours < 24, \"true\", \"false\")\n| where coverage_gap=\"true\"\n| table tier covered_hours unique_hours coverage_gap",
   "description": "Surveys SOC tier coverage to confirm 24×7 across T1, T2, T3. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "TSA inspectors expect 24×7 monitoring; gaps in roster are findings. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Surveys SOC tier coverage to confirm 24×7 across T1, T2, T3. Timely UC-22.56.27 alerting on 'TSA-SD multi-modal Cybersecurity Operations Centre (CSOC / SOC) tier coverage + on-call attestation' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Wire PagerDuty schedule sync to `tsa_soc_coverage_lookup`. (2) Schedule UC-22.56.27 daily. (3) Build `TSA SOC Coverage` dashboard.",
   "visualization": "(Panel 1) Tier coverage by hour. (Panel 2) Gap-trend. (Panel 3) Analyst utilisation. (Panel 4) Escalation chain.",
   "cimModels": [
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Cross-tier hand-off**: T1 may yield T2 directly; ensure roster covers union of tiers.\n2. **MSSP coverage**: outsourced T1 must be reflected.\n\n**Suppression mechanism**: KV Store `tsa_22_56_27_exceptions`.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD multi-modal Cybersecurity Operations Centre (CSOC / SOC) tier coverage + on-call attestation' (UC-22.56.27) on `tier` during scheduled clause TSA-SCAS-csoc-coverage sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `unique_hours` < 24. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `tier`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `tier` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `tier`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (governance)"
   ],

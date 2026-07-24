@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Kafka Connect Dead-Letter Queue Growth' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_kafka_connect_dead_letter_queue_growth` (UC-24.8.15), SOC dashboard panel \"Operations — Kafka Connect Dead-Letter Queue Growth\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='kafkaconnect:jmx' that satisfy the UC-24.8.15 SPL filters for 'Kafka Connect Dead-Letter Queue Growth'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `kafkaconnect:jmx` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.8.15."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='kafkaconnect:jmx' where `connector` satisfies `dlq_records` > 0 for UC-24.8.15 ('Kafka Connect Dead-Letter Queue Growth'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `kafkaconnect:jmx` events where `connector` stays below `dlq_records` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.8.15."
   },
   "dataSources": "Kafka Connect REST status (`kafkaconnect:status`), worker logs (`kafkaconnect:worker`), and JMX source/sink metrics (`kafkaconnect:jmx`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Kafka Connect REST API (`/connectors`, `/connectors/{name}/status`) via HEC scripted inputs; Connect worker logs and JMX metrics. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=kafkaconnect:jmx metric=\"deadletterqueue-produce-requests\" OR metric=\"total-record-errors\"\n| timechart span=10m sum(value) as dlq_records by connector\n| untable _time connector dlq_records\n| where dlq_records>0\n| sort - dlq_records",
   "description": "Tracks records routed to the Kafka Connect dead-letter queue per connector, surfacing malformed messages that are silently dropped from the sink.",
-  "value": "DLQ growth means data is being lost from the pipeline without a job failure; monitoring it protects completeness of the landed data.",
+  "value": "Tracks records routed to the Kafka Connect dead-letter queue per connector, surfacing malformed messages th.... Timely UC-24.8.15 alerting on 'Kafka Connect Dead-Letter Queue Growth' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Expose Connect JMX error/DLQ metrics via HEC; schedule every 15 minutes and alert on rising DLQ volume for critical connectors.",
   "visualization": "Timechart of DLQ records per connector, table.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Kafka Connect Dead-Letter Queue Growth'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Kafka Connect Dead-Letter Queue Growth' shifts `sum` over `span=10m` while `connector` remains in-scope for UC-24.8.15. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `kafkaconnect:jmx`** — Scheduled automation elevates `src` without crossing `dlq_records` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `connector`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafkaconnect:jmx`** — First 48h baseline for `connector` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `connector`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka"
   ],

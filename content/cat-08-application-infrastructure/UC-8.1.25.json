@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'WildFly HTTP Access Log Time-Taken Percentiles' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_wildfly_http_access_log_time_taken_percentiles` (UC-8.1.25), SOC dashboard panel \"Operations — WildFly HTTP Access Log Time-Taken Percentiles\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='wildfly:access' that satisfy the UC-8.1.25 SPL filters for 'WildFly HTTP Access Log Time-Taken Percentiles'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `wildfly:access` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.25."
+    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='wildfly:access' where `host` satisfies `p95_ms` > 2500 for UC-8.1.25 ('WildFly HTTP Access Log Time-Taken Percentiles'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `web` / `wildfly:access` events where `host` stays below `p95_ms` > 2500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.25."
   },
   "dataSources": "`index=web` `sourcetype=wildfly:access` (Undertow access log with `%D` time) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Undertow access logging + Splunk Universal Forwarder — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"wildfly:access\"\n| eval elapsed_ms=coalesce(time_taken, 'time-taken', elapsed)\n| where isnotnull(elapsed_ms)\n| timechart span=5m perc95(elapsed_ms) as p95_ms by host\n| where p95_ms > 2500",
   "description": "WildFly serves HTTP through Undertow; access logs with `%D` expose request duration. Rising P95 indicates servlet, EJB, or database contention.",
-  "value": "Isolates slow Java EE traffic independent of generic JVM heap charts. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "WildFly serves HTTP through Undertow; access logs with `%D` expose request duration. Timely UC-8.1.25 alerting on 'WildFly HTTP Access Log Time-Taken Percentiles' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Configure Undertow `access-log` pattern to include `%D` (microseconds). Normalize to ms in SPL. Split by `virtual-host` if logged.",
   "visualization": "Line chart (P95), table (host × vhost), compare to datasource pool metrics.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'WildFly HTTP Access Log Time-Taken Percentiles'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `web` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'WildFly HTTP Access Log Time-Taken Percentiles' shifts `count` over `span=5m` while `host` remains in-scope for UC-8.1.25. Cross-check CMDB CHG.\n\n2. **Batch `count` on `wildfly:access`** — Scheduled automation elevates `elapsed_ms` without crossing `p95_ms` > 2500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `wildfly:access`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "jboss"
   ],

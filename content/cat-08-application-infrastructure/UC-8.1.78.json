@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Apache Tomcat Valve Request Filtering and Access Pattern Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_apache_tomcat_valve_request_filtering_and_access` (UC-8.1.78), SOC dashboard panel \"Operations — Apache Tomcat Valve Request Filtering and Access Pattern Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='tomcat:access' that satisfy the UC-8.1.78 SPL filters for 'Apache Tomcat Valve Request Filtering and Access Pattern Audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `tomcat:access` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.78."
+    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='tomcat:access' where `cs_uri_stem` satisfies detection threshold for UC-8.1.78 ('Apache Tomcat Valve Request Filtering and Access Pattern Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `web` / `tomcat:access` events where `cs_uri_stem` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.78."
   },
   "dataSources": "`index=web` `sourcetype=tomcat:access` (Catalina HTTP access log with RemoteAddrValve / ErrorReportValve outcomes) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder; Splunk Add-on for JMX (`Splunk_TA_jmx`) for metrics; file inputs for `tomcat:catalina`, `tomcat:access`, `tomcat:manager` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"tomcat:access\"\n| where status=403 OR status=401\n| stats count by cs_uri_stem, remote_host, status\n| sort - count\n| head 50",
   "description": "Valves such as `RemoteAddrValve` and security constraints emit 403/401 in access logs. Auditing stems and sources validates rules and spots probing.",
-  "value": "Supports zero-trust and WAF-adjacent controls with evidence of enforcement. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Valves such as `RemoteAddrValve` and security constraints emit 403/401 in access logs. Timely UC-8.1.78 alerting on 'Apache Tomcat Valve Request Filtering and Access Pattern Audit' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Enable Access Log Valve in `server.xml`; sync field order with `props.conf`. Correlate 403 spikes with `RemoteAddrValve` deny rules.",
   "visualization": "Time charts for utilization, tables for top URIs and deploy events, single-value alerts.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Apache Tomcat Valve Request Filtering and Access Pattern Audit'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `web` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'Apache Tomcat Valve Request Filtering and Access Pattern Audit' shifts `count` over `span=1h` while `cs_uri_stem` remains in-scope for UC-8.1.78. Cross-check CMDB CHG.\n\n2. **Batch `count` on `tomcat:access`** — Scheduled automation elevates `remote_host` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cs_uri_stem`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tomcat:access`** — First 48h baseline for `cs_uri_stem` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cs_uri_stem`, `exception_reason`, `valid_until`.",
   "equipment": [
     "tomcat"
   ],

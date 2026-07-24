@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Apex Temperature Control Overshoot' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_apex_temperature_control_overshoot` (UC-25.27.19), SOC dashboard panel \"Personal — Apex Temperature Control Overshoot\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='apex:reading' that satisfy the UC-25.27.19 SPL filters for 'Apex Temperature Control Overshoot'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `apex:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.27.19."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='apex:reading' where `_time` satisfies detection threshold for UC-25.27.19 ('Apex Temperature Control Overshoot'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `apex:reading` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.27.19."
   },
   "dataSources": "Apex controller readings (`apex:reading`), Seneye measurements (`seneye:reading`), reptile thermostat events (`reptilethermostat:event`), and misting-system cycles (`mister:cycle`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Aquarium and terrarium telemetry from Neptune Apex, Seneye, reptile thermostats, and misting systems sent to Splunk HEC via controller APIs, MQTT, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=apex:reading\n| search temp_overshoot_c=*\n| bin _time span=1d\n| stats avg(temp_overshoot_c) as avg_temp_overshoot_c max(temp_overshoot_c) as max_temp_overshoot_c by _time tank_name\n| sort - _time",
   "description": "Tracks Apex temperature overshoot over time and breaks it out by tank. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Overshoot trends show when heaters, chillers, or control tuning are becoming too aggressive.",
+  "value": "Tracks Apex temperature overshoot over time and breaks it out by tank. Timely UC-25.27.19 alerting on 'Apex Temperature Control Overshoot' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send Apex temperature overshoot events to `index=personal` with the fields used in the breakdown and review the resulting trend at 1d granularity.",
   "visualization": "Stacked time chart of Apex temperature overshoot by tank.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Apex Temperature Control Overshoot'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `apex:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Apex Temperature Control Overshoot' stops polling `apex:reading`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `apex:reading`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

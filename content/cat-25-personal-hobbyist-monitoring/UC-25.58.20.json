@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Google Photos Album Download Failure Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_google_photos_album_download_failure_rate` (UC-25.58.20), SOC dashboard panel \"Personal — Google Photos Album Download Failure Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='memory:takeout' that satisfy the UC-25.58.20 SPL filters for 'Google Photos Album Download Failure Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `memory:takeout` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.58.20."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='memory:takeout' where `album_name` satisfies detection threshold for UC-25.58.20 ('Google Photos Album Download Failure Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `memory:takeout` events where `album_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.58.20."
   },
   "dataSources": "Photo archives (`memory:takeout`), journal OCR (`memory:journal`), postcard records (`memory:postcard`), memory linking (`memory:photo`), archive checks (`memory:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Life-logging and memory telemetry — Google Photos Takeout archives, journal OCR queues, and postcard collection logs — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=memory:takeout album_name=* download_failed=*\n| stats count as total, sum(eval(if(download_failed=\"yes\",1,0))) as matched by album_name\n| eval a_failed_album_download_pct=round(100*matched/total,1)\n| sort - a_failed_album_download_pct",
-  "description": "Measures the percentage of Takeout album exports that end with a failed album download by album.",
-  "value": "Completion and exception percentages make it easier to spot which album are helping or hurting Takeout album exports.",
+  "description": "Measures the percentage of Takeout album exports that end with a failed album download by album. Searches `index=personal` with sourcetype `memory:takeout` for UC-25.58.20, aggregating `sum` by `album_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Google Photos Album Download Failure Rate' without manual log review.",
+  "value": "Measures the percentage of Takeout album exports that end with a failed album download by album. Timely UC-25.58.20 alerting on 'Google Photos Album Download Failure Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store a normalized flag for `a failed album download` on `memory:takeout` events and summarize the hit rate by `album_name`.",
   "visualization": "Table of album with percentage of Takeout album exports ending with a failed album download.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Google Photos Album Download Failure Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `memory:takeout`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Google Photos Album Download Failure Rate' stops polling `memory:takeout`; stale `album_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `memory:takeout`. Dedup with `stats latest(*) by album_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

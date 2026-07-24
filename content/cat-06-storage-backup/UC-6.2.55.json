@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'TrueNAS dataset compression ratio by algorithm and workload' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_truenas_dataset_compression_ratio_by_algorithm_a` (UC-6.2.55), SOC dashboard panel \"Operations — TrueNAS dataset compression ratio by algorithm and workload\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='truenas:dataset' that satisfy the UC-6.2.55 SPL filters for 'TrueNAS dataset compression ratio by algorithm and workload'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `truenas:dataset` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.55."
+    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='truenas:dataset' where `dataset_name` satisfies detection threshold for UC-6.2.55 ('TrueNAS dataset compression ratio by algorithm and workload'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `storage` / `truenas:dataset` events where `dataset_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.55."
   },
   "dataSources": "Dataset properties `truenas:dataset` (`compression`, `compressratio`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "REST dataset poll — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"truenas:dataset\" earliest=-12h\n| eval algo=coalesce(compression, compression_type)\n| eval ratio=coalesce(compressratio, compression_ratio, logical_to_physical)\n| where algo!=\"off\" AND isnotnull(ratio)\n| stats latest(ratio) as compress_ratio by dataset_name, algo, hostname\n| sort - compress_ratio",
   "description": "Compression ratios validate whether LZ4/ZSTD settings match data types; incompressible scientific data should not waste CPU at ZSTD-19.",
-  "value": "Optimizes CPU and improves effective capacity for multi-tenant NAS offerings. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Compression ratios validate whether LZ4/ZSTD settings match data types; incompressible scientific data shou.... Timely UC-6.2.55 alerting on 'TrueNAS dataset compression ratio by algorithm and workload' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Parse `compressratio` strings like `2.10x` with `replace` to numeric. Join dataset to application class lookup.",
   "visualization": "Table (dataset, algo, ratio), boxplot by algo.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'TrueNAS dataset compression ratio by algorithm and workload'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `storage` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'TrueNAS dataset compression ratio by algorithm and workload' shifts `count` over `span=1h` while `dataset_name` remains in-scope for UC-6.2.55. Cross-check CMDB CHG.\n\n2. **Batch `count` on `truenas:dataset`** — Scheduled automation elevates `algo` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dataset_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:dataset`** — First 48h baseline for `dataset_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dataset_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "truenas"
   ],

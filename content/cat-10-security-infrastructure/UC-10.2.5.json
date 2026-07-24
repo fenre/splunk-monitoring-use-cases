@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Lateral Movement Detection' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_lateral_movement_detection` (UC-10.2.5), SOC dashboard panel \"Security Infra — Lateral Movement Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ids` sourcetype='snort:alert' that satisfy the UC-10.2.5 SPL filters for 'Lateral Movement Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ids` / `snort:alert` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.2.5."
+    "positiveScenario": "Ingest synthetic events into `index=ids` sourcetype='snort:alert' where `src` satisfies detection threshold for UC-10.2.5 ('Lateral Movement Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ids` / `snort:alert` events where `src` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.2.5."
   },
   "dataSources": "IDS alerts from internal/east-west sensors Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "IDS TA (internal sensors) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ids sourcetype=\"snort:alert\" sensor_zone=\"internal\"\n| search category IN (\"attempted-admin\",\"trojan-activity\",\"policy-violation\",\"misc-attack\")\n| stats count by src, dest, signature\n| sort -count",
-  "description": "IDS detections on internal network segments indicate an attacker has breached the perimeter and is moving laterally.",
+  "description": "IDS detections on internal network segments indicate an attacker has breached the perimeter and is moving laterally. Searches `index=ids` with sourcetype `snort:alert` for UC-10.2.5, aggregating `count` by `src` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'Lateral Movement Detection' without manual log review.",
   "value": "Early 'Lateral Movement Detection' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Deploy IDS sensors on internal network segments (not just perimeter). Forward alerts to Splunk. Alert on any high-severity internal detections. Correlate with AD authentication events and endpoint data for full attack chain visibility.",
   "visualization": "Network diagram (lateral movement paths), Table (internal IDS alerts), Timeline (attack progression).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Lateral Movement Detection'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=ids` `snort:alert`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `ids`** — Planned work for 'Lateral Movement Detection' shifts `count` over `span=1h` while `src` remains in-scope for UC-10.2.5. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snort:alert`** — Scheduled automation elevates `dest` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `ids` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snort:alert`** — First 48h baseline for `src` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "suricata"
   ],

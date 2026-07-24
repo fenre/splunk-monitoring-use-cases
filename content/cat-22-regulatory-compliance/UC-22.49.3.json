@@ -39,15 +39,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When a litigation-hold is applied or released on any in-scope record and no matching legal ticket exists within 24 hours, the UC fires.",
-    "negativeScenario": "Hold changes accompanied by a valid legal ticket do NOT fire.",
-    "fixtureRef": "sample-data/uc-22.49.3-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=datastore` sourcetype='hold:change' where `entity` satisfies detection threshold for UC-22.49.3 ('Litigation-hold override audit — holds applied/released without ticket'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `datastore` / `hold:change` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.49.3."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=datastore sourcetype=hold:change earliest=-24h\n| join hold_id [search index=legal sourcetype=hold:ticket | fields hold_id ticket_id requested_by]\n| where isnull(ticket_id)\n| table _time hold_id record_id action ticket_id",
   "description": "Detects unauthorised application or release of litigation holds — both of which are common sources of adverse inference in discovery.",
-  "value": "Prevents silent tampering with evidence preservation. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Detects unauthorised application or release of litigation holds — both of which are common sources of adver.... Timely UC-22.49.3 alerting on 'Litigation-hold override audit — holds applied/released without ticket' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Ingest hold-change audit events from data stores and from the legal-hold tool; (2) run hourly. Indexes required: `index=datastore`, `index=legal`; Sourcetypes: `sourcetype=hold:change`, `sourcetype=hold:ticket`.",
   "visualization": "Table of unauthorised changes, single-value 'hold changes with ticket (30d)'. Key fields: `action`, `hold_id`, `record_id`, `ticket_id`.",
   "cimModels": [],
@@ -71,7 +70,7 @@
       "title": "PCAOB — Auditing Standards"
     }
   ],
-  "knownFalsePositives": "1. **Year-end financial close activities** — Extended processing windows, elevated access grants, and batch job schedule modifications during quarterly and annual close periods are legitimate activities pre-approved by the controller and documented in the close checklist.\n\n2. **External audit sample testing** — During the annual financial statement audit, external auditors perform transaction sampling, access testing, and control walkthroughs that generate unusual query patterns against financial application databases.\n\n3. **Approved emergency access for system recovery** — During P1/P2 incidents affecting financially significant applications, emergency change procedures authorise temporary elevated access that bypasses normal segregation of duties controls.\n\n4. **ERP system upgrade and patch deployment** — Scheduled SAP/Oracle/financial system upgrades involve transport imports, configuration changes, and role modifications that produce expected ITGC deviation signals during the approved maintenance window.\n\n**Suppression mechanism:** Maintain a `sox_exception_register` KV Store lookup containing financial close window dates, audit firm engagement codes, emergency change ticket IDs, and approved maintenance windows. The search joins this lookup and suppresses matches where the exception is valid and within its approved timeframe.",
+  "knownFalsePositives": "1. **Authorised SOX ITGC control testing** — Internal audit exercises 'Litigation-hold override audit — holds applied/released without ticket' (UC-22.49.3) on `entity` during scheduled clause ITGC.Logging.Review sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=datastore` `hold:change` without crossing evidence threshold. Cross-check engagement letter in `sox_itgc_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `datastore` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `sox_itgc_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "audit",
   "requiredFields": [

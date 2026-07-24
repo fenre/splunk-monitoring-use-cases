@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'UDisc Round Rating Weekly Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_udisc_round_rating_weekly_trend` (UC-25.77.8), SOC dashboard panel \"Personal — UDisc Round Rating Weekly Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='udisc:round' that satisfy the UC-25.77.8 SPL filters for 'UDisc Round Rating Weekly Trend'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `udisc:round` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.77.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='udisc:round' where `_time` satisfies detection threshold for UC-25.77.8 ('UDisc Round Rating Weekly Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `udisc:round` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.77.8."
   },
   "dataSources": "Golf rounds (`golf:round`), Garmin golf telemetry (`garmin:golf`), UDisc rounds (`udisc:round`), launch-monitor shots (`launchmonitor:shot`), handicap-index updates (`handicap:index`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Arccos and Garmin S62 round telemetry, UDisc round exports, launch-monitor CSVs, and handicap-index updates streamed to Splunk HEC via APIs and scripted imports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=udisc:round\n| bin _time span=1w\n| stats sum(round_rating) as total_value avg(round_rating) as avg_value count as sessions by _time\n| sort - _time",
-  "description": "Trends round rating week by week so you can see whether udisc round rating is building, fading, or plateauing.",
-  "value": "A weekly view turns isolated workouts or events into a training signal, making it easier to spot whether udisc round rating is moving in the right direction.",
+  "description": "Trends round rating week by week so you can see whether udisc round rating is building, fading, or plateauing. Searches `index=personal` with sourcetype `udisc:round` for UC-25.77.8, aggregating `sum` by `_time` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'UDisc Round Rating Weekly Trend' without manual log review.",
+  "value": "Trends round rating week by week so you can see whether udisc round rating is building, fading, or plateauing. Timely UC-25.77.8 alerting on 'UDisc Round Rating Weekly Trend' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward udisc round rating into `index=personal`, keep `round_rating` populated, and review the weekly trend before planning the next block.",
   "visualization": "Line chart of weekly total and average round rating.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'UDisc Round Rating Weekly Trend'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `udisc:round`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'UDisc Round Rating Weekly Trend' stops polling `udisc:round`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `udisc:round`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

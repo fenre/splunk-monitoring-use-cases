@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Outdoor Comfort Score Poor-Weather Deviation Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_outdoor_comfort_score_poor_weather_deviation_ale` (UC-25.80.25), SOC dashboard panel \"Personal — Outdoor Comfort Score Poor-Weather Deviation Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='personalweather:daily' that satisfy the UC-25.80.25 SPL filters for 'Outdoor Comfort Score Poor-Weather Deviation Alert'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `personalweather:daily` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.80.25."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='personalweather:daily' where `condition_bucket` satisfies detection threshold for UC-25.80.25 ('Outdoor Comfort Score Poor-Weather Deviation Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `personalweather:daily` events where `condition_bucket` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.80.25."
   },
   "dataSources": "Weather-station readings (`weatherstation:reading`), daily weather-impact rollups (`personalweather:daily`), sleep correlation records (`personalweather:sleep`), step correlation records (`personalweather:steps`), mood correlation records (`personalweather:mood`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Local weather-station readings correlated with personal sleep, steps, mood, and outdoor-activity summaries in Splunk via scripted inputs and daily rollups. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=personalweather:daily\n| eventstats avg(outdoor_comfort_score) as base, stdev(outdoor_comfort_score) as sd by condition_bucket\n| eval delta=round(outdoor_comfort_score-base,2)\n| where severe_weather=\"yes\" AND abs(delta)>2*sd\n| table _time condition_bucket severe_weather temp_c humidity_pct delta\n| sort - _time",
   "description": "Flags days where outdoor comfort score moved unusually far from its normal value during severe or uncomfortable weather.",
-  "value": "Deviation alerts help separate ordinary bad days from weather-linked hits that are worth planning around.",
+  "value": "Flags days where outdoor comfort score moved unusually far from its normal value during severe or uncomfort.... Timely UC-25.80.25 alerting on 'Outdoor Comfort Score Poor-Weather Deviation Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Tag severe-weather days during ingest so the search can focus on the conditions most likely to matter.",
   "visualization": "Exception table of weather-stressed days and metric deviation.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Outdoor Comfort Score Poor-Weather Deviation Alert'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `personalweather:daily`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Outdoor Comfort Score Poor-Weather Deviation Alert' stops polling `personalweather:daily`; stale `condition_bucket` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `personalweather:daily`. Dedup with `stats latest(*) by condition_bucket`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "snmp"
   ],

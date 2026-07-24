@@ -68,17 +68,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "A scope whose last_scan_at is 100 days ago with 3 open high findings aged 45 days returns sla_met=0.",
-    "negativeScenario": "A scope scanned within cadence with all findings <30 days old is absent.",
-    "fixtureRef": "",
-    "attackTechnique": "T1595",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=vm` sourcetype='target_sourcetype' where `scan_scope` satisfies detection threshold for UC-22.11.103 ('PCI-DSS 11.3 — Vulnerability programme: overdue scan cadence and unremediated high-severity'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `vm` / `target_sourcetype` events where `scan_scope` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.103."
   },
   "dataSources": "`index=vm` sourcetype=tenable:sc:vuln, qualys:host; scan-scope lookup `pci_scan_scope.csv`.",
   "app": "Splunk Add-on for Tenable (4060) (Splunkbase)",
   "spl": "index=vm sourcetype IN (tenable:sc:vuln,qualys:host) earliest=-120d\n| stats latest(_time) AS last_scan_at count(eval(severity IN (\"high\",\"critical\") AND state=\"open\")) AS open_high_findings avg(eval(if(state=\"open\" AND severity IN (\"high\",\"critical\"),now()-first_seen,null))) AS mean_age_s BY scan_scope\n| eval mean_age_days=round(mean_age_s/86400,0)\n| lookup pci_scan_scope.csv scan_scope OUTPUT cadence_days sla_days\n| eval sla_met=if(last_scan_at>=now()-cadence_days*86400 AND mean_age_days<=sla_days,1,0)\n| where sla_met=0\n| table scan_scope last_scan_at sla_met open_high_findings mean_age_days",
   "description": "Produces, per scan scope, the evidence required by PCI-DSS 11.3 — scans are on cadence and high/critical findings are remediated within SLA.",
-  "value": "Closes the #1 open-finding reason at QSAs — 'the scan history was incomplete'. Continuous measurement is the intended replacement.",
+  "value": "Produces, per scan scope, the evidence required by PCI-DSS 11. Timely UC-22.11.103 alerting on 'PCI-DSS 11.3 — Vulnerability programme: overdue scan cadence and unremediated high-severity' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Normalise scanner feeds; (2) maintain pci_scan_scope.csv (quarterly external, per-change internal); (3) schedule UC daily; (4) sla_met=0 opens a P2; (5) quarterly QSA report. Indexes required: `index=vm`; Sourcetypes: `sourcetype=qualys:host`, `sourcetype=tenable:sc:vuln`.",
   "visualization": "Bullet chart of SLA adherence by scope, table of overdue scopes, single value 'scopes overdue'. Key fields: `last_scan_at`, `mean_age_days`, `mean_age_s`, `open_high_findings`, `scan_scope`, `sla_met`.",
   "cimModels": [
@@ -113,7 +110,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised PCI DSS control testing** — Internal audit exercises 'PCI-DSS 11.3 — Vulnerability programme: overdue scan cadence and unremediated high-severity' (UC-22.11.103) on `scan_scope` during scheduled clause 11.3 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=vm` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `pci_dss_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `vm` for `scan_scope`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `scan_scope` during normal service delivery.\n\n**Suppression mechanism:** `pci_dss_exception_register.csv` keyed on `scan_scope`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1595"
   ],

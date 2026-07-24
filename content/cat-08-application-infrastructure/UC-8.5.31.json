@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'ActiveMQ Dead Letter Queue (DLQ) Accumulation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_activemq_dead_letter_queue_dlq_accumulation` (UC-8.5.31), SOC dashboard panel \"Operations — ActiveMQ Dead Letter Queue (DLQ) Accumulation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='activemq:broker' that satisfy the UC-8.5.31 SPL filters for 'ActiveMQ Dead Letter Queue (DLQ) Accumulation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `messaging` / `activemq:broker` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.5.31."
+    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='activemq:broker' where `dest` satisfies `qsize` > 0 for UC-8.5.31 ('ActiveMQ Dead Letter Queue (DLQ) Accumulation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `messaging` / `activemq:broker` events where `dest` stays below `qsize` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.5.31."
   },
   "dataSources": "`index=messaging` `sourcetype=activemq:broker` destination metrics for `ActiveMQ.DLQ` or custom `*.DLQ` queues (`QueueSize`, `DestinationName`, `EnqueueCount`)",
   "app": "Splunk Add-on for JMX (Splunkbase 2647) with ActiveMQ MBean templates emitting `activemq:broker`",
   "spl": "index=messaging sourcetype=\"activemq:broker\" earliest=-24h\n| eval dest=coalesce(DestinationName, destination_name)\n| eval qsize=coalesce(QueueSize, queue_size, QueueDepth)\n| where match(dest, \"(?i)DLQ|dead\\\\.letter|ActiveMQ\\\\.DLQ\")\n| where qsize > 0\n| timechart span=15m max(qsize) as dlq_depth by dest, broker_name limit=20",
   "description": "Poison messages and repeated redeliveries land in ActiveMQ dead-letter destinations; any sustained `QueueSize` above zero usually means a consumer or schema defect is starving healthy traffic. Tracking DLQ depth by broker catches regressions after deployments.",
-  "value": "Surfaces application-level failures that do not trip generic broker health checks but still block business transactions until someone replays or discards bad messages.",
+  "value": "Poison messages and repeated redeliveries land in ActiveMQ dead-letter destinations; any sustained `QueueSi.... Timely UC-8.5.31 alerting on 'ActiveMQ Dead Letter Queue (DLQ) Accumulation' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Normalize DLQ naming (`ActiveMQ.DLQ` vs custom) via lookup. Alert on any non-zero depth for golden paths, or rate-of-change for high-volume environments. Pair with message sampling outside Splunk if bodies contain PII.",
   "visualization": "Line chart (DLQ depth), table (broker, destination, depth), single value (total DLQ messages).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'ActiveMQ Dead Letter Queue (DLQ) Accumulation'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `messaging` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging`** — Planned work for 'ActiveMQ Dead Letter Queue (DLQ) Accumulation' shifts `max` over `span=15m` while `dest` remains in-scope for UC-8.5.31. Cross-check CMDB CHG.\n\n2. **Batch `max` on `activemq:broker`** — Scheduled automation elevates `broker_name` without crossing `qsize` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dest`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `activemq:broker`** — First 48h baseline for `dest` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dest`, `exception_reason`, `valid_until`.",
   "equipment": [
     "activemq"
   ],

@@ -57,13 +57,13 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=o365` sourcetype='o365:management:activity' that satisfy the UC-11.1.5 SPL filters for 'SharePoint/OneDrive Sharing Audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `o365` / `o365:management:activity` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.1.5."
+    "positiveScenario": "Ingest synthetic events into `index=o365` sourcetype='o365:management:activity' where `entity` satisfies detection threshold for UC-11.1.5 ('SharePoint/OneDrive Sharing Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `o365` / `o365:management:activity` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.1.5."
   },
   "dataSources": "O365 audit log (SharingSet, AnonymousLinkCreated) Collected via Splunk Add-on for Microsoft Office 365 (Splunkbase 4054) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_MS_O365` — Splunk Add-on for Microsoft Office 365 (Splunkbase 4054)",
   "spl": "index=o365 sourcetype=\"o365:management:activity\" Workload=\"SharePoint\" Operation IN (\"SharingSet\",\"AnonymousLinkCreated\",\"CompanyLinkCreated\")\n| where TargetUserOrGroupType=\"Guest\" OR Operation=\"AnonymousLinkCreated\"\n| table _time, UserId, Operation, ObjectId, TargetUserOrGroupName",
-  "description": "External sharing can expose sensitive data. Audit trail ensures data protection and compliance.",
+  "description": "External sharing can expose sensitive data. Audit trail ensures data protection and compliance. Searches `index=o365` with sourcetype `o365:management:activity` for UC-11.1.5, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'SharePoint/OneDrive Sharing Audit' without manual log review.",
   "value": "Early 'SharePoint/OneDrive Sharing Audit' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ingest SharePoint/OneDrive audit events. Alert on external sharing (guest users, anonymous links). Track sharing activity per user. Flag sharing of sensitive files or sites. Report for data governance reviews.",
   "visualization": "Table (external sharing events), Bar chart (sharing by user), Line chart (sharing trend), Pie chart (sharing type distribution).",
@@ -93,7 +93,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'SharePoint/OneDrive Sharing Audit'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `o365` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `o365`** — Planned work for 'SharePoint/OneDrive Sharing Audit' shifts `count` over `span=1h` while `host` remains in-scope for UC-11.1.5. Cross-check CMDB CHG.\n\n2. **Batch `count` on `o365:management:activity`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `o365` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `o365:management:activity`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365",
     "sharepoint"

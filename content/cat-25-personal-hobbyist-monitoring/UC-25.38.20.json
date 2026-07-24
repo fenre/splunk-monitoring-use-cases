@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Password Rotation Age Over Target' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_password_rotation_age_over_target` (UC-25.38.20), SOC dashboard panel \"Personal — Password Rotation Age Over Target\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='passwordage:account' that satisfy the UC-25.38.20 SPL filters for 'Password Rotation Age Over Target'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `passwordage:account` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.38.20."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='passwordage:account' where `account_category` satisfies detection threshold for UC-25.38.20 ('Password Rotation Age Over Target'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `passwordage:account` events where `account_category` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.38.20."
   },
   "dataSources": "Breach alerts (`hibp:alert`), password age snapshots (`passwordage:account`), backup restore tests (`backuprestore:test`), and DNS leak checks (`dnsleak:check`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal security telemetry from Have I Been Pwned, password-age exports, backup restore drills, and DNS leak checks sent to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=passwordage:account\n| search days_since_rotation=*\n| stats avg(days_since_rotation) as avg_days_since_rotation max(days_since_rotation) as max_days_since_rotation by account_category\n| sort 0 - avg_days_since_rotation",
   "description": "Ranks account categoriess by password age over target. Runs scheduled SPL against `index=personal` to surface **Password Rotation Age Over Target** so you can spot drift before it becomes a habit.",
-  "value": "Age over target keeps the riskiest stale-password categories visible instead of treating every account equally.",
+  "value": "Ranks account categoriess by password age over target. Timely UC-25.38.20 alerting on 'Password Rotation Age Over Target' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send password age over target events to `index=personal` and keep `account_category` populated so the leaderboard stays actionable.",
   "visualization": "Bar chart of password age over target by account categories.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Password Rotation Age Over Target'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `passwordage:account`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Password Rotation Age Over Target' stops polling `passwordage:account`; stale `account_category` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `passwordage:account`. Dedup with `stats latest(*) by account_category`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

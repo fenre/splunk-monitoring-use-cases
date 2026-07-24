@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Traefik Router Backend Resolution Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_traefik_router_backend_resolution_errors` (UC-8.6.23), SOC dashboard panel \"Operations — Traefik Router Backend Resolution Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=platform` sourcetype='traefik:log' that satisfy the UC-8.6.23 SPL filters for 'Traefik Router Backend Resolution Errors'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `platform` / `traefik:log` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.6.23."
+    "positiveScenario": "Ingest synthetic events into `index=platform` sourcetype='traefik:log' where `message` satisfies detection threshold for UC-8.6.23 ('Traefik Router Backend Resolution Errors'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `platform` / `traefik:log` events where `message` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.6.23."
   },
   "dataSources": "`index=platform` `sourcetype=traefik:log` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Traefik application logging — Universal Forwarder (Splunkbase 617)",
   "spl": "index=platform sourcetype=\"traefik:log\"\n| search \"error\" AND (\"Router\" OR \"service\" OR \"provider\") AND (\"unable\" OR \"cannot\" OR \"failed\")\n| stats count by message\n| sort -count",
-  "description": "Router/service errors surface DNS, KV, or Docker socket issues before clients see 404/503 at scale.",
-  "value": "Clarifies misconfigured labels or stale SD entries. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Router/service errors surface DNS, KV, or Docker socket issues before clients see 404/503 at scale. Searches `index=platform` with sourcetype `traefik:log` for UC-8.6.23, aggregating `count` by `message` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Traefik Router Backend Resolution Errors' without manual log review.",
+  "value": "Router/service errors surface DNS, KV, or Docker socket issues before clients see 404/503 at scale. Timely UC-8.6.23 alerting on 'Traefik Router Backend Resolution Errors' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Enable JSON logs with `msg` field for easier `stats`.",
   "visualization": "Table (signature), timeline, correlation with Kubernetes events index.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Traefik Router Backend Resolution Errors'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `platform` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `platform`** — Planned work for 'Traefik Router Backend Resolution Errors' shifts `count` over `span=1h` while `message` remains in-scope for UC-8.6.23. Cross-check CMDB CHG.\n\n2. **Batch `count` on `traefik:log`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `message`** — Health checks in `platform` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `traefik:log`** — First 48h baseline for `message` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `message`, `exception_reason`, `valid_until`.",
   "equipment": [
     "docker",
     "traefik"

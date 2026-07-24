@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Airflow Worker Pool Saturation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_airflow_worker_pool_saturation` (UC-24.7.6), SOC dashboard panel \"Operations — Airflow Worker Pool Saturation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='airflow:scheduler' that satisfy the UC-24.7.6 SPL filters for 'Airflow Worker Pool Saturation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dataops` / `airflow:scheduler` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.6."
+    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='airflow:scheduler' where `pool` satisfies `pct` >= 100 for UC-24.7.6 ('Airflow Worker Pool Saturation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dataops` / `airflow:scheduler` events where `pool` stays below `pct` >= 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.6."
   },
   "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops sourcetype=airflow:scheduler metric=pool_running_slots\n| bin _time span=5m\n| stats max(running_slots) as used, max(total_slots) as total by pool, _time\n| eval pct=round(100*used/total,0)\n| where pct>=100\n| sort - _time",
   "description": "Tracks Airflow pool/slot utilisation and flags when pools are fully saturated, the point at which tasks queue and pipelines fall behind schedule.",
-  "value": "Saturated worker pools are why pipelines run late even when nothing failed; catching saturation tells you to add capacity or rebalance schedules.",
+  "value": "Tracks Airflow pool/slot utilisation and flags when pools are fully saturated, the point at which tasks que.... Timely UC-24.7.6 alerting on 'Airflow Worker Pool Saturation' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Emit pool metrics via StatsD/HEC; schedule every 5 minutes; alert on sustained saturation. Add workers or stagger DAG schedules.",
   "visualization": "Timechart of pool utilisation, alert on saturation.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Airflow Worker Pool Saturation'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `dataops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `dataops`** — Planned work for 'Airflow Worker Pool Saturation' shifts `max` over `span=5m` while `pool` remains in-scope for UC-24.7.6. Cross-check CMDB CHG.\n\n2. **Batch `max` on `airflow:scheduler`** — Scheduled automation elevates `_time` without crossing `pct` >= 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pool`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:scheduler`** — First 48h baseline for `pool` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pool`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache"
   ],

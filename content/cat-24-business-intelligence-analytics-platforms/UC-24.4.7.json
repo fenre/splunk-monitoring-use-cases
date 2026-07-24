@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Qlik Task Chain and Trigger Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_qlik_task_chain_and_trigger_failures` (UC-24.4.7), SOC dashboard panel \"Operations — Qlik Task Chain and Trigger Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='qlik:scheduler' that satisfy the UC-24.4.7 SPL filters for 'Qlik Task Chain and Trigger Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `qlik:scheduler` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.4.7."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='qlik:scheduler' where `task_name` satisfies `failures` > 0 for UC-24.4.7 ('Qlik Task Chain and Trigger Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `qlik:scheduler` events where `task_name` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.4.7."
   },
   "dataSources": "Qlik Sense logs (`qlik:scheduler`, `qlik:engine`, `qlik:proxy`), QRS API task/audit (`qlik:qrs`), and Qlik Cloud events. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Qlik Sense logs via Universal Forwarder; Qlik Repository Service (QRS) API and Qlik Cloud REST API via HEC scripted inputs; QlikView/NPrinting event logs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=qlik:scheduler task_type=\"reload\" (result=\"FinishedFail\" OR status=\"Failed\")\n| stats count as failures, values(trigger_type) as triggers by task_name\n| where failures>0\n| sort - failures",
   "description": "Detects failed Qlik reload tasks including chained tasks whose upstream trigger failed, so a broken link early in a task chain does not silently stall everything downstream.",
-  "value": "Qlik task chains cascade; one failed reload starves every dependent app, and chain-aware detection maps the blast radius immediately.",
+  "value": "Detects failed Qlik reload tasks including chained tasks whose upstream trigger failed, so a broken link ea.... Timely UC-24.4.7 alerting on 'Qlik Task Chain and Trigger Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest scheduler logs or QRS task results; schedule every 15 minutes and alert on failures for apps feeding executive streams.",
   "visualization": "Table of task by failures with trigger types, chain view.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Qlik Task Chain and Trigger Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Qlik Task Chain and Trigger Failures' shifts `values` over `span=1h` while `task_name` remains in-scope for UC-24.4.7. Cross-check CMDB CHG.\n\n2. **Batch `values` on `qlik:scheduler`** — Scheduled automation elevates `src` without crossing `failures` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `task_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `qlik:scheduler`** — First 48h baseline for `task_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `task_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

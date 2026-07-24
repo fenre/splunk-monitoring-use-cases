@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Force any UC-22.56.x violation. UC-22.56.28 MUST reflect within 24h.",
-    "negativeScenario": "Resolve all violations. UC-22.56.28 MUST roll up green."
+    "positiveScenario": "Ingest synthetic events into `index=audit_evidence` sourcetype='target_sourcetype' where `uc` satisfies `hours_since_evidence` > 48 for UC-22.56.28 ('TSA-SD multi-modal master compliance dashboard + executive attestation roll-up'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `audit_evidence` / `target_sourcetype` events where `uc` stays below `hours_since_evidence` > 48, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.56.28."
   },
   "dataSources": "`audit_evidence` index searches across all UC-22.56.x markers. Executive attestation register (KV Store `tsa_executive_attestation_lookup`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "search index=audit_evidence reg=TSA-Surface earliest=-30d@d\n| eval uc = case(\n    match(_raw, \"uc=22\\.56\\.\"), \"22.56.\" + replace(_raw, \".*uc=22\\.56\\.(\\d+).*\", \"\\1\"),\n    1=1, \"unknown\")\n| stats count as evidence_rows latest(_time) as last_evidence by uc\n| eval hours_since_evidence = round((now() - last_evidence) / 3600, 1)\n| eval health = case(\n    hours_since_evidence > 48, \"stale\",\n    evidence_rows = 0, \"missing\",\n    1=1, \"current\")\n| sort uc\n| table uc evidence_rows last_evidence hours_since_evidence health",
-  "description": "Roll-up panel showing UC-22.56.x compliance health for an inspector-facing scorecard.",
-  "value": "Single dashboard for CC + CISO + Board + inspector. Closes the audit-trail loop on TSA SD subcategory.",
+  "description": "Roll-up panel showing UC-22.56.x compliance health for an inspector-facing scorecard. Searches `index=audit_evidence` with sourcetype `configured sourcetype` for UC-22.56.28, aggregating `count` by `uc` over `the scheduled window`. Alerts when grouped results cross `hours_since_evidence` > 48 in the saved search. Gives Compliance operators a repeatable signal for 'TSA-SD multi-modal master compliance dashboard + executive attestation roll-up' without manual log review.",
+  "value": "Roll-up panel showing UC-22. Timely UC-22.56.28 alerting on 'TSA-SD multi-modal master compliance dashboard + executive attestation roll-up' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Schedule UC-22.56.28 daily. (2) Build `TSA SD Master Scorecard` dashboard. (3) Wire monthly executive attestation to roll-up.",
   "visualization": "(Panel 1) Per-UC health row. (Panel 2) 30-day trend. (Panel 3) Top-3 outstanding issues. (Panel 4) Executive attestation history.",
   "cimModels": [
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit or GRC exercises 'TSA-SD multi-modal master compliance dashboard + executive attestation roll-up' during scheduled clause TSA-SCAS-master-rollup evidence collection. Match compliance programme calendar and accounts tagged `compliance_ops=true`.\n\n2. **External assessor sampling** — QSA or regulator sampling temporarily spikes `index=audit_evidence` `configured sourcetype` volume. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB-approved change pauses or reshapes ingestion to `audit_evidence`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected cross-boundary events during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD multi-modal master compliance dashboard + executive attestation roll-up' (UC-22.56.28) on `uc` during scheduled clause TSA-SCAS-master-rollup sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `hours_since_evidence` > 48. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `uc`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `uc` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `uc`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (governance roll-up)"
   ],

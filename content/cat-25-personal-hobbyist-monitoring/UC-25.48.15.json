@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Lesson Skip and Restart Friction' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_lesson_skip_and_restart_friction` (UC-25.48.15), SOC dashboard panel \"Personal — Lesson Skip and Restart Friction\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lesson:complete' that satisfy the UC-25.48.15 SPL filters for 'Lesson Skip and Restart Friction'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `lesson:complete` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.48.15."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lesson:complete' where `course` satisfies detection threshold for UC-25.48.15 ('Lesson Skip and Restart Friction'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `lesson:complete` events where `course` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.48.15."
   },
   "dataSources": "Lessons (`lesson:complete`), vocab reviews (`vocab:review`), immersion (`immersion:log`), speaking practice (`speaking:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Language-learning telemetry — Duolingo / Babbel lesson exports, Anki spaced-repetition review logs, immersion trackers, and speaking-practice logs — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=lesson:complete\n| stats sum(eval(if(outcome=\"skipped\",1,0))) as skipped, sum(eval(if(outcome=\"restarted\",1,0))) as restarted, count as attempts by course\n| eval friction_pct=round(100*(skipped+restarted)/attempts,1)\n| sort - friction_pct",
-  "description": "Identifies lessons or courses with a high skip or restart rate, a sign of friction or mis-leveling.",
-  "value": "Friction analysis shows where a language app is encouraging avoidance instead of progress.",
+  "description": "Identifies lessons or courses with a high skip or restart rate, a sign of friction or mis-leveling. Searches `index=personal` with sourcetype `lesson:complete` for UC-25.48.15, aggregating `sum` by `course` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Lesson Skip and Restart Friction' without manual log review.",
+  "value": "Identifies lessons or courses with a high skip or restart rate, a sign of friction or mis-leveling. Timely UC-25.48.15 alerting on 'Lesson Skip and Restart Friction' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Track lesson outcomes in `lesson:complete`; calculate skip-and-restart percentage by course.",
   "visualization": "Table of courses by lesson friction percentage.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Lesson Skip and Restart Friction'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lesson:complete`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Lesson Skip and Restart Friction' stops polling `lesson:complete`; stale `course` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lesson:complete`. Dedup with `stats latest(*) by course`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

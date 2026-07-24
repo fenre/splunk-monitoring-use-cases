@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'VoIP Jitter/Latency/Packet Loss (Cisco CUCM)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_voip_jitter_latency_packet_loss_cisco_cucm` (UC-11.3.3), SOC dashboard panel \"Operations — VoIP Jitter/Latency/Packet Loss (Cisco CUCM)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=voip` sourcetype='cisco:ucm:cmr' that satisfy the UC-11.3.3 SPL filters for 'VoIP Jitter/Latency/Packet Loss (Cisco CUCM)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `voip` / `cisco:ucm:cmr` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.3.3."
+    "positiveScenario": "Ingest synthetic events into `index=voip` sourcetype='cisco:ucm:cmr' where `origDeviceName` satisfies `jitter` > 30 for UC-11.3.3 ('VoIP Jitter/Latency/Packet Loss (Cisco CUCM)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `voip` / `cisco:ucm:cmr` events where `origDeviceName` stays below `jitter` > 30, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.3.3."
   },
   "dataSources": "CMR records (jitter, latency, packet loss), RTCP reports Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "UCM CMR, RTCP data — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=voip sourcetype=\"cisco:ucm:cmr\"\n| where jitter > 30 OR latency > 150 OR packet_loss_pct > 1\n| stats count by origDeviceName, destDeviceName, jitter, latency, packet_loss_pct",
-  "description": "Transport quality metrics identify network issues affecting voice quality before users report problems.",
+  "description": "Transport quality metrics identify network issues affecting voice quality before users report problems. Searches `index=voip` with sourcetype `cisco:ucm:cmr` for UC-11.3.3, aggregating `count` by `origDeviceName` over `the scheduled window`. Alerts when grouped results cross `jitter` > 30 in the saved search. Gives Operations operators a repeatable signal for 'VoIP Jitter/Latency/Packet Loss (Cisco CUCM)' without manual log review.",
   "value": "Early 'VoIP Jitter/Latency/Packet Loss (Cisco CUCM)' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Parse transport quality metrics from CMR. Alert on jitter >30ms, latency >150ms, or packet loss >1%. Correlate with WAN/LAN performance metrics. Track per-site to identify network segments needing attention.",
   "visualization": "Multi-metric chart (jitter, latency, packet loss), Table (calls with poor transport), Heatmap (site × metric).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'VoIP Jitter/Latency/Packet Loss (Cisco CUCM)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `voip` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `voip`** — Planned work for 'VoIP Jitter/Latency/Packet Loss (Cisco CUCM)' shifts `count` over `span=1h` while `origDeviceName` remains in-scope for UC-11.3.3. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ucm:cmr`** — Scheduled automation elevates `destDeviceName` without crossing `jitter` > 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `origDeviceName`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ucm:cmr`** — First 48h baseline for `origDeviceName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `origDeviceName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

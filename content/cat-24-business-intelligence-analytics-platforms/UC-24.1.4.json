@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Tableau VizQL View Render Latency' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_tableau_vizql_view_render_latency` (UC-24.1.4), SOC dashboard panel \"Operations — Tableau VizQL View Render Latency\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='tableau:httpd' that satisfy the UC-24.1.4 SPL filters for 'Tableau VizQL View Render Latency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `tableau:httpd` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.1.4."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='tableau:httpd' where `workbook` satisfies `p95_s` > 10 for UC-24.1.4 ('Tableau VizQL View Render Latency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `tableau:httpd` events where `workbook` stays below `p95_s` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.1.4."
   },
   "dataSources": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect, Tableau Cloud Admin Insights / Activity Log exports.",
   "app": "Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.",
   "spl": "index=bi sourcetype=tableau:httpd\n| rex field=uri_path \"/views/(?<workbook>[^/]+)/(?<view>[^/?]+)\"\n| where isnotnull(view)\n| stats count as loads, avg(time_taken) as avg_ms, p95(time_taken) as p95_ms by workbook, view\n| eval p95_s=round(p95_ms/1000,2)\n| where p95_s>10\n| sort - p95_s",
   "description": "Parses the Tableau gateway access log to compute per-view render latency and flags dashboards whose 95th-percentile load time exceeds 10 seconds.",
-  "value": "Slow dashboards drive users away from self-service analytics; per-view latency shows exactly which content frustrates users so it can be optimised or re-architected.",
+  "value": "Parses the Tableau gateway access log to compute per-view render latency and flags dashboards whose 95th-pe.... Timely UC-24.1.4 alerting on 'Tableau VizQL View Render Latency' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest `tableau:httpd`; extract workbook/view from the request path. Schedule daily and review the slowest views with content owners; correlate with VizQL session counts.",
   "visualization": "Table of workbook/view with p95 latency, heat map of slow views, trend line.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Tableau VizQL View Render Latency'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Tableau VizQL View Render Latency' shifts `avg` over `span=1h` while `workbook` remains in-scope for UC-24.1.4. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `tableau:httpd`** — Scheduled automation elevates `view` without crossing `p95_s` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `workbook`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tableau:httpd`** — First 48h baseline for `workbook` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `workbook`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "db_connect",

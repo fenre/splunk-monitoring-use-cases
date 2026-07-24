@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Protocol Distribution Analysis' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_protocol_distribution_analysis` (UC-5.7.7), SOC dashboard panel \"Operations — Protocol Distribution Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='netflow' that satisfy the UC-5.7.7 SPL filters for 'Protocol Distribution Analysis'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `netflow` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.7.7."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='netflow' where `protocol` satisfies detection threshold for UC-5.7.7 ('Protocol Distribution Analysis'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `netflow` events where `protocol` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.7.7."
   },
   "dataSources": "`stream:netflow` / `stream:ipfix` / `splunk_stream` plus optional `stream:tcp` for Stream protocol streams; NBAR/IANA for service names Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Stream, NetFlow integrator — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"netflow\"\n| lookup service_lookup dest_port OUTPUT service_name\n| stats sum(bytes) as total_bytes dc(src) as unique_sources by protocol, service_name\n| eval GB=round(total_bytes/1073741824,2) | sort -total_bytes\n| head 20",
   "description": "Understanding protocol mix helps validate network policies and detect unauthorized protocols (e.g., unexpected SSH, RDP, or P2P traffic).",
-  "value": "Network and security teams monitor protocol distribution to detect unauthorized tunneling, VPN bypass attempts, protocol-based attacks, and infrastructure misconfigurations that alter the expected traffic mix.",
+  "value": "Understanding protocol mix helps validate network policies and detect unauthorized protocols (e. Timely UC-5.7.7 alerting on 'Protocol Distribution Analysis' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Collect NetFlow/sFlow/IPFIX from routers and switches. Map port numbers to service names via lookup. Baseline protocol distribution. Alert on new protocols or significant shifts.",
   "visualization": "Pie chart (by protocol), Treemap (by service + volume), Timechart.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Protocol Distribution Analysis'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Protocol Distribution Analysis' shifts `sum` over `span=1h` while `protocol` remains in-scope for UC-5.7.7. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `netflow`** — Scheduled automation elevates `service_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `protocol`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netflow`** — First 48h baseline for `protocol` is unstable; join `service_lookup` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `protocol`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netflow",
     "stream"

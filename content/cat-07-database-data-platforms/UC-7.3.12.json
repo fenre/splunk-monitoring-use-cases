@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Azure SQL Database DTU Exhaustion' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_azure_sql_database_dtu_exhaustion` (UC-7.3.12), SOC dashboard panel \"Operations — Azure SQL Database DTU Exhaustion\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=azure` sourcetype='azure:sql:metrics' that satisfy the UC-7.3.12 SPL filters for 'Azure SQL Database DTU Exhaustion'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `azure` / `azure:sql:metrics` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.3.12."
+    "positiveScenario": "Ingest synthetic events into `index=azure` sourcetype='azure:sql:metrics' where `database_name` satisfies `dtu_consumption_percent` > 85 for UC-7.3.12 ('Azure SQL Database DTU Exhaustion'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `azure` / `azure:sql:metrics` events where `database_name` stays below `dtu_consumption_percent` > 85, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.3.12."
   },
   "dataSources": "`dtu_consumption_percent`, `cpu_percent`, `data_io_percent` Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=azure sourcetype=\"azure:sql:metrics\"\n| where dtu_consumption_percent > 85 OR cpu_percent > 90\n| timechart span=5m max(dtu_consumption_percent) as dtu_pct by database_name, elastic_pool_name",
-  "description": "DTU/vCore saturation causes throttling and query timeouts. Distinct from generic RDS CPU for Azure-only deployments.",
+  "description": "DTU/vCore saturation causes throttling and query timeouts. Distinct from generic RDS CPU for Azure-only deployments. Searches `index=azure` with sourcetype `azure:sql:metrics` for UC-7.3.12, aggregating `max` by `database_name` over `5m`. Alerts when grouped results cross `dtu_consumption_percent` > 85 in the saved search. Gives Operations operators a repeatable signal for 'Azure SQL Database DTU Exhaustion' without manual log review.",
   "value": "Early 'Azure SQL Database DTU Exhaustion' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Enable Azure Monitor metrics for SQL DB/elastic pool. Alert on sustained high DTU%. Recommend tier upgrade or elastic pool rebalance.",
   "visualization": "Line chart (DTU %), Gauge (current DTU), Table (databases over 85%).",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Azure SQL Database DTU Exhaustion'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `azure` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `azure`** — Planned work for 'Azure SQL Database DTU Exhaustion' shifts `max` over `span=5m` while `database_name` remains in-scope for UC-7.3.12. Cross-check CMDB CHG.\n\n2. **Batch `max` on `azure:sql:metrics`** — Scheduled automation elevates `elastic_pool_name` without crossing `dtu_consumption_percent` > 85. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `database_name`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `azure:sql:metrics`** — First 48h baseline for `database_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `database_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure",
     "m365"

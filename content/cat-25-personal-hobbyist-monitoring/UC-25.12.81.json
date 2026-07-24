@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Portfolio Performance Quote Weekly Day Change Percent Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_portfolio_performance_quote_weekly_day_change_pe` (UC-25.12.81), SOC dashboard panel \"Personal — Portfolio Performance Quote Weekly Day Change Percent Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='portfolio:quote' that satisfy the UC-25.12.81 SPL filters for 'Portfolio Performance Quote Weekly Day Change Percent Trend'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `portfolio:quote` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.12.81."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='portfolio:quote' where `_time` satisfies detection threshold for UC-25.12.81 ('Portfolio Performance Quote Weekly Day Change Percent Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `portfolio:quote` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.12.81."
   },
   "dataSources": "Crypto prices/holdings (`crypto:price`, `wallet:balance`), exchange transactions (`coinbase:txn`), budget/transaction exports (`firefly:txn`, `ynab:txn`), recurring-subscription and bill feeds. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Crypto exchange/wallet APIs (Coinbase, on-chain), budgeting exports (YNAB/Firefly III), and subscription trackers via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=portfolio:quote day_change_pct=*\n| bin _time span=1w\n| stats avg(day_change_pct) as avg_duration, max(day_change_pct) as worst_duration by _time\n| sort _time",
-  "description": "Trends the average and worst day change percent for Portfolio Performance quote events each week.",
-  "value": "Weekly timing trends show whether a process is becoming slower, more erratic, or healthier over time.",
+  "description": "Trends the average and worst day change percent for Portfolio Performance quote events each week. Searches `index=personal` with sourcetype `portfolio:quote` for UC-25.12.81, aggregating `avg` by `_time` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Portfolio Performance Quote Weekly Day Change Percent Trend' without manual log review.",
+  "value": "Trends the average and worst day change percent for Portfolio Performance quote events each week. Timely UC-25.12.81 alerting on 'Portfolio Performance Quote Weekly Day Change Percent Trend' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture day_change_pct on each event and review weekly averages plus worst cases during your personal ops review.",
   "visualization": "Line chart of weekly average day change percent with markers for the worst week.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Portfolio Performance Quote Weekly Day Change Percent Trend'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `portfolio:quote`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Portfolio Performance Quote Weekly Day Change Percent Trend' stops polling `portfolio:quote`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `portfolio:quote`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "exchange"
   ],

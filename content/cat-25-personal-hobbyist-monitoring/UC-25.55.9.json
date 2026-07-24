@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Duplicate-Person Detection' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_duplicate_person_detection` (UC-25.55.9), SOC dashboard panel \"Personal — Duplicate-Person Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='familytree:node' that satisfy the UC-25.55.9 SPL filters for 'Duplicate-Person Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `familytree:node` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.55.9."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='familytree:node' where `key` satisfies `copies` > 1 for UC-25.55.9 ('Duplicate-Person Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `familytree:node` events where `key` stays below `copies` > 1, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.55.9."
   },
   "dataSources": "Tree records (`genealogy:record`), DNA matches (`dna:match`), ancestor events (`ancestor:event`), archive documents (`archive:document`), tree nodes (`familytree:node`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Genealogy and family-history research — tree platforms (Ancestry, FamilySearch), DNA match exports (23andMe, MyHeritage), and document / archive catalogues — streamed to Splunk HEC via GEDCOM and CSV exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=familytree:node\n| eval key=name.\"|\".birth_year\n| stats count as copies, values(node_id) as ids by key\n| where copies>1\n| sort - copies",
-  "description": "Finds people who appear more than once in your tree with the same name and birth year so you can merge them.",
-  "value": "Duplicates tangle a tree and corrupt relationships; catching them keeps the research clean.",
+  "description": "Finds people who appear more than once in your tree with the same name and birth year so you can merge them. Searches `index=personal` with sourcetype `familytree:node` for UC-25.55.9, aggregating `values` by `key` over `the scheduled window`. Alerts when grouped results cross `copies` > 1 in the saved search. Gives Personal operators a repeatable signal for 'Duplicate-Person Detection' without manual log review.",
+  "value": "Finds people who appear more than once in your tree with the same name and birth year so you can merge them. Timely UC-25.55.9 alerting on 'Duplicate-Person Detection' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest tree nodes into `index=personal`; group by name and birth year to find duplicates.",
   "visualization": "Table of suspected duplicate people.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Duplicate-Person Detection'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `familytree:node`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Duplicate-Person Detection' stops polling `familytree:node`; stale `key` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `values` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `familytree:node`. Dedup with `stats latest(*) by key`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `copies` > 1. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

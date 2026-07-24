@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'Lambda Cold Start and Init Duration Latency' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_lambda_cold_start_and_init_duration_latency` (UC-4.5.2), SOC dashboard panel \"Operations — Lambda Cold Start and Init Duration Latency\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' that satisfy the UC-4.5.2 SPL filters for 'Lambda Cold Start and Init Duration Latency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.5.2."
+    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `FunctionName` satisfies `avg_init_ms` > 500 for UC-4.5.2 ('Lambda Cold Start and Init Duration Latency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch` events where `FunctionName` stays below `avg_init_ms` > 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.5.2."
   },
   "dataSources": "`sourcetype=aws:cloudwatch` (`InitDuration`), optional `sourcetype=aws:cloudwatchlogs` (Lambda REPORT lines) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Lambda Cold Start and Init Duration Latency'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `aws` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Lambda Cold Start and Init Duration Latency' shifts `avg` over `span=5m` while `FunctionName` remains in-scope for UC-4.5.2. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `aws:cloudwatch`** — Scheduled automation elevates `src` without crossing `avg_init_ms` > 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `FunctionName`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for `FunctionName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `FunctionName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

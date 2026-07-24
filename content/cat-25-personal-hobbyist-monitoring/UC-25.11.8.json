@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Pet Activity Drop vs Baseline' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_pet_activity_drop_vs_baseline` (UC-25.11.8), SOC dashboard panel \"Personal — Pet Activity Drop vs Baseline\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='whistle:activity' that satisfy the UC-25.11.8 SPL filters for 'Pet Activity Drop vs Baseline'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `whistle:activity` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.11.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='whistle:activity' where `pet_name` satisfies `baseline` > 0 for UC-25.11.8 ('Pet Activity Drop vs Baseline'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `whistle:activity` events where `pet_name` stays below `baseline` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.11.8."
   },
   "dataSources": "Pet tracker location/activity (`tractive:position`, `whistle:activity`), smart feeder events (`petfeeder:event`), litter-box usage (`litterrobot:cycle`), bird-feeder detections (`birdfeeder:detection`), doorbell/package events (`doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Pet GPS/activity trackers (Tractive/Fi/Whistle), smart feeders and litter boxes, bird feeders/cams, and home-life sensors via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=whistle:activity\n| bin _time span=1d\n| stats sum(active_minutes) as active_minutes by pet_name _time\n| streamstats window=7 current=f avg(active_minutes) as baseline by pet_name\n| where baseline>0 AND active_minutes<baseline*0.5\n| sort active_minutes",
   "description": "Compares each pet's daily activity against its recent baseline and surfaces the unusually low days that may reflect illness, injury, or simple boredom.",
-  "value": "Pets cannot describe how they feel, but their movement patterns often do; a sharp drop can be the clue that starts the right conversation or vet check.",
+  "value": "Compares each pet's daily activity against its recent baseline and surfaces the unusually low days that may.... Timely UC-25.11.8 alerting on 'Pet Activity Drop vs Baseline' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward daily activity totals from a Whistle or similar tracker; alert when activity falls far below the normal seven-day pattern.",
   "visualization": "Daily trend of active minutes versus rolling baseline by pet.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Pet Activity Drop vs Baseline'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `whistle:activity`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Pet Activity Drop vs Baseline' stops polling `whistle:activity`; stale `pet_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `whistle:activity`. Dedup with `stats latest(*) by pet_name`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `baseline` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

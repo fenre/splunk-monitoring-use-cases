@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Commvault client agent version compliance and unsupported endpoint audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_commvault_client_agent_version_compliance_and_un` (UC-6.4.27), SOC dashboard panel \"Operations — Commvault client agent version compliance and unsupported endpoint audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='commvault:client' that satisfy the UC-6.4.27 SPL filters for 'Commvault client agent version compliance and unsupported endpoint audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `backup` / `commvault:client` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.4.27."
+    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='commvault:client' where `ver` satisfies detection threshold for UC-6.4.27 ('Commvault client agent version compliance and unsupported endpoint audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `backup` / `commvault:client` events where `ver` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.4.27."
   },
   "dataSources": "Client inventory `commvault:client` with `agent_version`, `service_pack` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Commvault analytics feed to Splunk HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=backup sourcetype=\"commvault:client\" earliest=-24h\n| eval ver=coalesce(agent_version, client_version)\n| lookup commvault_supported_agents product OUTPUT min_supported\n| where isnull(min_supported) OR ver < min_supported\n| stats values(hostname) as hosts dc(hostname) as host_count by ver, client_group\n| sort host_count",
   "description": "Out-of-date agents miss features, hotfixes, and security patches; they also complicate vendor support during restore incidents.",
-  "value": "Reduces Sev1 restore time by ensuring the fleet is on supported combinations before audits or ransomware events.",
+  "value": "Out-of-date agents miss features, hotfixes, and security patches; they also complicate vendor support durin.... Timely UC-6.4.27 alerting on 'Commvault client agent version compliance and unsupported endpoint audit' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Maintain `commvault_supported_agents.csv` with `min_supported` per product line. Refresh client inventory daily. Feed results to CMDB patch team.",
   "visualization": "Pie chart (supported vs not), table (version, host count).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Commvault client agent version compliance and unsupported endpoint audit'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `backup` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `backup`** — Planned work for 'Commvault client agent version compliance and unsupported endpoint audit' shifts `values` over `span=1h` while `ver` remains in-scope for UC-6.4.27. Cross-check CMDB CHG.\n\n2. **Batch `values` on `commvault:client`** — Scheduled automation elevates `client_group` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ver`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `commvault:client`** — First 48h baseline for `ver` is unstable; join `commvault_supported_agents` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ver`, `exception_reason`, `valid_until`.",
   "equipment": [
     "commvault",
     "hashicorp"

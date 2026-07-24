@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Change-to-Incident Correlation' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_change_to_incident_correlation` (UC-10.13.41), SOC dashboard panel \"Security Infra — Change-to-Incident Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='incident:event' that satisfy the UC-10.13.41 SPL filters for 'Change-to-Incident Correlation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `security` / `incident:event` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.41."
+    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='incident:event' where `change_ticket` satisfies `duration` < 14400 for UC-10.13.41 ('Change-to-Incident Correlation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `security` / `incident:event` events where `change_ticket` stays below `duration` < 14400, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.41."
   },
   "dataSources": "CIM Change timestamps vs. ITSM incidents Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Change + Incident indexes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=security tag=change result=success OR index=itsm sourcetype=\"incident:event\"\n| eval key=dest\n| transaction key maxspan=4h startswith=\"change\" endswith=\"incident\"\n| where closed_txn=0 OR duration<14400\n| stats count by change_ticket, incident_id",
-  "description": "Incidents within 4h of `result` success on same `dest` — causal analysis for CAB feedback.",
+  "description": "Incidents within 4h of `result` success on same `dest` — causal analysis for CAB feedback. Searches `index=security` with sourcetype `incident:event` for UC-10.13.41, aggregating `count` by `change_ticket` over `4h`. Alerts when grouped results cross `duration` < 14400 in the saved search. Gives Security Infra operators a repeatable signal for 'Change-to-Incident Correlation' without manual log review.",
   "value": "Early 'Change-to-Incident Correlation' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Simpler: `join` change `dest` with incident `configuration_item` within time window.",
   "visualization": "Table (pairs), Sankey (change → incident).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Change-to-Incident Correlation'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=security` `incident:event`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `security`** — Planned work for 'Change-to-Incident Correlation' shifts `count` over `span=4h` while `change_ticket` remains in-scope for UC-10.13.41. Cross-check CMDB CHG.\n\n2. **Batch `count` on `incident:event`** — Scheduled automation elevates `incident_id` without crossing `duration` < 14400. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `change_ticket`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `incident:event`** — First 48h baseline for `change_ticket` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `change_ticket`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

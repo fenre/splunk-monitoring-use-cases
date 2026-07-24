@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Zettelkasten Note Count Streak Gap Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_zettelkasten_note_count_streak_gap_alert` (UC-25.85.26), SOC dashboard panel \"Personal — Zettelkasten Note Count Streak Gap Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='zettel:note' that satisfy the UC-25.85.26 SPL filters for 'Zettelkasten Note Count Streak Gap Alert'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `zettel:note` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.85.26."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='zettel:note' where `user` satisfies `days_since` > 2 for UC-25.85.26 ('Zettelkasten Note Count Streak Gap Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `zettel:note` events where `user` stays below `days_since` > 2, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.85.26."
   },
   "dataSources": "Obsidian graph stats (`obsidian:stats`), Roam daily notes (`roam:daily`), Logseq tasks (`logseq:task`), Zettelkasten notes (`zettel:note`), PKM review summaries (`pkm:review`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Obsidian graph stats, Roam daily notes, Logseq task exports, and Zettelkasten counts streamed to Splunk HEC via plugins, CSV exports, and scripted vault scans. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=zettel:note\n| stats latest(streak_days) as streak_days, max(_time) as last_seen by user\n| eval days_since=round((now()-last_seen)/86400,1)\n| where days_since>2\n| sort - days_since",
-  "description": "Flags breaks in the routine behind zettelkasten note count before a useful habit disappears.",
-  "value": "Small habit gaps matter in note-taking systems because consistency usually drives the value more than occasional big sprints.",
+  "description": "Flags breaks in the routine behind zettelkasten note count before a useful habit disappears. Searches `index=personal` with sourcetype `zettel:note` for UC-25.85.26, aggregating `max` by `user` over `the scheduled window`. Alerts when grouped results cross `days_since` > 2 in the saved search. Gives Personal operators a repeatable signal for 'Zettelkasten Note Count Streak Gap Alert' without manual log review.",
+  "value": "Flags breaks in the routine behind zettelkasten note count before a useful habit disappears. Timely UC-25.85.26 alerting on 'Zettelkasten Note Count Streak Gap Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture a simple streak count or at least a last-activity timestamp during export.",
   "visualization": "Table of users by current streak and days since last activity.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Zettelkasten Note Count Streak Gap Alert'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `zettel:note`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Zettelkasten Note Count Streak Gap Alert' stops polling `zettel:note`; stale `user` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `zettel:note`. Dedup with `stats latest(*) by user`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_since` > 2. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hashicorp"
   ],

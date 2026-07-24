@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Infoblox DHCP Scope Utilization Trending Toward Exhaustion (Infoblox)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_infoblox_dhcp_scope_utilization_trending_toward_` (UC-5.15.2), SOC dashboard panel \"Operations — Infoblox DHCP Scope Utilization Trending Toward Exhaustion (Infoblox)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dhcp` sourcetype='infoblox:dhcp' that satisfy the UC-5.15.2 SPL filters for 'Infoblox DHCP Scope Utilization Trending Toward Exhaustion (Infoblox)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dhcp` / `infoblox:dhcp` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.15.2."
+    "positiveScenario": "Ingest synthetic events into `index=dhcp` sourcetype='infoblox:dhcp' where `scope_id` satisfies `pool_size` > 0 for UC-5.15.2 ('Infoblox DHCP Scope Utilization Trending Toward Exhaustion (Infoblox)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dhcp` / `infoblox:dhcp` events where `scope_id` stays below `pool_size` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.15.2."
   },
   "dataSources": "`sourcetype=infoblox:dhcp` DHCPACK/lease events; scope metadata from Grid or lookup `infoblox_scopes.csv` with columns scope_name, network_cidr, total_leases",
   "app": "Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2934)",
   "spl": "index=dhcp sourcetype=\"infoblox:dhcp\" earliest=-7d@d latest=now\n| where match(_raw,\"(?i)DHCPACK|lease.*granted\")\n| rex field=_raw \"(?i)scope[\\s:=]+(?<scope_id>[^,\\s]+)\"\n| stats dc(mac) as active_leases by scope_id, host\n| lookup infoblox_scopes.csv scope_id OUTPUT pool_size network\n| eval util_pct=if(isnotnull(pool_size) AND pool_size>0, round(100*active_leases/pool_size,1), null())\n| where util_pct>=85 OR active_leases>=500\n| sort - util_pct",
   "description": "Scopes that quietly fill during BYOD spikes, IoT rollouts, or VLAN migrations cause outages that look like 'random Wi-Fi failures.' Trending utilization from DHCP traffic catches exhaustion before clients fail to obtain addresses.",
-  "value": "Network operations can expand pools, shorten lease times, or segment traffic proactively instead of reacting to ticket storms.",
+  "value": "Scopes that quietly fill during BYOD spikes, IoT rollouts, or VLAN migrations cause outages that look like.... Timely UC-5.15.2 alerting on 'Infoblox DHCP Scope Utilization Trending Toward Exhaustion (Infoblox)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ensure DHCP service logs include scope/network identifiers. Build a daily summary of distinct active leases per scope; join scope size from a CMDB-exported lookup. Alert when trailing-seven-day max utilization exceeds 85% or week-over-week growth exceeds 20%.",
   "visualization": "Timechart (utilization % per scope), single-value (worst scope), table (scope, leases in use, free, trend).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Infoblox DHCP Scope Utilization Trending Toward Exhaustion (Infoblox)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `dhcp` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `dhcp`** — Planned work for 'Infoblox DHCP Scope Utilization Trending Toward Exhaustion (Infoblox)' shifts `dc` over `span=1h` while `scope_id` remains in-scope for UC-5.15.2. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `infoblox:dhcp`** — Scheduled automation elevates `host` without crossing `pool_size` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `scope_id`** — Health checks in `dhcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `infoblox:dhcp`** — First 48h baseline for `scope_id` is unstable; join `infoblox_scopes.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `scope_id`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "infoblox"

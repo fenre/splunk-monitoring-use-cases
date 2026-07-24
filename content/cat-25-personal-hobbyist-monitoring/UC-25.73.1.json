@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Sewing Machine Run-Hours Maintenance Window' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_sewing_machine_run_hours_maintenance_window` (UC-25.73.1), SOC dashboard panel \"Personal — Sewing Machine Run-Hours Maintenance Window\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='shelly:status' that satisfy the UC-25.73.1 SPL filters for 'Sewing Machine Run-Hours Maintenance Window'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `shelly:status` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.73.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='shelly:status' where `machine_name` satisfies `run_hours` > 25 for UC-25.73.1 ('Sewing Machine Run-Hours Maintenance Window'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `shelly:status` events where `machine_name` stays below `run_hours` > 25, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.73.1."
   },
   "dataSources": "Ravelry projects (`ravelry:project`), knitCompanion row counters (`knitcompanion:counter`), Shelly smart-plug machine runtime (`shelly:status`), and Ravelry stash entries (`ravelry:stash`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Ravelry project and stash exports, knitCompanion row-counter logs, and Shelly plug telemetry for sewing-machine hours sent to Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=shelly:status machine_name=* run_minutes=*\n| stats sum(run_minutes) as total_run_minutes by machine_name\n| eval run_hours=round(total_run_minutes/60,1)\n| where run_hours>25\n| sort - run_hours",
-  "description": "Uses smart-plug runtime to identify when a sewing machine is due for cleaning, oiling, or a quick inspection.",
-  "value": "Maintenance windows tied to real run-hours are easier to trust than vague memory about the last busy month.",
+  "description": "Uses smart-plug runtime to identify when a sewing machine is due for cleaning, oiling, or a quick inspection. Searches `index=personal` with sourcetype `shelly:status` for UC-25.73.1, aggregating `sum` by `machine_name` over `the scheduled window`. Alerts when grouped results cross `run_hours` > 25 in the saved search. Gives Personal operators a repeatable signal for 'Sewing Machine Run-Hours Maintenance Window' without manual log review.",
+  "value": "Uses smart-plug runtime to identify when a sewing machine is due for cleaning, oiling, or a quick inspection. Timely UC-25.73.1 alerting on 'Sewing Machine Run-Hours Maintenance Window' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Attach a Shelly plug to the machine, roll up `run_minutes`, and choose a runtime threshold that fits the model.",
   "visualization": "Table of sewing machines by accumulated run hours.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Sewing Machine Run-Hours Maintenance Window'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `shelly:status`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Sewing Machine Run-Hours Maintenance Window' stops polling `shelly:status`; stale `machine_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `shelly:status`. Dedup with `stats latest(*) by machine_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `run_hours` > 25. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

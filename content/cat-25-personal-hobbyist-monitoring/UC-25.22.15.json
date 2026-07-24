@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Roof-Open Time vs Safe-Weather Window' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_roof_open_time_vs_safe_weather_window` (UC-25.22.15), SOC dashboard panel \"Personal — Roof-Open Time vs Safe-Weather Window\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='observatory:roof' that satisfy the UC-25.22.15 SPL filters for 'Roof-Open Time vs Safe-Weather Window'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `observatory:roof` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.22.15."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='observatory:roof' where `_time` satisfies detection threshold for UC-25.22.15 ('Roof-Open Time vs Safe-Weather Window'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `observatory:roof` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.22.15."
   },
   "dataSources": "Observing sessions (`astronomy:session`), sky quality (`skyquality:reading`), mount telemetry (`mount:session`), focus metrics (`focus:metric`), observatory roof state (`observatory:roof`), sub-frame results (`astroimage:sub`), and all-sky detections (`allsky:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Astronomy telemetry from N.I.N.A., KStars/Ekos, Sky Quality Meters, all-sky cameras, focus routines, roof controllers, and image-rejection logs streamed to Splunk HEC via APIs and scripted exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=observatory:roof\n| bin _time span=1d\n| stats sum(open_minutes) as open_minutes sum(safe_minutes) as safe_minutes by _time\n| eval capture_pct=round(100*open_minutes/safe_minutes,1)",
-  "description": "Measures how much of each safe-weather window the observatory roof actually remained open.",
-  "value": "This is a clean operational metric for remote observatories because it exposes automation misses even when the weather was fine.",
+  "description": "Measures how much of each safe-weather window the observatory roof actually remained open. Searches `index=personal` with sourcetype `observatory:roof` for UC-25.22.15, aggregating `sum` by `_time` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Roof-Open Time vs Safe-Weather Window' without manual log review.",
+  "value": "Measures how much of each safe-weather window the observatory roof actually remained open. Timely UC-25.22.15 alerting on 'Roof-Open Time vs Safe-Weather Window' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Collect roof open/close durations together with a safe-weather window signal from your cloud or rain sensor logic.",
   "visualization": "Line chart of safe minutes, open minutes, and capture percent by day.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Roof-Open Time vs Safe-Weather Window'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `observatory:roof`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Roof-Open Time vs Safe-Weather Window' stops polling `observatory:roof`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `observatory:roof`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'EXIF Missing Metadata Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_exif_missing_metadata_rate` (UC-25.63.2), SOC dashboard panel \"Personal — EXIF Missing Metadata Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lightroom:photo' that satisfy the UC-25.63.2 SPL filters for 'EXIF Missing Metadata Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `lightroom:photo` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.63.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lightroom:photo' where `collection_name` satisfies detection threshold for UC-25.63.2 ('EXIF Missing Metadata Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `lightroom:photo` events where `collection_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.63.2."
   },
   "dataSources": "Lightroom photo exports (`lightroom:photo`), Flickr photo metadata (`flickr:photo`), ShutterCount body audits (`shuttercount:camera`), and F3 card tests (`f3:card`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Adobe Lightroom exports, Flickr API metadata, ShutterCount camera audits, and F3 SD-card health checks sent to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=lightroom:photo\n| eval missing=if(isnull(iso) OR isnull(focal_length_mm) OR isnull(aperture) OR isnull(shutter_speed),1,0)\n| stats sum(missing) as missing_exif, count as photos by collection_name\n| eval missing_pct=round(100*missing_exif/photos,1)\n| sort - missing_pct",
-  "description": "Measures how often key EXIF fields are absent from exported photo metadata by collection.",
-  "value": "Incomplete metadata weakens later analysis of camera settings, lens choices, and keeper rates.",
+  "description": "Measures how often key EXIF fields are absent from exported photo metadata by collection. Searches `index=personal` with sourcetype `lightroom:photo` for UC-25.63.2, aggregating `sum` by `collection_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'EXIF Missing Metadata Rate' without manual log review.",
+  "value": "Measures how often key EXIF fields are absent from exported photo metadata by collection. Timely UC-25.63.2 alerting on 'EXIF Missing Metadata Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Retain core EXIF fields in Lightroom export sidecars and review collections with unusual metadata gaps.",
   "visualization": "Table of collections ranked by missing EXIF percentage.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'EXIF Missing Metadata Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lightroom:photo`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'EXIF Missing Metadata Rate' stops polling `lightroom:photo`; stale `collection_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lightroom:photo`. Dedup with `stats latest(*) by collection_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

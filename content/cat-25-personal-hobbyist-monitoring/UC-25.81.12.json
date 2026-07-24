@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Running Club Miles Monthly Contribution Rollup' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_running_club_miles_monthly_contribution_rollup` (UC-25.81.12), SOC dashboard panel \"Personal — Running Club Miles Monthly Contribution Rollup\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='runningclub:session' that satisfy the UC-25.81.12 SPL filters for 'Running Club Miles Monthly Contribution Rollup'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `runningclub:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.81.12."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='runningclub:session' where `_time` satisfies detection threshold for UC-25.81.12 ('Running Club Miles Monthly Contribution Rollup'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `runningclub:session` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.81.12."
   },
   "dataSources": "Club attendance (`club:attendance`), running-club sessions (`runningclub:session`), maker-space visits (`makerspace:visit`), book-club meetings (`bookclub:meeting`), community events (`community:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Book-club attendance, running-club miles, maker-space visits, and general social-club participation logs streamed to Splunk HEC via forms, check-ins, and calendar exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=runningclub:session\n| bin _time span=1mon\n| stats sum(distance_km) as total_metric count as events dc(runner) as active_members by _time\n| sort - _time",
-  "description": "Summarizes the monthly contribution behind running club miles, including activity volume and active-member count.",
-  "value": "Monthly rollups give you a simple stewardship view without needing to inspect every meeting or visit.",
+  "description": "Summarizes the monthly contribution behind running club miles, including activity volume and active-member count. Searches `index=personal` with sourcetype `runningclub:session` for UC-25.81.12, aggregating `sum` by `_time` over `1m`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Running Club Miles Monthly Contribution Rollup' without manual log review.",
+  "value": "Summarizes the monthly contribution behind running club miles, including activity volume and active-member.... Timely UC-25.81.12 alerting on 'Running Club Miles Monthly Contribution Rollup' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Review active-member count alongside the main metric to separate a busy month from one carried by a small core group.",
   "visualization": "Monthly chart of total club kilometres and distinct active members.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Running Club Miles Monthly Contribution Rollup'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `runningclub:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Running Club Miles Monthly Contribution Rollup' stops polling `runningclub:session`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `runningclub:session`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "dell_emc"
   ],

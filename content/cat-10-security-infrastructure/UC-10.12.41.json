@@ -26,13 +26,13 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' that satisfy the UC-10.12.41 SPL filters for 'NIST 800-53 Control Validation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.41."
+    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' where `control_id` satisfies detection threshold for UC-10.12.41 ('NIST 800-53 Control Validation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events where `control_id` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.41."
   },
   "dataSources": "Mixed — auth, change, vuln indexes tagged `control_id` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk ES, compliance frameworks — Universal Forwarder (Splunkbase 617)",
   "spl": "index=security tag=nist_800_53\n| lookup nist_controls control_id OUTPUT family automated\n| where automated=\"true\" AND result=\"fail\"\n| stats latest(_time) as last_fail by control_id, host\n| sort control_id",
-  "description": "Operationalizes AU, AC, SI, and IR families via automated checks against ingested security telemetry.",
+  "description": "Operationalizes AU, AC, SI, and IR families via automated checks against ingested security telemetry. Searches `index=security` with sourcetype `configured sourcetype` for UC-10.12.41, aggregating `count` by `control_id` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'NIST 800-53 Control Validation' without manual log review.",
   "value": "Early 'NIST 800-53 Control Validation' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Map each control to correlation searches; feed failures into GRC; annual assessor exports.",
   "visualization": "Matrix (control × system), Trend (fail rate), Table (open findings).",
@@ -62,7 +62,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'NIST 800-53 Control Validation'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=security` `configured sourcetype`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `security`** — Planned work for 'NIST 800-53 Control Validation' shifts `count` over `span=1h` while `control_id` remains in-scope for UC-10.12.41. Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `host` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `control_id`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `control_id` is unstable; join `nist_controls` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `control_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

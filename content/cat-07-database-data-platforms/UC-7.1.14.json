@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'Query Plan Regression' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_query_plan_regression` (UC-7.1.14), SOC dashboard panel \"Operations — Query Plan Regression\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='dbconnect:query_store' that satisfy the UC-7.1.14 SPL filters for 'Query Plan Regression'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `dbconnect:query_store` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.14."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='dbconnect:query_store' where `query_id` satisfies `baseline_avg` > 0 for UC-7.1.14 ('Query Plan Regression'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `dbconnect:query_store` events where `query_id` stays below `baseline_avg` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.14."
   },
   "dataSources": "SQL Server Query Store, `sys.dm_exec_query_plan`, PostgreSQL `pg_stat_statements`; lookup `query_baselines.csv` with columns `query_id, baseline_avg` (rolling 30-day median rebuilt nightly) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "DB Connect — Universal Forwarder (Splunkbase 617)",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Query Plan Regression'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Query Plan Regression' shifts `avg` over `span=1h` while `query_id` remains in-scope for UC-7.1.14. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `dbconnect:query_store`** — Scheduled automation elevates `plan_id` without crossing `baseline_avg` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `query_id`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:query_store`** — First 48h baseline for `query_id` is unstable; join `query_baselines.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `query_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mssql",

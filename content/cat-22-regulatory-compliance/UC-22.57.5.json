@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set `last_audit_date` to >24 months ago. UC-22.57.5 MUST flag.",
-    "negativeScenario": "Run audit within 24 months; close findings within 90 days. UC-22.57.5 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies `months_since_audit` > 24 for UC-22.57.5 ('SG Cyber Act bi-annual independent cybersecurity audit ledger + remediation tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `months_since_audit` > 24, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.57.5."
   },
   "dataSources": "KV Store `csa_audit_lookup` (cii_id, last_audit_date, auditor, report_doc_url, findings_open, findings_overdue, submitted_to_commissioner_at).",
   "app": "Splunk Enterprise Security (Splunkbase 263).",
   "spl": "| inputlookup csa_audit_lookup\n| eval months_since_audit = round((now() - last_audit_date) / 2592000, 1)\n| eval audit_status = case(\n    months_since_audit > 24, \"overdue\",\n    months_since_audit > 22, \"due_soon\",\n    findings_overdue > 0, \"findings_overdue\",\n    isnull(submitted_to_commissioner_at) AND months_since_audit > 1, \"not_submitted\",\n    1=1, \"current\")\n| where audit_status IN (\"overdue\",\"findings_overdue\",\"not_submitted\")\n| table cii_id last_audit_date months_since_audit auditor findings_open findings_overdue audit_status report_doc_url",
   "description": "Tracks bi-annual audit currency, findings closure, and Commissioner submission. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Bi-annual audit is a hard requirement. Auditor and CC alike are listed on the Commissioner's register.",
+  "value": "Tracks bi-annual audit currency, findings closure, and Commissioner submission. Timely UC-22.57.5 alerting on 'SG Cyber Act bi-annual independent cybersecurity audit ledger + remediation tracking' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `csa_audit_lookup` after each audit. (2) Schedule UC-22.57.5 daily. (3) Build the `CSA Bi-Annual Audit Ledger` dashboard.",
   "visualization": "(Panel 1) Audit currency by CII. (Panel 2) Findings-overdue. (Panel 3) Commissioner submission status. (Panel 4) Auditor coverage.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit or GRC exercises 'SG Cyber Act bi-annual independent cybersecurity audit ledger + remediation tracking' during scheduled clause SG-CA-s15(2) evidence collection. Match compliance programme calendar and accounts tagged `compliance_ops=true`.\n\n2. **External assessor sampling** — QSA or regulator sampling temporarily spikes `index=audit_evidence` `configured sourcetype` volume. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB-approved change pauses or reshapes ingestion to `audit_evidence`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected cross-boundary events during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
+  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit exercises 'SG Cyber Act bi-annual independent cybersecurity audit ledger + remediation tracking' (UC-22.57.5) on `entity` during scheduled clause SG-CA-s15(2) sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `months_since_audit` > 24. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (governance)"
   ],

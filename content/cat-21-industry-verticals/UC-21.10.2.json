@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'First Notice of Loss Channel Analysis' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_first_notice_of_loss_channel_analysis` (UC-21.10.2), SOC dashboard panel \"Operations — First Notice of Loss Channel Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=insurance` sourcetype='fnol:event' that satisfy the UC-21.10.2 SPL filters for 'First Notice of Loss Channel Analysis'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `insurance` / `fnol:event` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.10.2."
+    "positiveScenario": "Ingest synthetic events into `index=insurance` sourcetype='fnol:event' where `channel` satisfies `success_pct` < 95 for UC-21.10.2 ('First Notice of Loss Channel Analysis'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `insurance` / `fnol:event` events where `channel` stays below `success_pct` < 95, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.10.2."
   },
   "dataSources": "`index=insurance` `sourcetype=\"fnol:event\"` (fnol_id, channel, region, ingest_latency_ms, success_flag) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "FNOL ingestion service via HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=insurance sourcetype=\"fnol:event\"\n| eval ok=if(success_flag=1 OR lower(success_flag)=\"true\",1,0)\n| bin _time span=1d\n| stats count as fnols, sum(ok) as ok_n, avg(ingest_latency_ms) as avg_lat by channel, region, _time\n| eval success_pct=round(100*ok_n/nullif(fnols,0),2)\n| where success_pct < 95 OR avg_lat > 3000\n| table _time, channel, region, fnols, success_pct, avg_lat",
   "description": "Shifts in FNOL volume by web, mobile, IVR, or agent channel indicate digital adoption issues or contact center strain after catastrophe or product changes.",
-  "value": "Service and risk leaders use signals from First Notice of Loss Channel Analysis to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "Service and risk leaders use signals from First Notice of Loss Channel Analysis to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Map vendor channel codes to a canonical list. Filter bot traffic if tagged. Useful for post-mortems after marketing pushes to digital FNOL. **Domain context:** FNOL channel mix shifts during CAT events and regulatory changes (e.g., digital-first mandates)—segment by product and state where applicable. **Splunk:** `success_flag` may be string or numeric—`eval ok=` pattern covers both; watch for duplicate events per `fnol_id`.",
   "visualization": "Stacked bar (FNOL volume by channel), Line chart (success %), Heatmap (region × channel).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'First Notice of Loss Channel Analysis'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `insurance` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `insurance`** — Planned work for 'First Notice of Loss Channel Analysis' shifts `sum` over `span=1d` while `channel` remains in-scope for UC-21.10.2. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `fnol:event`** — Scheduled automation elevates `region` without crossing `success_pct` < 95. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `channel`** — Health checks in `insurance` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `fnol:event`** — First 48h baseline for `channel` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `channel`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

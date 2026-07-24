@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'Unused and Orphaned Resource Cost Attribution' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_unused_and_orphaned_resource_cost_attribution` (UC-20.2.11), SOC dashboard panel \"Operations — Unused and Orphaned Resource Cost Attribution\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cloud_cost` sourcetype='resource:inventory' that satisfy the UC-20.2.11 SPL filters for 'Unused and Orphaned Resource Cost Attribution'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cloud_cost` / `resource:inventory` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-20.2.11."
+    "positiveScenario": "Ingest synthetic events into `index=cloud_cost` sourcetype='resource:inventory' where `resource_type` satisfies `last_used_days` > 30 for UC-20.2.11 ('Unused and Orphaned Resource Cost Attribution'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cloud_cost` / `resource:inventory` events where `resource_type` stays below `last_used_days` > 30, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-20.2.11."
   },
   "dataSources": "Resource list with last used, cost, tags Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Cloud resource inventory, cost allocation tags — Universal Forwarder (Splunkbase 617)",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Unused and Orphaned Resource Cost Attribution'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `cloud_cost` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `cloud_cost`** — Planned work for 'Unused and Orphaned Resource Cost Attribution' shifts `sum` over `span=1h` while `resource_type` remains in-scope for UC-20.2.11. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `resource:inventory`** — Scheduled automation elevates `account_id` without crossing `last_used_days` > 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `resource_type`** — Health checks in `cloud_cost` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `resource:inventory`** — First 48h baseline for `resource_type` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `resource_type`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

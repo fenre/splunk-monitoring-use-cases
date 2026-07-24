@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Board-Game Win Rate by Player Count' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_board_game_win_rate_by_player_count` (UC-25.29.16), SOC dashboard panel \"Personal — Board-Game Win Rate by Player Count\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='boardgame:play' that satisfy the UC-25.29.16 SPL filters for 'Board-Game Win Rate by Player Count'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `boardgame:play` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.29.16."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='boardgame:play' where `game` satisfies detection threshold for UC-25.29.16 ('Board-Game Win Rate by Player Count'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `boardgame:play` events where `game` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.29.16."
   },
   "dataSources": "Game sessions (`game:session`), ranked matches (`ranked:match`), co-op invites (`coop:session`), speedrun attempts (`speedrun:attempt`), server events (`server:event`), board-game plays (`boardgame:play`), raid attempts (`raid:attempt`), and daily quest logs (`quest:completion`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Gaming telemetry from platform session APIs, ranked-match exports, co-op schedulers, speedrun splits, server logs, raid trackers, and board-game play records streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=boardgame:play\n| stats sum(eval(if(result=\"win\",1,0))) as wins count as plays by game player_count\n| eval win_pct=round(100*wins/plays,1)\n| sort game player_count",
   "description": "Calculates how often you win each board game at different table sizes. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Many games feel different at different player counts, and this shows whether the outcomes really change for you.",
+  "value": "Calculates how often you win each board game at different table sizes. Timely UC-25.29.16 alerting on 'Board-Game Win Rate by Player Count' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Import board-game play records with player count and result from BoardGameGeek or your own tracker.",
   "visualization": "Heat map of win percentage by game and player count.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Board-Game Win Rate by Player Count'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `boardgame:play`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Board-Game Win Rate by Player Count' stops polling `boardgame:play`; stale `game` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `boardgame:play`. Dedup with `stats latest(*) by game`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

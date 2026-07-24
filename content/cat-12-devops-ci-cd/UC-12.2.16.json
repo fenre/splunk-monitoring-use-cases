@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Build Artifact Integrity Verification' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_build_artifact_integrity_verification` (UC-12.2.16), SOC dashboard panel \"Operations — Build Artifact Integrity Verification\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='artifact:integrity' that satisfy the UC-12.2.16 SPL filters for 'Build Artifact Integrity Verification'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cicd` / `artifact:integrity` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.16."
+    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='artifact:integrity' where `entity` satisfies detection threshold for UC-12.2.16 ('Build Artifact Integrity Verification'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cicd` / `artifact:integrity` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.16."
   },
   "dataSources": "Build record with `sha256`, registry manifest digest Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Cosign, Jenkins archive, S3/GCS object metadata — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cicd sourcetype=\"artifact:integrity\"\n| where expected_sha256!=actual_sha256 OR signature_valid=\"false\"\n| table _time, artifact_name, pipeline, expected_sha256, actual_sha256",
-  "description": "Compares published artifact checksums/Sigstore signatures against CI-recorded values to detect tampering at rest.",
+  "description": "Compares published artifact checksums/Sigstore signatures against CI-recorded values to detect tampering at rest. Searches `index=cicd` with sourcetype `artifact:integrity` for UC-12.2.16, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Build Artifact Integrity Verification' without manual log review.",
   "value": "Early 'Build Artifact Integrity Verification' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "CI stores expected hash in Splunk; registry poll compares. Alert on any mismatch before prod promotion.",
   "visualization": "Table (mismatches — target empty), Timeline, Single value (failed verifications).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Build Artifact Integrity Verification'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `cicd` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `cicd`** — Planned work for 'Build Artifact Integrity Verification' shifts `count` over `span=1h` while `host` remains in-scope for UC-12.2.16. Cross-check CMDB CHG.\n\n2. **Batch `count` on `artifact:integrity`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `artifact:integrity`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "jenkins"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'macOS CPU Thermal Pressure and Throttle Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_macos_cpu_thermal_pressure_and_throttle_events` (UC-1.1.133), SOC dashboard panel \"Linux — macOS CPU Thermal Pressure and Throttle Events\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='macos_thermal' that satisfy the UC-1.1.133 SPL filters for 'macOS CPU Thermal Pressure and Throttle Events'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `macos_thermal` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.133."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='macos_thermal' where `host` satisfies `speed_limit` < 70 for UC-1.1.133 ('macOS CPU Thermal Pressure and Throttle Events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `macos_thermal` events where `host` stays below `speed_limit` < 70, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.133."
   },
   "dataSources": "`index=os` `sourcetype=macos_thermal` from `powermetrics --show-plimits` sampling or unified log export filtering `thermal` / `CPU_Speed_Limit` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder for macOS (scripted input), optional Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase #833) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=macos_thermal host=*\n| stats latest(thermal_pressure) as pressure, latest(cpu_speed_limit_pct) as speed_limit by host\n| where (isnull(pressure) OR lower(pressure)!=\"nominal\") OR speed_limit < 70",
   "description": "When macOS reports non-nominal thermal pressure or forces a low CPU speed limit, interactive and build workloads slow sharply even if average CPU utilization looks healthy. Ingesting thermal state explains user-perceived slowness tied to fan failures, dust, ambient heat, or sustained AV/backup jobs.",
-  "value": "Cuts mean-time-to-diagnose for \"slow Mac\" tickets by proving hardware thermal throttling versus application inefficiency.",
+  "value": "When macOS reports non-nominal thermal pressure or forces a low CPU speed limit, interactive and build work.... Timely UC-1.1.133 alerting on 'macOS CPU Thermal Pressure and Throttle Events' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Run a controlled `powermetrics` sample (requires admin) on an interval that matches your compliance posture—often 5–15 minutes—or parse `log show --predicate 'subsystem == \"com.apple.powermanagement\"'` / thermal-related messages into `thermal_pressure` (nominal|moderate|heavy|trapping) and `cpu_speed_limit_pct` (0–100). For fleet scripts without root, map best-effort proxies from `pmset -g therm`. Use `index=os`, `sourcetype=macos_thermal`. Alert on sustained non-nominal pressure or `cpu_speed_limit_pct` under 70% for more than two consecutive samples.",
   "visualization": "Timeline (thermal_pressure by host), Line chart (cpu_speed_limit_pct), Table (worst hosts last hour).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'macOS CPU Thermal Pressure and Throttle Events'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `macos_thermal`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'macOS CPU Thermal Pressure and Throttle Events'. Correlate with apt/yum logs in the same `macos_thermal` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `macos_thermal`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `speed_limit` < 70.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "macos"

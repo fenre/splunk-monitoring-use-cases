@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Qlik License Allocation Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_qlik_license_allocation_utilization` (UC-24.4.10), SOC dashboard panel \"Operations — Qlik License Allocation Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='qlik:qrs' that satisfy the UC-24.4.10 SPL filters for 'Qlik License Allocation Utilization'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `qlik:qrs` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.4.10."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='qlik:qrs' where `license_type` satisfies detection threshold for UC-24.4.10 ('Qlik License Allocation Utilization'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `qlik:qrs` events where `license_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.4.10."
   },
   "dataSources": "Qlik Sense logs (`qlik:scheduler`, `qlik:engine`, `qlik:proxy`), QRS API task/audit (`qlik:qrs`), and Qlik Cloud events. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Qlik Sense logs via Universal Forwarder; Qlik Repository Service (QRS) API and Qlik Cloud REST API via HEC scripted inputs; QlikView/NPrinting event logs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=qlik:qrs object_type=\"license\"\n| stats latest(allocated) as allocated, latest(total) as total, latest(active_last_30d) as active by license_type\n| eval used_pct=round(100*allocated/total,1), active_pct=round(100*active/allocated,1)\n| sort - used_pct",
   "description": "Reports Qlik professional/analyzer license allocation versus total entitlement and how many allocated licenses were actually used in the last 30 days, exposing waste and headroom.",
-  "value": "Qlik licenses are costly; showing allocated-but-idle seats reclaims spend and prevents surprise entitlement exhaustion.",
+  "value": "Reports Qlik professional/analyzer license allocation versus total entitlement and how many allocated licen.... Timely UC-24.4.10 alerting on 'Qlik License Allocation Utilization' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Query QRS license objects; schedule weekly and flag idle allocations for reclamation and near-full pools for purchase.",
   "visualization": "Table of license type by utilisation, reclamation candidates.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Qlik License Allocation Utilization'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Qlik License Allocation Utilization' shifts `count` over `span=1h` while `license_type` remains in-scope for UC-24.4.10. Cross-check CMDB CHG.\n\n2. **Batch `count` on `qlik:qrs`** — Scheduled automation elevates `used_pct` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `license_type`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `qlik:qrs`** — First 48h baseline for `license_type` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `license_type`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

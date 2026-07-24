@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Snowflake Warehouse Auto-Suspend and Auto-Resume Event Frequency' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_snowflake_warehouse_auto_suspend_and_auto_resume` (UC-7.1.74), SOC dashboard panel \"Operations — Snowflake Warehouse Auto-Suspend and Auto-Resume Event Frequency\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:warehouse_events' that satisfy the UC-7.1.74 SPL filters for 'Snowflake Warehouse Auto-Suspend and Auto-Resume Event Frequency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `datawarehouse` / `snowflake:warehouse_events` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.74."
+    "positiveScenario": "Ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:warehouse_events' where `WAREHOUSE_NAME` satisfies `events` > 20 for UC-7.1.74 ('Snowflake Warehouse Auto-Suspend and Auto-Resume Event Frequency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `datawarehouse` / `snowflake:warehouse_events` events where `WAREHOUSE_NAME` stays below `events` > 20, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.74."
   },
   "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_EVENTS_HISTORY` ingested as `snowflake:warehouse_events`",
   "app": "Splunk Add-on for Snowflake (Splunkbase 5390) with `WAREHOUSE_EVENTS_HISTORY` input, or DB Connect scheduled query",
   "spl": "index=datawarehouse sourcetype=\"snowflake:warehouse_events\"\n| eval ev=upper(coalesce(EVENT_NAME, event_name))\n| where match(ev,\"SUSPEND\") OR match(ev,\"RESUME\")\n| bin _time span=1h\n| stats count as events dc(ev) as event_types by WAREHOUSE_NAME, _time\n| eventstats median(events) as med_events by WAREHOUSE_NAME\n| where events > med_events*3 AND events > 20",
   "description": "Chronic auto-resume thrash burns credits and hides real workload signals, while a sudden drop in suspend/resume activity can mean policies were widened and spend is drifting. Tracking event frequency per warehouse makes finance and platform conversations data-driven.",
-  "value": "Controls Snowflake runaway spend and catches misconfigured auto-suspend intervals before invoices spike.",
+  "value": "Chronic auto-resume thrash burns credits and hides real workload signals, while a sudden drop in suspend/re.... Timely UC-7.1.74 alerting on 'Snowflake Warehouse Auto-Suspend and Auto-Resume Event Frequency' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Enable the warehouse events input in the add-on’s `inputs.conf` (respect ACCOUNT_USAGE latency). Normalize `EVENT_NAME` casing. Build a 30-day median baseline per warehouse. Exclude dev sandboxes via lookup. Alert on thrash (high count) and on zero events for 24h on warehouses expected to idle.",
   "visualization": "Line chart (events by warehouse), Histogram (hour-of-day thrash).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Snowflake Warehouse Auto-Suspend and Auto-Resume Event Frequency'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `datawarehouse` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `datawarehouse`** — Planned work for 'Snowflake Warehouse Auto-Suspend and Auto-Resume Event Frequency' shifts `dc` over `span=1h` while `WAREHOUSE_NAME` remains in-scope for UC-7.1.74. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `snowflake:warehouse_events`** — Scheduled automation elevates `_time` without crossing `events` > 20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `WAREHOUSE_NAME`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snowflake:warehouse_events`** — First 48h baseline for `WAREHOUSE_NAME` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `WAREHOUSE_NAME`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "servicenow",

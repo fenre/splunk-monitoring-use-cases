@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Policy Drift Detection' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_policy_drift_detection` (UC-17.3.6), SOC dashboard panel \"Network — Policy Drift Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=zt` sourcetype='zt:admin_audit' that satisfy the UC-17.3.6 SPL filters for 'Policy Drift Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `zt` / `zt:admin_audit` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.6."
+    "positiveScenario": "Ingest synthetic events into `index=zt` sourcetype='zt:admin_audit' where `entity` satisfies detection threshold for UC-17.3.6 ('Policy Drift Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `zt` / `zt:admin_audit` events where `entity` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.6."
   },
   "dataSources": "ZT policy audit logs, configuration snapshots Indexes: zt. Sourcetypes: zt:admin_audit. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `TA-fortinet_fortigate` (FortiSASE), Check Point App for Splunk (Splunkbase 4293)",
   "spl": "index=zt sourcetype=\"zt:admin_audit\"\n| search action IN (\"policy_modified\",\"rule_added\",\"rule_deleted\",\"rule_disabled\")\n| table _time, admin, action, policy_name, details\n| sort -_time",
-  "description": "Zero-trust policies require continuous validation. Drift from baseline configuration introduces security gaps.",
-  "value": "Security governance teams detect Zero Trust policy drift by tracking every policy modification, flagging out-of-hours changes, quantifying exception accumulation, and comparing the live configuration against the approved baseline design.",
+  "description": "Zero-trust policies require continuous validation. Drift from baseline configuration introduces security gaps. Searches `index=zt` with sourcetype `zt:admin_audit` for UC-17.3.6, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Network operators a repeatable signal for 'Policy Drift Detection' without manual log review.",
+  "value": "Zero-trust policies require continuous validation. Timely UC-17.3.6 alerting on 'Policy Drift Detection' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Track all ZT policy changes via audit logs. Compare current configuration against approved baseline. Alert on unauthorized modifications. Require change management approval for policy changes. Report on policy change frequency.",
   "visualization": "Table (policy changes), Timeline (modification events), Bar chart (changes by admin), Single value (changes this week).",
   "cimModels": [
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Policy Drift Detection'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `zt`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `zt:admin_audit` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `zt`** — Planned work for 'Policy Drift Detection' shifts `count` over `span=1h` while `host` remains in-scope for UC-17.3.6. Cross-check CMDB CHG.\n\n2. **Batch `count` on `zt:admin_audit`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `zt` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zt:admin_audit`** — First 48h baseline for `host` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1562.004",
     "T1133"

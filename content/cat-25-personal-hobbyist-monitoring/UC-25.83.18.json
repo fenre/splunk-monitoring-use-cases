@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Hearing Aid Battery Cycle Incident Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_hearing_aid_battery_cycle_incident_rate` (UC-25.83.18), SOC dashboard panel \"Personal — Hearing Aid Battery Cycle Incident Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='hearingaid:battery' that satisfy the UC-25.83.18 SPL filters for 'Hearing Aid Battery Cycle Incident Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `hearingaid:battery` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.83.18."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='hearingaid:battery' where `_time` satisfies `incidents` > 0 for UC-25.83.18 ('Hearing Aid Battery Cycle Incident Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `hearingaid:battery` events where `_time` stays below `incidents` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.83.18."
   },
   "dataSources": "Mobility-aid status (`mobilityaid:status`), wheelchair battery telemetry (`wheelchair:battery`), stairlift service records (`stairlift:service`), hearing-aid battery records (`hearingaid:battery`), pendant-alert tests (`pendant:test`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Wheelchair battery telemetry, stairlift service records, hearing-aid battery reminders, and pendant-alert test logs streamed to Splunk HEC via apps, service portals, and caregiver forms. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=hearingaid:battery\n| where incident_count=*\n| bin _time span=1mon\n| stats sum(incident_count) as incidents by _time aid_id\n| where incidents>0\n| sort - _time",
-  "description": "Tracks service incidents, faults, or problem reports for hearing aid battery cycle by month.",
-  "value": "Incident counts show which aid or device is quietly becoming unreliable, even before it fully fails.",
+  "description": "Tracks service incidents, faults, or problem reports for hearing aid battery cycle by month. Searches `index=personal` with sourcetype `hearingaid:battery` for UC-25.83.18, aggregating `sum` by `_time` over `1m`. Alerts when grouped results cross `incidents` > 0 in the saved search. Gives Personal operators a repeatable signal for 'Hearing Aid Battery Cycle Incident Rate' without manual log review.",
+  "value": "Tracks service incidents, faults, or problem reports for hearing aid battery cycle by month. Timely UC-25.83.18 alerting on 'Hearing Aid Battery Cycle Incident Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Count any breakdown, missed alert, jam, or user-reported problem into `incident_count` during ingest.",
   "visualization": "Monthly table of incidents by device.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Hearing Aid Battery Cycle Incident Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `hearingaid:battery`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Hearing Aid Battery Cycle Incident Rate' stops polling `hearingaid:battery`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `hearingaid:battery`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew `incidents` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

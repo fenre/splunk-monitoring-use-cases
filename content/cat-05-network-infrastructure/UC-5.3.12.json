@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'iRule/Policy Errors (F5 BIG-IP)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_irule_policy_errors_f5_big_ip` (UC-5.3.12), SOC dashboard panel \"Operations — iRule/Policy Errors (F5 BIG-IP)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='f5:bigip:ltm' that satisfy the UC-5.3.12 SPL filters for 'iRule/Policy Errors (F5 BIG-IP)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `f5:bigip:ltm` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.3.12."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='f5:bigip:ltm' where `rule_name` satisfies detection threshold for UC-5.3.12 ('iRule/Policy Errors (F5 BIG-IP)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `f5:bigip:ltm` events where `rule_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.3.12."
   },
   "dataSources": "`sourcetype=f5:bigip:ltm` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "F5 TA (`Splunk_TA_f5-bigip`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"f5:bigip:ltm\" \"TCL error\" OR \"rule error\" OR \"aborted\"\n| rex \"Rule (?<rule_name>/\\S+)\"\n| stats count by rule_name, host | sort -count",
-  "description": "iRule failures cause unexpected traffic handling — potentially bypassing security or routing traffic incorrectly.",
-  "value": "Application delivery teams detect F5 BIG-IP iRule TCL runtime errors and LTM policy failures that cause connection resets or incorrect traffic routing, correlating error spikes with recent iRule deployments.",
+  "description": "IRule failures cause unexpected traffic handling — potentially bypassing security or routing traffic incorrectly. Searches `index=network` with sourcetype `f5:bigip:ltm` for UC-5.3.12, aggregating `count` by `rule_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'iRule/Policy Errors (F5 BIG-IP)' without manual log review.",
+  "value": "IRule failures cause unexpected traffic handling — potentially bypassing security or routing traffic incorr.... Timely UC-5.3.12 alerting on 'iRule/Policy Errors (F5 BIG-IP)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Enable iRule logging (sparingly — high volume). Monitor for TCL runtime errors. Alert on any iRule abort events. Review and test iRules in staging before production.",
   "visualization": "Table (rule name, error count, host), Timechart (errors over time).",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'iRule/Policy Errors (F5 BIG-IP)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'iRule/Policy Errors (F5 BIG-IP)' shifts `count` over `span=1h` while `rule_name` remains in-scope for UC-5.3.12. Cross-check CMDB CHG.\n\n2. **Batch `count` on `f5:bigip:ltm`** — Scheduled automation elevates `host` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `rule_name`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `f5:bigip:ltm`** — First 48h baseline for `rule_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `rule_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "f5"
   ],

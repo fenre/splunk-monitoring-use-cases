@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Brooder Temperature Stability for Chicks' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_brooder_temperature_stability_for_chicks` (UC-25.24.12), SOC dashboard panel \"Personal — Brooder Temperature Stability for Chicks\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='brooder:climate' that satisfy the UC-25.24.12 SPL filters for 'Brooder Temperature Stability for Chicks'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `brooder:climate` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.24.12."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='brooder:climate' where `brooder` satisfies detection threshold for UC-25.24.12 ('Brooder Temperature Stability for Chicks'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `brooder:climate` events where `brooder` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.24.12."
   },
   "dataSources": "Beehive weight and entrance activity (`beehive:weight`), hive climate (`beehive:climate`), brooder climate (`brooder:climate`), egg counts (`coop:egg`), rain-barrel level (`rainbarrel:level`), greenhouse climate (`greenhouse:climate`), orchard bloom observations (`orchard:bloom`), and milking logs (`milking:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Homestead telemetry from beehive monitors, coop sensors, brooder controls, greenhouse sensors, rain barrels, orchard logs, and milking records streamed to Splunk HEC via MQTT, LoRaWAN, and Home Assistant. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=brooder:climate\n| stats avg(temp_c) as avg_temp_c stdev(temp_c) as temp_stdev_c by brooder\n| sort - temp_stdev_c",
-  "description": "Measures the average and variability of brooder temperature so unstable heat is obvious.",
-  "value": "Young birds rely on stable warmth, and temperature variability is often more revealing than the average alone.",
+  "description": "Measures the average and variability of brooder temperature so unstable heat is obvious. Searches `index=personal` with sourcetype `brooder:climate` for UC-25.24.12, aggregating `avg` by `brooder` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Brooder Temperature Stability for Chicks' without manual log review.",
+  "value": "Measures the average and variability of brooder temperature so unstable heat is obvious. Timely UC-25.24.12 alerting on 'Brooder Temperature Stability for Chicks' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send brooder temperature readings from ESPHome or a thermostat controller and review daily stability.",
   "visualization": "Table of average brooder temperature and temperature variability.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Brooder Temperature Stability for Chicks'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `brooder:climate`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Brooder Temperature Stability for Chicks' stops polling `brooder:climate`; stale `brooder` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `brooder:climate`. Dedup with `stats latest(*) by brooder`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "m365",
     "mqtt"

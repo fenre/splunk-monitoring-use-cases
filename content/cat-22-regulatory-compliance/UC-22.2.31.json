@@ -29,15 +29,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set `legal_entity_id=LE-TEST` to `entity_tier=essential` in the lookup while CMDB events carry `nis2_entity_tag=important` for the same ID; run the search and confirm a row with `mismatch=1`.",
-    "negativeScenario": "Align CMDB `nis2_entity_tag` text to include essential per the lookup (or remove the CI test data) and verify the next run produces no row for that entity.",
-    "fixtureRef": "sample-data/uc-22.2.31-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=cmdb` sourcetype='snow:cmdb_ci_server' where `legal_entity_id` satisfies detection threshold for UC-22.2.31 ('NIS2 Entity Classification Validation (Essential vs Important)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cmdb` / `snow:cmdb_ci_server` events where `legal_entity_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.2.31."
   },
   "dataSources": "`lookup=nis2_entity_classification.csv` columns `legal_entity_id`, `entity_tier`, `registered_name` remain the legal baseline. `index=cmdb` `sourcetype=snow:cmdb_ci_server` (Splunk Add-on for ServiceNow, Splunkbase 1928) carries `nis2_entity_tag`, `company`, `sys_id`, `os`, `name`. Cross-check geography and sector using `lookup=nis2_entity_scope.csv` (`country_code`, `in_scope`, `entity_tier_expected`). Governance policy attestations may mirror `index=itsm` `sourcetype=snow:sn_grc_policy` with `policy_number` ties.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263) optional for asset overlays",
   "spl": "| inputlookup nis2_entity_classification.csv\n| join legal_entity_id type=left [\n    search index=cmdb sourcetype=snow:cmdb_ci_server earliest=-1d\n    | stats values(nis2_entity_tag) as cmdb_tags by legal_entity_id\n]\n| eval mismatch=if(isnull(cmdb_tags),1,if(NOT match(mvjoin(cmdb_tags,\"|\"), entity_tier),1,0))\n| where mismatch=1\n| table legal_entity_id, entity_tier, cmdb_tags, mismatch",
   "description": "Compares the legal NIS2 tier recorded in the classification lookup against CMDB tags synced from ServiceNow so mislabelled legal entities and the servers attached to them surface before reporting deadlines slip.",
-  "value": "Prevents the wrong regulatory playbook—essential versus important—from silently propagating through automation by catching CMDB drift the week it happens, not when a supervisor asks for evidence months later.",
+  "value": "Compares the legal NIS2 tier recorded in the classification lookup against CMDB tags synced from ServiceNow.... Timely UC-22.2.31 alerting on 'NIS2 Entity Classification Validation (Essential vs Important)' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Legal publishes authoritative tiers into `nis2_entity_classification.csv`; block edits without CAB ticket. (2) ServiceNow CMDB business rules write `nis2_entity_tag` nightly. (3) Save `UC-22.2.31` daily. (4) Auto-create ServiceNow tasks for mismatches. (5) Map `nis2_entity_scope.csv` during cross-border reviews.",
   "visualization": "Table of mismatched entities, single value count needing review, optional Sankey from entity to CI counts.",
   "cimModels": [],
@@ -66,7 +65,7 @@
       "retrieved": "2026-04-29"
     }
   ],
-  "knownFalsePositives": "• **CMDB lag after legal reclassification** — Distinguish: court filing updated but SNOW import still queued **24 hours**. Suppress: time-bound `nis2_classification_transition_register.csv` with `legal_effective_date`.\n• **Multi-tier holdings in one legal entity** — Distinguish: `entity_tier` aggregate while CMDB tags list subsidiaries. Suppress: enrich with `mvappend` from lookup `nis2_subsidiary_map.csv` before `match()`.\n• **Case-sensitive tags** — Distinguish: `Essential` vs `essential`. Suppress: `| eval entity_tier=lower(entity_tier)` pipeline macro.\n• **Test CIs in production CI classes** — Distinguish: `host.class=test` still inherits stale tag. Suppress: `where NOT match(name,\"^tst\")` filter on CMDB subsearch.\n• **Assetless legal shell** — Distinguish: no cmdb rows yet for brand-new SPV. Suppress: allow `mismatch=1` but route to legal queue not ops via lookup `nis2_zero_asset_entities.csv`.",
+  "knownFalsePositives": "1. **Authorised NIS2 control testing** — Internal audit exercises 'NIS2 Entity Classification Validation (Essential vs Important)' (UC-22.2.31) on `legal_entity_id` during scheduled clause Art.2(1) sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=cmdb` `snow:cmdb_ci_server` without crossing evidence threshold. Cross-check engagement letter in `nis2_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `cmdb` for `legal_entity_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `legal_entity_id` during normal service delivery.\n\n**Suppression mechanism:** `nis2_exception_register.csv` keyed on `legal_entity_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "requiredFields": [
     "cmdb_tags",
     "entity_tier",

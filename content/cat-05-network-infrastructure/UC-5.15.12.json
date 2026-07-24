@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Infoblox Authoritative Zone Transfer (AXFR/IXFR) Failure Monitoring (Infoblox)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_infoblox_authoritative_zone_transfer_axfr_ixfr_f` (UC-5.15.12), SOC dashboard panel \"Operations — Infoblox Authoritative Zone Transfer (AXFR/IXFR) Failure Monitoring (Infoblox)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dns` sourcetype='infoblox:dns' that satisfy the UC-5.15.12 SPL filters for 'Infoblox Authoritative Zone Transfer (AXFR/IXFR) Failure Monitoring (Infoblox)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dns` / `infoblox:dns` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.15.12."
+    "positiveScenario": "Ingest synthetic events into `index=dns` sourcetype='infoblox:dns' where `zone_name` satisfies detection threshold for UC-5.15.12 ('Infoblox Authoritative Zone Transfer (AXFR/IXFR) Failure Monitoring (Infoblox)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dns` / `infoblox:dns` events where `zone_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.15.12."
   },
   "dataSources": "`index=dns` `sourcetype=infoblox:dns` authoritative service logs capturing NOTIFY, AXFR, IXFR, TSIG failures; complementary `sourcetype=infoblox:audit` entries referencing zone distribution or transfer denies when DNS daemon verbosity routes there.",
   "app": "Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)",
   "spl": "index=dns sourcetype=\"infoblox:dns\" earliest=-24h\n| search ((\"AXFR\" OR \"IXFR\" OR \"zone transfer\" OR \"transfer failed\" OR \"NOTIFY\" OR \"TSIG\" OR \"NOTAUTH\" OR \"REFUSED\") AND (fail OR failed OR deny OR error OR timeout OR refused))\n| rex field=_raw \"(?i)(?:zone|domain)[\\\\s:=]+(?<zone_name>[^\\\\s,;]+)\"\n| rex field=_raw \"(?i)(?:client|peer|master)[\\\\s:=]+(?<peer>[^\\\\s,;]+)\"\n| stats count latest(_time) as last_event values(_raw) as samples by zone_name peer host\n| sort - count\n| head 150",
   "description": "Monitoring highlights unsuccessful authoritative zone transfers or NOTIFY-driven replication errors between Grid members and downstream secondaries so stale DNS answers do not silently propagate to external resolvers.",
-  "value": "Customer-facing authoritative DNS stays consistent across stealth secondary servers and cloud anycast edges, preventing TTL‑bounded outages when primaries update but secondaries stall due to TSIG or firewall drift.",
+  "value": "Monitoring highlights unsuccessful authoritative zone transfers or NOTIFY-driven replication errors between.... Timely UC-5.15.12 alerting on 'Infoblox Authoritative Zone Transfer (AXFR/IXFR) Failure Monitoring (Infoblox)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Increase authoritative logging verbosity temporarily during investigations; normalize TSIG-related phrases; alert on any TRANSFER failure keywords grouped by zone_name and peer; integrate with firewall change tickets.",
   "visualization": "Table (zone_name, peer, count, last_event), timeline of failures, side-by-side map of Grid member roles.",
   "cimModels": [],
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Infoblox Authoritative Zone Transfer (AXFR/IXFR) Failure Monitoring (Infoblox)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `dns` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `dns`** — Planned work for 'Infoblox Authoritative Zone Transfer (AXFR/IXFR) Failure Monitoring (Infoblox)' shifts `values` over `span=1h` while `zone_name` remains in-scope for UC-5.15.12. Cross-check CMDB CHG.\n\n2. **Batch `values` on `infoblox:dns`** — Scheduled automation elevates `peer` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `zone_name`** — Health checks in `dns` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `infoblox:dns`** — First 48h baseline for `zone_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `zone_name`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "infoblox"

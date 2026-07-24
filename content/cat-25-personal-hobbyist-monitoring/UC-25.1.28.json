@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'TrainerRoad FTP Progression Stall After Build Block' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_trainerroad_ftp_progression_stall_after_build_bl` (UC-25.1.28), SOC dashboard panel \"Personal — TrainerRoad FTP Progression Stall After Build Block\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='trainerroad:workout' that satisfy the UC-25.1.28 SPL filters for 'TrainerRoad FTP Progression Stall After Build Block'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `trainerroad:workout` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.28."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='trainerroad:workout' where `athlete` satisfies `completed_sessions` >= 10 for UC-25.1.28 ('TrainerRoad FTP Progression Stall After Build Block'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `trainerroad:workout` events where `athlete` stays below `completed_sessions` >= 10, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.28."
   },
   "dataSources": "Endurance activities (`strava:activity`, `garmin:activity`, `coros:activity`, `wahoo:workout`, `trainerroad:workout`, `applefitness:workout`, `concept2:workout`, `zwift:activity`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "COROS, Wahoo ELEMNT, TrainerRoad, Apple Fitness / HealthKit exports, Concept2 Logbook, Strava, Garmin Connect, and Zwift activity feeds via official APIs, FIT/CSV exports, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=trainerroad:workout\n| bin _time span=8w\n| stats max(ftp_estimate_w) as ftp_estimate_w, count(eval(status=\"completed\")) as completed_sessions by athlete _time\n| streamstats current=f last(ftp_estimate_w) as previous_ftp by athlete\n| where completed_sessions>=10 AND previous_ftp>0 AND ftp_estimate_w<=previous_ftp\n| sort - _time",
   "description": "Uses TrainerRoad workout history telemetry to monitor FTP movement after solid blocks of completed training in index=personal.",
-  "value": "Splunk turns the feed into an operational check for plateaus that deserve a plan change or recovery week, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses TrainerRoad workout history telemetry to monitor FTP movement after solid blocks of completed training.... Timely UC-25.1.28 alerting on 'TrainerRoad FTP Progression Stall After Build Block' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest TrainerRoad workout history data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a weekly cadence.",
   "visualization": "Eight-week trend of completed sessions and estimated FTP.",
   "cimModels": [],
@@ -60,7 +60,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'TrainerRoad FTP Progression Stall After Build Block'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `trainerroad:workout`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'TrainerRoad FTP Progression Stall After Build Block' stops polling `trainerroad:workout`; stale `athlete` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `8w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `trainerroad:workout`. Dedup with `stats latest(*) by athlete`.\n\n4. **Timezone bucket misalignment** — `8w` bins on UTC vs local schedule skew `completed_sessions` >= 10. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

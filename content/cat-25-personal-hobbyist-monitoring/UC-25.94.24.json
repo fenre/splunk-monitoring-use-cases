@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Follow-Up Reminder Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_follow_up_reminder_sync_gap_watch` (UC-25.94.24), SOC dashboard panel \"Personal — Follow-Up Reminder Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='followup:reminder' that satisfy the UC-25.94.24 SPL filters for 'Follow-Up Reminder Sync Gap Watch'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `followup:reminder` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.94.24."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='followup:reminder' where `contact_name` satisfies `hours_since` > 72 for UC-25.94.24 ('Follow-Up Reminder Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `followup:reminder` events where `contact_name` stays below `hours_since` > 72, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.94.24."
   },
   "dataSources": "Monica contacts (`monica:contact`), Clay relationships (`clay:relationship`), LinkedIn connections (`linkedin:connection`), follow-up reminders (`followup:reminder`), and intro requests (`intro:request`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Monica contact relationship logs, Clay network exports, LinkedIn connection events, follow-up reminder tasks, and warm-intro request trackers streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=followup:reminder\n| stats max(_time) as last_seen by contact_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>72\n| sort - hours_since",
   "description": "Detects when follow-up reminder data has stopped arriving for a given contact. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Personal telemetry is only useful when it is current; sync-gap alerts catch failed exports and broken credentials early.",
+  "value": "Detects when follow-up reminder data has stopped arriving for a given contact. Timely UC-25.94.24 alerting on 'Follow-Up Reminder Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Track the latest event time per contact and alert when the feed is older than 72 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Follow-Up Reminder Sync Gap Watch'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `followup:reminder`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Follow-Up Reminder Sync Gap Watch' stops polling `followup:reminder`; stale `contact_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `followup:reminder`. Dedup with `stats latest(*) by contact_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 72. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

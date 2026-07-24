@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Gate Allocation Optimization Analytics' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_gate_allocation_optimization_analytics` (UC-21.7.8), SOC dashboard panel \"Operations — Gate Allocation Optimization Analytics\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=airport` sourcetype='gate:allocation' that satisfy the UC-21.7.8 SPL filters for 'Gate Allocation Optimization Analytics'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `airport` / `gate:allocation` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.7.8."
+    "positiveScenario": "Ingest synthetic events into `index=airport` sourcetype='gate:allocation' where `gate_id` satisfies `change_rate` > 25 for UC-21.7.8 ('Gate Allocation Optimization Analytics'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `airport` / `gate:allocation` events where `gate_id` stays below `change_rate` > 25, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.7.8."
   },
   "dataSources": "`index=airport` `sourcetype=\"gate:allocation\"` (flight_id, gate_id, planned_gate, actual_gate, change_count, tow_required_flag) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "AODB / gate management via HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=airport sourcetype=\"gate:allocation\"\n| eval gate_mismatch=if(planned_gate!=actual_gate,1,0)\n| stats sum(gate_mismatch) as changes, sum(tow_required_flag) as tows, count as flights by gate_id\n| eval change_rate=round(100*changes/nullif(flights,0),2)\n| where change_rate > 25 OR tows > 10\n| sort - change_rate\n| table gate_id, flights, changes, change_rate, tows",
   "description": "Gate churn and long towing distances waste ground time; analyzing assigned vs actual gate usage supports stand planning and reduces conflicts.",
-  "value": "Service and risk leaders use signals from Gate Allocation Optimization Analytics to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "Service and risk leaders use signals from Gate Allocation Optimization Analytics to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Refresh from AODB snapshots or event stream on gate changes. Join aircraft size class if available to explain constraints. Use monthly reports for planning rather than minute-by-minute alerts. **Domain context:** Gate changes drive towing and turnaround—ICAO Doc 9644 addresses apron management coordination. **Splunk:** `gate_mismatch` counts per `gate_id` may mix cause (airline swap vs airport reassignment)—add `reason_code` if available.",
   "visualization": "Bar chart (change rate by gate), Stacked bar (tows vs no tow), Table (top volatile gates).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Gate Allocation Optimization Analytics'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `airport` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `airport`** — Planned work for 'Gate Allocation Optimization Analytics' shifts `sum` over `span=1h` while `gate_id` remains in-scope for UC-21.7.8. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `gate:allocation`** — Scheduled automation elevates `gate_mismatch` without crossing `change_rate` > 25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `gate_id`** — Health checks in `airport` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gate:allocation`** — First 48h baseline for `gate_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `gate_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

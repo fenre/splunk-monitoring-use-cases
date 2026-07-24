@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'LIFX Firmware Skew by Group' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_lifx_firmware_skew_by_group` (UC-25.5.26), SOC dashboard panel \"Personal — LIFX Firmware Skew by Group\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lifx:state' that satisfy the UC-25.5.26 SPL filters for 'LIFX Firmware Skew by Group'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `lifx:state` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.26."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lifx:state' where `group` satisfies `firmware_variants` > 1 for UC-25.5.26 ('LIFX Firmware Skew by Group'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `lifx:state` events where `group` stays below `firmware_variants` > 1, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.26."
   },
   "dataSources": "Device-state telemetry (`zigbee2mqtt:device`, `aqara:device`, `tradfri:device`, `lifx:state`, `nanoleaf:scene`, `blindmotor:state`, `shelly:status`, `ecobee:thermostat`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Aqara, IKEA Tradfri, LIFX, Nanoleaf, Shelly, Zigbee2MQTT, Ecobee, and smart blind motors via vendor clouds, LAN APIs, MQTT bridges, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=lifx:state\n| stats latest(firmware_version) as firmware_version by group bulb\n| eventstats dc(firmware_version) as firmware_variants by group\n| where firmware_variants>1\n| sort - firmware_variants",
-  "description": "Uses LIFX bulb state telemetry to monitor firmware skew inside each lighting group in index=personal.",
-  "value": "Splunk turns the feed into an operational check for partial upgrades that complicate troubleshooting, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses LIFX bulb state telemetry to monitor firmware skew inside each lighting group in index=personal. Searches `index=personal` with sourcetype `lifx:state` for UC-25.5.26, aggregating `dc` by `group` over `the scheduled window`. Alerts when grouped results cross `firmware_variants` > 1 in the saved search. Gives Personal operators a repeatable signal for 'LIFX Firmware Skew by Group' without manual log review.",
+  "value": "Uses LIFX bulb state telemetry to monitor firmware skew inside each lighting group in index=personal. Timely UC-25.5.26 alerting on 'LIFX Firmware Skew by Group' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest LIFX bulb state data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Group inventory of LIFX firmware variants.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'LIFX Firmware Skew by Group'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lifx:state`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'LIFX Firmware Skew by Group' stops polling `lifx:state`; stale `group` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `dc` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lifx:state`. Dedup with `stats latest(*) by group`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `firmware_variants` > 1. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Honey Harvest Yield by Hive and Season' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_honey_harvest_yield_by_hive_and_season` (UC-25.24.9), SOC dashboard panel \"Personal — Honey Harvest Yield by Hive and Season\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='beehive:reading' that satisfy the UC-25.24.9 SPL filters for 'Honey Harvest Yield by Hive and Season'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `beehive:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.24.9."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='beehive:reading' where `hive` satisfies detection threshold for UC-25.24.9 ('Honey Harvest Yield by Hive and Season'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `beehive:reading` events where `hive` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.24.9."
   },
   "dataSources": "Beehive telemetry (`beehive:reading`), coop door (`chickencoop:door`), egg counts (`egg:count`), livestock tags (`livestock:tag`), feed level (`feed:level`), pasture sensors (`pasture:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Homestead sensors — connected beehive scale/temperature/sound, automatic chicken-coop door, egg counter, livestock GPS/health tags, feed-silo level, and pasture soil sensors — streamed to Splunk HEC via MQTT and LoRaWAN gateways. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=beehive:reading event=harvest\n| bin _time span=1mon\n| stats sum(harvest_kg) as honey by hive _time\n| stats sum(honey) as total by hive\n| sort - total",
   "description": "Totals the honey harvested from each hive across the season, revealing your strongest colonies and best-producing sites.",
-  "value": "Comparing yield per hive guides which colonies to split and where to place hives, turning beekeeping into informed husbandry.",
+  "value": "Totals the honey harvested from each hive across the season, revealing your strongest colonies and best-pro.... Timely UC-25.24.9 alerting on 'Honey Harvest Yield by Hive and Season' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log harvest weights into `index=personal`; schedule seasonally and total honey per hive.",
   "visualization": "Bar chart of honey harvested by hive.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Honey Harvest Yield by Hive and Season'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `beehive:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Honey Harvest Yield by Hive and Season' stops polling `beehive:reading`; stale `hive` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `beehive:reading`. Dedup with `stats latest(*) by hive`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hardware_bmc",
     "mqtt"

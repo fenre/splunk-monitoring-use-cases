@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Kernel Core Dump Generation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_kernel_core_dump_generation` (UC-1.1.23), SOC dashboard panel \"Linux — Kernel Core Dump Generation\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='syslog' that satisfy the UC-1.1.23 SPL filters for 'Kernel Core Dump Generation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `syslog` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.23."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='syslog' where `host` satisfies detection threshold for UC-1.1.23 ('Kernel Core Dump Generation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `syslog` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.23."
   },
   "dataSources": "`sourcetype=syslog, /var/log/kern.log` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix, custom scripted input` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=syslog \"segfault at\" OR \"general protection fault\" OR \"double fault\"\n| stats count by host, message, user\n| eval severity=\"high\"",
-  "description": "Core dumps indicate process crashes at kernel level, enabling root cause analysis of system stability issues.",
+  "description": "Core dumps indicate process crashes at kernel level, enabling root cause analysis of system stability issues. Searches `index=os` with sourcetype `syslog` for UC-1.1.23, aggregating `count` by `host` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Linux operators a repeatable signal for 'Kernel Core Dump Generation' without manual log review.",
   "value": "Early 'Kernel Core Dump Generation' detection reduces capacity incidents, patch regressions, and service outages by giving Linux operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "On the UF, enable `[monitor:///var/log/kern.log]` (Debian/Ubuntu) or `[monitor:///var/log/messages]` (RHEL/CentOS) with `sourcetype=syslog`; for journald-only distros use the `[journald://]` input. Alert on first occurrence of `segfault` or `core dumped` per host. Configure `systemd-coredump` to write dumps to `/var/lib/systemd/coredump/` and monitor the directory for new files to correlate dump metadata with syslog events.",
   "visualization": "Alert, Stats Table",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Kernel Core Dump Generation'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `syslog`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Kernel Core Dump Generation'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "syslog"

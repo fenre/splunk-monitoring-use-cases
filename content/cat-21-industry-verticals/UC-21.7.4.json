@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Airfield Ground Vehicle Tracking and Geofencing' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_airfield_ground_vehicle_tracking_and_geofencing` (UC-21.7.4), SOC dashboard panel \"Operations — Airfield Ground Vehicle Tracking and Geofencing\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=airport` sourcetype='airfield:vehicle' that satisfy the UC-21.7.4 SPL filters for 'Airfield Ground Vehicle Tracking and Geofencing'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `airport` / `airfield:vehicle` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.7.4."
+    "positiveScenario": "Ingest synthetic events into `index=airport` sourcetype='airfield:vehicle' where `vehicle_id` satisfies `speed_kph` > 40 for UC-21.7.4 ('Airfield Ground Vehicle Tracking and Geofencing'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `airport` / `airfield:vehicle` events where `vehicle_id` stays below `speed_kph` > 40, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.7.4."
   },
   "dataSources": "`index=airport` `sourcetype=\"airfield:vehicle\"` (vehicle_id, lat, lon, speed_kph, geofence_id, breach_flag) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Airfield vehicle telematics via HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=airport sourcetype=\"airfield:vehicle\"\n| where breach_flag=1 OR speed_kph > 40\n| bin _time span=1m\n| stats count as events, values(geofence_id) as zones by vehicle_id, _time\n| where events >= 2\n| table _time, vehicle_id, events, zones",
   "description": "Vehicles breaching movement area boundaries create runway incursion risk; monitoring GPS tracks against geofences supports safety management and audit evidence.",
-  "value": "Service and risk leaders use signals from Airfield Ground Vehicle Tracking and Geofencing to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "Service and risk leaders use signals from Airfield Ground Vehicle Tracking and Geofencing to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Stream or batch position fixes; compute `breach_flag` at the edge if possible for lower latency. Use Splunk for trending and investigation; pair with SMS alerts for real-time incursion systems. Retain maps for post-incident review only with proper access controls. **Domain context:** ICAO Doc 9870 / runway safety areas—incursion risk management is separate from Splunk; this UC supports SMS evidence and training. **Splunk:** Speed threshold (40 km/h) is illustrative—set per movement area policy.",
   "visualization": "Map (vehicle positions), Timeline (breach events), Table (repeat offenders).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Airfield Ground Vehicle Tracking and Geofencing'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `airport` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `airport`** — Planned work for 'Airfield Ground Vehicle Tracking and Geofencing' shifts `values` over `span=1m` while `vehicle_id` remains in-scope for UC-21.7.4. Cross-check CMDB CHG.\n\n2. **Batch `values` on `airfield:vehicle`** — Scheduled automation elevates `_time` without crossing `speed_kph` > 40. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `vehicle_id`** — Health checks in `airport` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airfield:vehicle`** — First 48h baseline for `vehicle_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `vehicle_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

@@ -55,17 +55,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Deleting a control in the GRC tool (state=inactive) that is still listed in dora_control_catalogue.csv causes the UC to fire within 24h naming the specific control_id and ict_service.",
-    "negativeScenario": "A newly-added control whose family is present in the approved catalogue and whose state is active does NOT fire.",
-    "fixtureRef": "",
-    "attackTechnique": "T1562",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=grc` sourcetype='target_sourcetype' where `control_id` satisfies detection threshold for UC-22.3.41 ('DORA Art.6 — ICT risk-management framework evidence: control catalogue drift detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `grc` / `target_sourcetype` events where `control_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.3.41."
   },
   "dataSources": "`index=grc` sourcetype=archer:control, sourcetype=servicenow:grc_control; `index=cmdb` sourcetype=cmdb:ci_ict_service; controlFamily catalogue lookup `dora_control_catalogue.csv`. (Splunkbase 1621 — Splunk CIM Add-on)",
   "app": "Splunk Enterprise Security, Splunk Add-on for ServiceNow",
   "spl": "index=grc sourcetype IN (archer:control,servicenow:grc_control) earliest=-1d\n| stats latest(control_family) AS control_family latest(state) AS state BY control_id ict_service\n| lookup dora_control_catalogue.csv control_family OUTPUT approved\n| where isnull(approved) OR state=\"inactive\"\n| table ict_service control_id control_family state approved",
   "description": "Compares the live control inventory from the governance platform against the Board-approved DORA control catalogue (per Art.6 requirement for a documented ICT risk-management framework). Surfaces orphan controls (in operations but not in catalogue) and decayed controls (in catalogue but now inactive).",
-  "value": "Replaces the annual 'do we still have the framework' attestation with a continuous reconciliation — regulators under DORA Art.6 expect the framework to be 'soundly, comprehensively and well-documented', meaning drift must be detected and remediated, not just discovered at the next audit.",
+  "value": "Compares the live control inventory from the governance platform against the Board-approved DORA control ca.... Timely UC-22.3.41 alerting on 'DORA Art.6 — ICT risk-management framework evidence: control catalogue drift detection' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Export control inventory daily from Archer/ServiceNow GRC into Splunk; (2) maintain dora_control_catalogue.csv as the Board-approved baseline with approval date and approver; (3) schedule UC daily; (4) drift >0 opens a risk-register entry assigned to the CISO with 30-day remediation SLA; (5) quarterly sign-off by the ICT risk committee. Indexes required: `index=cmdb`, `index=grc`; Sourcetypes: `sourcetype=archer:control`, `sourcetype=cmdb:ci_ict_service;`, `sourcetype=servicenow:grc_control`, `sourcetype=servicenow:grc_control;`.",
   "visualization": "Table of drifted controls, timechart of drift count by day, single value 'days since last zero-drift state'.",
   "cimModels": [],
@@ -83,7 +80,7 @@
       "url": "https://splunkbase.splunk.com/app/263"
     }
   ],
-  "knownFalsePositives": "1. **Framework implementation timeline** — Newly adopted framework elements being phased in per the approved implementation roadmap show as gaps until their scheduled completion.\n\n2. **Control testing cycle alignment** — Controls due for periodic testing show as untested between cycles while remaining within the defined testing frequency.\n\n3. **Risk register refresh timing** — Quarterly risk register updates may show temporal gaps between risk identification and formal registration.\n\n4. **Cross-reference mapping updates** — Changes to underlying standards (NIST CSF, ISO 27001) requiring framework re-mapping create temporary alignment gaps.\n\n5. **Governance documentation evolution** — Policy documents under annual review may show brief periods where documented procedures lag behind actual practice improvements.",
+  "knownFalsePositives": "1. **Authorised DORA control testing** — Internal audit exercises 'DORA Art.6 — ICT risk-management framework evidence: control catalogue drift detection' (UC-22.3.41) on `control_id` during scheduled clause Art.6 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=grc` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `dora_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `grc` for `control_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `control_id` during normal service delivery.\n\n**Suppression mechanism:** `dora_exception_register.csv` keyed on `control_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1562"
   ],

@@ -91,16 +91,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "An asset destruction event for host host-01 has no matching KMS key-destruction event within 24h; the UC fires.",
-    "negativeScenario": "Matching KMS key-destruction event within 24h; no alert.",
-    "fixtureRef": "",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=assets` sourcetype='asset:disposal' where `entity` satisfies `delta` > 86400 for UC-22.49.5 ('Cryptographic erasure attestation — per-asset destruction evidence'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `assets` / `asset:disposal` events where `entity` stays below `delta` > 86400, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.49.5."
   },
   "dataSources": "Asset disposal workflow events, KMS key destruction events. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=assets sourcetype=asset:disposal earliest=-7d method=cryptographic_erasure\n| join asset_id [search index=kms action=DeleteKey earliest=-8d | fields asset_id key_id _time | rename _time as key_deleted_at]\n| eval delta=abs(_time-key_deleted_at)\n| where isnull(key_deleted_at) OR delta>86400\n| table asset_id key_id _time key_deleted_at delta",
-  "description": "Correlates asset disposal events with the matching KMS key-destruction events to provide verifiable erasure evidence.",
-  "value": "Solves the 'how do I prove we actually erased that data?' question that every DPO faces.",
+  "description": "Correlates asset disposal events with the matching KMS key-destruction events to provide verifiable erasure evidence. Searches `index=assets` with sourcetype `asset:disposal` for UC-22.49.5, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `delta` > 86400 in the saved search. Gives Compliance operators a repeatable signal for 'Cryptographic erasure attestation — per-asset destruction evidence' without manual log review.",
+  "value": "Correlates asset disposal events with the matching KMS key-destruction events to provide verifiable erasure.... Timely UC-22.49.5 alerting on 'Cryptographic erasure attestation — per-asset destruction evidence' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Tag asset-disposal events with asset_id and key_id; (2) ingest KMS DeleteKey; (3) run daily. Indexes required: `index=assets`, `index=kms`; Sourcetypes: `sourcetype=asset:disposal`.",
   "visualization": "Table of orphan disposal events, single-value '% of disposals with matched key destruction'. Key fields: `asset_id`, `delta`, `key_deleted_at`, `key_id`.",
   "cimModels": [],
@@ -125,7 +123,7 @@
       "title": "EDPB — Guidelines & Recommendations"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised GDPR control testing** — Internal audit exercises 'Cryptographic erasure attestation — per-asset destruction evidence' (UC-22.49.5) on `entity` during scheduled clause Art.17 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=assets` `asset:disposal` without crossing `delta` > 86400. Cross-check engagement letter in `gdpr_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `assets` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `gdpr_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "endpoint",
   "requiredFields": [

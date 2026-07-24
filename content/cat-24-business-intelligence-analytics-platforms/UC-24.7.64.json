@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Azure Synapse Pipelines Pipeline Run Duration p95' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_azure_synapse_pipelines_pipeline_run_duration_p9` (UC-24.7.64), SOC dashboard panel \"Operations — Azure Synapse Pipelines Pipeline Run Duration p95\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='azure:synapse:pipeline' that satisfy the UC-24.7.64 SPL filters for 'Azure Synapse Pipelines Pipeline Run Duration p95'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `azure:synapse:pipeline` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.64."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='azure:synapse:pipeline' where `pipeline_name` satisfies `p95_min` > 30 for UC-24.7.64 ('Azure Synapse Pipelines Pipeline Run Duration p95'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `azure:synapse:pipeline` events where `pipeline_name` stays below `p95_min` > 30, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.64."
   },
   "dataSources": "Synapse pipeline runs (`azure:synapse:pipeline`). Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
   "app": "Azure Synapse pipeline diagnostics via Azure Monitor/Event Hub to HEC. — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=bi sourcetype=azure:synapse:pipeline status=\"Succeeded\"\n| eval dur_min=round(duration_ms/60000,2)\n| stats avg(dur_min) as avg_min, p95(dur_min) as p95_min, count as runs by pipeline_name\n| where p95_min>30\n| sort - p95_min",
   "description": "Computes the 95th-percentile run duration for each pipeline in Azure Synapse Pipelines and flags the slowest, pointing owners at the specific content or jobs that need optimisation.",
-  "value": "Tail latency, not the average, is what users feel; ranking Azure Synapse Pipelines pipelines by p95 focuses tuning effort where it removes the most pain.",
+  "value": "Computes the 95th-percentile run duration for each pipeline in Azure Synapse Pipelines and flags the slowes.... Timely UC-24.7.64 alerting on 'Azure Synapse Pipelines Pipeline Run Duration p95' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest Azure Synapse Pipelines timing data; schedule daily over a trailing week and review the slowest pipelines with their owners.",
   "visualization": "Table of pipeline by p95 run duration, trend line.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Azure Synapse Pipelines Pipeline Run Duration p95'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Azure Synapse Pipelines Pipeline Run Duration p95' shifts `avg` over `span=1h` while `pipeline_name` remains in-scope for UC-24.7.64. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `azure:synapse:pipeline`** — Scheduled automation elevates `dur_min` without crossing `p95_min` > 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pipeline_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `azure:synapse:pipeline`** — First 48h baseline for `pipeline_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pipeline_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure"
   ],

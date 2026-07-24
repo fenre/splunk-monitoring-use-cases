@@ -13,7 +13,7 @@
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:client\"\n| eval client_segment=case(\n    connectionType=\"WIRED\", \"Wired\",\n    match(ssid, \"(?i)guest|visitor\"), \"Guest Wireless\",\n    match(ssid, \"(?i)iot|sensor|device\"), \"IoT Wireless\",\n    connectionType=\"WIRELESS\", \"Corporate Wireless\",\n    1==1, \"Unknown\")\n| stats dc(macAddress) as client_count by client_segment, ssid\n| sort -client_count",
   "description": "Segments the client population into operational categories — corporate wired, corporate wireless, guest wireless, IoT wireless — and shows client distribution per SSID, enabling capacity planning decisions about AP density, guest network sizing, and IoT segment isolation.",
-  "value": "A campus with 60% wireless and growing needs more APs next year. A campus with 40% on the guest SSID needs better guest network isolation and rate limiting. A campus with 15% IoT devices on the corporate SSID has a security segmentation gap. This UC turns the raw client inventory from UC-5.13.40 into actionable capacity and security intelligence by classifying clients into segments that map to your network design decisions — different SSIDs, different VLANs, different QoS policies, different budget lines.",
+  "value": "Segments the client population into operational categories — corporate wired, corporate wireless, guest wir.... Timely UC-5.13.41 alerting on 'Client Distribution by Type (Wired/Wireless/Guest)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Same `client` detail input as UC-5.13.40. The SSID-to-segment classification uses regex pattern matching — customise the `match()` patterns to match your actual SSID naming conventions. For more precise classification, maintain a `ssid_classification` lookup.",
   "visualization": "(1) Stacked bar: client_count by client_segment showing the population mix. (2) Table: client_segment | ssid | client_count — top 20, sorted by count. (3) Timechart: `| timechart span=1h dc(macAddress) by client_segment` showing how the mix shifts throughout the day (wireless peaks during business hours, wired drops after 6 PM). (4) Pie chart: client share by segment for executive summaries.",
   "references": [
@@ -34,7 +34,7 @@
       "url": "https://www.cisco.com/c/en/us/solutions/design-zone/networking-design-guides/campus-wired-wireless.html"
     }
   ],
-  "knownFalsePositives": "**SSID naming convention not matching the classification regex.** If your guest SSID is named `OpenAccess` instead of `Guest`, the `match(ssid, \"(?i)guest|visitor\")` won't classify it as guest. Distinguish by checking `| stats dc(macAddress) by ssid` for SSIDs that defaulted to \"Corporate Wireless\" but shouldn't be. Suppress by updating the regex patterns or using a `ssid_classification` lookup.\n\n**MAC randomisation inflating per-segment counts.** iOS and Android devices generate random MACs per SSID, making one physical device appear as multiple unique clients. This inflates wireless segment counts relative to wired. Distinguish by checking the randomised MAC ratio (UC-5.13.40 Step 3). Suppress by using `hostName` or `userId` instead of `macAddress` where available.\n\n**Dual-connected clients counted in both wired and wireless.** A laptop that is both docked (Ethernet) and connected to Wi-Fi appears in both segments. Distinguish by checking `| stats values(connectionType) by hostName` for clients with both WIRED and WIRELESS entries. Suppress by deduplicating on `hostName` and keeping only the most recent `connectionType`.\n\n**Transient guest clients inflating guest segment.** A 1-hour campus tour produces 50 guest connections that persist in the search window. For point-in-time capacity planning, narrow to `earliest=-20m` to see only currently connected guests.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Client Distribution by Type (Wired/Wireless/Guest)' shifts `dc` over `span=1h` while `client_segment` remains in-scope for UC-5.13.41. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `cisco:dnac:client`** — Scheduled automation elevates `ssid` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `client_segment`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:client`** — First 48h baseline for `client_segment` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `client_segment`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -53,5 +53,9 @@
   "prerequisiteUseCases": [
     "UC-5.13.40"
   ],
-  "wave": "walk"
+  "wave": "walk",
+  "controlTest": {
+    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:client' where `client_segment` satisfies detection threshold for UC-5.13.41 ('Client Distribution by Type (Wired/Wireless/Guest)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:client` events where `client_segment` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.41."
+  }
 }

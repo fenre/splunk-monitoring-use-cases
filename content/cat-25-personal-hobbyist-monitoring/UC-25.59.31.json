@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Habitica Party Check-In Reliability' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_habitica_party_check_in_reliability` (UC-25.59.31), SOC dashboard panel \"Personal — Habitica Party Check-In Reliability\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lifeos:habit' that satisfy the UC-25.59.31 SPL filters for 'Habitica Party Check-In Reliability'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `lifeos:habit` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.59.31."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lifeos:habit' where `party_name` satisfies detection threshold for UC-25.59.31 ('Habitica Party Check-In Reliability'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `lifeos:habit` events where `party_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.59.31."
   },
   "dataSources": "Habit activity (`lifeos:habit`), streaks (`lifeos:streak`), Beeminder goals (`lifeos:beeminder`), OKRs (`lifeos:okr`), planning syncs (`lifeos:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal life-OS telemetry — Habitica quest logs, Streaks app habit chains, Beeminder goal data, and personal OKR reviews — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=lifeos:habit party_name=* checkin_done=*\n| stats count as total, sum(eval(if(checkin_done=\"yes\",1,0))) as matched by party_name\n| eval a_completed_party_check_in_pct=round(100*matched/total,1)\n| sort - a_completed_party_check_in_pct",
-  "description": "Measures the percentage of party coordination that end with a completed party check-in by party.",
-  "value": "Completion and exception percentages make it easier to spot which party are helping or hurting party coordination.",
+  "description": "Measures the percentage of party coordination that end with a completed party check-in by party. Searches `index=personal` with sourcetype `lifeos:habit` for UC-25.59.31, aggregating `sum` by `party_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Habitica Party Check-In Reliability' without manual log review.",
+  "value": "Measures the percentage of party coordination that end with a completed party check-in by party. Timely UC-25.59.31 alerting on 'Habitica Party Check-In Reliability' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store a normalized flag for `a completed party check-in` on `lifeos:habit` events and summarize the hit rate by `party_name`.",
   "visualization": "Table of party with percentage of party coordination ending with a completed party check-in.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Habitica Party Check-In Reliability'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lifeos:habit`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Habitica Party Check-In Reliability' stops polling `lifeos:habit`; stale `party_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lifeos:habit`. Dedup with `stats latest(*) by party_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

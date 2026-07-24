@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Argo CD Stuck Sync with Running Operation State' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_argo_cd_stuck_sync_with_running_operation_state` (UC-12.2.31), SOC dashboard panel \"Operations — Argo CD Stuck Sync with Running Operation State\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='argocd:application' that satisfy the UC-12.2.31 SPL filters for 'Argo CD Stuck Sync with Running Operation State'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `devops` / `argocd:application` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.31."
+    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='argocd:application' where `entity` satisfies `age_sec` > 900 for UC-12.2.31 ('Argo CD Stuck Sync with Running Operation State'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `devops` / `argocd:application` events where `entity` stays below `age_sec` > 900, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.31."
   },
   "dataSources": "`sourcetype=argocd:application` polled application status Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Modular input or Event Router shipping Argo CD application CR status — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"argocd:application\"\n| where operation_state=\"Running\" OR phase=\"Running\"\n| eval age_sec=now()-_time\n| where age_sec > 900\n| table _time, name, namespace, operation_state, phase, revision, age_sec\n| sort -age_sec",
-  "description": "Long-running syncs often indicate API server slowness, CRD webhooks, or network partitions.",
-  "value": "Identifies sync operations that exceed a 15-minute window for operator intervention.",
+  "description": "Long-running syncs often indicate API server slowness, CRD webhooks, or network partitions. Searches `index=devops` with sourcetype `argocd:application` for UC-12.2.31, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `age_sec` > 900 in the saved search. Gives Operations operators a repeatable signal for 'Argo CD Stuck Sync with Running Operation State' without manual log review.",
+  "value": "Long-running syncs often indicate API server slowness, CRD webhooks, or network partitions. Timely UC-12.2.31 alerting on 'Argo CD Stuck Sync with Running Operation State' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll application status every 60s; tune threshold per environment. Join with Kubernetes API latency metrics if ingested.",
   "visualization": "Table (stuck apps), Gauge (max age_sec).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Argo CD Stuck Sync with Running Operation State'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `devops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `devops`** — Planned work for 'Argo CD Stuck Sync with Running Operation State' shifts `count` over `span=1h` while `host` remains in-scope for UC-12.2.31. Cross-check CMDB CHG.\n\n2. **Batch `count` on `argocd:application`** — Scheduled automation elevates `age_sec` without crossing `age_sec` > 900. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `argocd:application`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "argocd",
     "kubernetes"

@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'Cassandra Compaction Backlog and Throughput' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cassandra_compaction_backlog_and_throughput` (UC-7.2.14), SOC dashboard panel \"Operations — Cassandra Compaction Backlog and Throughput\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='cassandra:compactionstats' that satisfy the UC-7.2.14 SPL filters for 'Cassandra Compaction Backlog and Throughput'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `cassandra:compactionstats` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.14."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='cassandra:compactionstats' where `cluster_name` satisfies `pending_tasks` > 100 for UC-7.2.14 ('Cassandra Compaction Backlog and Throughput'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `cassandra:compactionstats` events where `cluster_name` stays below `pending_tasks` > 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.14."
   },
   "dataSources": "`pending_tasks`, `bytes_compacted`, `compaction throughput` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "JMX, `nodetool compactionstats` scripted input — Universal Forwarder (Splunkbase 617)",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cassandra Compaction Backlog and Throughput'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Cassandra Compaction Backlog and Throughput' shifts `max` over `span=15m` while `cluster_name` remains in-scope for UC-7.2.14. Cross-check CMDB CHG.\n\n2. **Batch `max` on `cassandra:compactionstats`** — Scheduled automation elevates `src` without crossing `pending_tasks` > 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cluster_name`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cassandra:compactionstats`** — First 48h baseline for `cluster_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cluster_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cassandra"
   ],

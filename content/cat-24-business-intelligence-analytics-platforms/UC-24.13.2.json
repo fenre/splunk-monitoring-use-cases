@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Pipeline Failure-Rate Trend' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_pipeline_failure_rate_trend` (UC-24.13.2), SOC dashboard panel \"Operations — Pipeline Failure-Rate Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='airflow:scheduler' that satisfy the UC-24.13.2 SPL filters for 'Pipeline Failure-Rate Trend'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dataops` / `airflow:scheduler` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.13.2."
+    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='airflow:scheduler' where `_time` satisfies detection threshold for UC-24.13.2 ('Pipeline Failure-Rate Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dataops` / `airflow:scheduler` events where `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.13.2."
   },
   "dataSources": "Aggregated cat-24 indexes (BI usage, refresh/pipeline outcomes, data-quality incidents, cost/capacity metrics) summarised via `tstats`, `stats`, and summary indexing for adoption, SLA, and spend trends.",
   "app": "Cross-platform rollups over the indexes populated by the other cat-24 subcategories; Splunk ITSI (Splunkbase 1841) for service-level trending where available.",
   "spl": "index=dataops (sourcetype=airflow:scheduler OR sourcetype=dbt:run_results OR sourcetype=fivetran:log OR sourcetype=airbyte:job)\n| bin _time span=1d\n| stats count as runs, sum(eval(state=\"failed\" OR status IN (\"failed\",\"error\",\"FAILURE\"))) as failures by _time\n| eval failure_rate=round(100*failures/runs,1)\n| sort _time",
   "description": "Trends the overall failure rate across all orchestration and ingestion tools so the reliability of the whole data platform is tracked as one KPI.",
-  "value": "A single reliability KPI across the data stack surfaces slow degradation that individual per-tool alerts miss, and drives platform-level investment.",
+  "value": "Trends the overall failure rate across all orchestration and ingestion tools so the reliability of the whol.... Timely UC-24.13.2 alerting on 'Pipeline Failure-Rate Trend' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Summary-index daily runs/failures across tools; schedule daily; chart the trend and set reliability targets.",
   "visualization": "Timechart of platform failure rate, table of worst days.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Pipeline Failure-Rate Trend'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `dataops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `dataops`** — Planned work for 'Pipeline Failure-Rate Trend' shifts `sum` over `span=1d` while `_time` remains in-scope for UC-24.13.2. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `airflow:scheduler`** — Scheduled automation elevates `failure_rate` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:scheduler`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "itsi",
     "snmp"

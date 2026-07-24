@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Allowance Spend Rate After Payday' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_allowance_spend_rate_after_payday` (UC-25.23.26), SOC dashboard panel \"Personal — Allowance Spend Rate After Payday\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='allowance:txn' that satisfy the UC-25.23.26 SPL filters for 'Allowance Spend Rate After Payday'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `allowance:txn` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.23.26."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='allowance:txn' where `_time` satisfies detection threshold for UC-25.23.26 ('Allowance Spend Rate After Payday'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `allowance:txn` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.23.26."
   },
   "dataSources": "Nanit sleep sessions (`nanit:sleep`), Hatch routines (`hatch:routine`), school calendar events (`schoolcalendar:event`), allowance transactions (`allowance:txn`), and kid screen usage (`screentime:usage`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Family-routine telemetry from Nanit sleep exports, Hatch routine data, school calendars, allowance and chore apps, and Apple Screen Time sent to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=allowance:txn\n| search event_type=\"spend\"\n| bin _time span=1w\n| stats sum(amount) as spend count as txns by _time child_name\n| sort - _time",
   "description": "Tracks allowance spending after payday over time and breaks it out by child. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Post-payday spend velocity helps you coach pacing instead of only discovering an empty balance later.",
+  "value": "Tracks allowance spending after payday over time and breaks it out by child. Timely UC-25.23.26 alerting on 'Allowance Spend Rate After Payday' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send allowance spending after payday events to `index=personal` with the fields used in the breakdown and review the resulting trend at 1w granularity.",
   "visualization": "Stacked time chart of allowance spending after payday by child.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Allowance Spend Rate After Payday'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `allowance:txn`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Allowance Spend Rate After Payday' stops polling `allowance:txn`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `allowance:txn`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

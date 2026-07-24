@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Mark an asset retired but skip key revocation. UC-22.55.24 MUST flag `decom_status=\"key_revocation_missing\"`.",
-    "negativeScenario": "Sanitize, revoke keys, destroy certificates, sign certificate; UC-22.55.24 MUST record `decom_status=\"complete\"`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies `days_since_retired` > 30 for UC-22.55.24 ('CLC/TS 50701 Rail Asset Decommissioning — secure end-of-life for every retired signalling, communications, and rolling-stock asset'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `days_since_retired` > 30, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.55.24."
   },
   "dataSources": "KV Store `rail_decom_lookup`. HSM and certificate-authority audit logs. Asset-management system retirement events.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_decom_lookup\n| where asset_status=\"retired\"\n| eval now_ts = now()\n| eval days_since_retired = if(isnotnull(retired_at), round((now_ts - retired_at) / 86400, 0), null())\n| eval decom_status = case(\n    isnull(sanitization_signed_at) AND days_since_retired > 30, \"sanitization_missing\",\n    isnull(certificate_destruction_signed_at), \"certificate_destruction_missing\",\n    isnull(key_revocation_signed_at), \"key_revocation_missing\",\n    isnull(decom_certificate_signed_at) AND days_since_retired > 60, \"certificate_missing\",\n    1=1, \"complete\")\n| where decom_status != \"complete\"\n| table asset_id retired_at sanitization_signed_at certificate_destruction_signed_at key_revocation_signed_at decom_certificate_signed_at decom_status",
   "description": "Tracks decommissioning workflow for retired rail-OT assets. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Retired assets with unrevoked credentials are a key risk for unauthorized re-entry. This UC forces the workflow.",
+  "value": "Tracks decommissioning workflow for retired rail-OT assets. Timely UC-22.55.24 alerting on 'CLC/TS 50701 Rail Asset Decommissioning — secure end-of-life for every retired signalling, communications, and rolling-stock asset' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Asset-management retirement triggers decom workflow in `rail_decom_lookup`. (2) HSM and CA log revocations to Splunk. (3) Schedule UC-22.55.24 weekly Monday 09:30.",
   "visualization": "(Panel 1) Decom-status by phase. (Panel 2) Overdue queue. (Panel 3) Sanitization-throughput trend.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Asset in transit to disposal vendor** — sanitization signed but physical disposal pending. Suppression: tracked under disposal-vendor workflow.\n\n**Suppression mechanism**: KV Store `clc_22_55_24_exceptions` with documented Asset Management Lead approval and 30-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Rail Asset Decommissioning — secure end-of-life for every retired signalling, communications, and rolling-stock asset' (UC-22.55.24) on `entity` during scheduled clause CLC-TS-50701-c8-4 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `days_since_retired` > 30. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (decommissioning governance)"
   ],

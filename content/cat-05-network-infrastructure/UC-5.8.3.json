@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'SNMP Trap Consolidation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_snmp_trap_consolidation` (UC-5.8.3), SOC dashboard panel \"Operations — SNMP Trap Consolidation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='snmp:trap' that satisfy the UC-5.8.3 SPL filters for 'SNMP Trap Consolidation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `snmp:trap` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.8.3."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='snmp:trap' where `trap_oid` satisfies detection threshold for UC-5.8.3 ('SNMP Trap Consolidation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `snmp:trap` events where `trap_oid` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.8.3."
   },
   "dataSources": "SNMP v2c/v3 traps to Splunk (`snmp:trap` / `snmptrap`); see UC-5.8.25 for storm context Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Add-on for SNMP (trap receiver) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"snmp:trap\"\n| stats count by trap_oid, host, severity | sort -count",
-  "description": "Centralizing SNMP traps from all sources enables cross-tool correlation and reduces monitoring tool sprawl.",
-  "value": "Network operations teams consolidate SNMP traps from all network devices into a single, enriched, prioritized view that transforms cryptic OIDs into actionable alerts with device context and severity classification.",
+  "description": "Centralizing SNMP traps from all sources enables cross-tool correlation and reduces monitoring tool sprawl. Searches `index=network` with sourcetype `snmp:trap` for UC-5.8.3, aggregating `count` by `trap_oid` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'SNMP Trap Consolidation' without manual log review.",
+  "value": "Centralizing SNMP traps from all sources enables cross-tool correlation and reduces monitoring tool sprawl. Timely UC-5.8.3 alerting on 'SNMP Trap Consolidation' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Configure Splunk SNMP trap receiver (UDP 162). Map trap OIDs to human-readable names via lookup. Correlate with syslog events from the same device.",
   "visualization": "Table (device, trap, severity), Bar chart, Timeline.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'SNMP Trap Consolidation'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'SNMP Trap Consolidation' shifts `count` over `span=1h` while `trap_oid` remains in-scope for UC-5.8.3. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:trap`** — Scheduled automation elevates `host` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `trap_oid`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:trap`** — First 48h baseline for `trap_oid` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `trap_oid`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365",
     "snmp",

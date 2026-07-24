@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Geo-IP Flow Enrichment and Unexpected Country Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_geo_ip_flow_enrichment_and_unexpected_country_de` (UC-5.7.14), SOC dashboard panel \"Operations — Geo-IP Flow Enrichment and Unexpected Country Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=netflow` sourcetype='target_sourcetype' that satisfy the UC-5.7.14 SPL filters for 'Geo-IP Flow Enrichment and Unexpected Country Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `netflow` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.7.14."
+    "positiveScenario": "Ingest synthetic events into `index=netflow` sourcetype='target_sourcetype' where `dest` satisfies detection threshold for UC-5.7.14 ('Geo-IP Flow Enrichment and Unexpected Country Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `netflow` / `target_sourcetype` events where `dest` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.7.14."
   },
   "dataSources": "`index=netflow` sourcetype `netflow` or `stream:ipfix` with external-facing `dest` (or `dest_ip`) for outbound sessions; post-ingest enrichment via props transforms calling MaxMind–style lookups or inline `iplocation` at search time for fields `Country`, `City`, `lat`, `lon`.",
   "app": "Splunk Add-on for NetFlow (Splunkbase 1838); Splunk Premium Lookup — MaxMind or bundled geography collections",
   "spl": "index=netflow earliest=-4h NOT (cidrmatch(\"10.0.0.0/8\", dest) OR cidrmatch(\"192.168.0.0/16\", dest) OR cidrmatch(\"172.16.0.0/12\", dest))\n| iplocation prefix=geo_ dest\n| lookup expected_peer_countries.csv country AS geo_Country OUTPUT allowed\n| where isnull(allowed)\n| stats sum(bytes) as bytes dc(src) as internal_hosts dc(dest) as external_ips values(geo_Country) as countries values(geo_City) as cities\n  by dest\n| eval mb=round(bytes/1048576,2)\n| sort -bytes\n| head 50",
   "description": "Adds geography to destination addresses on flows leaving private space and highlights destinations whose country is absent from an approved-country lookup so investigators focus on unfamiliar regions quickly.",
-  "value": "Security operations reduces dwell time for jurisdictional policy breaches, supports data-residency attestations with evidence of unexpected regions, and prioritizes incident tickets using geographic context without waiting on firewall logs.",
+  "value": "Adds geography to destination addresses on flows leaving private space and highlights destinations whose co.... Timely UC-5.7.14 alerting on 'Geo-IP Flow Enrichment and Unexpected Country Detection' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Schedule recurring geography database updates; maintain `expected_peer_countries.csv`; filter RFC1918 and carrier-grade Network Address Translation ranges; tune byte and host-count floors.",
   "visualization": "Map visualization of weighted points; table of country, bytes, internal_hosts; pie chart of bytes by continent.",
   "references": [
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Geo-IP Flow Enrichment and Unexpected Country Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `netflow` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `netflow`** — Planned work for 'Geo-IP Flow Enrichment and Unexpected Country Detection' shifts `sum` over `span=1h` while `dest` remains in-scope for UC-5.7.14. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `mb` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dest`** — Health checks in `netflow` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `dest` is unstable; join `expected_peer_countries.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dest`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netflow"
   ],

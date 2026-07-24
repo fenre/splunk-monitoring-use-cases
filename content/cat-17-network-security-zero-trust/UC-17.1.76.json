@@ -75,14 +75,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' that satisfy the UC-17.1.76 SPL filters for 'ISE Group-Based Policy (GBP / Microsegmentation) Effective-Policy Drift'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.76."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-17.1.76 ('ISE Group-Based Policy (GBP / Microsegmentation) Effective-Policy Drift'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.76."
   },
   "dataSources": "ISE configuration data via OpenAPI (`/ers/config/sgmatrix`, `/ers/config/sgt`) — periodic export of the SGT-to-SGT (source-to-destination) policy matrix into a Splunk lookup `ise_sgt_matrix.csv`. ISE syslog *Authorization* — codes `5402`, `5403` for dynamic SGT-policy compilation events. Compare current matrix against baseline `ise_sgt_matrix_baseline.csv`. Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "| inputlookup ise_sgt_matrix.csv \n| join type=outer source_sgt destination_sgt [| inputlookup ise_sgt_matrix_baseline.csv | rename action as baseline_action]\n| eval drift=if(action!=baseline_action, \"DRIFTED\", \"ok\")\n| where drift==\"DRIFTED\"",
   "description": "Detects unauthorised changes to the SGT-to-SGT effective policy matrix. Compares each cell of the current matrix against the approved baseline and flags any drift.",
-  "value": "The GBP matrix is the heart of microsegmentation policy. A single cell change (e.g., `Employees → DC_PCI` from deny to allow) can compromise an entire segmentation strategy. Drift detection catches unauthorized changes within the polling interval.",
+  "value": "Detects unauthorised changes to the SGT-to-SGT effective policy matrix. Timely UC-17.1.76 alerting on 'ISE Group-Based Policy (GBP / Microsegmentation) Effective-Policy Drift' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Daily. Requires a curated baseline CSV checked into version control.",
   "visualization": "Drift cells over time; current matrix vs. baseline visualization.",
   "cimModels": [
@@ -116,7 +116,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'ISE Group-Based Policy (GBP / Microsegmentation) Effective-Policy Drift'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=network` `configured sourcetype` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index`** — Planned work for 'ISE Group-Based Policy (GBP / Microsegmentation) Effective-Policy Drift' shifts `count` over `span=1h` while `host` remains in-scope for UC-17.1.76. Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `drift` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `host` is unstable; join `ise_sgt_matrix.csv` prior to threshold.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "N/A (policy hygiene — measures Group-Based Policy hit counts, no adversary technique)"
   ],

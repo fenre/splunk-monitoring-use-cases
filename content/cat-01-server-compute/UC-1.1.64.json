@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Network Latency Monitoring (Ping RTT)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_network_latency_monitoring_ping_rtt` (UC-1.1.64), SOC dashboard panel \"Linux — Network Latency Monitoring (Ping RTT)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='custom:ping_rtt' that satisfy the UC-1.1.64 SPL filters for 'Network Latency Monitoring (Ping RTT)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `custom:ping_rtt` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.64."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='custom:ping_rtt' where `host` satisfies detection threshold for UC-1.1.64 ('Network Latency Monitoring (Ping RTT)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `custom:ping_rtt` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.64."
   },
   "dataSources": "`sourcetype=custom:ping_rtt` (scripted `ping` to fixed targets, emitting `rtt_ms` and `target`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix` with a custom scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:ping_rtt host=*\n| stats avg(rtt_ms) as avg_latency, max(rtt_ms) as max_latency, stdev(rtt_ms) as stddev by host, target\n| eval upper_bound=avg_latency+(2*stddev)\n| where max_latency > upper_bound",
   "description": "Summarises round-trip time per host and ping target, then compares the maximum RTT in the window to a host+target local upper bound of mean + two standard deviations, catching unstable long tails.",
-  "value": "Average ping can look fine while a few very late replies spoil voice, replication, or leader election—this test surfaces tail behaviour without needing external synthetics in many shops.",
+  "value": "Summarises round-trip time per host and ping target, then compares the maximum RTT in the window to a host+.... Timely UC-1.1.64 alerting on 'Network Latency Monitoring (Ping RTT)' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Run `ping` or `fping` on a short cadence, parse **rtt_ms** and **target**, and keep **target** lists under version control. Add `| where stdev>0` if you need to avoid degenerate `upper_bound=avg` when there is a single sample.",
   "visualization": "Timechart, Gauge",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Network Latency Monitoring (Ping RTT)'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `custom:ping_rtt`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Network Latency Monitoring (Ping RTT)'. Correlate with apt/yum logs in the same `custom:ping_rtt` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:ping_rtt`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],

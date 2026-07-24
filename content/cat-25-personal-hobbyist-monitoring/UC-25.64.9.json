@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Garmin Zumo Ride Event Ride Distance Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_garmin_zumo_ride_event_ride_distance_leaderboard` (UC-25.64.9), SOC dashboard panel \"Personal — Garmin Zumo Ride Event Ride Distance Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='garmin:zumo' that satisfy the UC-25.64.9 SPL filters for 'Garmin Zumo Ride Event Ride Distance Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `garmin:zumo` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.64.9."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='garmin:zumo' where `route_name` satisfies detection threshold for UC-25.64.9 ('Garmin Zumo Ride Event Ride Distance Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `garmin:zumo` events where `route_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.64.9."
   },
   "dataSources": "Garmin Zumo ride data (`garmin:zumo`), motorcycle OBD-II telemetry (`obd:bike`), RaceChrono laps (`racechrono:lap`), REVER rides (`rever:ride`), and RevZilla orders (`revzilla:order`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Garmin Zumo ride exports, motorcycle OBD-II telemetry, RaceChrono track sessions, REVER ride logs, and RevZilla order history forwarded into Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=garmin:zumo distance_km=*\n| stats sum(distance_km) as total_value, avg(distance_km) as avg_value by route_name\n| sort - total_value",
-  "description": "Ranks route name values by total and average ride distance across Garmin Zumo ride event events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks route name values by total and average ride distance across Garmin Zumo ride event events. Searches `index=personal` with sourcetype `garmin:zumo` for UC-25.64.9, aggregating `sum` by `route_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Garmin Zumo Ride Event Ride Distance Leaderboard' without manual log review.",
+  "value": "Ranks route name values by total and average ride distance across Garmin Zumo ride event events. Timely UC-25.64.9 alerting on 'Garmin Zumo Ride Event Ride Distance Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `distance_km` values for each Garmin Zumo ride event event and review total and average ride distance by route name.",
   "visualization": "Table of entities ranked by total ride distance.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Garmin Zumo Ride Event Ride Distance Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `garmin:zumo`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Garmin Zumo Ride Event Ride Distance Leaderboard' stops polling `garmin:zumo`; stale `route_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `garmin:zumo`. Dedup with `stats latest(*) by route_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

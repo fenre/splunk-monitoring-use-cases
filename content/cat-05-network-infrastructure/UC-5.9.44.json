@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Multi-Region SaaS Availability' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_multi_region_saas_availability` (UC-5.9.44), SOC dashboard panel \"Operations — Multi-Region SaaS Availability\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' that satisfy the UC-5.9.44 SPL filters for 'Multi-Region SaaS Availability'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.9.44."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `thousandeyes.test.name` satisfies `avg_avail` < 100 for UC-5.9.44 ('Multi-Region SaaS Availability'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `thousandeyes.test.name` stays below `avg_avail` < 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.9.44."
   },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` with `thousandeyes.test.type=\"http-server\"`. Uses `http.server.request.availability` aggregated by `thousandeyes.source.agent.geo.country.iso_code` or `thousandeyes.source.agent.location`.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`stream_index` thousandeyes.test.type=\"http-server\" thousandeyes.test.name=\"*SaaS*\" earliest=-24h\n| stats avg(http.server.request.availability) as avg_avail by thousandeyes.test.name, thousandeyes.source.agent.geo.country.iso_code\n| where avg_avail < 100\n| sort avg_avail",
   "description": "Monitors SaaS application availability from multiple geographic regions to detect regional outages that global averages would mask. A SaaS application can be 100% available from the US but completely down from the EU due to GDPR data residency routing, regional DNS failures, or CDN edge issues.",
-  "value": "SaaS vendor status pages typically show global availability. If Salesforce reports 99.9% uptime globally, but your Singapore users experience 95% availability due to an APAC PoP issue, the vendor's global number hides your regional pain. Multi-region testing provides the evidence to escalate with the vendor: \"Our tests from Singapore show 95% availability while US tests show 100%.\" This data is essential for organizations with SLAs that specify regional availability requirements.",
+  "value": "Monitors SaaS application availability from multiple geographic regions to detect regional outages that glo.... Timely UC-5.9.44 alerting on 'Multi-Region SaaS Availability' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Same HTTP Server tests as UC-5.9.43, with Cloud Agents distributed across all business-critical regions.",
   "visualization": "(1) Map: SaaS availability by agent location. (2) Table: regions with < 100% availability. (3) Timechart: availability by region.",
   "references": [
@@ -43,7 +43,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Multi-Region SaaS Availability'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `target index` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index`** — Planned work for 'Multi-Region SaaS Availability' shifts `avg` over `span=1h` while `thousandeyes.test.name` remains in-scope for UC-5.9.44. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `thousandeyes.source.agent.geo.country.iso_code` without crossing `avg_avail` < 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `thousandeyes.test.name`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `thousandeyes.test.name` is unstable; join `stream_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `thousandeyes.test.name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

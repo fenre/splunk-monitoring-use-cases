@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Maker Space Visits No-Show Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_maker_space_visits_no_show_rate` (UC-25.81.16), SOC dashboard panel \"Personal — Maker Space Visits No-Show Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='makerspace:visit' that satisfy the UC-25.81.16 SPL filters for 'Maker Space Visits No-Show Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `makerspace:visit` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.81.16."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='makerspace:visit' where `site` satisfies detection threshold for UC-25.81.16 ('Maker Space Visits No-Show Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `makerspace:visit` events where `site` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.81.16."
   },
   "dataSources": "Club attendance (`club:attendance`), running-club sessions (`runningclub:session`), maker-space visits (`makerspace:visit`), book-club meetings (`bookclub:meeting`), community events (`community:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Book-club attendance, running-club miles, maker-space visits, and general social-club participation logs streamed to Splunk HEC via forms, check-ins, and calendar exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=makerspace:visit\n| stats count as rsvps sum(eval(if(attended=\"no\",1,0))) as no_shows by site\n| eval no_show_pct=round(100*no_shows/rsvps,1)\n| sort - no_show_pct",
-  "description": "Calculates where maker space visits plans are most likely to turn into no-shows.",
-  "value": "No-show tracking helps reveal whether the issue is venue, timing, commitment level, or overbooking.",
+  "description": "Calculates where maker space visits plans are most likely to turn into no-shows. Searches `index=personal` with sourcetype `makerspace:visit` for UC-25.81.16, aggregating `sum` by `site` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Maker Space Visits No-Show Rate' without manual log review.",
+  "value": "Calculates where maker space visits plans are most likely to turn into no-shows. Timely UC-25.81.16 alerting on 'Maker Space Visits No-Show Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Write a simple `attended=yes/no` field during event logging or check-in capture.",
   "visualization": "Table of site values by no-show percentage.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Maker Space Visits No-Show Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `makerspace:visit`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Maker Space Visits No-Show Rate' stops polling `makerspace:visit`; stale `site` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `makerspace:visit`. Dedup with `stats latest(*) by site`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "dell_emc"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Nest Protect Pathlight Night Frequency' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_nest_protect_pathlight_night_frequency` (UC-25.18.30), SOC dashboard panel \"Personal — Nest Protect Pathlight Night Frequency\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='nestprotect:event' that satisfy the UC-25.18.30 SPL filters for 'Nest Protect Pathlight Night Frequency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `nestprotect:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.30."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='nestprotect:event' where `location` satisfies `hour` >= 22 for UC-25.18.30 ('Nest Protect Pathlight Night Frequency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `nestprotect:event` events where `location` stays below `hour` >= 22, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.30."
   },
   "dataSources": "Home security telemetry (`reolink:event`, `unifiprotect:event`, `ring:event`, `nestprotect:event`, `frigate:event`, `camera:health`, `alarm:event`, `doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Reolink, UniFi Protect, Ring, Nest Protect, Frigate, and Home Assistant security integrations streamed to Splunk HEC via MQTT, webhooks, and vendor APIs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=nestprotect:event event=pathlight\n| eval hour=tonumber(strftime(_time,\"%H\"))\n| where hour>=22 OR hour<6\n| bin _time span=1w\n| stats count as pathlight_events by location _time\n| sort - pathlight_events",
   "description": "Uses Nest Protect pathlight events telemetry to monitor how often nighttime movement triggers hallway lighting in index=personal.",
-  "value": "Splunk turns the feed into an operational check for rooms with more night traffic than expected, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Nest Protect pathlight events telemetry to monitor how often nighttime movement triggers hallway light.... Timely UC-25.18.30 alerting on 'Nest Protect Pathlight Night Frequency' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Nest Protect pathlight events data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Weekly location chart of pathlight events.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Nest Protect Pathlight Night Frequency'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nestprotect:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Nest Protect Pathlight Night Frequency' stops polling `nestprotect:event`; stale `location` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nestprotect:event`. Dedup with `stats latest(*) by location`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hour` >= 22. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

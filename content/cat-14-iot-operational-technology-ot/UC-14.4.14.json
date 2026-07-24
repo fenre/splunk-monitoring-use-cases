@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Sensor Data Gap Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_sensor_data_gap_detection` (UC-14.4.14), SOC dashboard panel \"Operations — Sensor Data Gap Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=iot` sourcetype='iot:telemetry' that satisfy the UC-14.4.14 SPL filters for 'Sensor Data Gap Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `iot` / `iot:telemetry` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.4.14."
+    "positiveScenario": "Ingest synthetic events into `index=iot` sourcetype='iot:telemetry' where `device_id` satisfies `gap_min` > 30 for UC-14.4.14 ('Sensor Data Gap Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `iot` / `iot:telemetry` events where `device_id` stays below `gap_min` > 30, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.4.14."
   },
   "dataSources": "`sourcetype=\"iot:telemetry\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "MQTT/CoAP gateway logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=iot sourcetype=\"iot:telemetry\"\n| stats latest(_time) as last_seen by device_id, sensor_id\n| eval gap_min=round((now()-last_seen)/60,1)\n| where gap_min > 30\n| table device_id, sensor_id, last_seen, gap_min",
-  "description": "Missing telemetry breaks automation and safety analytics; gaps often precede device failure.",
+  "description": "Missing telemetry breaks automation and safety analytics; gaps often precede device failure. Searches `index=iot` with sourcetype `iot:telemetry` for UC-14.4.14, aggregating `count` by `device_id` over `the scheduled window`. Alerts when grouped results cross `gap_min` > 30 in the saved search. Gives Operations operators a repeatable signal for 'Sensor Data Gap Detection' without manual log review.",
   "value": "Early 'Sensor Data Gap Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Tune gap threshold per sensor class (critical vs ambient). Alert on gap or stepped decrease in message rate.",
   "visualization": "Table (gaps), Heatmap (device × hour), Line chart (messages/min).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Sensor Data Gap Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `iot` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `iot`** — Planned work for 'Sensor Data Gap Detection' shifts `count` over `span=1h` while `device_id` remains in-scope for UC-14.4.14. Cross-check CMDB CHG.\n\n2. **Batch `count` on `iot:telemetry`** — Scheduled automation elevates `sensor_id` without crossing `gap_min` > 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `device_id`** — Health checks in `iot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `iot:telemetry`** — First 48h baseline for `device_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `device_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "mqtt"
   ],

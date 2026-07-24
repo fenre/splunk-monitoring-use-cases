@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Device Certificate Expiration and Renewal' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_device_certificate_expiration_and_renewal` (UC-17.3.7), SOC dashboard panel \"Network — Device Certificate Expiration and Renewal\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=zt` sourcetype='device:cert' that satisfy the UC-17.3.7 SPL filters for 'Device Certificate Expiration and Renewal'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `zt` / `device:cert` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.7."
+    "positiveScenario": "Ingest synthetic events into `index=zt` sourcetype='device:cert' where `entity` satisfies `days_left` < 30 for UC-17.3.7 ('Device Certificate Expiration and Renewal'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `zt` / `device:cert` events where `entity` stays below `days_left` < 30, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.7."
   },
   "dataSources": "Certificate validity, renewal requests, enrollment events Indexes: zt. Sourcetypes: device:cert. Key fields: days_left. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "PKI/certificate inventory, `Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access)",
   "spl": "index=zt sourcetype=\"device:cert\"\n| eval days_left=floor((expiry_time-now())/86400)\n| where days_left < 30 OR renewal_status=\"failed\"\n| table device_id, cn, expiry_time, days_left, renewal_status\n| sort days_left",
   "description": "Expired device certificates break ZTNA and VPN access. Monitoring expiration and renewal success ensures continuous access and avoids outages.",
-  "value": "PKI and identity teams forecast device certificate expirations, detect auto-renewal failures, and prevent mass access outages caused by expired certificates by providing a tiered urgency view from 90-day planning through to expired-certificate emergencies.",
+  "value": "Expired device certificates break ZTNA and VPN access. Timely UC-17.3.7 alerting on 'Device Certificate Expiration and Renewal' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Ingest device certificate inventory and renewal events. Alert when cert expires in <30 days or renewal fails. Report on cert distribution and renewal success rate. Automate renewal where possible.",
   "visualization": "Table (certs expiring soon), Single value (failed renewals), Bar chart (expiry by month).",
   "cimModels": [],
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Device Certificate Expiration and Renewal'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `zt`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `device:cert` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `zt`** — Planned work for 'Device Certificate Expiration and Renewal' shifts `count` over `span=1h` while `host` remains in-scope for UC-17.3.7. Cross-check CMDB CHG.\n\n2. **Batch `count` on `device:cert`** — Scheduled automation elevates `days_left` without crossing `days_left` < 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `zt` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `device:cert`** — First 48h baseline for `host` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1573.002"
   ],

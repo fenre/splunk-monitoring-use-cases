@@ -37,7 +37,7 @@
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)) + custom scripted input (SWIM poller).",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:swim\" imageCompliance=\"NON_COMPLIANT\"\n| stats latest(runningVersion) as running latest(targetVersion) as target by deviceName, deviceFamily\n| table deviceName, deviceFamily, running, target\n| sort deviceFamily, deviceName",
   "description": "Identifies devices running firmware that doesn't match the designated golden image in Catalyst Center SWIM — listing each non-compliant device with its current version and the target version it should be upgraded to, enabling targeted firmware upgrade campaigns for NIST CM-2 and SI-2 compliance.",
-  "value": "UC-5.13.55 shows what's running. This UC shows what's *wrong*. A device running IOS-XE 17.6.5 when the golden image is 17.9.4a is missing 3 versions of security patches and bug fixes. The per-device list with `running` vs `target` version is exactly what the SWIM distribution engineer needs to build an upgrade task in Catalyst Center. For NIST CM-2 (Baseline Configuration), this is the evidence that baseline enforcement is actively monitored. For SI-2 (Flaw Remediation), the count of non-compliant devices is the remediation backlog metric that auditors track.",
+  "value": "Identifies devices running firmware that doesn't match the designated golden image in Catalyst Center SWIM.... Timely UC-5.13.56 alerting on 'Firmware Non-Compliance Detection (Running vs Golden Image)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Requires a custom scripted input for SWIM data (see `docs/guides/catalyst-center.md` § Custom Scripted Inputs). The TA does not include a native SWIM modular input. Filter to `imageCompliance=\"NON_COMPLIANT\"` for the remediation work list. Schedule weekly for the firmware management review.",
   "visualization": "(1) Table: deviceName, deviceFamily, running, target — the upgrade work list. (2) Bar chart: non-compliant device count by deviceFamily. (3) Single value: total non-compliant devices (red ≥ 1). (4) Pie: compliant vs non-compliant across the fleet. (5) Trend: `| timechart span=1w dc(eval(if(imageCompliance=\"NON_COMPLIANT\",deviceName,null()))) as noncompliant` for remediation progress.",
   "references": [
@@ -58,7 +58,7 @@
       "url": "https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_0/home?element=CM-2"
     }
   ],
-  "knownFalsePositives": "**Golden image recently updated but devices not yet upgraded.** When the golden image designation changes in SWIM, all devices running the old version become NON_COMPLIANT. This is expected and intentional — it creates the upgrade backlog. Do not suppress — track as the planned remediation work.\n\n**Devices in the upgrade queue showing NON_COMPLIANT.** Devices scheduled for upgrade in the next maintenance window are technically non-compliant but have a planned remediation date. Distinguish by cross-referencing with UC-5.13.57 (Upgrade Progress) for devices with active upgrade tasks. Present as 'scheduled for upgrade' rather than 'non-compliant.'\n\n**AP firmware managed separately from switch firmware.** APs may have different golden image designations than switches and WLCs. Distinguish by checking `deviceFamily`. Present AP compliance separately from switch/router compliance.\n\n**Device running a newer version than the golden image.** Occasionally a device is upgraded to a version ahead of the designated golden image (e.g., emergency security patch). This shows as NON_COMPLIANT even though the device is on a better version. Distinguish by comparing version numbers: `| eval ahead=if(running > target, 1, 0)`.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Firmware Non-Compliance Detection (Running vs Golden Image)' shifts `count` over `span=1h` while `deviceName` remains in-scope for UC-5.13.56. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:swim`** — Scheduled automation elevates `deviceFamily` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `deviceName`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:swim`** — First 48h baseline for `deviceName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `deviceName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -77,5 +77,9 @@
   "prerequisiteUseCases": [
     "UC-5.13.55"
   ],
-  "wave": "walk"
+  "wave": "walk",
+  "controlTest": {
+    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:swim' where `deviceName` satisfies detection threshold for UC-5.13.56 ('Firmware Non-Compliance Detection (Running vs Golden Image)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:swim` events where `deviceName` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.56."
+  }
 }

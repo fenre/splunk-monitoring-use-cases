@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Home Insurance Premium Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_home_insurance_premium_sync_gap_watch` (UC-25.101.18), SOC dashboard panel \"Personal — Home Insurance Premium Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='homeinsurance:premium' that satisfy the UC-25.101.18 SPL filters for 'Home Insurance Premium Sync Gap Watch'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `homeinsurance:premium` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.101.18."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='homeinsurance:premium' where `carrier_name` satisfies `hours_since` > 720 for UC-25.101.18 ('Home Insurance Premium Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `homeinsurance:premium` events where `carrier_name` stays below `hours_since` > 720, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.101.18."
   },
   "dataSources": "Lemonade policies (`lemonade:policy`), home claims (`claim:home`), premium bills (`homeinsurance:premium`), and renewal offers (`homeinsurance:renewal`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Lemonade policy exports, home claim filings, premium billing snapshots, renewal offer logs, and coverage review notes streamed into Splunk HEC under `index=personal`. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=homeinsurance:premium\n| stats max(_time) as last_seen by carrier_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>720\n| sort - hours_since",
-  "description": "Detects when home insurance premium data has stopped arriving for a given carrier.",
-  "value": "Personal telemetry is only useful when it is current; sync-gap alerts catch failed exports and broken credentials early.",
+  "description": "Detects when home insurance premium data has stopped arriving for a given carrier. Searches `index=personal` with sourcetype `homeinsurance:premium` for UC-25.101.18, aggregating `max` by `carrier_name` over `the scheduled window`. Alerts when grouped results cross `hours_since` > 720 in the saved search. Gives Personal operators a repeatable signal for 'Home Insurance Premium Sync Gap Watch' without manual log review.",
+  "value": "Detects when home insurance premium data has stopped arriving for a given carrier. Timely UC-25.101.18 alerting on 'Home Insurance Premium Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Track the latest event time per carrier and alert when the feed is older than 720 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Home Insurance Premium Sync Gap Watch'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homeinsurance:premium`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Home Insurance Premium Sync Gap Watch' stops polling `homeinsurance:premium`; stale `carrier_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homeinsurance:premium`. Dedup with `stats latest(*) by carrier_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 720. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

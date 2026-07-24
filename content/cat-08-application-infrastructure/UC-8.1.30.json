@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Kafka Broker Request Handler Pool Saturation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_kafka_broker_request_handler_pool_saturation` (UC-8.1.30), SOC dashboard panel \"Operations — Kafka Broker Request Handler Pool Saturation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=kafka` sourcetype='kafka:serverStats' that satisfy the UC-8.1.30 SPL filters for 'Kafka Broker Request Handler Pool Saturation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `kafka` / `kafka:serverStats` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.30."
+    "positiveScenario": "Ingest synthetic events into `index=kafka` sourcetype='kafka:serverStats' where `_time` satisfies `RequestHandlerAvgIdlePercent` < 0.20 for UC-8.1.30 ('Kafka Broker Request Handler Pool Saturation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `kafka` / `kafka:serverStats` events where `_time` stays below `RequestHandlerAvgIdlePercent` < 0.20, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.30."
   },
   "dataSources": "JMX `kafka.server:type=KafkaRequestHandlerPool,name=RequestHandlerAvgIdlePercent` ingested as `sourcetype=kafka:serverStats` (Splunk Add-on for JMX KafkaServerStats template)",
   "app": "Splunk Add-on for Kafka (`Splunk_TA_kafka`, Splunkbase 2935) + Splunk Add-on for JMX (Splunkbase 2647)",
   "spl": "index=kafka sourcetype=\"kafka:serverStats\"\n| where isnotnull(RequestHandlerAvgIdlePercent) AND RequestHandlerAvgIdlePercent < 0.20\n| bin span=5m _time\n| stats avg(RequestHandlerAvgIdlePercent) as avg_idle by _time, host\n| where avg_idle < 0.20",
   "description": "Low `RequestHandlerAvgIdlePercent` means broker I/O threads are rarely idle, which usually precedes produce/fetch latency spikes and client timeouts during traffic bursts.",
-  "value": "Surfaces broker CPU/request-thread exhaustion before clients see widespread timeouts, allowing scale-out or partition moves.",
+  "value": "Low `RequestHandlerAvgIdlePercent` means broker I/O threads are rarely idle, which usually precedes produce.... Timely UC-8.1.30 alerting on 'Kafka Broker Request Handler Pool Saturation' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "On a heavy forwarder with `Splunk_TA_kafka` and the JMX add-on, create a KafkaServerStats task per broker (remote JMX enabled). Poll every 60s. Normalize field names to match your JMX template (some builds alias attributes). Alert when the 15-minute rolling average stays below 0.20.",
   "visualization": "Line chart (avg_idle by broker), Single value (worst broker), Table (brokers under threshold).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Kafka Broker Request Handler Pool Saturation'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `kafka` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `kafka`** — Planned work for 'Kafka Broker Request Handler Pool Saturation' shifts `avg` over `span=5m` while `_time` remains in-scope for UC-8.1.30. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `kafka:serverStats`** — Scheduled automation elevates `host` without crossing `RequestHandlerAvgIdlePercent` < 0.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:serverStats`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka"
   ],

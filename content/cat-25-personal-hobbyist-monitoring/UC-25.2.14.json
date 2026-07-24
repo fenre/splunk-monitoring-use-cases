@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Recovery vs Strain Imbalance Warning' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_recovery_vs_strain_imbalance_warning` (UC-25.2.14), SOC dashboard panel \"Personal — Recovery vs Strain Imbalance Warning\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='whoop:cycle' that satisfy the UC-25.2.14 SPL filters for 'Recovery vs Strain Imbalance Warning'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `whoop:cycle` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.14."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='whoop:cycle' where `entity` satisfies `strain_score` >= 16 for UC-25.2.14 ('Recovery vs Strain Imbalance Warning'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `whoop:cycle` events where `entity` stays below `strain_score` >= 16, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.14."
   },
   "dataSources": "Apple Health metrics (`apple:health`), Oura Ring daily readiness/sleep (`oura:daily`), WHOOP recovery/strain (`whoop:cycle`), Withings body and blood-pressure (`withings:measure`), Dexcom CGM glucose (`dexcom:egv`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Apple Health / Apple Watch exports (Health Auto Export, Shortcuts) via HEC; Oura, WHOOP, Withings, and Dexcom APIs via scripted REST inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=whoop:cycle\n| eval strain_recovery_gap=strain_score-(recovery_score/5)\n| where strain_score>=16 AND recovery_score<50\n| sort - strain_recovery_gap",
   "description": "Pairs WHOOP strain and recovery scores to highlight days where you are pushing hard while your body is plainly asking for less.",
-  "value": "Numbers that say 'low recovery, high strain' are the wearable equivalent of a dashboard light; catching that mismatch early prevents stubborn overtraining loops.",
+  "value": "Pairs WHOOP strain and recovery scores to highlight days where you are pushing hard while your body is plai.... Timely UC-25.2.14 alerting on 'Recovery vs Strain Imbalance Warning' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest WHOOP cycle summaries; schedule every morning and trim the day's intensity when poor recovery and high strain collide.",
   "visualization": "Scatter plot of strain versus recovery with the danger quadrant highlighted.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Recovery vs Strain Imbalance Warning'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `whoop:cycle`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Recovery vs Strain Imbalance Warning' stops polling `whoop:cycle`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `whoop:cycle`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `strain_score` >= 16. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

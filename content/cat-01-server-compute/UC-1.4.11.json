@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Boot Order and UEFI/BIOS Configuration Drift' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_boot_order_and_uefi_bios_configuration_drift` (UC-1.4.11), SOC dashboard panel \"Linux — Boot Order and UEFI/BIOS Configuration Drift\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=hardware` sourcetype='boot_config' that satisfy the UC-1.4.11 SPL filters for 'Boot Order and UEFI/BIOS Configuration Drift'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `hardware` / `boot_config` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.4.11."
+    "positiveScenario": "Ingest synthetic events into `index=hardware` sourcetype='boot_config' where `host` satisfies detection threshold for UC-1.4.11 ('Boot Order and UEFI/BIOS Configuration Drift'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `hardware` / `boot_config` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.4.11."
   },
   "dataSources": "`dmidecode -t bios`, vendor REST/CLI (iDRAC, iLO) for boot order Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (vendor tools, `dmidecode` on Linux, Redfish/CLI for iDRAC or iLO) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=hardware sourcetype=boot_config host=*\n| stats latest(boot_order) as current_order, latest(secure_boot) as secure_boot by host\n| inputlookup expected_boot_config append=t\n| eval match=if('current_order'='expected_order', \"Match\", \"Drift\")\n| where match=\"Drift\"\n| table host current_order expected_order secure_boot",
   "description": "Unauthorized or accidental boot order changes can prevent systems from booting from the correct disk or PXE. Tracking supports change audit and recovery.",
-  "value": "If someone or something changes which disk or network path the server boots from, you can catch it before the next reboot leaves a system stuck at a wrong image or a surprise installer.",
+  "value": "Unauthorized or accidental boot order changes can prevent systems from booting from the correct disk or PXE. Timely UC-1.4.11 alerting on 'Boot Order and UEFI/BIOS Configuration Drift' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Use vendor APIs or scripts to export boot order and Secure Boot state. Compare to a lookup of expected configuration. Alert on drift. Run after changes or daily.",
   "visualization": "Table (host, current vs. expected boot order), Compliance percentage.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Boot Order and UEFI/BIOS Configuration Drift'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `hardware` `boot_config`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `hardware`** — Package managers spike `host` metrics for 'Boot Order and UEFI/BIOS Configuration Drift'. Correlate with apt/yum logs in the same `boot_config` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `boot_config`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hardware_bmc"
   ],

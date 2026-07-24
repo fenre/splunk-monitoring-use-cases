@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Cooling Capacity vs IT Load' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cooling_capacity_vs_it_load` (UC-15.2.14), SOC dashboard panel \"Operations — Cooling Capacity vs IT Load\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cooling` sourcetype='bms:cooling_capacity' that satisfy the UC-15.2.14 SPL filters for 'Cooling Capacity vs IT Load'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cooling` / `bms:cooling_capacity` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.2.14."
+    "positiveScenario": "Ingest synthetic events into `index=cooling` sourcetype='bms:cooling_capacity' where `entity` satisfies detection threshold for UC-15.2.14 ('Cooling Capacity vs IT Load'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cooling` / `bms:cooling_capacity` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.2.14."
   },
   "dataSources": "`sourcetype=\"bms:cooling_capacity\"` `sourcetype=\"power:it_heat\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "BMS + IT power feeds — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cooling sourcetype=\"bms:cooling_capacity\"\n| eval it_heat_tons=it_load_kw * 0.284345\n| eval margin_tons=cooling_capacity_tons - cooling_output_tons\n| where margin_tons < it_heat_tons * 0.15\n| table zone, cooling_capacity_tons, cooling_output_tons, it_heat_tons, margin_tons",
-  "description": "Compares available tons to IT heat load (from power meters) to expose margin before next summer.",
+  "description": "Compares available tons to IT heat load (from power meters) to expose margin before next summer. Searches `index=cooling` with sourcetype `bms:cooling_capacity` for UC-15.2.14, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Cooling Capacity vs IT Load' without manual log review.",
   "value": "Early 'Cooling Capacity vs IT Load' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Convert IT kW to tons (approx). Alert when margin <15% of peak load forecast. Feed capacity planning.",
   "visualization": "Area chart (load vs capacity), Gauge (margin tons), Table (zones tight).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cooling Capacity vs IT Load'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `cooling` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `cooling`** — Planned work for 'Cooling Capacity vs IT Load' shifts `count` over `span=1h` while `host` remains in-scope for UC-15.2.14. Cross-check CMDB CHG.\n\n2. **Batch `count` on `bms:cooling_capacity`** — Scheduled automation elevates `it_heat_tons` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cooling` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bms:cooling_capacity`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

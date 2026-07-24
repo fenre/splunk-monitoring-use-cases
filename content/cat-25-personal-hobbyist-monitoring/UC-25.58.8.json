@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'People-in-Photos Frequency' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_people_in_photos_frequency` (UC-25.58.8), SOC dashboard panel \"Personal — People-in-Photos Frequency\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='photo:capture' that satisfy the UC-25.58.8 SPL filters for 'People-in-Photos Frequency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `photo:capture` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.58.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='photo:capture' where `person` satisfies detection threshold for UC-25.58.8 ('People-in-Photos Frequency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `photo:capture` events where `person` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.58.8."
   },
   "dataSources": "Photos (`photo:capture`), places visited (`location:visit`), voice memos (`voicememo:note`), logged moments (`lifelog:moment`), timeline events (`timeline:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Life-logging and memory telemetry — photo libraries (Google Photos, Immich), location history, voice memos, and daily-moment journals — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=photo:capture\n| stats count as photos by person\n| where person!=\"\"\n| sort - photos\n| head 15",
-  "description": "Counts who appears most in your photos, gently revealing the people you spend the most time with.",
-  "value": "Seeing who fills your photo library is a heartfelt reminder of the relationships at the centre of your life.",
+  "description": "Counts who appears most in your photos, gently revealing the people you spend the most time with. Searches `index=personal` with sourcetype `photo:capture` for UC-25.58.8, aggregating `count` by `person` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'People-in-Photos Frequency' without manual log review.",
+  "value": "Counts who appears most in your photos, gently revealing the people you spend the most time with. Timely UC-25.58.8 alerting on 'People-in-Photos Frequency' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest photo people-tags into `index=personal`; count photos per person.",
   "visualization": "Bar chart of photo counts by person.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'People-in-Photos Frequency'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `photo:capture`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'People-in-Photos Frequency' stops polling `photo:capture`; stale `person` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `photo:capture`. Dedup with `stats latest(*) by person`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

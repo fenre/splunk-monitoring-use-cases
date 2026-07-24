@@ -52,17 +52,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "A domain-admin account exists in AzureAD but has no matching record in the CyberArk vault; the UC fires the next day.",
-    "negativeScenario": "All IdP admin accounts are present in the vault; no alert.",
-    "fixtureRef": "",
-    "attackTechnique": "T1078.003",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `user` satisfies detection threshold for UC-22.40.4 ('Standing-privilege credential vaulting drift — admin accounts outside PAM'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `user` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.40.4."
   },
   "dataSources": "IdP privileged-group membership (Azure AD, Okta, LDAP), PAM vault inventory (CyberArk, BeyondTrust, Delinea).",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "| rest /services/identity/privileged-groups splunk_server=*\n| fields user group\n| join type=outer user [| rest /services/pam/vault-inventory splunk_server=* | fields user vault_id]\n| where isnull(vault_id)\n| stats values(group) as groups by user\n| table user groups",
   "description": "Treats the PAM vault as the authoritative register of privileged credentials and alerts on any IdP-level admin that is not present in the vault. The asymmetry between 'privileged' and 'managed' is the most common drift pattern.",
-  "value": "Replaces the quarterly 'access-review export + spreadsheet join' with a daily evidence feed.",
+  "value": "Treats the PAM vault as the authoritative register of privileged credentials and alerts on any IdP-level ad.... Timely UC-22.40.4 alerting on 'Standing-privilege credential vaulting drift — admin accounts outside PAM' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Expose IdP privileged groups and PAM vault inventory via REST; (2) run daily; (3) on miss, auto-open a PAM onboarding ticket with the CISO.",
   "visualization": "Table of drift accounts by group, bar chart of drift count by tenant, single-value '% of admins vaulted'. Key fields: `groups`, `user`.",
   "cimModels": [],
@@ -88,7 +85,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised NIST 800 53 control testing** — Internal audit exercises 'Standing-privilege credential vaulting drift — admin accounts outside PAM' (UC-22.40.4) on `user` during scheduled clause AC-5 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `nist_800_53_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `user`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `user` during normal service delivery.\n\n**Suppression mechanism:** `nist_800_53_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1078.003"
   ],

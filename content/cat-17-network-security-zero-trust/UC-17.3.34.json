@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'Netskope Threat Protection Events' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_netskope_threat_protection_events` (UC-17.3.34), SOC dashboard panel \"Network — Netskope Threat Protection Events\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=casb` sourcetype='netskope:alert' that satisfy the UC-17.3.34 SPL filters for 'Netskope Threat Protection Events'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `casb` / `netskope:alert` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.34."
+    "positiveScenario": "Ingest synthetic events into `index=casb` sourcetype='netskope:alert' where `alert_type` satisfies detection threshold for UC-17.3.34 ('Netskope Threat Protection Events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `casb` / `netskope:alert` events where `alert_type` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.34."
   },
   "dataSources": "`sourcetype=netskope:alert` (malware/threat alerts) Indexes: casb. Sourcetypes: netskope:alert. Key fields: action, alert_type, app_name, threat_name, user. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Netskope Add-on for Splunk (Splunkbase 3808)",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'Netskope Threat Protection Events'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=casb` `netskope:alert` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `casb`** — Planned work for 'Netskope Threat Protection Events' shifts `count` over `span=1h` while `alert_type` remains in-scope for UC-17.3.34. Cross-check CMDB CHG.\n\n2. **Batch `count` on `netskope:alert`** — Scheduled automation elevates `threat_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `alert_type`** — Health checks in `casb` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netskope:alert`** — First 48h baseline for `alert_type` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `alert_type`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1071.001",
     "T1568.002"

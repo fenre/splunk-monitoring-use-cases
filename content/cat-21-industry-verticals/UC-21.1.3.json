@@ -13,8 +13,8 @@
   "exclusions": "Covers the detection logic documented for 'Smart Meter Data Gap Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_smart_meter_data_gap_detection` (UC-21.1.3), SOC dashboard panel \"Operations — Smart Meter Data Gap Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ami` sourcetype='ami:meter' that satisfy the UC-21.1.3 SPL filters for 'Smart Meter Data Gap Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ami` / `ami:meter` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.1.3."
+    "positiveScenario": "Ingest synthetic events into `index=ami` sourcetype='ami:meter' where `meter_id` satisfies `gap_sec` > 900 for UC-21.1.3 ('Smart Meter Data Gap Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ami` / `ami:meter` events where `meter_id` stays below `gap_sec` > 900, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.1.3."
   },
   "dataSources": "`index=ami` `sourcetype=\"ami:meter\"` (meter_id, read_timestamp, interval_end, kwh) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom HEC (MDMS/AMI head-end export) — Universal Forwarder (Splunkbase 617)",
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Smart Meter Data Gap Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `ami` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `ami`** — Planned work for 'Smart Meter Data Gap Detection' shifts `max` over `span=1h` while `meter_id` remains in-scope for UC-21.1.3. Cross-check CMDB CHG.\n\n2. **Batch `max` on `ami:meter`** — Scheduled automation elevates `read_epoch` without crossing `gap_sec` > 900. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `meter_id`** — Health checks in `ami` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ami:meter`** — First 48h baseline for `meter_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `meter_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "asterisk"
   ],

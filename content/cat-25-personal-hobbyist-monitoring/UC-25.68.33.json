@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'SaaS Subscriptions & Renewals Cross-Feed Daily Correlation' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_saas_subscriptions_renewals_cross_feed_daily_cor` (UC-25.68.33), SOC dashboard panel \"Personal — SaaS Subscriptions & Renewals Cross-Feed Daily Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='calendar:event' that satisfy the UC-25.68.33 SPL filters for 'SaaS Subscriptions & Renewals Cross-Feed Daily Correlation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `calendar:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.68.33."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='calendar:event' where `_time` satisfies detection threshold for UC-25.68.33 ('SaaS Subscriptions & Renewals Cross-Feed Daily Correlation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `calendar:event` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.68.33."
   },
   "dataSources": "Renewal calendar events (`calendar:event`), Rocket Money subscriptions (`rocketmoney:subscription`), Stripe invoices (`stripe:invoice`), and Google Workspace licenses (`googleworkspace:license`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Renewal calendar exports, Rocket Money subscriptions, Stripe invoice history, and Google Workspace license data ingested into Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "(index=personal sourcetype=calendar:event) OR (index=personal sourcetype=rocketmoney:subscription)\n| bin _time span=1d\n| eval feed=case(sourcetype=\"calendar:event\",\"primary\",sourcetype=\"rocketmoney:subscription\",\"secondary\",1=1,\"other\")\n| stats count as events by _time feed\n| chart sum(events) over _time by feed",
   "description": "Lines up daily volume from calendar:event and rocketmoney:subscription to see whether two saas subscriptions feeds move together.",
-  "value": "When two related exports diverge — one busy, one silent — it usually means a connector broke on only one path.",
+  "value": "Lines up daily volume from calendar:event and rocketmoney:subscription to see whether two saas subscription.... Timely UC-25.68.33 alerting on 'SaaS Subscriptions & Renewals Cross-Feed Daily Correlation' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward both `calendar:event` and `rocketmoney:subscription` into `index=personal` and compare daily counts on one chart.",
   "visualization": "Dual-line chart of daily events per sourcetype.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'SaaS Subscriptions & Renewals Cross-Feed Daily Correlation'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `calendar:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'SaaS Subscriptions & Renewals Cross-Feed Daily Correlation' stops polling `calendar:event`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `calendar:event`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

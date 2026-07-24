@@ -12,8 +12,8 @@
   "exclusions": "Covers the detection logic documented for 'Bind Failure Monitoring' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_bind_failure_monitoring` (UC-9.2.1), SOC dashboard panel \"IAM — Bind Failure Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ldap` sourcetype='syslog' that satisfy the UC-9.2.1 SPL filters for 'Bind Failure Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ldap` / `syslog` events outside the detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.2.1."
+    "positiveScenario": "Ingest synthetic events into `index=ldap` sourcetype='syslog' where `src` satisfies `count` > 10 for UC-9.2.1 ('Bind Failure Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ldap` / `syslog` events where `src` stays below `count` > 10, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.2.1."
   },
   "dataSources": "OpenLDAP syslog, 389 Directory access log Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "Syslog, LDAP server logs — Splunk Add-on for Unix and Linux (Splunkbase 833)",
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Application misconfigured bind DN** — Deploy sends wrong `bind_dn` after release. Correlate spike with `index=ldap` deploy timestamp in `index=changes`.\n\n2. **Directory maintenance restart** — Short bind failure burst while 389/636 restarts. Match maintenance window in change calendar.\n\n3. **Brute-force against LDAP** — External `src` hammering `bind_dn` with err=49. Compare with firewall deny logs for same `src`.\n\n4. **Expired service credential** — Single application account stale password. One `bind_dn` dominates stats; fix in vault rotation.\n\n**Suppression mechanism:** `ldap_exception_register.csv` with `bind_dn`, `src`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ldap`** — Planned work for 'Bind Failure Monitoring' shifts `count` over `span=1h` while `src` remains in-scope for UC-9.2.1. Cross-check CMDB CHG.\n\n2. **Batch `count` on `syslog`** — Scheduled automation elevates `bind_dn` without crossing `count` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `ldap` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `syslog`** — First 48h baseline for `src` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1110",
     "T1110.001"

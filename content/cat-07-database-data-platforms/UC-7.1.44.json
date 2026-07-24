@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'ClickHouse Merge Throughput and Backlog' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_clickhouse_merge_throughput_and_backlog` (UC-7.1.44), SOC dashboard panel \"Operations — ClickHouse Merge Throughput and Backlog\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='clickhouse:merges' that satisfy the UC-7.1.44 SPL filters for 'ClickHouse Merge Throughput and Backlog'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `clickhouse:merges` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.44."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='clickhouse:merges' where `database` satisfies `num_parts` > 50 for UC-7.1.44 ('ClickHouse Merge Throughput and Backlog'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `clickhouse:merges` events where `database` stays below `num_parts` > 50, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.44."
   },
   "dataSources": "`system.merges` rows (active merge tasks, progress, elapsed, num_parts) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk DB Connect or scripted input polling ClickHouse system tables — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"clickhouse:merges\"\n| eval elapsed_sec=elapsed\n| where num_parts > 50 OR elapsed_sec > 600\n| stats count as active_merges, avg(progress) as avg_progress_pct, max(elapsed_sec) as max_elapsed by database, table, host\n| sort -active_merges",
   "description": "Large merges or merges that run for many minutes increase read amplification and delay parts optimization. Operators monitor system.merges alongside parts counts to catch storage engine pressure early.",
-  "value": "Avoids query timeouts and replication delay caused by merge storms or stuck wide parts on ClickHouse merge-tree tables.",
+  "value": "Large merges or merges that run for many minutes increase read amplification and delay parts optimization. Timely UC-7.1.44 alerting on 'ClickHouse Merge Throughput and Backlog' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll system.merges every minute; emit one event per active merge with database, table, progress, num_parts, elapsed, result_part_name. Track merge width (num_parts) and wall time. Correlate with insert rate and TTL mutations.",
   "visualization": "Table (wide merges), Line chart (active merge count), Histogram (elapsed).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'ClickHouse Merge Throughput and Backlog'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'ClickHouse Merge Throughput and Backlog' shifts `avg` over `span=1h` while `database` remains in-scope for UC-7.1.44. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `clickhouse:merges`** — Scheduled automation elevates `table` without crossing `num_parts` > 50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `database`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `clickhouse:merges`** — First 48h baseline for `database` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `database`, `exception_reason`, `valid_until`.",
   "equipment": [
     "clickhouse",
     "db_connect"

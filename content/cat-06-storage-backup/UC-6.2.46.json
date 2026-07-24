@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'TrueNAS SMB share access audit trail for sensitive datasets' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_truenas_smb_share_access_audit_trail_for_sensiti` (UC-6.2.46), SOC dashboard panel \"Operations — TrueNAS SMB share access audit trail for sensitive datasets\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='truenas:alert' that satisfy the UC-6.2.46 SPL filters for 'TrueNAS SMB share access audit trail for sensitive datasets'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `truenas:alert` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.46."
+    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='truenas:alert' where `share` satisfies detection threshold for UC-6.2.46 ('TrueNAS SMB share access audit trail for sensitive datasets'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `storage` / `truenas:alert` events where `share` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.46."
   },
   "dataSources": "SMB audit logs forwarded as `truenas:alert` or custom `truenas:dataset` access logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "TrueNAS SMB audit + syslog to SC4S — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"truenas:alert\" earliest=-24h\n| search smb OR SMB OR \"share access\" OR \"authentication failure\"\n| eval share=coalesce(share_name, smb_share)\n| eval user=coalesce(username, user, account)\n| stats count by share, user, client_ip\n| sort - count",
-  "description": "Share-level audit trails support insider-threat investigations and proves who touched regulated folders.",
-  "value": "Strengthens governance for HIPAA/PCI file shares without third-party agents. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Share-level audit trails support insider-threat investigations and proves who touched regulated folders. Searches `index=storage` with sourcetype `truenas:alert` for UC-6.2.46, aggregating `count` by `share` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'TrueNAS SMB share access audit trail for sensitive datasets' without manual log review.",
+  "value": "Share-level audit trails support insider-threat investigations and proves who touched regulated folders. Timely UC-6.2.46 alerting on 'TrueNAS SMB share access audit trail for sensitive datasets' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Enable granular SMB auditing in TrueNAS; set `props.conf` LINE_BREAKER for multi-line kerberos events. Restrict index ACLs to security team.",
   "visualization": "Top shares by events, table (user, client_ip).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'TrueNAS SMB share access audit trail for sensitive datasets'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `storage` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'TrueNAS SMB share access audit trail for sensitive datasets' shifts `count` over `span=1h` while `share` remains in-scope for UC-6.2.46. Cross-check CMDB CHG.\n\n2. **Batch `count` on `truenas:alert`** — Scheduled automation elevates `user` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `share`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:alert`** — First 48h baseline for `share` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `share`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog",
     "truenas"

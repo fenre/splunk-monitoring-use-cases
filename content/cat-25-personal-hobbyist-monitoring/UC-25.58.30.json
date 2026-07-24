@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Postcard Condition Review Freshness' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_postcard_condition_review_freshness` (UC-25.58.30), SOC dashboard panel \"Personal — Postcard Condition Review Freshness\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='memory:postcard' that satisfy the UC-25.58.30 SPL filters for 'Postcard Condition Review Freshness'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `memory:postcard` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.58.30."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='memory:postcard' where `storage_box` satisfies detection threshold for UC-25.58.30 ('Postcard Condition Review Freshness'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `memory:postcard` events where `storage_box` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.58.30."
   },
   "dataSources": "Photo archives (`memory:takeout`), journal OCR (`memory:journal`), postcard records (`memory:postcard`), memory linking (`memory:photo`), archive checks (`memory:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Life-logging and memory telemetry — Google Photos Takeout archives, journal OCR queues, and postcard collection logs — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=memory:postcard storage_box=* last_review_epoch=* snapshot_epoch=*\n| eval lag_days=round((snapshot_epoch-last_review_epoch)/86400,1)\n| stats avg(lag_days) as avg_lag_days, max(lag_days) as worst_lag_days by storage_box\n| sort - avg_lag_days",
   "description": "Measures condition-review freshness by storage box for postcard preservation. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Lag tracking shows which storage box create the slowest handoffs, syncs, or review loops inside postcard preservation.",
+  "value": "Measures condition-review freshness by storage box for postcard preservation. Timely UC-25.58.30 alerting on 'Postcard Condition Review Freshness' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture the timestamps needed to compute `condition-review freshness` on `memory:postcard` events and aggregate them by `storage_box`.",
   "visualization": "Table of storage box with average and worst condition-review freshness.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Postcard Condition Review Freshness'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `memory:postcard`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Postcard Condition Review Freshness' stops polling `memory:postcard`; stale `storage_box` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `memory:postcard`. Dedup with `stats latest(*) by storage_box`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

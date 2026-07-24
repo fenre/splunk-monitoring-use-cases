@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Sonoff Relay Telemetry Weekly Device Temperature Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_sonoff_relay_telemetry_weekly_device_temperature` (UC-25.5.63), SOC dashboard panel \"Personal — Sonoff Relay Telemetry Weekly Device Temperature Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='sonoff:relay' that satisfy the UC-25.5.63 SPL filters for 'Sonoff Relay Telemetry Weekly Device Temperature Trend'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `sonoff:relay` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.63."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='sonoff:relay' where `_time` satisfies detection threshold for UC-25.5.63 ('Sonoff Relay Telemetry Weekly Device Temperature Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `sonoff:relay` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.63."
   },
   "dataSources": "Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue bridge events (`hue:event`), Nest/Ecobee thermostat (`ecobee:thermostat`), door/leak/motion sensors. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=sonoff:relay temperature_c=*\n| bin _time span=1w\n| stats avg(temperature_c) as avg_duration, max(temperature_c) as worst_duration by _time\n| sort _time",
-  "description": "Trends the average and worst device temperature for Sonoff relay telemetry events each week.",
-  "value": "Weekly timing trends show whether a process is becoming slower, more erratic, or healthier over time.",
+  "description": "Trends the average and worst device temperature for Sonoff relay telemetry events each week. Searches `index=personal` with sourcetype `sonoff:relay` for UC-25.5.63, aggregating `avg` by `_time` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Sonoff Relay Telemetry Weekly Device Temperature Trend' without manual log review.",
+  "value": "Trends the average and worst device temperature for Sonoff relay telemetry events each week. Timely UC-25.5.63 alerting on 'Sonoff Relay Telemetry Weekly Device Temperature Trend' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture temperature_c on each event and review weekly averages plus worst cases during your personal ops review.",
   "visualization": "Line chart of weekly average device temperature with markers for the worst week.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Sonoff Relay Telemetry Weekly Device Temperature Trend'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sonoff:relay`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Sonoff Relay Telemetry Weekly Device Temperature Trend' stops polling `sonoff:relay`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sonoff:relay`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "f5",
     "mqtt"

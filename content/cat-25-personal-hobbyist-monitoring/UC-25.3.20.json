@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'ChargePoint Public Session Failure Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_chargepoint_public_session_failure_rate` (UC-25.3.20), SOC dashboard panel \"Personal — ChargePoint Public Session Failure Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='chargepoint:session' that satisfy the UC-25.3.20 SPL filters for 'ChargePoint Public Session Failure Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `chargepoint:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.20."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='chargepoint:session' where `site_name` satisfies `sessions` >= 3 for UC-25.3.20 ('ChargePoint Public Session Failure Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `chargepoint:session` events where `site_name` stays below `sessions` >= 3, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.20."
   },
   "dataSources": "Personal EV and vehicle telemetry (`tesla:vehicle`, `tesla:charge`, `rivian:vehicle`, `chargepoint:session`, `plugshare:checkin`, `evcharger:session`, `obd:pid`, `smartcar:vehicle`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tesla Fleet API / TeslaMate, Rivian telemetry, ChargePoint session exports, PlugShare trip logs, Smartcar, and OBD-II / home-charger data via APIs, CSV exports, MQTT, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=chargepoint:session\n| bin _time span=1mon\n| stats count as sessions, count(eval(status!=\"completed\")) as failed_sessions by site_name _time\n| eval failed_pct=round(100*failed_sessions/sessions,1)\n| where sessions>=3 AND failed_pct>20\n| sort - failed_pct",
   "description": "Uses ChargePoint session exports telemetry to monitor monthly completion reliability by public charging site in index=personal.",
-  "value": "Splunk turns the feed into an operational check for favorite chargers that keep failing in practice, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses ChargePoint session exports telemetry to monitor monthly completion reliability by public charging sit.... Timely UC-25.3.20 alerting on 'ChargePoint Public Session Failure Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest ChargePoint session exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Monthly site table of completed versus failed sessions.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'ChargePoint Public Session Failure Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `chargepoint:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'ChargePoint Public Session Failure Rate' stops polling `chargepoint:session`; stale `site_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `chargepoint:session`. Dedup with `stats latest(*) by site_name`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew `sessions` >= 3. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

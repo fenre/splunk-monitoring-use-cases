@@ -36,14 +36,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:securityadvisory' that satisfy the UC-5.13.37 SPL filters for 'Devices Affected by Active Advisories'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:securityadvisory` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.37."
+    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:securityadvisory' where `advisoryId` satisfies detection threshold for UC-5.13.37 ('Devices Affected by Active Advisories'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:securityadvisory` events where `advisoryId` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.37."
   },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:securityadvisory` from the `securityadvisory` modular input in `TA_cisco_catalyst` (Splunkbase 7538). Same data feed as UC-5.13.34. Per-device advisory mapping: each event links an `advisoryId` to the affected `deviceId` or device list.",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:securityadvisory\" (severity=\"CRITICAL\" OR severity=\"HIGH\")\n| stats latest(advisoryTitle) as title latest(severity) as sev by advisoryId, deviceId\n| lookup catalyst_device_lookup deviceId OUTPUT deviceName, platformId, softwareVersion\n| table advisoryId, sev, title, deviceName, platformId, softwareVersion\n| sort sev, advisoryId, deviceName",
   "description": "Lists every device affected by each active security advisory, showing which specific switches, routers, and WLCs need firmware upgrades or workarounds — transforming the abstract advisory count from UC-5.13.34 into a concrete device-level remediation plan.",
-  "value": "UC-5.13.34 says '5 CRITICAL advisories affect 47 devices.' This UC says WHICH 47 devices, what firmware they're running, and what version they need. That's the difference between a vulnerability report and a remediation work order. The per-device list is what the firmware upgrade team needs to build the SWIM distribution plan in Catalyst Center, and what the security team needs for risk-based prioritisation (internet-facing core switch vs. internal access switch).",
+  "value": "Lists every device affected by each active security advisory, showing which specific switches, routers, and.... Timely UC-5.13.37 alerting on 'Devices Affected by Active Advisories' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Same `securityadvisory` input as UC-5.13.34. The API should return device-level data within advisory events. If device IDs are returned instead of names, join with `index=catalyst sourcetype=\"cisco:dnac:device\"` for hostname enrichment.",
   "visualization": "(1) Table: advisoryId, severity, advisoryTitle, deviceName, platformId, softwareVersion — drilldown to Catalyst Center Device 360. (2) Count: devices affected by CRITICAL advisories (red ≥ 1). (3) Pivot: `| stats dc(advisoryId) as advisory_count by deviceName | sort -advisory_count` — most-exposed devices first.",
   "references": [
@@ -68,7 +68,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Devices Affected by Active Advisories'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `catalyst` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Devices Affected by Active Advisories' shifts `count` over `span=1h` while `advisoryId` remains in-scope for UC-5.13.37. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:securityadvisory`** — Scheduled automation elevates `deviceId` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `advisoryId`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:securityadvisory`** — First 48h baseline for `advisoryId` is unstable; join `catalyst_device_lookup` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `advisoryId`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

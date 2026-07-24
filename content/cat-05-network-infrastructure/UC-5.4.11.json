@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Band Steering Effectiveness' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_band_steering_effectiveness` (UC-5.4.11), SOC dashboard panel \"Operations — Band Steering Effectiveness\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:wlc:syslog' that satisfy the UC-5.4.11 SPL filters for 'Band Steering Effectiveness'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `cisco:wlc:syslog` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.4.11."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:wlc:syslog' where `band` satisfies detection threshold for UC-5.4.11 ('Band Steering Effectiveness'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `cisco:wlc:syslog` events where `band` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.4.11."
   },
   "dataSources": "`sourcetype=cisco:wlc:syslog`, `sourcetype=meraki:devices` Indexes: network. Sourcetypes: cisco:wlc:syslog. Key fields: band, ssid. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk Add-on for Cisco WLC` for WLC syslog, OR `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) Webhook Logs input if running Meraki MR — see implementation note.",
   "spl": "index=network sourcetype=\"cisco:wlc:syslog\" \"associated\"\n| eval band=if(match(channel,\"^(1|6|11)$\"),\"2.4GHz\",\"5GHz\")\n| stats count by band, ssid\n| eventstats sum(count) as total by ssid\n| eval pct=round(count/total*100,1)",
   "description": "Band steering moves capable clients to 5 GHz, reducing congestion on 2.4 GHz. Measuring effectiveness validates RF policy.",
-  "value": "Network operations teams measure band steering effectiveness across SSIDs by tracking the 5GHz/6GHz vs. 2.4GHz client distribution, optimizing wireless performance by ensuring dual-band clients use higher-capacity bands.",
+  "value": "Network operations teams measure band steering effectiveness across SSIDs by tracking the 5GHz/6GHz vs. 2.4GHz client distribution, optimizing wireless performance by ensuring dual-band clients use higher-capacity bands reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "1. Configure SC4S to receive Cisco WLC syslog. 2. The query categorises clients by 2.4GHz vs 5GHz from the channel value in association events. 3. If you are running Meraki MR instead: enable the Webhook Logs (HEC) input in Splunk_TA_cisco_meraki and configure a 'client connection changed' alert in Meraki Dashboard. The webhook alertData.band field carries 2.4GHz / 5GHz / 6GHz (see UC-5.4.19 for the canonical Meraki SPL pattern). Polled Meraki TA does not expose per-client band information.",
   "visualization": "Pie chart (band distribution), Bar chart (by SSID), Timechart (trending).",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Band Steering Effectiveness'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Band Steering Effectiveness' shifts `sum` over `span=1h` while `band` remains in-scope for UC-5.4.11. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cisco:wlc:syslog`** — Scheduled automation elevates `ssid` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `band`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:wlc:syslog`** — First 48h baseline for `band` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `band`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Battery Stock and Device Drain' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_battery_stock_and_device_drain` (UC-25.36.8), SOC dashboard panel \"Personal — Battery Stock and Device Drain\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='supply:level' that satisfy the UC-25.36.8 SPL filters for 'Battery Stock and Device Drain'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `supply:level` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.36.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='supply:level' where `battery_type` satisfies detection threshold for UC-25.36.8 ('Battery Stock and Device Drain'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `supply:level` events where `battery_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.36.8."
   },
   "dataSources": "Consumable levels (`supply:level`), parcels (`delivery:parcel`), bin collections (`bincollection:event`), gift-card balances (`giftcard:balance`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Household logistics feeds — smart-scale consumable trackers, parcel/delivery tracking APIs, council bin-collection calendars, and gift-card balance logs — sent to Splunk HEC via scripted inputs and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=supply:level category=batteries\n| stats latest(level_pct) as stock, avg(monthly_use) as usage by battery_type\n| eval months_left=round(stock/usage,1)\n| sort months_left",
-  "description": "Tracks your household battery stock against how fast devices drain them, so you are never caught without.",
-  "value": "A battery drawer runs dry at the worst moment; a stock-versus-usage view keeps the common sizes topped up.",
+  "description": "Tracks your household battery stock against how fast devices drain them, so you are never caught without. Searches `index=personal` with sourcetype `supply:level` for UC-25.36.8, aggregating `avg` by `battery_type` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Battery Stock and Device Drain' without manual log review.",
+  "value": "Tracks your household battery stock against how fast devices drain them, so you are never caught without. Timely UC-25.36.8 alerting on 'Battery Stock and Device Drain' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log battery stock and usage into `index=personal`; flag types running low.",
   "visualization": "Table of battery types by months of stock left.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Battery Stock and Device Drain'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `supply:level`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Battery Stock and Device Drain' stops polling `supply:level`; stale `battery_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `supply:level`. Dedup with `stats latest(*) by battery_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Brew Fridge Short-Cycle' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_brew_fridge_short_cycle` (UC-25.16.26), SOC dashboard panel \"Personal — Brew Fridge Short-Cycle\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='brewfridge:compressor' that satisfy the UC-25.16.26 SPL filters for 'Brew Fridge Short-Cycle'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `brewfridge:compressor` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.16.26."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='brewfridge:compressor' where `fridge` satisfies `cycles` > 4 for UC-25.16.26 ('Brew Fridge Short-Cycle'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `brewfridge:compressor` events where `fridge` stays below `cycles` > 4, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.16.26."
   },
   "dataSources": "Brewing telemetry (`brew:batch`, `brew:fermentation`, `brew:mash`, `tilt:hydrometer`, `ispindel:reading`, `kegerator:pressure`, `kegerator:pour`, `brewfridge:compressor`, `winecellar:reading`, `tapline:clean`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Brewfather batch exports, iSpindel and Tilt hydrometers, ESPHome mash probes, keg pressure sensors, brew-fridge telemetry, and cellar climate data via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=brewfridge:compressor\n| bin _time span=1h\n| stats count(eval(state=\"on\")) as cycles, avg(run_min) as avg_run_min by fridge _time\n| where cycles>4 AND avg_run_min<5\n| sort - cycles",
   "description": "Uses Brew-fridge compressor logs telemetry to monitor compressor short-cycling during fermentation control in index=personal.",
-  "value": "Splunk turns the feed into an operational check for cooling behavior that wastes energy or stresses equipment, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Brew-fridge compressor logs telemetry to monitor compressor short-cycling during fermentation control.... Timely UC-25.16.26 alerting on 'Brew Fridge Short-Cycle' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Brew-fridge compressor logs data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Hourly brew-fridge cycle chart.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Brew Fridge Short-Cycle'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `brewfridge:compressor`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Brew Fridge Short-Cycle' stops polling `brewfridge:compressor`; stale `fridge` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1h` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `brewfridge:compressor`. Dedup with `stats latest(*) by fridge`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `cycles` > 4. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

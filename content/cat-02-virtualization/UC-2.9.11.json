@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'OpenStack Control Plane RabbitMQ Queue Depth by Service' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_openstack_control_plane_rabbitmq_queue_depth_by_` (UC-2.9.11), SOC dashboard panel \"Linux — OpenStack Control Plane RabbitMQ Queue Depth by Service\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=openstack` sourcetype='openstack:rabbitmq' that satisfy the UC-2.9.11 SPL filters for 'OpenStack Control Plane RabbitMQ Queue Depth by Service'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `openstack` / `openstack:rabbitmq` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.9.11."
+    "positiveScenario": "Ingest synthetic events into `index=openstack` sourcetype='openstack:rabbitmq' where `vhost` satisfies `depth` > 5000 for UC-2.9.11 ('OpenStack Control Plane RabbitMQ Queue Depth by Service'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `openstack` / `openstack:rabbitmq` events where `vhost` stays below `depth` > 5000, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.9.11."
   },
   "dataSources": "`index=openstack` `sourcetype=\"openstack:rabbitmq\"` OR `sourcetype=\"rabbitmq:metrics\"` — `vhost`, `queue`, `messages_ready`, `messages_unacked`, `consumer_count` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Prometheus scrape or RabbitMQ management API poller — Universal Forwarder (Splunkbase 617)",
   "spl": "index=openstack (sourcetype=\"openstack:rabbitmq\" OR sourcetype=\"rabbitmq:metrics\") earliest=-1h\n| eval depth=tonumber(messages_ready)+tonumber(messages_unacked)\n| eval consumers=tonumber(consumer_count)\n| where depth>5000 OR (consumers==0 AND depth>0)\n| stats latest(depth) as qdepth, latest(consumers) as cons by vhost, queue",
   "description": "Deep AMQP queues mean async RPC backlogs across Nova, Neutron, and Cinder. Consumer drops predict widespread API timeouts.",
-  "value": "Preserves API responsiveness during traffic spikes and upgrades. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Deep AMQP queues mean async RPC backlogs across Nova, Neutron, and Cinder. Timely UC-2.9.11 alerting on 'OpenStack Control Plane RabbitMQ Queue Depth by Service' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Ingest per-queue metrics every minute. Page on depth SLO breach. Tie queues to owning service via naming convention.",
   "visualization": "Timechart depth; table worst queues; consumer count sparkline.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'OpenStack Control Plane RabbitMQ Queue Depth by Service'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `openstack` `openstack:rabbitmq`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `openstack`** — Package managers spike `vhost` metrics for 'OpenStack Control Plane RabbitMQ Queue Depth by Service'. Correlate with apt/yum logs in the same `openstack:rabbitmq` window.\n\n2. **Nightly backup I/O on `vhost`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `openstack:rabbitmq`** — Nagios/Zabbix polls `vhost` and mimics sustained load without crossing `depth` > 5000.\n\n4. **New host onboarding** — `vhost` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `vhost`, `valid_until`.",
   "equipment": [
     "openstack",
     "prometheus",

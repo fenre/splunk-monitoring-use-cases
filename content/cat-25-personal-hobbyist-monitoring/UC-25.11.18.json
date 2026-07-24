@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Pet GPS Signal Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_pet_gps_signal_gap` (UC-25.11.18), SOC dashboard panel \"Personal — Pet GPS Signal Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tractive:position' that satisfy the UC-25.11.18 SPL filters for 'Pet GPS Signal Gap'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tractive:position` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.11.18."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tractive:position' where `pet_name` satisfies `minutes_since` > 30 for UC-25.11.18 ('Pet GPS Signal Gap'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `tractive:position` events where `pet_name` stays below `minutes_since` > 30, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.11.18."
   },
   "dataSources": "Pet tracker location/activity (`tractive:position`, `whistle:activity`), smart feeder events (`petfeeder:event`), litter-box usage (`litterrobot:cycle`), bird-feeder detections (`birdfeeder:detection`), doorbell/package events (`doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Pet GPS/activity trackers (Tractive/Fi/Whistle), smart feeders and litter boxes, bird feeders/cams, and home-life sensors via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tractive:position\n| stats max(_time) as last_seen by pet_name\n| eval minutes_since=round((now()-last_seen)/60,1)\n| where minutes_since>30\n| sort - minutes_since",
   "description": "Looks for pet trackers that have gone silent long enough to reduce trust in the map, especially during walks, roaming, or travel.",
-  "value": "A location tracker only helps when it is reporting; a simple signal-gap alert keeps the most safety-critical part of the stack honest.",
+  "value": "Looks for pet trackers that have gone silent long enough to reduce trust in the map, especially during walk.... Timely UC-25.11.18 alerting on 'Pet GPS Signal Gap' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward tracker location pings; alert when a known-active pet has not reported for longer than its normal cadence.",
   "visualization": "Table of pets by minutes since last tracker update.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Pet GPS Signal Gap'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tractive:position`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Pet GPS Signal Gap' stops polling `tractive:position`; stale `pet_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tractive:position`. Dedup with `stats latest(*) by pet_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `minutes_since` > 30. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

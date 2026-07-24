@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Trading-Card Portfolio Movers' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_trading_card_portfolio_movers` (UC-25.30.5), SOC dashboard panel \"Personal — Trading-Card Portfolio Movers\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tradingcard:price' that satisfy the UC-25.30.5 SPL filters for 'Trading-Card Portfolio Movers'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tradingcard:price` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.30.5."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tradingcard:price' where `card` satisfies detection threshold for UC-25.30.5 ('Trading-Card Portfolio Movers'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `tradingcard:price` events where `card` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.30.5."
   },
   "dataSources": "Collection items (`collection:item`), vinyl plays (`vinyl:play`), LEGO sets (`lego:set`), trading-card prices (`tradingcard:price`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Collection catalogues and price APIs — Discogs (vinyl), BrickLink (LEGO), trading-card and coin/stamp price feeds, and personal inventory databases with NFC-tagged scans — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tradingcard:price\n| streamstats current=f last(price) as prev by card\n| eval change_pct=round(100*(price-prev)/prev,1)\n| stats latest(change_pct) as move, latest(price) as price by card\n| where abs(move)>10\n| sort - move",
-  "description": "Flags the trading cards in your collection whose price moved sharply, so you catch a spike worth selling into.",
-  "value": "Card prices swing on reprints and hype; a movers view lets you act on a spike instead of learning about it too late.",
+  "description": "Flags the trading cards in your collection whose price moved sharply, so you catch a spike worth selling into. Searches `index=personal` with sourcetype `tradingcard:price` for UC-25.30.5, aggregating `count` by `card` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Trading-Card Portfolio Movers' without manual log review.",
+  "value": "Flags the trading cards in your collection whose price moved sharply, so you catch a spike worth selling into. Timely UC-25.30.5 alerting on 'Trading-Card Portfolio Movers' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest card price feeds into `index=personal`; alert on large price moves in cards you own.",
   "visualization": "Table of biggest price movers among owned cards.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Trading-Card Portfolio Movers'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tradingcard:price`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Trading-Card Portfolio Movers' stops polling `tradingcard:price`; stale `card` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tradingcard:price`. Dedup with `stats latest(*) by card`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

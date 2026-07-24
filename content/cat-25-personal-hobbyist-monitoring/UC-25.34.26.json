@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Small Treat Spend vs Budget Buffer' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_small_treat_spend_vs_budget_buffer` (UC-25.34.26), SOC dashboard panel \"Personal — Small Treat Spend vs Budget Buffer\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='microspend:txn' that satisfy the UC-25.34.26 SPL filters for 'Small Treat Spend vs Budget Buffer'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `microspend:txn` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.34.26."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='microspend:txn' where `_time` satisfies detection threshold for UC-25.34.26 ('Small Treat Spend vs Budget Buffer'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `microspend:txn` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.34.26."
   },
   "dataSources": "Micro-spend transactions (`microspend:txn`), cashback events (`cashback:event`), price tracker alerts (`pricetrack:alert`), and tip logs (`tiplog:shift`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Micro-finance telemetry for latte-factor spending, cashback apps, price tracking, and tip logging sent to Splunk HEC via finance exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=microspend:txn\n| search category=\"treat\" amount=*\n| bin _time span=1w\n| stats sum(amount) as spend avg(buffer_remaining) as avg_buffer_remaining by _time mood_tag\n| sort - _time",
-  "description": "Tracks small-treat spend against budget buffer over time and breaks it out by mood tag.",
-  "value": "Putting treat spend next to remaining buffer helps show when mood spending is genuinely threatening the plan.",
+  "description": "Tracks small-treat spend against budget buffer over time and breaks it out by mood tag. Searches `index=personal` with sourcetype `microspend:txn` for UC-25.34.26, aggregating `sum` by `_time` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Small Treat Spend vs Budget Buffer' without manual log review.",
+  "value": "Tracks small-treat spend against budget buffer over time and breaks it out by mood tag. Timely UC-25.34.26 alerting on 'Small Treat Spend vs Budget Buffer' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send small-treat spend against budget buffer events to `index=personal` with the fields used in the breakdown and review the resulting trend at 1w granularity.",
   "visualization": "Stacked time chart of small-treat spend against budget buffer by mood tag.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Small Treat Spend vs Budget Buffer'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `microspend:txn`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Small Treat Spend vs Budget Buffer' stops polling `microspend:txn`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `microspend:txn`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

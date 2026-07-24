@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Bucket Capacity Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_bucket_capacity_trending` (UC-6.2.1), SOC dashboard panel \"Operations — Bucket Capacity Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' that satisfy the UC-6.2.1 SPL filters for 'Bucket Capacity Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.1."
+    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `bucket_name` satisfies detection threshold for UC-6.2.1 ('Bucket Capacity Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch` events where `bucket_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.1."
   },
   "dataSources": "CloudWatch S3 metrics (BucketSizeBytes), Azure Blob metrics Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` (CloudWatch), Splunk_TA_microsoft-cloudservices — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" metric_name=\"BucketSizeBytes\"\n| timechart span=1d latest(Average) as size_bytes by bucket_name\n| eval size_gb=size_bytes/1024/1024/1024",
-  "description": "Tracks storage growth for cost forecasting and lifecycle policy effectiveness. Prevents unexpected cloud bills.",
+  "description": "Tracks storage growth for cost forecasting and lifecycle policy effectiveness. Prevents unexpected cloud bills. Searches `index=aws` with sourcetype `aws:cloudwatch` for UC-6.2.1, aggregating `count` by `bucket_name` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Bucket Capacity Trending' without manual log review.",
   "value": "Early 'Bucket Capacity Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Enable S3 storage metrics in CloudWatch (request metrics may incur cost). Ingest via Splunk Add-on for AWS. Create trending reports by bucket and apply `predict` for growth forecasting.",
   "visualization": "Line chart (bucket size over time), Stacked area (total storage by bucket), Table (largest buckets).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Bucket Capacity Trending'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `aws` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Bucket Capacity Trending' shifts `count` over `span=1d` while `bucket_name` remains in-scope for UC-6.2.1. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch`** — Scheduled automation elevates `size_gb` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `bucket_name`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for `bucket_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `bucket_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "azure",

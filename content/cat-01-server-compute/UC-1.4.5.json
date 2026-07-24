@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Firmware Version Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_firmware_version_compliance` (UC-1.4.5), SOC dashboard panel \"Linux — Firmware Version Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=hardware` sourcetype='firmware_inventory' that satisfy the UC-1.4.5 SPL filters for 'Firmware Version Compliance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `hardware` / `firmware_inventory` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.4.5."
+    "positiveScenario": "Ingest synthetic events into `index=hardware` sourcetype='firmware_inventory' where `host` satisfies detection threshold for UC-1.4.5 ('Firmware Version Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `hardware` / `firmware_inventory` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.4.5."
   },
   "dataSources": "BMC/BIOS version data via scripted input Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (`ipmitool`, `dmidecode`), vendor APIs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=hardware sourcetype=firmware_inventory\n| stats latest(bios_version) as bios, latest(bmc_version) as bmc by host, model\n| lookup current_firmware model OUTPUT expected_bios, expected_bmc\n| eval bios_current = if(bios=expected_bios, \"Yes\", \"No\")\n| where bios_current=\"No\"",
   "description": "Outdated firmware may have security vulnerabilities or known bugs. Fleet-wide firmware tracking supports patch management.",
-  "value": "A single list of which boxes still run old system or out-of-band firmware makes patch and risk conversations concrete instead of sampling a few serial numbers by hand.",
+  "value": "Outdated firmware may have security vulnerabilities or known bugs. Timely UC-1.4.5 alerting on 'Firmware Version Compliance' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Create scripted input: `ipmitool mc info` or `dmidecode -t bios`. Run daily. Maintain a lookup table of expected firmware versions per server model. Dashboard showing compliance.",
   "visualization": "Table (host, model, current vs. expected), Pie chart (compliant %), Bar chart by model.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Firmware Version Compliance'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `hardware` `firmware_inventory`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `hardware`** — Package managers spike `host` metrics for 'Firmware Version Compliance'. Correlate with apt/yum logs in the same `firmware_inventory` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `firmware_inventory`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hardware_bmc"
   ],

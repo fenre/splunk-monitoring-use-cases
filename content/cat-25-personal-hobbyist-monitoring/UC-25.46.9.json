@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Spotlight Balance Across Players' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_spotlight_balance_across_players` (UC-25.46.9), SOC dashboard panel \"Personal — Spotlight Balance Across Players\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='campaign:session' that satisfy the UC-25.46.9 SPL filters for 'Spotlight Balance Across Players'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `campaign:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.46.9."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='campaign:session' where `player` satisfies detection threshold for UC-25.46.9 ('Spotlight Balance Across Players'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `campaign:session` events where `player` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.46.9."
   },
   "dataSources": "Campaign sessions (`campaign:session`), NPC ledger (`npc:ledger`), loot drops (`loot:drop`), XP awards (`xp:award`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tabletop RPG telemetry — virtual-tabletop session logs (Roll20, Foundry VTT), campaign trackers (World Anvil), and XP / loot / NPC ledgers — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=campaign:session event=spotlight\n| stats sum(spotlight_min) as spotlight by player\n| eventstats avg(spotlight) as fair_share\n| eval delta=round(spotlight-fair_share,0)\n| sort delta",
-  "description": "Measures how much spotlight time each player gets, helping the game master share the limelight fairly.",
-  "value": "Quiet players drift away when overshadowed; a spotlight balance nudges a fairer, more engaging table.",
+  "description": "Measures how much spotlight time each player gets, helping the game master share the limelight fairly. Searches `index=personal` with sourcetype `campaign:session` for UC-25.46.9, aggregating `sum` by `player` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Spotlight Balance Across Players' without manual log review.",
+  "value": "Measures how much spotlight time each player gets, helping the game master share the limelight fairly. Timely UC-25.46.9 alerting on 'Spotlight Balance Across Players' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log spotlight minutes into `index=personal`; compare each player to the fair share.",
   "visualization": "Bar chart of spotlight time by player versus fair share.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Spotlight Balance Across Players'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `campaign:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Spotlight Balance Across Players' stops polling `campaign:session`; stale `player` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `campaign:session`. Dedup with `stats latest(*) by player`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

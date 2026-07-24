@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Elasticsearch Security Audit Authentication Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_elasticsearch_security_audit_authentication_fail` (UC-7.3.23), SOC dashboard panel \"Operations — Elasticsearch Security Audit Authentication Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=sec` sourcetype='elasticsearch:audit' that satisfy the UC-7.3.23 SPL filters for 'Elasticsearch Security Audit Authentication Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `sec` / `elasticsearch:audit` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.3.23."
+    "positiveScenario": "Ingest synthetic events into `index=sec` sourcetype='elasticsearch:audit' where `cluster_uuid` satisfies `failures` > 25 for UC-7.3.23 ('Elasticsearch Security Audit Authentication Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `sec` / `elasticsearch:audit` events where `cluster_uuid` stays below `failures` > 25, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.3.23."
   },
   "dataSources": "Elasticsearch audit indices (`event.type:authentication`, `event.outcome:failure`) forwarded to Splunk Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Elastic Agent / Filebeat audit forwarding, or Elastic Stack HEC bridge — Universal Forwarder (Splunkbase 617)",
   "spl": "index=sec sourcetype=\"elasticsearch:audit\"\n| search \"authentication_failed\" OR event.outcome=\"failure\" OR event.action=\"authentication_failed\"\n| bin _time span=1h\n| stats count as failures dc(user.name) as users dc(source.ip) as sources by cluster_uuid, _time\n| where failures > 25",
   "description": "Elastic Stack audit logs record REST and transport authentication failures. Security teams ship these JSON events to Splunk for correlation with application and IdP logs.",
-  "value": "Extends SOC coverage to the search tier where service accounts and Kibana users can be brute forced.",
+  "value": "Elastic Stack audit logs record REST and transport authentication failures. Timely UC-7.3.23 alerting on 'Elasticsearch Security Audit Authentication Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Normalize Elastic Common Schema fields at ingest (`user.name`, `source.ip`, `cluster.uuid`). Tune thresholds for service mesh identities. Retain per regulatory index routing.",
   "visualization": "Table (user, sources, count), Timeline (failures), Map (source.ip).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Elasticsearch Security Audit Authentication Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `sec` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `sec`** — Planned work for 'Elasticsearch Security Audit Authentication Failures' shifts `dc` over `span=1h` while `cluster_uuid` remains in-scope for UC-7.3.23. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `elasticsearch:audit`** — Scheduled automation elevates `_time` without crossing `failures` > 25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cluster_uuid`** — Health checks in `sec` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `elasticsearch:audit`** — First 48h baseline for `cluster_uuid` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cluster_uuid`, `exception_reason`, `valid_until`.",
   "equipment": [
     "elasticsearch"
   ],

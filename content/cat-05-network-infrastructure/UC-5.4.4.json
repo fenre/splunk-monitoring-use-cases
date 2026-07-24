@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Rogue AP Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_rogue_ap_detection` (UC-5.4.4), SOC dashboard panel \"Operations — Rogue AP Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:wlc:syslog' that satisfy the UC-5.4.4 SPL filters for 'Rogue AP Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `cisco:wlc:syslog` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.4.4."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:wlc:syslog' where `rogue_mac` satisfies detection threshold for UC-5.4.4 ('Rogue AP Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `cisco:wlc:syslog` events where `rogue_mac` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.4.4."
   },
   "dataSources": "WLC/Meraki security events Indexes: network. Sourcetypes: cisco:wlc:syslog. Key fields: channel, detecting_ap, rogue_mac. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk Add-on for Cisco WLC` for WLC syslog, OR `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) Air Marshal input if running Meraki MR — see implementation note.",
   "spl": "index=network sourcetype=\"cisco:wlc:syslog\" \"rogue\" (\"detected\" OR \"alert\" OR \"contained\")\n| stats count by rogue_mac, detecting_ap, channel | sort -count",
-  "description": "Rogue APs are unauthorized and can be used for man-in-the-middle attacks or network bridging.",
-  "value": "Security operations teams detect unauthorized rogue access points with risk-based classification (on-wire, evil twin, impersonation), enabling rapid physical isolation of the highest-risk rogues before credential theft or network bridging occurs.",
+  "description": "Rogue APs are unauthorized and can be used for man-in-the-middle attacks or network bridging. Searches `index=network` with sourcetype `cisco:wlc:syslog` for UC-5.4.4, aggregating `count` by `rogue_mac` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Rogue AP Detection' without manual log review.",
+  "value": "Rogue APs are unauthorized and can be used for man-in-the-middle attacks or network bridging. Timely UC-5.4.4 alerting on 'Rogue AP Detection' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "1. Configure SC4S to receive Cisco WLC syslog. 2. The query above surfaces rogue AP detections with detecting_ap, channel, and rogue_mac. 3. If you are running Meraki MR instead: enable the Air Marshal input (sourcetype=meraki:airmarshal) in Splunk_TA_cisco_meraki and filter on type=rogue_ssid_detected / type=ssid_spoofing_detected — both come with ssid, bssid, src, dst, channel, rssi fields.",
   "visualization": "Table (rogue MAC, detecting AP, channel), Map, Single value.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Rogue AP Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Rogue AP Detection' shifts `count` over `span=1h` while `rogue_mac` remains in-scope for UC-5.4.4. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:wlc:syslog`** — Scheduled automation elevates `detecting_ap` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `rogue_mac`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:wlc:syslog`** — First 48h baseline for `rogue_mac` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `rogue_mac`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"

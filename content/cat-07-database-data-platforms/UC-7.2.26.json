@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'ZooKeeper Quorum Follower Sync Gap' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_zookeeper_quorum_follower_sync_gap` (UC-7.2.26), SOC dashboard panel \"Operations — ZooKeeper Quorum Follower Sync Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=zookeeper` sourcetype='zookeeper:mntr' that satisfy the UC-7.2.26 SPL filters for 'ZooKeeper Quorum Follower Sync Gap'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `zookeeper` / `zookeeper:mntr` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.26."
+    "positiveScenario": "Ingest synthetic events into `index=zookeeper` sourcetype='zookeeper:mntr' where `host` satisfies `zk_followers` > 0 for UC-7.2.26 ('ZooKeeper Quorum Follower Sync Gap'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `zookeeper` / `zookeeper:mntr` events where `host` stays below `zk_followers` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.26."
   },
   "dataSources": "ZooKeeper `mntr` four-letter word output: `zk_followers`, `zk_synced_followers` (standalone mode omits followers) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (`echo mntr | nc localhost 2181`) or ZooKeeper AdminServer metrics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=zookeeper sourcetype=\"zookeeper:mntr\"\n| where isnotnull(zk_followers) AND zk_followers > 0\n| eval follower_gap=zk_followers-zk_synced_followers\n| where follower_gap > 0 OR zk_synced_followers < zk_followers\n| timechart span=5m max(follower_gap) as unsynced_followers by host",
   "description": "When zk_synced_followers lags zk_followers, part of the ensemble is not caught up—often precursing split-brain risk or dependent service outages (Kafka, ClickHouse, HBase).",
-  "value": "Gives early warning before Kafka controller churn or ClickHouse replica read-only transitions caused by ensemble instability.",
+  "value": "When zk_synced_followers lags zk_followers, part of the ensemble is not caught up—often precursing split-br.... Timely UC-7.2.26 alerting on 'ZooKeeper Quorum Follower Sync Gap' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll mntr on each ZooKeeper peer. Parse integers for zk_followers and zk_synced_followers. Skip or branch standalone nodes. Alert when gap > 0 for more than two consecutive polls. Correlate with latency and outstanding_requests.",
   "visualization": "Line chart (follower gap), Table (ensemble host, followers, synced), Single value (gap).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'ZooKeeper Quorum Follower Sync Gap'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `zookeeper` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `zookeeper`** — Planned work for 'ZooKeeper Quorum Follower Sync Gap' shifts `max` over `span=5m` while `host` remains in-scope for UC-7.2.26. Cross-check CMDB CHG.\n\n2. **Batch `max` on `zookeeper:mntr`** — Scheduled automation elevates `follower_gap` without crossing `zk_followers` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `zookeeper` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zookeeper:mntr`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "clickhouse",
     "kafka",

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Aruba Air Monitor — WIDS/WIPS Events (HPE Aruba)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_aruba_air_monitor_wids_wips_events_hpe_aruba` (UC-5.4.35), SOC dashboard panel \"Operations — Aruba Air Monitor — WIDS/WIPS Events (HPE Aruba)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='aruba:syslog' that satisfy the UC-5.4.35 SPL filters for 'Aruba Air Monitor — WIDS/WIPS Events (HPE Aruba)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `aruba:syslog` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.4.35."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='aruba:syslog' where `threat_type` satisfies detection threshold for UC-5.4.35 ('Aruba Air Monitor — WIDS/WIPS Events (HPE Aruba)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `aruba:syslog` events where `threat_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.4.35."
   },
   "dataSources": "`sourcetype=aruba:syslog` Indexes: network. Sourcetypes: aruba:syslog. Key fields: ap_name, bssid, channel, detecting_ap, sev, threat_type. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Aruba Networks Add-on for Splunk` (Splunkbase 4668)",
   "spl": "index=network sourcetype=\"aruba:syslog\" (category=\"SECURITY\" OR subsystem=\"wids\" OR subsystem=\"WIDS\" OR match(_raw, \"(?i)(rogue|evil.twin|ad-hoc|deauth|disassoc).*(flood|detected|attack|alert)\"))\n| eval threat_type=coalesce(wids_classification, threat_name, intrusion_type, ids_signature, alert_type)\n| eval sev=coalesce(severity, threat_severity, priority)\n| stats count by threat_type, sev, ap_name, channel, detecting_ap, bssid\n| sort -count",
   "description": "Aruba's Wireless Intrusion Detection and Prevention System (WIDS/WIPS) detects rogue APs, evil twin attacks, ad-hoc networks, unauthorized bridges, and DoS attacks (deauthentication floods, association floods). Air Monitor (AM) mode APs or hybrid APs provide dedicated RF security scanning.",
-  "value": "Wireless security teams detect and classify Aruba WIDS/WIPS threats (rogue APs, evil twins, deauth floods) from Air Monitor events, correlating detections with physical site locations for containment.",
+  "value": "Aruba's Wireless Intrusion Detection and Prevention System (WIDS/WIPS) detects rogue APs, evil twin attacks.... Timely UC-5.4.35 alerting on 'Aruba Air Monitor — WIDS/WIPS Events (HPE Aruba)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Enable WIDS/WIPS and AM-capable APs per Aruba design guide; ensure security-class syslog messages are forwarded with TA parsing for threat category and severity. Tune alerts for critical classes (rogue AP, evil twin, deauth flood). Correlate with physical site/AP layout for containment workflows.",
   "visualization": "Table (threat type, severity, channel, detecting AP), Bar chart (threats by type), Timeline (WIDS event rate), Map or floor plan overlay when location fields exist.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Aruba Air Monitor — WIDS/WIPS Events (HPE Aruba)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Aruba Air Monitor — WIDS/WIPS Events (HPE Aruba)' shifts `count` over `span=1h` while `threat_type` remains in-scope for UC-5.4.35. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aruba:syslog`** — Scheduled automation elevates `sev` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `threat_type`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aruba:syslog`** — First 48h baseline for `threat_type` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `threat_type`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog"
   ],

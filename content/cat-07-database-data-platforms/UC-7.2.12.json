@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'MongoDB WiredTiger Cache Pressure' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mongodb_wiredtiger_cache_pressure` (UC-7.2.12), SOC dashboard panel \"Operations — MongoDB WiredTiger Cache Pressure\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mongodb:server_status' that satisfy the UC-7.2.12 SPL filters for 'MongoDB WiredTiger Cache Pressure'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `mongodb:server_status` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.12."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mongodb:server_status' where `host` satisfies `dirty_pct` > 20 for UC-7.2.12 ('MongoDB WiredTiger Cache Pressure'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `mongodb:server_status` events where `host` stays below `dirty_pct` > 20, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.12."
   },
   "dataSources": "`db.serverStatus().wiredTiger.cache` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (mongosh serverStatus) — Universal Forwarder (Splunkbase 617)",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'MongoDB WiredTiger Cache Pressure'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'MongoDB WiredTiger Cache Pressure' shifts `avg` over `span=5m` while `host` remains in-scope for UC-7.2.12. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `mongodb:server_status`** — Scheduled automation elevates `dirty_pct` without crossing `dirty_pct` > 20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:server_status`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "mongodb"
   ],

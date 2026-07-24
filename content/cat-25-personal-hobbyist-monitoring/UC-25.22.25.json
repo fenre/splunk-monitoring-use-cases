@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'PHD2 Star-Lost Burst by Filter' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_phd2_star_lost_burst_by_filter` (UC-25.22.25), SOC dashboard panel \"Personal — PHD2 Star-Lost Burst by Filter\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='phd2:guide' that satisfy the UC-25.22.25 SPL filters for 'PHD2 Star-Lost Burst by Filter'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `phd2:guide` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.22.25."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='phd2:guide' where `_time` satisfies detection threshold for UC-25.22.25 ('PHD2 Star-Lost Burst by Filter'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `phd2:guide` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.22.25."
   },
   "dataSources": "NINA sequences (`nina:sequence`), NINA autofocus runs (`nina:autofocus`), Ekos scheduler and device events (`ekos:scheduler`, `ekos:device`), PHD2 guiding telemetry (`phd2:guide`), plate solves (`platesolve:run`), filter wheel events (`filterwheel:event`), and flat frames (`flatlib:frame`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Astrophotography session telemetry from N.I.N.A., KStars/Ekos, PHD2, plate-solving tools, ASCOM gear, and filter-wheel controllers sent to Splunk HEC via logs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=phd2:guide\n| search event=\"star_lost\"\n| bin _time span=1d\n| stats count as star_lost_events by _time filter_name\n| sort - _time",
   "description": "Tracks PHD2 star-loss events over time and breaks it out by filter. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Star-loss bursts often correlate with one filter, poor focus, or cloud bands that would otherwise be blamed on everything else.",
+  "value": "Tracks PHD2 star-loss events over time and breaks it out by filter. Timely UC-25.22.25 alerting on 'PHD2 Star-Lost Burst by Filter' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send PHD2 star-loss events events to `index=personal` with the fields used in the breakdown and review the resulting trend at 1d granularity.",
   "visualization": "Stacked time chart of PHD2 star-loss events by filter.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'PHD2 Star-Lost Burst by Filter'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `phd2:guide`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'PHD2 Star-Lost Burst by Filter' stops polling `phd2:guide`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `phd2:guide`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

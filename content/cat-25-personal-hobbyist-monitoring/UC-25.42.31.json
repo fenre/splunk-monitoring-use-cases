@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'ForeFlight Crosswind Practice Mix' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_foreflight_crosswind_practice_mix` (UC-25.42.31), SOC dashboard panel \"Personal — ForeFlight Crosswind Practice Mix\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flight:log' that satisfy the UC-25.42.31 SPL filters for 'ForeFlight Crosswind Practice Mix'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `flight:log` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.31."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flight:log' where `airport` satisfies detection threshold for UC-25.42.31 ('ForeFlight Crosswind Practice Mix'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `flight:log` events where `airport` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.31."
   },
   "dataSources": "Flight logs (`flight:log`), flight-plan snapshots (`simbrief:plan`), network sessions (`vatsim:session`), prep tasks (`checkride:prep`), export syncs (`flight:export`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Aviation and flight-sim telemetry — ForeFlight exports, SimBrief flight plans, VATSIM session logs, and checkride-prep trackers — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=flight:log airport=* crosswind_practice_min=*\n| stats avg(crosswind_practice_min) as avg_crosswind_practice_min, count as events by airport\n| sort - avg_crosswind_practice_min",
-  "description": "Shows average crosswind practice minutes by airport for crosswind training sessions.",
-  "value": "Average crosswind practice minutes by airport helps compare crosswind training sessions across the factors that matter most.",
+  "description": "Shows average crosswind practice minutes by airport for crosswind training sessions. Searches `index=personal` with sourcetype `flight:log` for UC-25.42.31, aggregating `avg` by `airport` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'ForeFlight Crosswind Practice Mix' without manual log review.",
+  "value": "Shows average crosswind practice minutes by airport for crosswind training sessions. Timely UC-25.42.31 alerting on 'ForeFlight Crosswind Practice Mix' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture `crosswind_practice_min` on `flight:log` events and normalize `airport` so Splunk can summarize performance by airport.",
   "visualization": "Bar chart of average crosswind practice minutes by airport.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'ForeFlight Crosswind Practice Mix'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flight:log`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'ForeFlight Crosswind Practice Mix' stops polling `flight:log`; stale `airport` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flight:log`. Dedup with `stats latest(*) by airport`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

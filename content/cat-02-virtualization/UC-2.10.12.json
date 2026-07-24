@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'VxRail Virtual Machine Storage Policy Mismatch Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_vxrail_virtual_machine_storage_policy_mismatch_d` (UC-2.10.12), SOC dashboard panel \"Linux — VxRail Virtual Machine Storage Policy Mismatch Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vxrail` sourcetype='vxrail:vsan_capacity' that satisfy the UC-2.10.12 SPL filters for 'VxRail Virtual Machine Storage Policy Mismatch Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vxrail` / `vxrail:vsan_capacity` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.10.12."
+    "positiveScenario": "Ingest synthetic events into `index=vxrail` sourcetype='vxrail:vsan_capacity' where `vm_name` satisfies detection threshold for UC-2.10.12 ('VxRail Virtual Machine Storage Policy Mismatch Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `vxrail` / `vxrail:vsan_capacity` events where `vm_name` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.10.12."
   },
   "dataSources": "`index=vxrail` `sourcetype=\"vxrail:vsan_capacity\"` — `vm_name`, `effective_policy`, `desired_policy`, `mismatch` (bool) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Storage policy audit export from vSAN/vSphere — Universal Forwarder (Splunkbase 617)",
   "spl": "index=vxrail sourcetype=\"vxrail:vsan_capacity\" earliest=-12h\n| eval mm=lower(coalesce(mismatch, is_mismatch))\n| where mm=\"true\" OR effective_policy!=desired_policy\n| stats values(effective_policy) as eff, values(desired_policy) as want by vm_name, cluster_id",
-  "description": "Policy drift means VMs may run with lower FTT than the business expects, especially after storage vMotion or restores.",
-  "value": "Aligns guest protection with governance tags and RPO/RTO commitments. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Policy drift means VMs may run with lower FTT than the business expects, especially after storage vMotion or restores. Searches `index=vxrail` with sourcetype `vxrail:vsan_capacity` for UC-2.10.12, aggregating `values` by `vm_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Linux operators a repeatable signal for 'VxRail Virtual Machine Storage Policy Mismatch Detection' without manual log review.",
+  "value": "Policy drift means VMs may run with lower FTT than the business expects, especially after storage vMotion o.... Timely UC-2.10.12 alerting on 'VxRail Virtual Machine Storage Policy Mismatch Detection' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Schedule policy reconciliation. Alert on mismatch. Automate remediation via Storage Policy refresh workflows.",
   "visualization": "Table mismatched VMs; count by cluster; trend fixes.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'VxRail Virtual Machine Storage Policy Mismatch Detection'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `vxrail` `vxrail:vsan_capacity`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `vxrail`** — Package managers spike `vm_name` metrics for 'VxRail Virtual Machine Storage Policy Mismatch Detection'. Correlate with apt/yum logs in the same `vxrail:vsan_capacity` window.\n\n2. **Nightly backup I/O on `vm_name`** — Predictable `values` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vxrail:vsan_capacity`** — Nagios/Zabbix polls `vm_name` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `vm_name` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `vm_name`, `valid_until`.",
   "equipment": [
     "vmware",
     "vxrail"

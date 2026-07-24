@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Mindfulness and Stress-Minute Tracking' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_mindfulness_and_stress_minute_tracking` (UC-25.2.9), SOC dashboard panel \"Personal — Mindfulness and Stress-Minute Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='apple:health' that satisfy the UC-25.2.9 SPL filters for 'Mindfulness and Stress-Minute Tracking'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `apple:health` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.9."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='apple:health' where `entity` satisfies detection threshold for UC-25.2.9 ('Mindfulness and Stress-Minute Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `apple:health` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.9."
   },
   "dataSources": "Apple Health metrics (`apple:health`), Oura Ring readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings measurements (`withings:measure`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Apple Health / Apple Watch exports (Health Auto Export or Shortcuts) via HEC; Oura, Whoop, Withings, and Dexcom APIs via scripted REST inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=apple:health metric=mindful_minutes\n| timechart span=1w sum(value) as mindful_min\n| eval goal=70, met=if(mindful_min>=goal,1,0)",
-  "description": "Sums the minutes you spend on logged mindfulness or breathing sessions each week and compares them to a personal goal.",
-  "value": "Mental-health habits are easy to drop; a simple weekly minutes target keeps mindfulness as visible and trackable as steps.",
+  "description": "Sums the minutes you spend on logged mindfulness or breathing sessions each week and compares them to a personal goal. Searches `index=personal` with sourcetype `apple:health` for UC-25.2.9, aggregating `sum` by `entity` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Mindfulness and Stress-Minute Tracking' without manual log review.",
+  "value": "Sums the minutes you spend on logged mindfulness or breathing sessions each week and compares them to a per.... Timely UC-25.2.9 alerting on 'Mindfulness and Stress-Minute Tracking' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Apple Health mindful-minutes; schedule weekly and nudge yourself when you fall short of the goal.",
   "visualization": "Column chart of weekly mindful minutes against a goal line.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Mindfulness and Stress-Minute Tracking'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `apple:health`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Mindfulness and Stress-Minute Tracking' stops polling `apple:health`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `apple:health`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

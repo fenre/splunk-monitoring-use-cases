@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'MongoDB Long-Running Operations (currentOp)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mongodb_long_running_operations_currentop` (UC-7.1.43), SOC dashboard panel \"Operations — MongoDB Long-Running Operations (currentOp)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mongodb:currentop' that satisfy the UC-7.1.43 SPL filters for 'MongoDB Long-Running Operations (currentOp)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `mongodb:currentop` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.43."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mongodb:currentop' where `opid` satisfies `secs_running` > 60 for UC-7.1.43 ('MongoDB Long-Running Operations (currentOp)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `mongodb:currentop` events where `opid` stays below `secs_running` > 60, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.43."
   },
   "dataSources": "`db.currentOp({\"active\":true,\"secs_running\":{\"$gt\":0}})` JSON export Indexes: database. Sourcetypes: mongodb:currentop. Key fields: host, opid, secs_running. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk DB Connect with MongoDB JDBC (Splunkbase 7095), or scripted mongosh export to HEC",
   "spl": "index=database sourcetype=\"mongodb:currentop\"\n| where secs_running > 60 OR waitingForLock==\"true\"\n| stats max(secs_running) as max_sec latest(op) as op latest(ns) as ns by opid, host\n| sort -max_sec",
   "description": "Operations stuck in currentOp with high secs_running or waitingForLock tie up WiredTiger tickets and delay replication. This is standard MongoDB operations monitoring for runaway aggregations, migrations, and index builds.",
-  "value": "Prevents cluster-wide latency incidents by surfacing blocking and long-lived operations before they exhaust database resources.",
+  "value": "Operations stuck in currentOp with high secs_running or waitingForLock tie up WiredTiger tickets and delay.... Timely UC-7.1.43 alerting on 'MongoDB Long-Running Operations (currentOp)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Every 30–60 seconds, collect active ops from mongos/mongod. Include opid, ns, op, secs_running, waitingForLock, query shape (hashed). Exclude legitimate index builds via op type lookup. Alert when secs_running exceeds policy or waitingForLock persists.",
   "visualization": "Table (opid, ns, op, duration), Timeline (long ops), Single value (count blocked).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'MongoDB Long-Running Operations (currentOp)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'MongoDB Long-Running Operations (currentOp)' shifts `max` over `span=1h` while `opid` remains in-scope for UC-7.1.43. Cross-check CMDB CHG.\n\n2. **Batch `max` on `mongodb:currentop`** — Scheduled automation elevates `host` without crossing `secs_running` > 60. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `opid`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:currentop`** — First 48h baseline for `opid` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `opid`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mongodb"

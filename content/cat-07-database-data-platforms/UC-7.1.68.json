@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Cassandra Read and Write Latency P99 by Keyspace' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cassandra_read_and_write_latency_p99_by_keyspace` (UC-7.1.68), SOC dashboard panel \"Operations — Cassandra Read and Write Latency P99 by Keyspace\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='cassandra:nodetool_cfstats' that satisfy the UC-7.1.68 SPL filters for 'Cassandra Read and Write Latency P99 by Keyspace'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `cassandra:nodetool_cfstats` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.68."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='cassandra:nodetool_cfstats' where `keyspace_name` satisfies `r99` > 50 for UC-7.1.68 ('Cassandra Read and Write Latency P99 by Keyspace'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `cassandra:nodetool_cfstats` events where `keyspace_name` stays below `r99` > 50, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.68."
   },
   "dataSources": "`nodetool cfstats` / `nodetool tablestats` per table ingested as `cassandra:nodetool_cfstats` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scripted nodetool collector on each node; optional JMX `ClientRequest` latency metrics via TA-JMX — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"cassandra:nodetool_cfstats\"\n| eval r99=tonumber(Percentile_99th_read_latency_ms)\n| eval w99=tonumber(Percentile_99th_write_latency_ms)\n| where r99 > 50 OR w99 > 50\n| stats max(r99) as read_p99_ms max(w99) as write_p99_ms by keyspace_name, table_name, host\n| sort -read_p99_ms",
   "description": "Table-level 99th percentile latencies isolate hot partitions and compaction debt before mean cluster metrics move. Keyspace-level rollups help tenant owners understand SLA risk on shared rings.",
-  "value": "Prevents customer-visible timeouts by steering tuning (compaction, caching, consistency level) to the right tables.",
+  "value": "Table-level 99th percentile latencies isolate hot partitions and compaction debt before mean cluster metric.... Timely UC-7.1.68 alerting on 'Cassandra Read and Write Latency P99 by Keyspace' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Normalize nodetool output: map `Keyspace`, `Table`, and latency percentiles to consistent field names (`keyspace_name`, `table_name`, `Percentile_99th_read_latency_ms`). Poll every 5 minutes. If your C* version prints microseconds, convert in `props.conf` `EVAL`. Join with application release calendar for correlation.",
   "visualization": "Heatmap (keyspace × host for read_p99_ms), Line chart trends.",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cassandra Read and Write Latency P99 by Keyspace'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Cassandra Read and Write Latency P99 by Keyspace' shifts `max` over `span=1h` while `keyspace_name` remains in-scope for UC-7.1.68. Cross-check CMDB CHG.\n\n2. **Batch `max` on `cassandra:nodetool_cfstats`** — Scheduled automation elevates `table_name` without crossing `r99` > 50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `keyspace_name`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cassandra:nodetool_cfstats`** — First 48h baseline for `keyspace_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `keyspace_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cassandra"
   ],

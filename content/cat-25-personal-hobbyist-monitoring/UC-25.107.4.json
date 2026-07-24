@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Chrono24 Listing Stale Inventory' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_chrono24_listing_stale_inventory` (UC-25.107.4), SOC dashboard panel \"Personal — Chrono24 Listing Stale Inventory\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='chrono24:listing' that satisfy the UC-25.107.4 SPL filters for 'Chrono24 Listing Stale Inventory'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `chrono24:listing` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.107.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='chrono24:listing' where `brand` satisfies `days_listed` > 60 for UC-25.107.4 ('Chrono24 Listing Stale Inventory'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `chrono24:listing` events where `brand` stays below `days_listed` > 60, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.107.4."
   },
   "dataSources": "Chrono24 listings (`chrono24:listing`), WatchBox service records (`watchbox:service`), wrist-time logs (`watch:wristtime`), and watch service history (`watch:service`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Chrono24 listing snapshots, WatchBox service records, wrist-time wear logs, and in-house service history exports ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=chrono24:listing listing_status=\"active\" days_listed=*\n| where days_listed>60\n| stats count as stale_listings, avg(ask_price_usd) as avg_ask by brand reference_number\n| sort - stale_listings\n| head 15",
   "description": "Surfaces Chrono24 listings active for more than sixty days without selling. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Stale listings usually mean ask price is optimistic or photos need refresh before capital stays locked up.",
+  "value": "Surfaces Chrono24 listings active for more than sixty days without selling. Timely UC-25.107.4 alerting on 'Chrono24 Listing Stale Inventory' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Export active listings with `days_listed` and review stale references biweekly for repricing.",
   "visualization": "Table of stale listings by reference with average ask.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Chrono24 Listing Stale Inventory'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `chrono24:listing`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Chrono24 Listing Stale Inventory' stops polling `chrono24:listing`; stale `brand` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `chrono24:listing`. Dedup with `stats latest(*) by brand`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_listed` > 60. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Traefik Default Router / Catch-All Traffic Spike' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_traefik_default_router_catch_all_traffic_spike` (UC-5.14.47), SOC dashboard panel \"Operations — Traefik Default Router / Catch-All Traffic Spike\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='traefik:access' that satisfy the UC-5.14.47 SPL filters for 'Traefik Default Router / Catch-All Traffic Spike'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `proxy` / `traefik:access` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.47."
+    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='traefik:access' where `ClientAddr` satisfies `count` > 200 for UC-5.14.47 ('Traefik Default Router / Catch-All Traffic Spike'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `proxy` / `traefik:access` events where `ClientAddr` stays below `count` > 200, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.47."
   },
   "dataSources": "`index=proxy` `sourcetype=traefik:access` with `RouterName` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"traefik:access\"\n| where RouterName==\"default@internal\" OR match(RouterName, \"(?i)dashboard@internal\")\n| bin _time span=5m\n| stats count by ClientAddr, entryPointName, _time\n| where count > 200",
   "description": "Unexpected default-router hits expose config gaps. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Operations teams detect traffic spikes to Traefik default/catch-all routers, identifying misconfigured services, unregistered domains, and vulnerability scanners.",
+  "value": "Unexpected default-router hits expose config gaps. Timely UC-5.14.47 alerting on 'Traefik Default Router / Catch-All Traffic Spike' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "High catch-all volume may be scanners; pair with WAF and geo blocking.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Traefik Default Router / Catch-All Traffic Spike'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `proxy` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy`** — Planned work for 'Traefik Default Router / Catch-All Traffic Spike' shifts `count` over `span=5m` while `ClientAddr` remains in-scope for UC-5.14.47. Cross-check CMDB CHG.\n\n2. **Batch `count` on `traefik:access`** — Scheduled automation elevates `entryPointName` without crossing `count` > 200. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ClientAddr`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `traefik:access`** — First 48h baseline for `ClientAddr` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ClientAddr`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog",
     "traefik"

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'REST API Access Pattern Analysis (_audit)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_rest_api_access_pattern_analysis_audit` (UC-13.1.38), SOC dashboard panel \"Operations — REST API Access Pattern Analysis (_audit)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=_audit` sourcetype='splunkd_access' that satisfy the UC-13.1.38 SPL filters for 'REST API Access Pattern Analysis (_audit)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `_audit` / `splunkd_access` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.38."
+    "positiveScenario": "Ingest synthetic events into `index=_audit` sourcetype='splunkd_access' where `user` satisfies `count` > 500 for UC-13.1.38 ('REST API Access Pattern Analysis (_audit)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `_audit` / `splunkd_access` events where `user` stays below `count` > 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.38."
   },
   "dataSources": "`index=_audit` `action=rest` OR `index=_internal` `sourcetype=splunkd_access` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Audit trail / `splunkd_access` — Universal Forwarder (Splunkbase 617)",
   "spl": "(index=_audit action=rest) OR (index=_internal sourcetype=splunkd_access)\n| stats count by user, uri_path, status\n| where count > 500 OR status>=400\n| sort -count",
-  "description": "Automated token abuse and reconnaissance often appear as unusual REST paths or volumes.",
+  "description": "Automated token abuse and reconnaissance often appear as unusual REST paths or volumes. Searches `index=_audit` with sourcetype `splunkd_access` for UC-13.1.38, aggregating `count` by `user` over `the scheduled window`. Alerts when grouped results cross `count` > 500 in the saved search. Gives Operations operators a repeatable signal for 'REST API Access Pattern Analysis (_audit)' without manual log review.",
   "value": "Early 'REST API Access Pattern Analysis (_audit)' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Baseline normal automation. Alert on new `uri_path` clusters or HTTP 401/403 bursts. Correlate with token ID if logged.",
   "visualization": "Table (top REST paths), Line chart (4xx/5xx rate).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'REST API Access Pattern Analysis (_audit)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `_audit` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `_audit`** — Planned work for 'REST API Access Pattern Analysis (_audit)' shifts `count` over `span=1h` while `user` remains in-scope for UC-13.1.38. Cross-check CMDB CHG.\n\n2. **Batch `count` on `splunkd_access`** — Scheduled automation elevates `uri_path` without crossing `count` > 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`** — Health checks in `_audit` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `splunkd_access`** — First 48h baseline for `user` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

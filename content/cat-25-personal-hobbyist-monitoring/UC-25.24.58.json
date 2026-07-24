@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'ChickenGuard Door Event Open Time Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_chickenguard_door_event_open_time_leaderboard` (UC-25.24.58), SOC dashboard panel \"Personal — ChickenGuard Door Event Open Time Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='chickenguard:door' that satisfy the UC-25.24.58 SPL filters for 'ChickenGuard Door Event Open Time Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `chickenguard:door` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.24.58."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='chickenguard:door' where `coop_name` satisfies detection threshold for UC-25.24.58 ('ChickenGuard Door Event Open Time Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `chickenguard:door` events where `coop_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.24.58."
   },
   "dataSources": "Beehive telemetry (`beehive:reading`), coop door (`chickencoop:door`), egg counts (`egg:count`), livestock tags (`livestock:tag`), feed level (`feed:level`), pasture sensors (`pasture:sensor`), trail cams (`trailcam:detection`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Homestead sensors — connected beehive scale/temperature/sound, automatic chicken-coop door, egg counter, livestock GPS/health tags, feed-silo level, and pasture soil sensors — via MQTT and LoRaWAN gateways. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=chickenguard:door open_time=*\n| stats sum(open_time) as total_value, avg(open_time) as avg_value by coop_name\n| sort - total_value",
-  "description": "Ranks coop values by total and average open time across ChickenGuard door event events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks coop values by total and average open time across ChickenGuard door event events. Searches `index=personal` with sourcetype `chickenguard:door` for UC-25.24.58, aggregating `sum` by `coop_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'ChickenGuard Door Event Open Time Leaderboard' without manual log review.",
+  "value": "Ranks coop values by total and average open time across ChickenGuard door event events. Timely UC-25.24.58 alerting on 'ChickenGuard Door Event Open Time Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `open_time` values for each ChickenGuard door event event and review total and average open time by coop.",
   "visualization": "Table of entities ranked by total open time.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'ChickenGuard Door Event Open Time Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `chickenguard:door`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'ChickenGuard Door Event Open Time Leaderboard' stops polling `chickenguard:door`; stale `coop_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `chickenguard:door`. Dedup with `stats latest(*) by coop_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hardware_bmc",
     "mqtt"

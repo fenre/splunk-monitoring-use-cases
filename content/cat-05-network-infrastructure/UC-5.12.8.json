@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Number Portability Request Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_number_portability_request_tracking` (UC-5.12.8), SOC dashboard panel \"Operations — Number Portability Request Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=telco` sourcetype='lnp:order' that satisfy the UC-5.12.8 SPL filters for 'Number Portability Request Tracking'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `telco` / `lnp:order` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.12.8."
+    "positiveScenario": "Ingest synthetic events into `index=telco` sourcetype='lnp:order' where `tn_range` satisfies detection threshold for UC-5.12.8 ('Number Portability Request Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `telco` / `lnp:order` events where `tn_range` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.12.8."
   },
   "dataSources": "`sourcetype=\"lnp:order\"`, `sourcetype=\"npac:soa\"` — context: `cisco:ucm:cdr`, `asterisk:cdr`, `stream:sip` (Stream), `ims:cscf` (IMS) as deployed Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "NP/BSS extracts, SOA APIs — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=telco sourcetype=\"lnp:order\"\n| where order_status IN (\"PENDING\",\"REJECTED\",\"TIMEOUT\")\n| stats count, avg((now()-submitted_epoch)/86400) as age_days by tn_range, losing_carrier\n| sort -age_days",
-  "description": "LNP order status, NPAC responses, and port-out churn — operations and regulatory reporting for porting SLAs.",
-  "value": "Porting operations teams track LNP order lifecycle, detect SLA breaches before regulatory penalties, and identify problematic carriers with high rejection rates for process improvement.",
+  "description": "LNP order status, NPAC responses, and port-out churn — operations and regulatory reporting for porting SLAs. Searches `index=telco` with sourcetype `lnp:order` for UC-5.12.8, aggregating `avg` by `tn_range` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Number Portability Request Tracking' without manual log review.",
+  "value": "LNP order status, NPAC responses, and port-out churn — operations and regulatory reporting for porting SLAs. Timely UC-5.12.8 alerting on 'Number Portability Request Tracking' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "SLA alerts for orders >72h in PENDING; root-cause codes joined to carrier contact list.",
   "visualization": "Funnel (order states), Table (aging ports), Bar chart (reject reasons).",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Number Portability Request Tracking'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `telco` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `telco`** — Planned work for 'Number Portability Request Tracking' shifts `avg` over `span=1h` while `tn_range` remains in-scope for UC-5.12.8. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `lnp:order`** — Scheduled automation elevates `losing_carrier` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `tn_range`** — Health checks in `telco` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `lnp:order`** — First 48h baseline for `tn_range` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `tn_range`, `exception_reason`, `valid_until`.",
   "equipment": [
     "asterisk",
     "cisco"

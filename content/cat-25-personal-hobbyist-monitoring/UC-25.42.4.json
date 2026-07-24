@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Pre-Flight Checklist Completion Audit' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_pre_flight_checklist_completion_audit` (UC-25.42.4), SOC dashboard panel \"Personal — Pre-Flight Checklist Completion Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='preflight:check' that satisfy the UC-25.42.4 SPL filters for 'Pre-Flight Checklist Completion Audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `preflight:check` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='preflight:check' where `flight_id` satisfies detection threshold for UC-25.42.4 ('Pre-Flight Checklist Completion Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `preflight:check` events where `flight_id` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.4."
   },
   "dataSources": "Pilot logbook (`flightlog:entry`), avionics telemetry (`avionics:telemetry`), flight-sim sessions (`flightsim:session`), pre-flight checklists (`preflight:check`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Pilot and flight-sim telemetry — electronic logbooks (ForeFlight, LogTen Pro), Stratux / GDL90 avionics receivers, and Microsoft Flight Simulator / X-Plane SimConnect sessions — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=preflight:check\n| stats sum(eval(if(status=\"done\",1,0))) as done, count as total by flight_id\n| eval pct=round(100*done/total,1), incomplete=if(done<total,1,0)\n| where incomplete=1",
-  "description": "Flags any flight where the pre-flight checklist was not fully completed, reinforcing a safety-critical habit.",
-  "value": "Checklist discipline saves lives in aviation; an audit that catches skipped items strengthens the habit.",
+  "description": "Flags any flight where the pre-flight checklist was not fully completed, reinforcing a safety-critical habit. Searches `index=personal` with sourcetype `preflight:check` for UC-25.42.4, aggregating `sum` by `flight_id` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Pre-Flight Checklist Completion Audit' without manual log review.",
+  "value": "Flags any flight where the pre-flight checklist was not fully completed, reinforcing a safety-critical habit. Timely UC-25.42.4 alerting on 'Pre-Flight Checklist Completion Audit' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log checklist completions into `index=personal`; flag flights with incomplete checklists.",
   "visualization": "Table of flights with incomplete pre-flight checklists.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Pre-Flight Checklist Completion Audit'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `preflight:check`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Pre-Flight Checklist Completion Audit' stops polling `preflight:check`; stale `flight_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `preflight:check`. Dedup with `stats latest(*) by flight_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hardware_bmc"
   ],

@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'OEE Metrics Collection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_oee_metrics_collection` (UC-14.2.25), SOC dashboard panel \"Operations — OEE Metrics Collection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='opcua:tag' that satisfy the UC-14.2.25 SPL filters for 'OEE Metrics Collection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `opcua:tag` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.25."
+    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='opcua:tag' where `line_id` satisfies `oee` < 0.75 for UC-14.2.25 ('OEE Metrics Collection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ot` / `opcua:tag` events where `line_id` stays below `oee` < 0.75, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.25."
   },
   "dataSources": "`sourcetype=\"opcua:tag\"`, `sourcetype=\"historian:sample\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Historian, OPC-UA, MES — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"opcua:tag\" tag=oee\n| bin _time span=1h\n| stats avg(availability_pct) as A, avg(performance_pct) as P, avg(quality_pct) as Q by line_id, _time\n| eval oee=round((A*P*Q)/10000,2)\n| where oee < 0.75\n| sort _time",
-  "description": "Availability × Performance × Quality from SCADA/MES tags — executive and plant KPIs.",
+  "description": "Availability × Performance × Quality from SCADA/MES tags — executive and plant KPIs. Searches `index=ot` with sourcetype `opcua:tag` for UC-14.2.25, aggregating `avg` by `line_id` over `1h`. Alerts when grouped results cross `oee` < 0.75 in the saved search. Gives Operations operators a repeatable signal for 'OEE Metrics Collection' without manual log review.",
   "value": "Early 'OEE Metrics Collection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Align tag naming per ISA-95; validate against manual OEE samples monthly.",
   "visualization": "Line chart (OEE trend), Gauge (current OEE), Bar chart (loss buckets).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'OEE Metrics Collection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `ot` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'OEE Metrics Collection' shifts `avg` over `span=1h` while `line_id` remains in-scope for UC-14.2.25. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `opcua:tag`** — Scheduled automation elevates `_time` without crossing `oee` < 0.75. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `line_id`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `opcua:tag`** — First 48h baseline for `line_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `line_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "opcua"
   ],

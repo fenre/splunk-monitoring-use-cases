@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Power Monitoring and Electrical Load Analysis (Meraki MT)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_power_monitoring_and_electrical_load_analysis_me` (UC-14.1.19), SOC dashboard panel \"Operations — Power Monitoring and Electrical Load Analysis (Meraki MT)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=meraki` sourcetype='meraki:sensorreadingshistory' that satisfy the UC-14.1.19 SPL filters for 'Power Monitoring and Electrical Load Analysis (Meraki MT)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `meraki` / `meraki:sensorreadingshistory` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.1.19."
+    "positiveScenario": "Ingest synthetic events into `index=meraki` sourcetype='meraki:sensorreadingshistory' where `serial` satisfies detection threshold for UC-14.1.19 ('Power Monitoring and Electrical Load Analysis (Meraki MT)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `meraki` / `meraki:sensorreadingshistory` events where `serial` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.1.19."
   },
   "dataSources": "`index=meraki sourcetype=meraki:sensorreadingshistory metric=\"realPower\"` from the `cisco_meraki_sensor_readings_history` input in `Splunk_TA_cisco_meraki` (Splunkbase 5580). Key fields: `serial`, `network.name`, `metric`, `realPower.draw` (watts), `voltage.level`, `current.draw`.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:sensorreadingshistory\" metric=\"realPower\"\n| rename \"realPower.draw\" as power_w\n| stats avg(power_w) as avg_power_w, max(power_w) as peak_power_w by serial, \"network.name\"\n| eval power_capacity_pct=round(peak_power_w*100/15000, 2)\n| sort - peak_power_w",
-  "description": "Tracks electrical power consumption and load to identify anomalies and plan upgrades.",
+  "description": "Tracks electrical power consumption and load to identify anomalies and plan upgrades. Searches `index=meraki` with sourcetype `meraki:sensorreadingshistory` for UC-14.1.19, aggregating `avg` by `serial` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Power Monitoring and Electrical Load Analysis (Meraki MT)' without manual log review.",
   "value": "Early 'Power Monitoring and Electrical Load Analysis (Meraki MT)' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Configure `cisco_meraki_sensor_readings_history` for MT40 power monitor sensors. `realPower.draw` is in watts; the 15000 W denominator above is a standard 15A/120V circuit headroom — adjust to match the rated capacity of the monitored circuit.",
   "visualization": "Power consumption gauge; peak load timeline; capacity planning chart.",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Power Monitoring and Electrical Load Analysis (Meraki MT)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `meraki` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki`** — Planned work for 'Power Monitoring and Electrical Load Analysis (Meraki MT)' shifts `avg` over `span=1h` while `serial` remains in-scope for UC-14.1.19. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `meraki:sensorreadingshistory`** — Scheduled automation elevates `\"network.name\"` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `serial`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:sensorreadingshistory`** — First 48h baseline for `serial` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `serial`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

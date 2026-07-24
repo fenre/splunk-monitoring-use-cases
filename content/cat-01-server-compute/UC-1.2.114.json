@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'LSASS Memory Protection Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_lsass_memory_protection_monitoring` (UC-1.2.114), SOC dashboard panel \"Linux — LSASS Memory Protection Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=10 that satisfy the UC-1.2.114 SPL filters for 'LSASS Memory Protection Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.114."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=10 where `entity` satisfies detection threshold for UC-1.2.114 ('LSASS Memory Protection Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.114."
   },
   "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 10), `sourcetype=WinEventLog:Security` Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog EventCode=10 TargetImage=\"*\\\\lsass.exe\"\n| where NOT match(SourceImage, \"(?i)(csrss|services|svchost|wininit|MsMpEng|MsSense|CrowdStrike|SentinelAgent)\")\n| eval GrantedAccess_hex=GrantedAccess\n| table _time, host, SourceImage, SourceUser, GrantedAccess_hex, CallTrace\n| where match(GrantedAccess_hex, \"0x1010|0x1FFFFF|0x143A\")\n| sort -_time",
   "description": "LSASS contains credentials in memory. Monitoring LSASS access attempts and protection status detects credential dumping tools like Mimikatz.",
-  "value": "LSASS protections make credential theft harder. When they are off or probed, assume follow-on techniques are in play and re-tighten before passwords are harvested at scale.",
+  "value": "LSASS contains credentials in memory. Timely UC-1.2.114 alerting on 'LSASS Memory Protection Monitoring' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Sysmon EventCode 10 (ProcessAccess) targeting lsass.exe. Filter legitimate AV/EDR processes. Focus on suspicious access masks: 0x1010 (PROCESS_QUERY_LIMITED_INFORMATION + PROCESS_VM_READ), 0x1FFFFF (PROCESS_ALL_ACCESS), 0x143A (used by Mimikatz sekurlsa). Enable RunAsPPL for LSASS protection and monitor for its status. Alert on any non-whitelisted LSASS access. MITRE ATT&CK T1003.001.",
   "visualization": "Table (access events), Alert on suspicious access masks, Single value (LSASS PPL status).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'LSASS Memory Protection Monitoring'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `configured sourcetype`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'LSASS Memory Protection Monitoring'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "crowdstrike",
     "hardware_bmc",

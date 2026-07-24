@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'Signed Commit Enforcement' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_signed_commit_enforcement` (UC-12.1.17), SOC dashboard panel \"Operations — Signed Commit Enforcement\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='github:commit_status' that satisfy the UC-12.1.17 SPL filters for 'Signed Commit Enforcement'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `devops` / `github:commit_status` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.1.17."
+    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='github:commit_status' where `repository` satisfies detection threshold for UC-12.1.17 ('Signed Commit Enforcement'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `devops` / `github:commit_status` events where `repository` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.1.17."
   },
   "dataSources": "Commit `verification.status` != `verified` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "GitHub commit signature API, push webhook enrichment — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"github:commit_status\"\n| where verification_status!=\"verified\" AND branch IN (\"main\",\"master\",\"production\")\n| stats count by repository, author, verification_status\n| sort -count",
-  "description": "Unsigned commits on protected branches weaken non-repudiation; verify GPG/SSH sig status.",
+  "description": "Unsigned commits on protected branches weaken non-repudiation; verify GPG/SSH sig status. Searches `index=devops` with sourcetype `github:commit_status` for UC-12.1.17, aggregating `count` by `repository` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Signed Commit Enforcement' without manual log review.",
   "value": "Early 'Signed Commit Enforcement' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Enrich push SHAs via API in pipeline. Alert on unverified commits after enforcement date. Whitelist bots with documented keys.",
   "visualization": "Table (unsigned commits), Line chart (compliance %), Pie chart (verified vs not).",
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Signed Commit Enforcement'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `devops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `devops`** — Planned work for 'Signed Commit Enforcement' shifts `count` over `span=1h` while `repository` remains in-scope for UC-12.1.17. Cross-check CMDB CHG.\n\n2. **Batch `count` on `github:commit_status`** — Scheduled automation elevates `author` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `repository`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `github:commit_status`** — First 48h baseline for `repository` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `repository`, `exception_reason`, `valid_until`.",
   "equipment": [
     "github"
   ],

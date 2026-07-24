@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Tableau Extract Refresh Duration SLA' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_tableau_extract_refresh_duration_sla` (UC-24.1.3), SOC dashboard panel \"Operations — Tableau Extract Refresh Duration SLA\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='tableau:backgrounder' that satisfy the UC-24.1.3 SPL filters for 'Tableau Extract Refresh Duration SLA'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `tableau:backgrounder` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.1.3."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='tableau:backgrounder' where `job_name` satisfies `p95_min` > 30 for UC-24.1.3 ('Tableau Extract Refresh Duration SLA'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `tableau:backgrounder` events where `job_name` stays below `p95_min` > 30, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.1.3."
   },
   "dataSources": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect, Tableau Cloud Admin Insights / Activity Log exports.",
   "app": "Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.",
   "spl": "index=bi sourcetype=tableau:backgrounder job_type=refresh_extracts finish_code=0\n| eval duration_min=round(run_time/60,1)\n| stats avg(duration_min) as avg_min, max(duration_min) as max_min, p95(duration_min) as p95_min by job_name\n| where p95_min>30\n| sort - p95_min",
   "description": "Measures how long successful extract refreshes take and flags workbooks whose 95th-percentile refresh time exceeds an SLA, indicating queries or extracts that need optimisation.",
-  "value": "Long refreshes crowd the Backgrounder queue and push overnight windows into business hours; spotting the slowest extracts lets teams optimise before capacity is exhausted.",
+  "value": "Measures how long successful extract refreshes take and flags workbooks whose 95th-percentile refresh time.... Timely UC-24.1.3 alerting on 'Tableau Extract Refresh Duration SLA' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Schedule daily over a trailing 7 days; tune the 30-minute threshold to your Backgrounder window. Pair with the Backgrounder queue-backlog use case for capacity planning.",
   "visualization": "Table sorted by p95_min, trend line of refresh duration per workbook.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Tableau Extract Refresh Duration SLA'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Tableau Extract Refresh Duration SLA' shifts `avg` over `span=1h` while `job_name` remains in-scope for UC-24.1.3. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `tableau:backgrounder`** — Scheduled automation elevates `duration_min` without crossing `p95_min` > 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tableau:backgrounder`** — First 48h baseline for `job_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "db_connect",

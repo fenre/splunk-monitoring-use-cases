@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'RudderStack Failures by Destination' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_rudderstack_failures_by_destination` (UC-24.12.19), SOC dashboard panel \"Operations — RudderStack Failures by Destination\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='rudderstack:delivery' that satisfy the UC-24.12.19 SPL filters for 'RudderStack Failures by Destination'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `rudderstack:delivery` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.12.19."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='rudderstack:delivery' where `destination_name` satisfies `failures` > 0 for UC-24.12.19 ('RudderStack Failures by Destination'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `rudderstack:delivery` events where `destination_name` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.12.19."
   },
   "dataSources": "RudderStack delivery events (`rudderstack:delivery`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "RudderStack delivery and failed-events metrics via the RudderStack API to HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=rudderstack:delivery status=\"failed\" OR status=\"aborted\"\n| stats count as failures, latest(_time) as last_failure by destination_name\n| where failures>0\n| sort - failures",
   "description": "Counts RudderStack failures grouped by destination so operators immediately see which specific destinations are broken rather than a single global failure number.",
-  "value": "Object-level failure attribution turns a vague 'RudderStack is failing' alert into an actionable list of exactly what to fix first.",
+  "value": "Counts RudderStack failures grouped by destination so operators immediately see which specific destinations.... Timely UC-24.12.19 alerting on 'RudderStack Failures by Destination' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest RudderStack failure events; schedule every 15 minutes and alert on failures for business-critical destinations.",
   "visualization": "Table of destination by failure count and last failure time.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'RudderStack Failures by Destination'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'RudderStack Failures by Destination' shifts `count` over `span=1h` while `destination_name` remains in-scope for UC-24.12.19. Cross-check CMDB CHG.\n\n2. **Batch `count` on `rudderstack:delivery`** — Scheduled automation elevates `src` without crossing `failures` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `destination_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `rudderstack:delivery`** — First 48h baseline for `destination_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `destination_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

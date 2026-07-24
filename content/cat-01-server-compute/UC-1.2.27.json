@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'New Service Installation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_new_service_installation` (UC-1.2.27), SOC dashboard panel \"Linux — New Service Installation\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:System' EventCode=7045 that satisfy the UC-1.2.27 SPL filters for 'New Service Installation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:System` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.27."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:System' EventCode=7045 where `entity` satisfies detection threshold for UC-1.2.27 ('New Service Installation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:System` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.27."
   },
   "dataSources": "`sourcetype=WinEventLog:System` (EventCode 7045) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:System\" EventCode=7045\n| table _time, host, ServiceName, ImagePath, ServiceType, AccountName\n| regex ImagePath!=\"(?i)(C:\\\\\\\\Windows\\\\\\\\|C:\\\\\\\\Program Files)\"\n| sort -_time",
   "description": "Attackers install malicious services for persistence. Unexpected service installations outside change windows indicate compromise or unauthorized software.",
-  "value": "Persistence often starts with a new service—catching that beats chasing symptoms after the back door is in.",
+  "value": "Attackers install malicious services for persistence. Timely UC-1.2.27 alerting on 'New Service Installation' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "EventCode 7045 logs every new service installation. Filter out known/expected services via a lookup of approved service names. Alert on services with binaries outside standard paths (C:\\Windows, C:\\Program Files). Pay special attention to services running as SYSTEM with binaries in temp directories.",
   "visualization": "Table (new services with paths), Timeline, Alert on non-standard paths.",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'New Service Installation'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `WinEventLog:System`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'New Service Installation'. Correlate with apt/yum logs in the same `WinEventLog:System` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:System`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Argo CD Repo Server TLS or Git Fetch Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_argo_cd_repo_server_tls_or_git_fetch_errors` (UC-12.2.29), SOC dashboard panel \"Operations — Argo CD Repo Server TLS or Git Fetch Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='argocd:server' that satisfy the UC-12.2.29 SPL filters for 'Argo CD Repo Server TLS or Git Fetch Errors'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `devops` / `argocd:server` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.29."
+    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='argocd:server' where `repo` satisfies `count` >= 10 for UC-12.2.29 ('Argo CD Repo Server TLS or Git Fetch Errors'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `devops` / `argocd:server` events where `repo` stays below `count` >= 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.29."
   },
   "dataSources": "Argo CD repo-server stderr JSON (`sourcetype=argocd:server`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Universal Forwarder / OpenShift logging agent shipping `argocd-repo-server` container logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"argocd:server\"\n| search \"rpc error\" OR \"authentication required\" OR \"x509\" OR \"certificate\" OR \"repository\"\n| rex field=msg \"repository[\\\"']?(?<repo>[^\\\"'\\s]+)\"\n| stats count by repo, host\n| where count>=10\n| sort -count",
-  "description": "Git credential or TLS issues block manifest generation for many applications at once.",
-  "value": "Detects upstream Git access failures before widespread `Unknown` sync states appear.",
+  "description": "Git credential or TLS issues block manifest generation for many applications at once. Searches `index=devops` with sourcetype `argocd:server` for UC-12.2.29, aggregating `count` by `repo` over `the scheduled window`. Alerts when grouped results cross `count` >= 10 in the saved search. Gives Operations operators a repeatable signal for 'Argo CD Repo Server TLS or Git Fetch Errors' without manual log review.",
+  "value": "Git credential or TLS issues block manifest generation for many applications at once. Timely UC-12.2.29 alerting on 'Argo CD Repo Server TLS or Git Fetch Errors' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Enable structured logging on repo-server; extract `level`, `msg`, `repo`. Page when error rate doubles baseline.",
   "visualization": "Bar chart (errors by repo), Line chart (error rate).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Argo CD Repo Server TLS or Git Fetch Errors'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `devops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `devops`** — Planned work for 'Argo CD Repo Server TLS or Git Fetch Errors' shifts `count` over `span=1h` while `repo` remains in-scope for UC-12.2.29. Cross-check CMDB CHG.\n\n2. **Batch `count` on `argocd:server`** — Scheduled automation elevates `host` without crossing `count` >= 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `repo`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `argocd:server`** — First 48h baseline for `repo` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `repo`, `exception_reason`, `valid_until`.",
   "equipment": [
     "argocd",
     "kubernetes"

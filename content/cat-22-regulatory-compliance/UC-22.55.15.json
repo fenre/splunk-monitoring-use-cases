@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set `due_at` for a deliverable to 30 days ago with no `received_at`. UC-22.55.15 MUST flag `deliverable_status=\"deliverable_overdue\"`.",
-    "negativeScenario": "Receive and accept deliverable; UC-22.55.15 MUST record `deliverable_status=\"accepted\"`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-22.55.15 ('CLC/TS 50701 Supplier Cybersecurity Deliverables — every contracted supplier deliverable tracked and verified'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.55.15."
   },
   "dataSources": "KV Store `rail_supplier_deliverables_lookup`. ServiceNow Vendor Risk Management module. Supplier portal HEC submissions.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_supplier_deliverables_lookup\n| where deliverable_status_in_register=\"open\"\n| eval now_ts = now()\n| eval days_overdue = if(due_at < now_ts AND isnull(received_at), round((now_ts - due_at) / 86400, 0), null())\n| eval deliverable_status = case(\n    isnotnull(accepted_at), \"accepted\",\n    isnotnull(received_at) AND isnull(accepted_at), \"received_pending_acceptance\",\n    isnull(received_at) AND due_at < now_ts, \"deliverable_overdue\",\n    isnull(received_at), \"awaiting_supplier\",\n    1=1, \"in_progress\")\n| where deliverable_status IN (\"deliverable_overdue\", \"received_pending_acceptance\")\n| table deliverable_id supplier_id deliverable_type due_at received_at accepted_at accepted_by days_overdue deliverable_status",
-  "description": "Tracks supplier deliverables (SBOM, patch schedule, vuln bulletins) against contract SLAs.",
-  "value": "Supply-chain risk is amplified in rail by long product lifecycles. This UC ensures contract enforcement is operationalised.",
+  "description": "Tracks supplier deliverables (SBOM, patch schedule, vuln bulletins) against contract SLAs. Searches `index=target_index` with sourcetype `configured sourcetype` for UC-22.55.15, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'CLC/TS 50701 Supplier Cybersecurity Deliverables — every contracted supplier deliverable tracked and verified' without manual log review.",
+  "value": "Tracks supplier deliverables (SBOM, patch schedule, vuln bulletins) against contract SLAs. Timely UC-22.55.15 alerting on 'CLC/TS 50701 Supplier Cybersecurity Deliverables — every contracted supplier deliverable tracked and verified' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Maintain `rail_supplier_deliverables_lookup` from contracts. (2) ServiceNow VRM workflow for receipt/acceptance. (3) Schedule UC-22.55.15 weekly Monday 06:00.",
   "visualization": "(Panel 1) Deliverable posture per supplier. (Panel 2) Overdue queue. (Panel 3) Acceptance latency.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Supplier negotiating extension** — documented contract amendment. Suppression: `deliverable_status_override=amendment_in_review` with 30-day grant.\n\n**Suppression mechanism**: KV Store `clc_22_55_15_exceptions` with documented Supply-Chain-Lead approval and 60-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Supplier Cybersecurity Deliverables — every contracted supplier deliverable tracked and verified' (UC-22.55.15) on `entity` during scheduled clause CLC-TS-50701-c9-1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1195"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Weekend vs Weekday Festive Energy' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_weekend_vs_weekday_festive_energy` (UC-25.39.14), SOC dashboard panel \"Personal — Weekend vs Weekday Festive Energy\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='festive:lights' that satisfy the UC-25.39.14 SPL filters for 'Weekend vs Weekday Festive Energy'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `festive:lights` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.39.14."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='festive:lights' where `day_type` satisfies detection threshold for UC-25.39.14 ('Weekend vs Weekday Festive Energy'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `festive:lights` events where `day_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.39.14."
   },
   "dataSources": "Festive lights (`festive:lights`), candy counter (`candy:counter`), countdown events (`countdown:event`), Santa tracker (`santa:tracker`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Seasonal novelty feeds — smart Christmas-light power meters, a Halloween candy counter, advent/holiday countdowns, and festive trackers — streamed to Splunk HEC via MQTT and smart plugs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=festive:lights\n| eval day_type=if(match(strftime(_time,\"%w\"),\"0|6\"),\"weekend\",\"weekday\")\n| stats sum(kwh) as kwh, avg(hours_on) as avg_hours_on by day_type\n| eval est_cost=round(kwh*0.30,2)",
   "description": "Compares energy use for seasonal lights on weekends versus weekdays. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "This helps separate normal festive fun from the extra runtime that creeps in when everyone is home longer.",
+  "value": "Compares energy use for seasonal lights on weekends versus weekdays. Timely UC-25.39.14 alerting on 'Weekend vs Weekday Festive Energy' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest festive-light power readings in `index=personal`; compare weekend and weekday consumption and runtime.",
   "visualization": "Two-bar comparison of festive-light energy and runtime by day type.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Weekend vs Weekday Festive Energy'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `festive:lights`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Weekend vs Weekday Festive Energy' stops polling `festive:lights`; stale `day_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `festive:lights`. Dedup with `stats latest(*) by day_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

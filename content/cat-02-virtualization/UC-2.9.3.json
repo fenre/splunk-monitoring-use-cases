@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'OpenStack Cinder Volume Attach and Detach Error Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_openstack_cinder_volume_attach_and_detach_error_` (UC-2.9.3), SOC dashboard panel \"Linux — OpenStack Cinder Volume Attach and Detach Error Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=openstack` sourcetype='openstack:cinder' that satisfy the UC-2.9.3 SPL filters for 'OpenStack Cinder Volume Attach and Detach Error Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `openstack` / `openstack:cinder` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.9.3."
+    "positiveScenario": "Ingest synthetic events into `index=openstack` sourcetype='openstack:cinder' where `_time` satisfies `err_rate` > 5 for UC-2.9.3 ('OpenStack Cinder Volume Attach and Detach Error Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `openstack` / `openstack:cinder` events where `_time` stays below `err_rate` > 5, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.9.3."
   },
   "dataSources": "`index=openstack` `sourcetype=\"openstack:cinder\"` — `volume_id`, `instance_uuid`, `action` (attach|detach), `status`, `message` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Cinder API / volume driver logs to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=openstack sourcetype=\"openstack:cinder\" earliest=-24h\n| eval st=lower(coalesce(status, result))\n| eval act=lower(coalesce(action, operation))\n| where match(act, \"(?i)attach|detach\")\n| eval ok=if(match(st, \"(?i)success|complete\"),1,0)\n| bin _time span=1h\n| stats count as n, sum(ok) as okc by _time, backend, host\n| eval err_rate=round(100*(n-okc)/n,2)\n| where err_rate>5",
   "description": "Attach failures trap instances in BUILD or ERROR and break stateful apps. Trending error rates by backend isolates driver or SAN regressions.",
-  "value": "Improves storage SLOs for databases and Kubernetes volumes on Cinder. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Attach failures trap instances in BUILD or ERROR and break stateful apps. Timely UC-2.9.3 alerting on 'OpenStack Cinder Volume Attach and Detach Error Rate' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Tag backend driver name. Baseline hourly success ratio. Alert on spikes after upgrades.",
   "visualization": "Timechart error rate; breakdown by backend; top error messages.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'OpenStack Cinder Volume Attach and Detach Error Rate'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `openstack` `openstack:cinder`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `openstack`** — Package managers spike `_time` metrics for 'OpenStack Cinder Volume Attach and Detach Error Rate'. Correlate with apt/yum logs in the same `openstack:cinder` window.\n\n2. **Nightly backup I/O on `_time`** — Predictable `sum` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `openstack:cinder`** — Nagios/Zabbix polls `_time` and mimics sustained load without crossing `err_rate` > 5.\n\n4. **New host onboarding** — `_time` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `_time`, `valid_until`.",
   "equipment": [
     "openstack"
   ],

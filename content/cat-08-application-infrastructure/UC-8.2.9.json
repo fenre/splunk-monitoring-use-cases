@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'Node.js Event Loop Lag' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_node_js_event_loop_lag` (UC-8.2.9), SOC dashboard panel \"Operations — Node.js Event Loop Lag\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=application` sourcetype='nodejs:metrics' that satisfy the UC-8.2.9 SPL filters for 'Node.js Event Loop Lag'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `application` / `nodejs:metrics` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.9."
+    "positiveScenario": "Ingest synthetic events into `index=application` sourcetype='nodejs:metrics' where `host` satisfies `el_lag` > 100 for UC-8.2.9 ('Node.js Event Loop Lag'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `application` / `nodejs:metrics` events where `host` stays below `el_lag` > 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.9."
   },
   "dataSources": "Node.js process metrics (event loop lag, heap usage), Prometheus client metrics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom metrics input, OpenTelemetry — Universal Forwarder (Splunkbase 617)",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Node.js Event Loop Lag'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `application` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `application`** — Planned work for 'Node.js Event Loop Lag' shifts `avg` over `span=1m` while `host` remains in-scope for UC-8.2.9. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `nodejs:metrics`** — Scheduled automation elevates `src` without crossing `el_lag` > 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `application` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nodejs:metrics`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "opentelemetry",
     "prometheus"

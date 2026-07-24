@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Pool Fill Water Anomaly From Leak' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_pool_fill_water_anomaly_from_leak` (UC-25.19.29), SOC dashboard panel \"Personal — Pool Fill Water Anomaly From Leak\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='watermeter:flow' that satisfy the UC-25.19.29 SPL filters for 'Pool Fill Water Anomaly From Leak'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `watermeter:flow` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.19.29."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='watermeter:flow' where `meter` satisfies `hour` >= 0 for UC-25.19.29 ('Pool Fill Water Anomaly From Leak'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `watermeter:flow` events where `meter` stays below `hour` >= 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.19.29."
   },
   "dataSources": "Water telemetry (`watermeter:flow`, `flo:event`, `rachio:zone`, `maytronics:robot`, `watersoftener:status`, `pool:chemistry`, `irrigation:zone`, `waterpressure:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Flo by Moen, Rachio, Flume, Maytronics Dolphin, pool sensors, water softener sensors, and irrigation controllers via vendor APIs, MQTT, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=watermeter:flow\n| eval hour=tonumber(strftime(_time,\"%H\"))\n| where hour>=0 AND hour<6\n| bin _time span=1d\n| stats sum(flow_gal) as overnight_flow_gal by meter _time\n| where overnight_flow_gal>200\n| sort - overnight_flow_gal",
   "description": "Uses Whole-home water-flow data telemetry to monitor large overnight draw that often points to filling or leakage in index=personal.",
-  "value": "Splunk turns the feed into an operational check for water loss hiding behind sleeping hours, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Whole-home water-flow data telemetry to monitor large overnight draw that often points to filling or l.... Timely UC-25.19.29 alerting on 'Pool Fill Water Anomaly From Leak' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Whole-home water-flow data data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Daily overnight-flow chart.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Pool Fill Water Anomaly From Leak'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `watermeter:flow`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Pool Fill Water Anomaly From Leak' stops polling `watermeter:flow`; stale `meter` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `watermeter:flow`. Dedup with `stats latest(*) by meter`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `hour` >= 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'VxRail vSAN Witness Failover and Network Partition Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_vxrail_vsan_witness_failover_and_network_partiti` (UC-2.10.5), SOC dashboard panel \"Linux — VxRail vSAN Witness Failover and Network Partition Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vxrail` sourcetype='vxrail:network' that satisfy the UC-2.10.5 SPL filters for 'VxRail vSAN Witness Failover and Network Partition Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vxrail` / `vxrail:network` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.10.5."
+    "positiveScenario": "Ingest synthetic events into `index=vxrail` sourcetype='vxrail:network' where `cluster_id` satisfies detection threshold for UC-2.10.5 ('VxRail vSAN Witness Failover and Network Partition Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `vxrail` / `vxrail:network` events where `cluster_id` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.10.5."
   },
   "dataSources": "`index=vxrail` `sourcetype=\"vxrail:network\"` — `cluster_id`, `partition_state`, `witness_reachable`, `vsan_cluster_uuid` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "vSAN stretched cluster telemetry via VxRail/vCenter export — Universal Forwarder (Splunkbase 617)",
   "spl": "index=vxrail sourcetype=\"vxrail:network\" earliest=-2h\n| eval wr=lower(witness_reachable)\n| eval ps=lower(partition_state)\n| where wr=\"false\" OR match(ps, \"(?i)partition|isolation\")\n| stats latest(_time) as last_evt by cluster_id, vsan_cluster_uuid",
   "description": "Witness loss in stretched clusters changes failure tolerance. Rapid detection avoids running in a mode where a second fault loses objects.",
-  "value": "Protects metro-stretch designs and guides fail-safe operator decisions. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Witness loss in stretched clusters changes failure tolerance. Timely UC-2.10.5 alerting on 'VxRail vSAN Witness Failover and Network Partition Detection' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Ingest witness heartbeat every minute. Page on unreachable >2 intervals. Run hook to validate external routing.",
   "visualization": "Timeline partition states; map witness path; related alerts.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'VxRail vSAN Witness Failover and Network Partition Detection'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `vxrail` `vxrail:network`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `vxrail`** — Package managers spike `cluster_id` metrics for 'VxRail vSAN Witness Failover and Network Partition Detection'. Correlate with apt/yum logs in the same `vxrail:network` window.\n\n2. **Nightly backup I/O on `cluster_id`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vxrail:network`** — Nagios/Zabbix polls `cluster_id` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `cluster_id` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `cluster_id`, `valid_until`.",
   "equipment": [
     "vmware",
     "vxrail"

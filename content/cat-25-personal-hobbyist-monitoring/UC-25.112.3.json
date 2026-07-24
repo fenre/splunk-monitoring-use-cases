@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Nextdoor Complaint Category Spike' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_nextdoor_complaint_category_spike` (UC-25.112.3), SOC dashboard panel \"Personal — Nextdoor Complaint Category Spike\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='nextdoor:post' that satisfy the UC-25.112.3 SPL filters for 'Nextdoor Complaint Category Spike'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `nextdoor:post` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.112.3."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='nextdoor:post' where `_time` satisfies detection threshold for UC-25.112.3 ('Nextdoor Complaint Category Spike'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `nextdoor:post` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.112.3."
   },
   "dataSources": "Nextdoor posts (`nextdoor:post`), Ring Neighbors alerts (`ring:neighbor`), neighborhood watch logs (`neighborhood:watch`), and local alerts (`local:alert`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Nextdoor post exports, Ring Neighbors alerts, neighborhood watch logs, and local emergency alert feeds ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=nextdoor:post category=* reaction_count=*\n| bin _time span=1w\n| stats count as posts, avg(reaction_count) as avg_reactions by _time category\n| eventstats avg(posts) as baseline_posts by category\n| where posts>baseline_posts*1.5\n| sort - posts",
-  "description": "Flags Nextdoor categories whose weekly post volume exceeds one and a half times the category baseline.",
-  "value": "Category spikes surface emerging block issues like noise, parking, or contractor scams before they escalate.",
+  "description": "Flags Nextdoor categories whose weekly post volume exceeds one and a half times the category baseline. Searches `index=personal` with sourcetype `nextdoor:post` for UC-25.112.3, aggregating `avg` by `_time` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Nextdoor Complaint Category Spike' without manual log review.",
+  "value": "Flags Nextdoor categories whose weekly post volume exceeds one and a half times the category baseline. Timely UC-25.112.3 alerting on 'Nextdoor Complaint Category Spike' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Include `category` on each post export and compare weekly counts to trailing baselines.",
   "visualization": "Bar chart of categories exceeding baseline post volume.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Nextdoor Complaint Category Spike'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nextdoor:post`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Nextdoor Complaint Category Spike' stops polling `nextdoor:post`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nextdoor:post`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

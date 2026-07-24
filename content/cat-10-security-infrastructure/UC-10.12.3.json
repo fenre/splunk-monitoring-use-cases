@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'Credit Card Velocity Checks' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_credit_card_velocity_checks` (UC-10.12.3), SOC dashboard panel \"Security Infra — Credit Card Velocity Checks\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=payments` sourcetype='card:authorization' that satisfy the UC-10.12.3 SPL filters for 'Credit Card Velocity Checks'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `payments` / `card:authorization` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.3."
+    "positiveScenario": "Ingest synthetic events into `index=payments` sourcetype='card:authorization' where `card_token` satisfies `count` >= 8 for UC-10.12.3 ('Credit Card Velocity Checks'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `payments` / `card:authorization` events where `card_token` stays below `count` >= 8, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.3."
   },
   "dataSources": "`sourcetype=\"card:authorization\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Payment processor TA, gateway logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=payments sourcetype=\"card:authorization\"\n| bin _time span=15m\n| stats count, dc(merchant_id) as merchants, dc(auth_result) as outcomes by card_token, _time\n| where count>=8 AND merchants>=4\n| sort -count",
-  "description": "Detects card testing and enumeration via rapid auth attempts across merchants or regions.",
+  "description": "Detects card testing and enumeration via rapid auth attempts across merchants or regions. Searches `index=payments` with sourcetype `card:authorization` for UC-10.12.3, aggregating `dc` by `card_token` over `15m`. Alerts when grouped results cross `count` >= 8 in the saved search. Gives Security Infra operators a repeatable signal for 'Credit Card Velocity Checks' without manual log review.",
   "value": "Early 'Credit Card Velocity Checks' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Tokenize PANs; never log full track data. Thresholds tuned per BIN and channel. Feed declines into case management for issuer contact.",
   "visualization": "Table (hot cards), Line chart (auth attempts per BIN), Single value (unique cards in alert state).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Credit Card Velocity Checks'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=payments` `card:authorization`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `payments`** — Planned work for 'Credit Card Velocity Checks' shifts `dc` over `span=15m` while `card_token` remains in-scope for UC-10.12.3. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `card:authorization`** — Scheduled automation elevates `_time` without crossing `count` >= 8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `card_token`** — Health checks in `payments` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `card:authorization`** — First 48h baseline for `card_token` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `card_token`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

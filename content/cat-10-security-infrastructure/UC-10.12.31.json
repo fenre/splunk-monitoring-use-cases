@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'POS Transaction Anomaly Detection' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_pos_transaction_anomaly_detection` (UC-10.12.31), SOC dashboard panel \"Security Infra — POS Transaction Anomaly Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=retail` sourcetype='pos:txn' that satisfy the UC-10.12.31 SPL filters for 'POS Transaction Anomaly Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `retail` / `pos:txn` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.31."
+    "positiveScenario": "Ingest synthetic events into `index=retail` sourcetype='pos:txn' where `store_id` satisfies `void_rate` > 0.15 for UC-10.12.31 ('POS Transaction Anomaly Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `retail` / `pos:txn` events where `store_id` stays below `void_rate` > 0.15, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.31."
   },
   "dataSources": "`sourcetype=\"pos:txn\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "POS gateway, store systems — Universal Forwarder (Splunkbase 617)",
   "spl": "index=retail sourcetype=\"pos:txn\"\n| eval is_void=if(txn_type IN (\"VOID\",\"RETURN\"),1,0)\n| stats sum(is_void) as voids, count as txns, sum(amount) as sales by store_id, terminal_id\n| eval void_rate=voids/txns\n| where void_rate>0.15 OR voids>30\n| sort -void_rate",
-  "description": "Spikes in voids, returns, or manager overrides may indicate insider theft or terminal compromise.",
+  "description": "Spikes in voids, returns, or manager overrides may indicate insider theft or terminal compromise. Searches `index=retail` with sourcetype `pos:txn` for UC-10.12.31, aggregating `sum` by `store_id` over `the scheduled window`. Alerts when grouped results cross `void_rate` > 0.15 in the saved search. Gives Security Infra operators a repeatable signal for 'POS Transaction Anomaly Detection' without manual log review.",
   "value": "Early 'POS Transaction Anomaly Detection' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Compare peer stores; video correlate with exception transactions; PCI-safe tokenization at ingest.",
   "visualization": "Table (hot terminals), Map (stores), Line chart (void rate trend).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'POS Transaction Anomaly Detection'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=retail` `pos:txn`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `retail`** — Planned work for 'POS Transaction Anomaly Detection' shifts `sum` over `span=1h` while `store_id` remains in-scope for UC-10.12.31. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `pos:txn`** — Scheduled automation elevates `terminal_id` without crossing `void_rate` > 0.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `store_id`** — Health checks in `retail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pos:txn`** — First 48h baseline for `store_id` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `store_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

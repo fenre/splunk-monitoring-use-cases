@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Merchant Frequency and Loyalty Leaks' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_merchant_frequency_and_loyalty_leaks` (UC-25.34.8), SOC dashboard panel \"Personal — Merchant Frequency and Loyalty Leaks\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='microspend:txn' that satisfy the UC-25.34.8 SPL filters for 'Merchant Frequency and Loyalty Leaks'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `microspend:txn` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.34.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='microspend:txn' where `merchant` satisfies `visits` >= 4 for UC-25.34.8 ('Merchant Frequency and Loyalty Leaks'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `microspend:txn` events where `merchant` stays below `visits` >= 4, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.34.8."
   },
   "dataSources": "Micro-spend transactions (`microspend:txn`), no-spend days (`nospend:day`), price-per-use items (`priceperuse:item`), cash-back rewards (`cashback:reward`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Bank-transaction exports categorised for micro-spending, no-spend-day trackers, price-per-use logs, and cash-back / rewards feeds — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=microspend:txn\n| bin _time span=1mon\n| stats sum(amount) as spend, count as visits by merchant\n| where visits>=4\n| sort - spend",
-  "description": "Ranks the merchants you spend with most often, revealing where your money quietly concentrates.",
-  "value": "Knowing your top merchants highlights where a loyalty scheme, subscription swap, or habit change would save the most.",
+  "description": "Ranks the merchants you spend with most often, revealing where your money quietly concentrates. Searches `index=personal` with sourcetype `microspend:txn` for UC-25.34.8, aggregating `sum` by `merchant` over `1m`. Alerts when grouped results cross `visits` >= 4 in the saved search. Gives Personal operators a repeatable signal for 'Merchant Frequency and Loyalty Leaks' without manual log review.",
+  "value": "Ranks the merchants you spend with most often, revealing where your money quietly concentrates. Timely UC-25.34.8 alerting on 'Merchant Frequency and Loyalty Leaks' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest transactions into `index=personal`; schedule monthly and rank merchants by spend and visits.",
   "visualization": "Bar chart of spend by most-frequent merchant.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Merchant Frequency and Loyalty Leaks'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `microspend:txn`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Merchant Frequency and Loyalty Leaks' stops polling `microspend:txn`; stale `merchant` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `microspend:txn`. Dedup with `stats latest(*) by merchant`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew `visits` >= 4. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "m365"
   ],

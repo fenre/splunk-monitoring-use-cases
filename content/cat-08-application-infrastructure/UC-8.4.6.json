@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'Circuit Breaker Activations' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_circuit_breaker_activations` (UC-8.4.6), SOC dashboard panel \"Operations — Circuit Breaker Activations\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=mesh` sourcetype='envoy:stats' that satisfy the UC-8.4.6 SPL filters for 'Circuit Breaker Activations'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `mesh` / `envoy:stats` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.4.6."
+    "positiveScenario": "Ingest synthetic events into `index=mesh` sourcetype='envoy:stats' where `upstream_cluster` satisfies `count` > 0 for UC-8.4.6 ('Circuit Breaker Activations'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `mesh` / `envoy:stats` events where `upstream_cluster` stays below `count` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.4.6."
   },
   "dataSources": "Envoy cluster stats (circuit breaker metrics), Istio DestinationRule events Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Service mesh metrics, Envoy stats — Universal Forwarder (Splunkbase 617)",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Circuit Breaker Activations'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `mesh` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `mesh`** — Planned work for 'Circuit Breaker Activations' shifts `count` over `span=1h` while `upstream_cluster` remains in-scope for UC-8.4.6. Cross-check CMDB CHG.\n\n2. **Batch `count` on `envoy:stats`** — Scheduled automation elevates `src` without crossing `count` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `upstream_cluster`** — Health checks in `mesh` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `envoy:stats`** — First 48h baseline for `upstream_cluster` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `upstream_cluster`, `exception_reason`, `valid_until`.",
   "equipment": [
     "envoy"
   ],

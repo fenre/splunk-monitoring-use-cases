@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'MySQL and MariaDB Temp Table Disk Spill Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mysql_and_mariadb_temp_table_disk_spill_rate` (UC-7.1.42), SOC dashboard panel \"Operations — MySQL and MariaDB Temp Table Disk Spill Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mysql:status' that satisfy the UC-7.1.42 SPL filters for 'MySQL and MariaDB Temp Table Disk Spill Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `mysql:status` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.42."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mysql:status' where `instance` satisfies `Created_tmp_tables` > 0 for UC-7.1.42 ('MySQL and MariaDB Temp Table Disk Spill Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `mysql:status` events where `instance` stays below `Created_tmp_tables` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.42."
   },
   "dataSources": "`SHOW GLOBAL STATUS` metrics `Created_tmp_disk_tables`, `Created_tmp_tables` (ingested from `mysql:status` or DB Connect export)",
   "app": "Splunk DB Connect (Splunkbase 2686), MySQL Enterprise Audit / status collectors",
   "spl": "index=database sourcetype=\"mysql:status\"\n| eval disk_spill_ratio=if(Created_tmp_tables>0, round(Created_tmp_disk_tables/Created_tmp_tables,4), null())\n| where Created_tmp_disk_tables > 100 OR disk_spill_ratio > 0.05\n| timechart span=1h sum(Created_tmp_disk_tables) as tmp_disk_tables, sum(Created_tmp_tables) as tmp_tables by instance",
   "description": "High Created_tmp_disk_tables indicates sorts and joins spilling from memory to disk, a common cause of sudden query slowdowns on MySQL and MariaDB. Practitioners track this alongside tmp_table_size and max_heap_table_size.",
-  "value": "Detects expensive queries and memory misconfiguration before disk-saturated temp I/O dominates warehouse and OLTP latency.",
+  "value": "High Created_tmp_disk_tables indicates sorts and joins spilling from memory to disk, a common cause of sudd.... Timely UC-7.1.42 alerting on 'MySQL and MariaDB Temp Table Disk Spill Rate' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll global status on a fixed interval and emit both counters on the same event for ratio math. Tag instance (host:port). Alert on absolute spikes or when disk temp tables exceed a small fraction of all internal temp tables. Correlate with slow query log and explain plans.",
   "visualization": "Line chart (Created_tmp_disk_tables rate), Area chart (spill ratio), Table (top instances).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'MySQL and MariaDB Temp Table Disk Spill Rate'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'MySQL and MariaDB Temp Table Disk Spill Rate' shifts `sum` over `span=1h` while `instance` remains in-scope for UC-7.1.42. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `mysql:status`** — Scheduled automation elevates `disk_spill_ratio` without crossing `Created_tmp_tables` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `instance`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mysql:status`** — First 48h baseline for `instance` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `instance`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mysql"

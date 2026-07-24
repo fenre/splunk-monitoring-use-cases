@@ -53,15 +53,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When a critical supplier's SOC 2 or ISO 27001 attestation is within 30 days of expiry or already expired, the UC fires.",
-    "negativeScenario": "Suppliers with a current attestation ≥30 days from expiry do NOT fire.",
-    "fixtureRef": "sample-data/uc-22.44.1-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies `days_to_expiry` <= 30 for UC-22.44.1 ('Supplier attestation currency — stale SOC 2 / ISO 27001 reports for critical vendors'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `days_to_expiry` <= 30, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.44.1."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "| inputlookup vrm_attestations.csv\n| where criticality IN (\"critical\",\"high\")\n| eval days_to_expiry=round((strptime(expires,\"%Y-%m-%d\")-now())/86400,0)\n| where days_to_expiry<=30\n| table vendor attestation_type expires days_to_expiry",
   "description": "Tracks supplier attestation lifecycles against the TPRM policy and surfaces expiring evidence before the risk committee sees it as an overdue item.",
-  "value": "Makes vendor-risk currency a live signal rather than an annual gap report. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Tracks supplier attestation lifecycles against the TPRM policy and surfaces expiring evidence before the ri.... Timely UC-22.44.1 alerting on 'Supplier attestation currency — stale SOC 2 / ISO 27001 reports for critical vendors' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Push attestation metadata from OneTrust/ServiceNow VRM into vrm_attestations.csv nightly; (2) run daily; (3) on finding, email supplier contact and assigned procurement lead.",
   "visualization": "Table of expiring attestations, Sankey of attestation types per vendor, single-value 'critical vendors with current attestation'.",
   "cimModels": [],
@@ -86,7 +85,7 @@
       "title": "Regulation (EU) 2022/2554 (DORA)"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised DORA control testing** — Internal audit exercises 'Supplier attestation currency — stale SOC 2 / ISO 27001 reports for critical vendors' (UC-22.44.1) on `entity` during scheduled clause Art.28 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `days_to_expiry` <= 30. Cross-check engagement letter in `dora_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `dora_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "audit",
   "requiredFields": [

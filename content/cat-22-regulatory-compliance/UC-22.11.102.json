@@ -67,16 +67,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Setting a CDE index frozenTimePeriodInSecs to 180d returns configured_days=180 in the output.",
-    "negativeScenario": "An index with 400d retention + recent WORM heartbeat is absent.",
-    "fixtureRef": "",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=compliance` sourcetype='worm:signer' where `index]` satisfies `configured_days` < 365 for UC-22.11.102 ('PCI-DSS 10.7 — Log retention: CDE data-source retention + immutability attestation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `compliance` / `worm:signer` events where `index]` stays below `configured_days` < 365, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.102."
   },
   "dataSources": "Splunk REST /services/data/indexes; `index=compliance` sourcetype=worm:signer. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "| rest /services/data/indexes\n| where match(title,\"^(cde|pci)_\")\n| eval configured_days=round(frozenTimePeriodInSecs/86400,0)\n| table title configured_days minTime maxTime\n| rename title AS index\n| eval oldest_event_age_d=round((now()-strptime(minTime,\"%Y-%m-%dT%H:%M:%S%z\"))/86400,0)\n| join type=outer index\n  [search index=compliance sourcetype=worm:signer earliest=-7d\n   | stats latest(_time) AS worm_last_write BY index]\n| where configured_days<365 OR oldest_event_age_d<365 OR worm_last_write<now()-86400\n| table index configured_days oldest_event_age_d worm_last_write",
   "description": "Attests the retention and WORM posture required by PCI-DSS 10.7 (one-year retention, three months immediately available).",
-  "value": "Prevents the audit-killing discovery that retention was silently reduced during an index rebuild. Daily attestation beats the quarterly spot-check.",
+  "value": "Attests the retention and WORM posture required by PCI-DSS 10. Timely UC-22.11.102 alerting on 'PCI-DSS 10.7 — Log retention: CDE data-source retention + immutability attestation' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Name CDE indexes with cde_/pci_ prefix; (2) WORM signer writes per-index heartbeat; (3) schedule UC daily; (4) gap opens a Platform ticket; (5) monthly CISO review. Indexes required: `index=compliance`; Sourcetypes: `sourcetype=worm:signer`, `sourcetype=worm:signer.`.",
   "visualization": "Bar of retention days by index, table of gaps, single value 'indexes below 365d'.",
   "cimModels": [
@@ -106,7 +104,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised PCI DSS control testing** — Internal audit exercises 'PCI-DSS 10.7 — Log retention: CDE data-source retention + immutability attestation' (UC-22.11.102) on `index]` during scheduled clause 10.7 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=compliance` `worm:signer` without crossing `configured_days` < 365. Cross-check engagement letter in `pci_dss_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `compliance` for `index]`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `index]` during normal service delivery.\n\n**Suppression mechanism:** `pci_dss_exception_register.csv` keyed on `index]`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Baseline",
   "securityDomain": "audit",
   "requiredFields": [

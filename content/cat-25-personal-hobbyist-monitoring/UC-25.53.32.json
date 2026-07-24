@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Vendor Insurance Certificate Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_vendor_insurance_certificate_gap` (UC-25.53.32), SOC dashboard panel \"Personal — Vendor Insurance Certificate Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='event:vendor' that satisfy the UC-25.53.32 SPL filters for 'Vendor Insurance Certificate Gap'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `event:vendor` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.53.32."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='event:vendor' where `vendor_type` satisfies `backlog` > 0 for UC-25.53.32 ('Vendor Insurance Certificate Gap'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `event:vendor` events where `vendor_type` stays below `backlog` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.53.32."
   },
   "dataSources": "Planning tasks (`event:checklist`), seating revisions (`event:seating`), vendor contracts (`event:vendor`), deposits (`event:deposit`), planning syncs (`event:sync`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Wedding and event-planning telemetry — The Knot checklist exports, seating-chart revisions, vendor deposit schedules, and RSVP operations — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=event:vendor vendor_type=* insurance_state=*\n| stats sum(eval(if(insurance_state!=\"received\",1,0))) as backlog, count as total by vendor_type\n| where backlog>0\n| sort - backlog",
-  "description": "Lists pending insurance certificates backlog by vendor type for vendor compliance.",
-  "value": "Backlog counts expose where small unfinished tasks accumulate and create hidden drag inside vendor compliance.",
+  "description": "Lists pending insurance certificates backlog by vendor type for vendor compliance. Searches `index=personal` with sourcetype `event:vendor` for UC-25.53.32, aggregating `sum` by `vendor_type` over `the scheduled window`. Alerts when grouped results cross `backlog` > 0 in the saved search. Gives Personal operators a repeatable signal for 'Vendor Insurance Certificate Gap' without manual log review.",
+  "value": "Lists pending insurance certificates backlog by vendor type for vendor compliance. Timely UC-25.53.32 alerting on 'Vendor Insurance Certificate Gap' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Mark each `event:vendor` record with a pending-state flag and summarize backlog totals by `vendor_type`.",
   "visualization": "Table of vendor type with pending insurance certificates counts.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Vendor Insurance Certificate Gap'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `event:vendor`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Vendor Insurance Certificate Gap' stops polling `event:vendor`; stale `vendor_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `event:vendor`. Dedup with `stats latest(*) by vendor_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `backlog` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

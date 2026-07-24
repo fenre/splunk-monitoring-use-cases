@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'SWOLF Improvement Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_swolf_improvement_trend` (UC-25.103.1), SOC dashboard panel \"Personal — SWOLF Improvement Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='myswimpro:session' that satisfy the UC-25.103.1 SPL filters for 'SWOLF Improvement Trend'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `myswimpro:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.103.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='myswimpro:session' where `stroke_type` satisfies detection threshold for UC-25.103.1 ('SWOLF Improvement Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `myswimpro:session` events where `stroke_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.103.1."
   },
   "dataSources": "Swim.com workouts (`swimcom:workout`), MySwimPro sessions (`myswimpro:session`), pool lap logs (`pool:lap`), and swim meet results (`swim:meet`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Swim.com workout exports, MySwimPro session logs, pool lap counters, swim meet results, and interval pace trackers forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=myswimpro:session swolf_score=* stroke_type=*\n| timechart span=1w avg(swolf_score) as avg_swolf, min(swolf_score) as best_swolf by stroke_type\n| fillnull value=0",
   "description": "Trends weekly average and best MySwimPro SWOLF scores by stroke type. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "SWOLF combines stroke count and time; trending it shows efficiency gains better than distance alone.",
+  "value": "Trends weekly average and best MySwimPro SWOLF scores by stroke type. Timely UC-25.103.1 alerting on 'SWOLF Improvement Trend' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Export MySwimPro sessions with `swolf_score` and `stroke_type`, then review weekly averages after each block.",
   "visualization": "Multi-series line chart of SWOLF by stroke and week.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'SWOLF Improvement Trend'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `myswimpro:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'SWOLF Improvement Trend' stops polling `myswimpro:session`; stale `stroke_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `myswimpro:session`. Dedup with `stats latest(*) by stroke_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

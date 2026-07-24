@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'ClickHouse Disk Usage by Table and Partition' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_clickhouse_disk_usage_by_table_and_partition` (UC-7.1.61), SOC dashboard panel \"Operations — ClickHouse Disk Usage by Table and Partition\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='clickhouse:parts' that satisfy the UC-7.1.61 SPL filters for 'ClickHouse Disk Usage by Table and Partition'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `clickhouse:parts` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.61."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='clickhouse:parts' where `database` satisfies `pct_of_host` > 25 for UC-7.1.61 ('ClickHouse Disk Usage by Table and Partition'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `clickhouse:parts` events where `database` stays below `pct_of_host` > 25, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.61."
   },
   "dataSources": "`system.parts` bytes on disk ingested as `clickhouse:parts` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scheduled SQL aggregations to Splunk HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"clickhouse:parts\"\n| eval gb=round(tonumber(bytes_on_disk)/1073741824,3)\n| stats sum(gb) as table_gb by database, table, partition, host\n| eventstats sum(table_gb) as host_total by host\n| eval pct_of_host=round(100*table_gb/host_total,2)\n| where pct_of_host > 25 AND table_gb > 0.5\n| sort -table_gb",
   "description": "A single partition or table consuming a disproportionate share of a host’s disk predicts `No space left` events and forces emergency TTL changes. Percent-of-host views highlight outliers even when absolute gigabytes look normal cluster-wide.",
-  "value": "Supports proactive storage purchasing and TTL/archival decisions before ingest stops.",
+  "value": "A single partition or table consuming a disproportionate share of a host’s disk predicts `No space left` ev.... Timely UC-7.1.61 alerting on 'ClickHouse Disk Usage by Table and Partition' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Export `SELECT database, table, partition, sum(bytes_on_disk) bytes_on_disk FROM system.parts WHERE active GROUP BY database, table, partition` daily or hourly. Normalize `partition` as string. Maintain capacity lookup for expected growth; alert when any table exceeds 25% of host disk for two consecutive runs.",
   "visualization": "Treemap (database.table), Table (partition, table_gb, pct_of_host).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'ClickHouse Disk Usage by Table and Partition'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'ClickHouse Disk Usage by Table and Partition' shifts `sum` over `span=1h` while `database` remains in-scope for UC-7.1.61. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `clickhouse:parts`** — Scheduled automation elevates `table` without crossing `pct_of_host` > 25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `database`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `clickhouse:parts`** — First 48h baseline for `database` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `database`, `exception_reason`, `valid_until`.",
   "equipment": [
     "clickhouse"
   ],

@@ -37,7 +37,7 @@
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+. Requires SUPER-ADMIN-ROLE.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:audit:logs\" isSystemEvent=false\n| stats count as total_actions count(eval(auditRequestType IN (\"PUT\",\"POST\",\"DELETE\"))) as changes earliest(_time) as first_action latest(_time) as last_action by auditUserName\n| eval active_hours=round((last_action-first_action)/3600,1)\n| sort -changes",
   "description": "Monitors administrative activity by privileged users on the Catalyst Center platform, tracking the volume and type of actions per user to detect privilege abuse, compromised accounts, or policy violations — the detective control for NIST AC-6 (Least Privilege) that catches misuse of powerful network management accounts.",
-  "value": "Privileged accounts have the power to modify network configurations, disable security features, and access sensitive data. A SUPER-ADMIN making 50 configuration changes at 2 AM without a change ticket is either an emergency response (legitimate) or a compromised account (critical incident). This UC provides the visibility to distinguish between them by showing each user's total activity, state-changing operations, and active time window. For NIST AC-6, it demonstrates that privileged account usage is monitored and reviewed. For security operations, it's the baseline that makes anomalous behaviour detectable.",
+  "value": "Monitors administrative activity by privileged users on the Catalyst Center platform, tracking the volume a.... Timely UC-5.13.47 alerting on 'Privileged User Activity Monitoring' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Same `audit_logs` input as UC-5.13.45. Focus on human-initiated activity (`isSystemEvent=false`). Maintain a `catalyst_admins` lookup of authorised users. Schedule daily for security review. Alert on unknown usernames immediately.",
   "visualization": "(1) Table: auditUserName, total_actions, changes, active_hours — sorted by changes. (2) Bar chart: changes per user. (3) Heatmap: per-user activity by hour-of-day and day-of-week for pattern analysis. (4) Alert: unknown username detected (not in `catalyst_admins` lookup).",
   "references": [
@@ -58,7 +58,7 @@
       "url": "https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_0/home?element=AC-6"
     }
   ],
-  "knownFalsePositives": "**TA service account generating high activity volume.** The TA's own API polling generates GET events. The service account may appear as the top user by `total_actions`. Distinguish by checking `auditUserName` — the TA account should be known. Suppress by filtering `| where auditUserName != \"splunk-svc@example.com\"` for human-only views, or by focusing on `changes` (PUT/POST/DELETE) rather than `total_actions`.\n\n**Bulk operations inflating per-user change count.** A legitimate template push to 100 devices by one admin generates 100+ change events. Distinguish by checking whether the high count corresponds to a single approved operation (same `auditParentId`). Document as one approved bulk change.\n\n**Shared accounts masking individual accountability.** If multiple administrators share a single Catalyst Center account (bad practice but common), individual activity is not attributable. Distinguish by correlating with ISE/RADIUS logs for the actual login source. Fix by creating individual accounts per the NIST AC-6 least-privilege principle.\n\n**Service accounts for ITSM integration generating automated changes.** ServiceNow or other ITSM platforms may use API accounts to push approved changes. Distinguish by checking the `auditUserName` against a list of known service/integration accounts. Present these separately from human-initiated activity.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Privileged User Activity Monitoring' shifts `count` over `span=1h` while `auditUserName` remains in-scope for UC-5.13.47. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:audit:logs`** — Scheduled automation elevates `active_hours` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `auditUserName`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:audit:logs`** — First 48h baseline for `auditUserName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `auditUserName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -77,5 +77,9 @@
   "prerequisiteUseCases": [
     "UC-5.13.45"
   ],
-  "wave": "walk"
+  "wave": "walk",
+  "controlTest": {
+    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:audit:logs' where `auditUserName` satisfies detection threshold for UC-5.13.47 ('Privileged User Activity Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:audit:logs` events where `auditUserName` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.47."
+  }
 }

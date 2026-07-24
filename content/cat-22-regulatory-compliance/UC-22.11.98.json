@@ -55,17 +55,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Logging into a service-only account via RDP fires the UC within 10m.",
-    "negativeScenario": "A service-account login via LogonType 3 (network, non-interactive) is absent.",
-    "fixtureRef": "",
-    "attackTechnique": "T1078.002",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=windows` sourcetype='WinEventLog:Security' EventCode=4624 where `entity` satisfies detection threshold for UC-22.11.98 ('PCI-DSS 8.6 — Application and system accounts: interactive use of a service account'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `windows` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.98."
   },
   "dataSources": "`index=windows` EventCode 4624; `index=linux` auditd; service-account lookup `service_accounts.csv`.",
   "app": "Splunk Add-on for Microsoft Windows (742) (Splunkbase)",
   "spl": "index=windows sourcetype=WinEventLog:Security EventCode=4624 LogonType IN (2,10,11) earliest=-10m\n| rename TargetUserName AS user\n| lookup service_accounts.csv user OUTPUT account_type\n| where account_type=\"service-only\"\n| table user src dest LogonType account_type",
   "description": "Detects an interactive session on a service-only account — direct PCI-DSS 8.6 violation, which requires application/system accounts not be used interactively.",
-  "value": "Removes the common post-audit-finding 'we didn't know that account was used interactively' narrative by making the misuse visible in 10 minutes.",
+  "value": "Detects an interactive session on a service-only account — direct PCI-DSS 8. Timely UC-22.11.98 alerting on 'PCI-DSS 8.6 — Application and system accounts: interactive use of a service account' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Maintain service_accounts.csv with account_type tag; (2) schedule UC every 10m; (3) hit opens a P1 and disables the account; (4) weekly IAM review. Indexes required: `index=linux`, `index=windows`; Sourcetypes: `sourcetype=WinEventLog:Security`.",
   "visualization": "Table of interactive service-account logins, time chart, single value 'events in last hour'. Key fields: `LogonType`, `account_type`, `dest`, `src`, `user`.",
   "cimModels": [
@@ -95,7 +92,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised PCI DSS control testing** — Internal audit exercises 'PCI-DSS 8.6 — Application and system accounts: interactive use of a service account' (UC-22.11.98) on `entity` during scheduled clause 8.6 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=windows` `WinEventLog:Security` without crossing evidence threshold. Cross-check engagement letter in `pci_dss_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `windows` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `pci_dss_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1078.002"
   ],

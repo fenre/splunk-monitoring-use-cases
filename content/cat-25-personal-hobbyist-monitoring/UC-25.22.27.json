@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Plate Solve Latency by Solver' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_plate_solve_latency_by_solver` (UC-25.22.27), SOC dashboard panel \"Personal — Plate Solve Latency by Solver\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='platesolve:run' that satisfy the UC-25.22.27 SPL filters for 'Plate Solve Latency by Solver'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `platesolve:run` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.22.27."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='platesolve:run' where `solver_name` satisfies detection threshold for UC-25.22.27 ('Plate Solve Latency by Solver'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `platesolve:run` events where `solver_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.22.27."
   },
   "dataSources": "NINA sequences (`nina:sequence`), NINA autofocus runs (`nina:autofocus`), Ekos scheduler and device events (`ekos:scheduler`, `ekos:device`), PHD2 guiding telemetry (`phd2:guide`), plate solves (`platesolve:run`), filter wheel events (`filterwheel:event`), and flat frames (`flatlib:frame`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Astrophotography session telemetry from N.I.N.A., KStars/Ekos, PHD2, plate-solving tools, ASCOM gear, and filter-wheel controllers sent to Splunk HEC via logs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=platesolve:run\n| search solve_sec=*\n| stats avg(solve_sec) as avg_solve_sec perc90(solve_sec) as p90_solve_sec count as samples by solver_name\n| sort 0 - avg_solve_sec",
   "description": "Measures plate solve time by solver. Runs scheduled SPL against `index=personal` to surface **Plate Solve Latency by Solver** so you can spot drift before it becomes a habit.",
-  "value": "Solver latency matters during framing changes and recovery workflows, so it helps to know which backend is dragging.",
+  "value": "Measures plate solve time by solver. Timely UC-25.22.27 alerting on 'Plate Solve Latency by Solver' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send the relevant duration field for plate solve time to `index=personal` and review both average and p90 latency instead of relying on single examples.",
   "visualization": "Table of average and p90 plate solve time.",
   "cimModels": [],
@@ -54,7 +54,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Plate Solve Latency by Solver'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `platesolve:run`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Plate Solve Latency by Solver' stops polling `platesolve:run`; stale `solver_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `platesolve:run`. Dedup with `stats latest(*) by solver_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

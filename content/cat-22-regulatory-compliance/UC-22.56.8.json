@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set `submission_due_date` to yesterday with `submitted_at=null`. Within 24 hours UC-22.56.8 MUST flag `submission_status=overdue` and notify CC + CISO.",
-    "negativeScenario": "Set `submitted_at` 7 days before `submission_due_date` with attestation pin. UC-22.56.8 MUST record `submission_status=on_time`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies `days_to_due` > 30 for UC-22.56.8 ('TSA-SD-Pipeline Cybersecurity Assessment Programme (CAP) — annual self-assessment and TSA submission tracker'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `days_to_due` > 30, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.56.8."
   },
   "dataSources": "KV Store `tsa_pipeline_cap_lookup` (facility_id, cap_year, submission_due_date, submitted_at, assessment_doc_url, attestation_signer, attestation_date, tsa_acknowledgement_id).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup tsa_pipeline_cap_lookup\n| eval days_to_due = round((submission_due_date - now()) / 86400, 0)\n| eval submission_status = case(\n    isnotnull(submitted_at) AND submitted_at <= submission_due_date AND isnotnull(attestation_signer), \"on_time\",\n    isnotnull(submitted_at) AND submitted_at > submission_due_date, \"late\",\n    isnull(submitted_at) AND days_to_due > 30, \"in_window\",\n    isnull(submitted_at) AND days_to_due > 0 AND days_to_due <= 30, \"due_soon\",\n    isnull(submitted_at) AND days_to_due <= 0, \"overdue\",\n    1=1, \"unknown\")\n| where submission_status IN (\"overdue\",\"due_soon\",\"late\")\n| table facility_id cap_year submission_due_date submitted_at submission_status assessment_doc_url attestation_signer attestation_date tsa_acknowledgement_id",
   "description": "Tracks CAP submission status for every TSA-regulated facility against the annual deadline, with executive attestation and TSA acknowledgement evidence.",
-  "value": "Late or missing CAP submission triggers TSA enforcement. The attestation chain ties leadership accountability to the submission.",
+  "value": "Tracks CAP submission status for every TSA-regulated facility against the annual deadline, with executive a.... Timely UC-22.56.8 alerting on 'TSA-SD-Pipeline Cybersecurity Assessment Programme (CAP) — annual self-assessment and TSA submission tracker' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `tsa_pipeline_cap_lookup` annually with CAP cycle data. (2) Schedule UC-22.56.8 daily; route `overdue` severity=critical. (3) Build the `TSA-SD CAP Submission Tracker` dashboard.",
   "visualization": "(Panel 1) Submission status by facility. (Panel 2) Days-to-due funnel. (Panel 3) Attestation chain (signer + date). (Panel 4) 5-year submission history.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Delayed acknowledgement** — TSA may take weeks to send a formal acknowledgement; absence of acknowledgement is not absence of submission. Suppression: `submitted_at` is the legal record.\n\n**Suppression mechanism**: KV Store `tsa_22_56_8_exceptions` with documented CC approval.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD-Pipeline Cybersecurity Assessment Programme (CAP) — annual self-assessment and TSA submission tracker' (UC-22.56.8) on `entity` during scheduled clause TSA-SD-P-2021-02C-s5 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `days_to_due` > 30. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (regulatory submission)"
   ],

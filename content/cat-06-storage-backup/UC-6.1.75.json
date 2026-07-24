@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Pure Storage FlashArray host group LUN mapping inventory audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_pure_storage_flasharray_host_group_lun_mapping_i` (UC-6.1.75), SOC dashboard panel \"Operations — Pure Storage FlashArray host group LUN mapping inventory audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='purestorage:host' that satisfy the UC-6.1.75 SPL filters for 'Pure Storage FlashArray host group LUN mapping inventory audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `purestorage:host` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.75."
+    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='purestorage:host' where `hg` satisfies detection threshold for UC-6.1.75 ('Pure Storage FlashArray host group LUN mapping inventory audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `storage` / `purestorage:host` events where `hg` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.75."
   },
   "dataSources": "Host group and volume mapping exports in `purestorage:host` / REST-normalized `purestorage:volume` connection fields Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Pure Storage Unified Add-on for Splunk (5513) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"purestorage:host\"\n| eval hg=coalesce(host_group, hostgroup, initiator_group)\n| eval vols=coalesce(mapped_volumes, volumes, lun_list)\n| mvexpand vols\n| stats dc(vols) as lun_count values(array_name) as arrays by hg\n| sort - lun_count",
   "description": "Orphaned or over-broad host groups violate least-privilege zoning and complicate forensic containment after a host compromise.",
-  "value": "Supports access reviews and SAN segmentation programs without manual CLI exports.",
+  "value": "Orphaned or over-broad host groups violate least-privilege zoning and complicate forensic containment after.... Timely UC-6.1.75 alerting on 'Pure Storage FlashArray host group LUN mapping inventory audit' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "If `mapped_volumes` is multivalue JSON, use `spath` or `rex` in `props.conf` at index time. Schedule weekly CSV to CMDB ETL.",
   "visualization": "Table (host group, LUN count), Sankey (optional advanced).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Pure Storage FlashArray host group LUN mapping inventory audit'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `storage` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'Pure Storage FlashArray host group LUN mapping inventory audit' shifts `dc` over `span=1h` while `hg` remains in-scope for UC-6.1.75. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `purestorage:host`** — Scheduled automation elevates `hg` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `hg`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `purestorage:host`** — First 48h baseline for `hg` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `hg`, `exception_reason`, `valid_until`.",
   "equipment": [
     "pure_storage"
   ],

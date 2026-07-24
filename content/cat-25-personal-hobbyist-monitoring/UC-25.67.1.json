@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'RSI Break Timer Miss Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_rsi_break_timer_miss_rate` (UC-25.67.1), SOC dashboard panel \"Personal — RSI Break Timer Miss Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='stretchly:break' that satisfy the UC-25.67.1 SPL filters for 'RSI Break Timer Miss Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `stretchly:break` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.67.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='stretchly:break' where `day_of_week` satisfies detection threshold for UC-25.67.1 ('RSI Break Timer Miss Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `stretchly:break` events where `day_of_week` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.67.1."
   },
   "dataSources": "Pomodoro focus sessions (`pomofocus:session`), desk position logs (`upliftdesk:desk`), Elgato Key Light usage (`elgato:keylight`), calendar meetings (`calendar:event`), and Stretchly breaks (`stretchly:break`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Pomofocus sessions, Uplift desk position logs, Elgato Key Light telemetry, Stretchly break reminders, and meeting calendar events sent to Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=stretchly:break\n| eval missed=if(break_outcome=\"missed\",1,0)\n| stats sum(missed) as missed_breaks, count as total_breaks by day_of_week\n| eval missed_pct=round(100*missed_breaks/total_breaks,1)\n| sort - missed_pct",
   "description": "Measures how often scheduled microbreaks are skipped, grouped by day of week. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Missed breaks are an early RSI signal because they usually rise long before pain forces a change.",
+  "value": "Measures how often scheduled microbreaks are skipped, grouped by day of week. Timely UC-25.67.1 alerting on 'RSI Break Timer Miss Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward Stretchly reminder outcomes into Splunk and trend the share of missed breaks over time.",
   "visualization": "Bar chart of missed-break percentage by weekday.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'RSI Break Timer Miss Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `stretchly:break`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'RSI Break Timer Miss Rate' stops polling `stretchly:break`; stale `day_of_week` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `stretchly:break`. Dedup with `stats latest(*) by day_of_week`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Deploy a non-qualified IDS to a SAIV. UC-22.58.5 MUST flag within 24h.",
-    "negativeScenario": "Deploy ANSSI-qualified product (e.g., Stormshield SNS qualified) with current visa. UC-22.58.5 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='snow:cmdb' where `oiv_id` satisfies detection threshold for UC-22.58.5 ('France LPM ANSSI-qualified product (visa de sécurité, CSPN, CC) procurement evidence + LSP ledger'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `snow:cmdb` events where `oiv_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.58.5."
   },
   "dataSources": "ServiceNow CMDB (`snow:cmdb`). ANSSI visa register `lpm_anssi_visa_lookup` (product_id, vendor, qualification_type, certificate_id, certificate_valid_until). ServiceNow Procurement records (`snow:proc`). KV Store `lpm_visa_derogation_lookup`.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "search sourcetype=snow:cmdb saiv_protecting=true earliest=-24h\n| stats values(vendor) as vendor values(product_id) as product_id dc(asset_id) as asset_count by oiv_id product_id\n| lookup lpm_anssi_visa_lookup product_id AS product_id OUTPUT qualification_type certificate_id certificate_valid_until\n| join type=left product_id [| inputlookup lpm_visa_derogation_lookup | where valid_until > now() | rename derogation_id as active_derogation]\n| eval compliance_status = case(\n    isnotnull(certificate_id) AND certificate_valid_until > now(), \"qualified\",\n    isnotnull(certificate_id) AND certificate_valid_until <= now(), \"qualification_expired\",\n    isnull(certificate_id) AND isnotnull(active_derogation), \"derogated\",\n    isnull(certificate_id), \"non_qualified\")\n| where compliance_status IN (\"non_qualified\",\"qualification_expired\")\n| table oiv_id product_id vendor qualification_type certificate_id certificate_valid_until asset_count active_derogation compliance_status",
-  "description": "Reconciles SAIV-protecting product inventory against ANSSI visa register and active derogations.",
-  "value": "ANSSI procurement scrutiny on OIV is direct. Non-qualified product deployment can void OIV compliance and trigger compulsory removal.",
+  "description": "Reconciles SAIV-protecting product inventory against ANSSI visa register and active derogations. Searches `index=target_index` with sourcetype `snow:cmdb` for UC-22.58.5, aggregating `values` by `oiv_id` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'France LPM ANSSI-qualified product (visa de sécurité, CSPN, CC) procurement evidence + LSP ledger' without manual log review.",
+  "value": "Reconciles SAIV-protecting product inventory against ANSSI visa register and active derogations. Timely UC-22.58.5 alerting on 'France LPM ANSSI-qualified product (visa de sécurité, CSPN, CC) procurement evidence + LSP ledger' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate ANSSI visa register from cyber.gouv.fr/produits-services-qualifies. (2) Maintain CMDB `saiv_protecting` flag. (3) Schedule UC-22.58.5 daily. (4) Build the `LPM Qualified-Product Ledger` dashboard.",
   "visualization": "(Panel 1) Qualified vs non-qualified products. (Panel 2) Vendor mix. (Panel 3) Visa expiry timeline. (Panel 4) Derogation register.",
   "cimModels": [
@@ -67,7 +67,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **In-flight re-qualification**: vendors may have submitted re-qualification dossier; tag with `recertification_pending` and short grace.\n2. **Equivalent qualification**: some EU products carry CC/CSPN equivalents; map.\n3. **Trial deployment**: lab/PoC deployments may use non-qualified products; tag with `lab_only=true`.\n\n**Suppression mechanism**: KV Store `lpm_22_58_5_exceptions` with documented Procurement approval and 6-month max grant.",
+  "knownFalsePositives": "1. **Authorised FR LPM control testing** — Internal audit exercises 'France LPM ANSSI-qualified product (visa de sécurité, CSPN, CC) procurement evidence + LSP ledger' (UC-22.58.5) on `oiv_id` during scheduled clause FR-ANSSI-rule-protection-access-control sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `snow:cmdb` without crossing evidence threshold. Cross-check engagement letter in `fr_lpm_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `oiv_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `oiv_id` during normal service delivery.\n\n**Suppression mechanism:** `fr_lpm_exception_register.csv` keyed on `oiv_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (supply-chain governance)"
   ],

@@ -12,7 +12,7 @@
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:issue\" status!=\"RESOLVED\"\n| stats count as poll_count earliest(_time) as first_seen latest(_time) as last_seen values(deviceName) as devices by issueId, name, priority, category\n| eval age_days=round((now()-first_seen)/86400,1)\n| sort -age_days\n| head 20",
   "description": "Identifies the longest-running and most persistent unresolved Assurance issues — the chronic 'repeat offenders' that have been active for days or weeks without resolution, consuming NOC attention and degrading the network without triggering urgent alerts because they're P3/P4 or because the team has grown accustomed to ignoring them.",
-  "value": "The most expensive network problems aren't the P1 outages — those get fixed in hours. It's the P3 issue that's been active for 6 weeks, affecting a building's wireless coverage, generating 3 help-desk tickets per week, that nobody owns because it's 'not critical enough.' This UC surfaces those chronic issues by age and persistence, turning them into Problem Management candidates with data to justify the investment. The device list per issue shows the blast radius, and the age shows how long the organisation has been accepting the degradation. A P3 issue active for 45 days is 45 days of user pain that your operations metrics don't show — until now.",
+  "value": "Identifies the longest-running and most persistent unresolved Assurance issues — the chronic 'repeat offend.... Timely UC-5.13.25 alerting on 'Top Recurring Issues (Repeat Offenders)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Same `issue` input as UC-5.13.21. Schedule as a weekly report for the Problem Management or operations review meeting. Focus on the top 20 oldest active issues.",
   "visualization": "(1) Table: name, priority, category, age_days, poll_count, devices — sorted by age descending (oldest first). (2) Bar chart: top 10 by age_days. (3) Single value: count of issues active > 7 days (yellow ≥ 5, red ≥ 20). (4) Drilldown: click an issue → show its timeline from UC-5.13.22 filtered to that `name`.",
   "references": [
@@ -33,7 +33,7 @@
       "url": "https://www.atlassian.com/itsm/problem-management"
     }
   ],
-  "knownFalsePositives": "**Known-bug issues with published workarounds.** Some Assurance issue types correspond to Catalyst Center or IOS-XE bugs that have workarounds but require a firmware upgrade to fix permanently. These are legitimate chronic issues — they shouldn't be suppressed, but they should be tracked in a `catalyst_known_issues` lookup with `name`, `bug_id`, `workaround_url`, and `planned_fix_version`, and displayed as 'acknowledged' rather than 'unresolved.'\n\n**Lab or staging devices generating persistent issues.** Non-production equipment may have intentional configuration deviations that trigger persistent Assurance issues. Distinguish by checking `deviceName` against lab naming conventions. Suppress with a `catalyst_excluded_devices` lookup.\n\n**Issues that Catalyst Center cannot auto-resolve by design.** Some issue types (e.g., 'Device running non-compliant firmware') remain ACTIVE until manual remediation. They're not 'recurring' — they're 'awaiting action.' Distinguish by checking the issue `category` — firmware/compliance issues are action items, not incidents. Present them in a separate 'Awaiting Action' table.\n\n**Virtual domain scope showing issues for devices the NOC cannot act on.** If the TA service account has broader virtual domain access than the NOC team, the repeat-offender list may include devices the NOC has no authority to fix. Distinguish by checking `siteId` against the NOC's site scope. Suppress by filtering to NOC-owned sites.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Top Recurring Issues (Repeat Offenders)' shifts `values` over `span=1h` while `issueId` remains in-scope for UC-5.13.25. Cross-check CMDB CHG.\n\n2. **Batch `values` on `cisco:dnac:issue`** — Scheduled automation elevates `name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `issueId`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:issue`** — First 48h baseline for `issueId` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `issueId`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -52,5 +52,9 @@
   "prerequisiteUseCases": [
     "UC-5.13.21"
   ],
-  "wave": "walk"
+  "wave": "walk",
+  "controlTest": {
+    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:issue' where `issueId` satisfies detection threshold for UC-5.13.25 ('Top Recurring Issues (Repeat Offenders)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:issue` events where `issueId` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.25."
+  }
 }

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'ClickHouse Detached Parts Accumulation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_clickhouse_detached_parts_accumulation` (UC-7.1.65), SOC dashboard panel \"Operations — ClickHouse Detached Parts Accumulation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='clickhouse:parts' that satisfy the UC-7.1.65 SPL filters for 'ClickHouse Detached Parts Accumulation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `clickhouse:parts` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.65."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='clickhouse:parts' where `database` satisfies `detached_partitions` > 3 for UC-7.1.65 ('ClickHouse Detached Parts Accumulation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `clickhouse:parts` events where `database` stays below `detached_partitions` > 3, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.65."
   },
   "dataSources": "`system.detached_parts` or `system.parts` with `detached` flag ingested as `clickhouse:parts` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scheduled SQL `SELECT database, table, count() cnt FROM system.detached_parts GROUP BY database, table` to HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"clickhouse:parts\"\n| where detached==1 OR match(_raw,\"detached\")\n| stats dc(partition) as detached_partitions sum(rows) as detached_rows latest(reason) as detach_reason by database, table, host\n| where detached_partitions > 3 OR detached_rows > 1000000",
   "description": "Detached parts often follow failed merges, hardware errors, or manual `DETACH PART` operations; unchecked growth implies data integrity work and risks query failures when ATTACH is attempted inconsistently across replicas.",
-  "value": "Surfaces silent disk consumption and replication repair work before backups and restores become mandatory.",
+  "value": "Detached parts often follow failed merges, hardware errors, or manual `DETACH PART` operations; unchecked g.... Timely UC-7.1.65 alerting on 'ClickHouse Detached Parts Accumulation' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "If using `system.detached_parts`, emit `database`, `table`, `partition_id`, `name`, `reason` per row or aggregate `count` hourly. If only `system.parts` is available, filter `active=0` and name patterns per your export. Alert on new reasons containing `broken` or sudden partition count jumps.",
   "visualization": "Table (database, table, detached_partitions, detach_reason), Line chart (detached row count).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'ClickHouse Detached Parts Accumulation'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'ClickHouse Detached Parts Accumulation' shifts `dc` over `span=1h` while `database` remains in-scope for UC-7.1.65. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `clickhouse:parts`** — Scheduled automation elevates `table` without crossing `detached_partitions` > 3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `database`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `clickhouse:parts`** — First 48h baseline for `database` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `database`, `exception_reason`, `valid_until`.",
   "equipment": [
     "clickhouse"
   ],

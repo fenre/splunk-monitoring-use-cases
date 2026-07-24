@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Quarantine Management' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_quarantine_management` (UC-10.4.7), SOC dashboard panel \"Security Infra — Quarantine Management\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=email` sourcetype='ms:o365:messageTrace' that satisfy the UC-10.4.7 SPL filters for 'Quarantine Management'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `email` / `ms:o365:messageTrace` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.4.7."
+    "positiveScenario": "Ingest synthetic events into `index=email` sourcetype='ms:o365:messageTrace' where `FilteringResult` satisfies detection threshold for UC-10.4.7 ('Quarantine Management'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `email` / `ms:o365:messageTrace` events where `FilteringResult` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.4.7."
   },
   "dataSources": "Email quarantine logs, release request logs Collected via Splunk Add-on for Microsoft Office 365 (Splunkbase 4054) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk_TA_MS_O365, email gateway TA — Splunk Add-on for Microsoft Office 365 (Splunkbase 4054)",
   "spl": "index=email sourcetype=\"ms:o365:messageTrace\"\n| search FilteringResult=\"*Quarantine*\"\n| stats count by FilteringResult, SenderAddress\n| sort -count",
-  "description": "Tracks quarantine effectiveness and user release requests to balance security with user productivity.",
+  "description": "Tracks quarantine effectiveness and user release requests to balance security with user productivity. Searches `index=email` with sourcetype `ms:o365:messageTrace` for UC-10.4.7, aggregating `count` by `FilteringResult` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'Quarantine Management' without manual log review.",
   "value": "Early 'Quarantine Management' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Track quarantine volumes, reasons, and user release requests. Alert on unusual quarantine rates (may indicate new phishing campaign). Monitor false positive rate (legitimate emails quarantined) for policy tuning.",
   "visualization": "Bar chart (quarantine reasons), Line chart (quarantine volume trend), Table (release requests), Single value (quarantine rate %).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Quarantine Management'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=email` `ms:o365:messagetrace`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `email`** — Planned work for 'Quarantine Management' shifts `count` over `span=1h` while `FilteringResult` remains in-scope for UC-10.4.7. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ms:o365:messageTrace`** — Scheduled automation elevates `SenderAddress` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `FilteringResult`** — Health checks in `email` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ms:o365:messageTrace`** — First 48h baseline for `FilteringResult` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `FilteringResult`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365"
   ],

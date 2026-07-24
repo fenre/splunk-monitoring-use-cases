@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Tailscale DERP Relay Usage Spike' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_tailscale_derp_relay_usage_spike` (UC-25.9.21), SOC dashboard panel \"Personal — Tailscale DERP Relay Usage Spike\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tailscale:netmap' that satisfy the UC-25.9.21 SPL filters for 'Tailscale DERP Relay Usage Spike'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tailscale:netmap` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.21."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tailscale:netmap' where `node` satisfies `total_sessions` > 0 for UC-25.9.21 ('Tailscale DERP Relay Usage Spike'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `tailscale:netmap` events where `node` stays below `total_sessions` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.21."
   },
   "dataSources": "Personal network telemetry (`openwrt:syslog`, `unifi:event`, `pihole:query`, `adguard:query`, `tailscale:netmap`, `cloudflared:connector`, `doh:query`, `speedtest:result`, `uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "OpenWrt, UniFi, Pi-hole, AdGuard Home, Tailscale, Cloudflare Tunnel, DNS over HTTPS resolvers, and scheduled probes via syslog, APIs, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tailscale:netmap\n| bin _time span=1d\n| stats count(eval(path_type=\"derp\")) as derp_sessions, count as total_sessions by node _time\n| eval derp_pct=round(100*derp_sessions/total_sessions,1)\n| where total_sessions>0 AND derp_pct>20\n| sort - derp_pct",
-  "description": "Uses Tailscale netmap exports telemetry to monitor the share of sessions falling back to DERP relays in index=personal.",
-  "value": "Splunk turns the feed into an operational check for direct-path problems that add latency to the mesh, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses Tailscale netmap exports telemetry to monitor the share of sessions falling back to DERP relays in index=personal. Searches `index=personal` with sourcetype `tailscale:netmap` for UC-25.9.21, aggregating `count` by `node` over `1d`. Alerts when grouped results cross `total_sessions` > 0 in the saved search. Gives Personal operators a repeatable signal for 'Tailscale DERP Relay Usage Spike' without manual log review.",
+  "value": "Uses Tailscale netmap exports telemetry to monitor the share of sessions falling back to DERP relays in ind.... Timely UC-25.9.21 alerting on 'Tailscale DERP Relay Usage Spike' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Tailscale netmap exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Daily DERP percentage by node.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Tailscale DERP Relay Usage Spike'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tailscale:netmap`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Tailscale DERP Relay Usage Spike' stops polling `tailscale:netmap`; stale `node` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tailscale:netmap`. Dedup with `stats latest(*) by node`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `total_sessions` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "cloudflare",
     "mqtt",

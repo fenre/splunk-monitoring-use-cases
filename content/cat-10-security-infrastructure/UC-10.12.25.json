@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'FHIR API Error Rate' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_fhir_api_error_rate` (UC-10.12.25), SOC dashboard panel \"Security Infra — FHIR API Error Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=healthcare` sourcetype='target_sourcetype' that satisfy the UC-10.12.25 SPL filters for 'FHIR API Error Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `healthcare` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.25."
+    "positiveScenario": "Ingest synthetic events into `index=healthcare` sourcetype='target_sourcetype' where `entity` satisfies `status` >= 400 for UC-10.12.25 ('FHIR API Error Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `healthcare` / `target_sourcetype` events where `entity` stays below `status` >= 400, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.25."
   },
   "dataSources": "`sourcetype=\"apigee:fhir\"`, `sourcetype=\"hapi:fhir\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "API gateway, EHR FHIR logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=healthcare sourcetype IN (\"apigee:fhir\",\"hapi:fhir\")\n| eval err=if(status>=400,1,0)\n| timechart span=5m sum(err) as errors, count as reqs\n| eval err_pct=round(errors/reqs*100,2)\n| where err_pct > 2",
-  "description": "High 4xx/5xx on FHIR hurts patient apps and partner integrations (ONC interoperability).",
+  "description": "High 4xx/5xx on FHIR hurts patient apps and partner integrations (ONC interoperability). Searches `index=healthcare` with sourcetype `configured sourcetype` for UC-10.12.25, aggregating `sum` by `entity` over `5m`. Alerts when grouped results cross `status` >= 400 in the saved search. Gives Security Infra operators a repeatable signal for 'FHIR API Error Rate' without manual log review.",
   "value": "Early 'FHIR API Error Rate' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Break out by client_id and resource; rate-limit abusive partners; SLO dashboards for Patient/$everything bulk exports.",
   "visualization": "Line chart (error %), Bar chart (errors by route), Table (top clients).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'FHIR API Error Rate'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=healthcare` `configured sourcetype`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `healthcare`** — Planned work for 'FHIR API Error Rate' shifts `sum` over `span=5m` while `host` remains in-scope for UC-10.12.25. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `err` without crossing `status` >= 400. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `healthcare` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

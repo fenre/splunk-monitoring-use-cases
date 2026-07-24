@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Mortgage Rate Watch Monthly Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_mortgage_rate_watch_monthly_trend` (UC-25.84.1), SOC dashboard panel \"Personal — Mortgage Rate Watch Monthly Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mortgage:rate' that satisfy the UC-25.84.1 SPL filters for 'Mortgage Rate Watch Monthly Trend'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `mortgage:rate` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.84.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mortgage:rate' where `entity` satisfies detection threshold for UC-25.84.1 ('Mortgage Rate Watch Monthly Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `mortgage:rate` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.84.1."
   },
   "dataSources": "Mortgage-rate snapshots (`mortgage:rate`), property-listing and Zestimate data (`property:listing`), HOA fees (`hoa:fee`), property-tax installments (`propertytax:installment`), home-buying milestones (`homebuying:milestone`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Mortgage-rate watchers, Zestimate exports, HOA-fee logs, and property-tax installment trackers streamed to Splunk HEC via APIs, CSV exports, and personal checklists. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=mortgage:rate\n| timechart span=1mon avg(rate_pct) as avg_metric",
-  "description": "Trends mortgage rate percentage for mortgage rate watch over time so gradual drift is obvious.",
-  "value": "Property decisions usually move slowly, which makes month-level trending more useful than isolated snapshots.",
+  "description": "Trends mortgage rate percentage for mortgage rate watch over time so gradual drift is obvious. Searches `index=personal` with sourcetype `mortgage:rate` for UC-25.84.1, aggregating `avg` by `entity` over `1m`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Mortgage Rate Watch Monthly Trend' without manual log review.",
+  "value": "Trends mortgage rate percentage for mortgage rate watch over time so gradual drift is obvious. Timely UC-25.84.1 alerting on 'Mortgage Rate Watch Monthly Trend' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Retain enough history to compare current conditions with earlier seasons or search phases.",
   "visualization": "Line chart of monthly average mortgage rate percentage.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Mortgage Rate Watch Monthly Trend'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mortgage:rate`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Mortgage Rate Watch Monthly Trend' stops polling `mortgage:rate`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mortgage:rate`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Driver Behavior Scoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_driver_behavior_scoring` (UC-21.4.2), SOC dashboard panel \"Operations — Driver Behavior Scoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=logistics` sourcetype='gps:telematics' that satisfy the UC-21.4.2 SPL filters for 'Driver Behavior Scoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `logistics` / `gps:telematics` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.4.2."
+    "positiveScenario": "Ingest synthetic events into `index=logistics` sourcetype='gps:telematics' where `driver_id` satisfies `score` < 0 for UC-21.4.2 ('Driver Behavior Scoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `logistics` / `gps:telematics` events where `driver_id` stays below `score` < 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.4.2."
   },
   "dataSources": "`index=logistics` `sourcetype=\"gps:telematics\"` fields `driver_id`, `harsh_brake`, `speed_kmh`, `speed_limit_kmh`, `idle_min` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Telematics platform via HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=logistics sourcetype=\"gps:telematics\"\n| eval speeding=if(speed_kmh > speed_limit_kmh*1.1, 1, 0)\n| eval harsh=if(harsh_brake=\"true\" OR harsh_brake=1, 1, 0)\n| stats sum(speeding) as speed_events, sum(harsh) as harsh_events, sum(idle_min) as total_idle_min by driver_id\n| eval score=100 - (speed_events*2 + harsh_events*5 + round(total_idle_min/60,0))\n| eval score=if(score<0, 0, score)\n| sort score\n| table driver_id, score, speed_events, harsh_events, total_idle_min",
   "description": "Analyzing harsh braking, speeding, and excessive idling improves fleet safety, reduces fuel costs, and supports insurance and regulatory compliance.",
-  "value": "Service and risk leaders use signals from Driver Behavior Scoring to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "Service and risk leaders use signals from Driver Behavior Scoring to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Ingest telematics events with driving behavior flags. Calculate composite scores weekly. Provide driver coaching based on trends. Share top performers and improvement areas. **Domain context:** Fleet safety programs often align with CSA SMS categories (speeding, harsh brake); scoring weights should be validated with risk/legal. **Splunk:** `harsh_brake` string vs numeric—normalize in `props`; scoring is illustrative—tune weights per fleet.",
   "visualization": "Bar chart (scores by driver), Line chart (score trend), Table (detailed events).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Driver Behavior Scoring'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `logistics` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `logistics`** — Planned work for 'Driver Behavior Scoring' shifts `sum` over `span=1h` while `driver_id` remains in-scope for UC-21.4.2. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `gps:telematics`** — Scheduled automation elevates `speeding` without crossing `score` < 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `driver_id`** — Health checks in `logistics` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gps:telematics`** — First 48h baseline for `driver_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `driver_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

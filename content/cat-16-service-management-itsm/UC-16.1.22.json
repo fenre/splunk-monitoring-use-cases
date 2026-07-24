@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Escalation Path Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_escalation_path_audit` (UC-16.1.22), SOC dashboard panel \"Operations — Escalation Path Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:incident:audit' that satisfy the UC-16.1.22 SPL filters for 'Escalation Path Audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:incident:audit` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.1.22."
+    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:incident:audit' where `number` satisfies `hops` > 4 for UC-16.1.22 ('Escalation Path Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `itsm` / `snow:incident:audit` events where `number` stays below `hops` > 4, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.1.22."
   },
   "dataSources": "Incident history / audit (`sourcetype=snow:incident:audit`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:incident:audit\" field_name=\"assignment_group\"\n| eval from_group=old_value, to_group=new_value\n| eval step=from_group.\"->\".to_group\n| stats values(step) as escalation_path, count as hops by number\n| join max=1 number [ search index=itsm sourcetype=\"snow:incident\" priority IN (1,2) earliest=-90d | fields number, priority ]\n| where hops>4\n| table number, priority, escalation_path, hops",
-  "description": "Audits whether incidents followed the documented escalation chain (L1→L2→vendor) for compliance and training.",
+  "description": "Audits whether incidents followed the documented escalation chain (L1→L2→vendor) for compliance and training. Searches `index=itsm` with sourcetype `snow:incident:audit` for UC-16.1.22, aggregating `values` by `number` over `the scheduled window`. Alerts when grouped results cross `hops` > 4 in the saved search. Gives Operations operators a repeatable signal for 'Escalation Path Audit' without manual log review.",
   "value": "Early 'Escalation Path Audit' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Build assignment hop strings from audit `old_value`/`new_value`. Flag incidents with excessive hops for P1/P2 (policy threshold). Optionally `lookup escalation_policy.csv` with first/last hop pairs for stricter audits. Adjust field names to match `sys_audit` extractions.",
   "visualization": "Table (unexpected paths), Sankey (escalation flow), Single value (audit exceptions).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Escalation Path Audit'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `itsm` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Escalation Path Audit' shifts `values` over `span=1h` while `number` remains in-scope for UC-16.1.22. Cross-check CMDB CHG.\n\n2. **Batch `values` on `snow:incident:audit`** — Scheduled automation elevates `from_group` without crossing `hops` > 4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `number`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident:audit`** — First 48h baseline for `number` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `number`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

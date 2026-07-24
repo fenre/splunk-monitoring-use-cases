@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Canvas Assignment Failure Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_canvas_assignment_failure_rate` (UC-25.71.7), SOC dashboard panel \"Personal — Canvas Assignment Failure Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='canvas:assignment' that satisfy the UC-25.71.7 SPL filters for 'Canvas Assignment Failure Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `canvas:assignment` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.71.7."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='canvas:assignment' where `course_name` satisfies detection threshold for UC-25.71.7 ('Canvas Assignment Failure Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `canvas:assignment` events where `course_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.71.7."
   },
   "dataSources": "Canvas assignments (`canvas:assignment`), Khan Academy SAT practice (`khan:sat`), Family Link usage (`familylink:usage`), and OurHome chores (`ourhome:chore`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Canvas LMS exports, Khan Academy SAT practice, Google Family Link screen-time data, and OurHome chore tracking streamed to Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=canvas:assignment\n| eval status_value=lower(coalesce(submission_status,\"unknown\"))\n| eval failed=if(match(status_value,\"error|fail|alert|overdue|late|stale|breach\"),1,0)\n| stats count as events, sum(failed) as failed_events by course_name\n| eval failure_pct=round(100*failed_events/events,1)\n| sort - failure_pct - failed_events",
-  "description": "Measures how often Canvas assignment records land in an unhealthy or exception state for each course name.",
-  "value": "A plain failure-rate view highlights noisy devices, flaky automations, and habits that repeatedly slip.",
+  "description": "Measures how often Canvas assignment records land in an unhealthy or exception state for each course name. Searches `index=personal` with sourcetype `canvas:assignment` for UC-25.71.7, aggregating `sum` by `course_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Canvas Assignment Failure Rate' without manual log review.",
+  "value": "Measures how often Canvas assignment records land in an unhealthy or exception state for each course name. Timely UC-25.71.7 alerting on 'Canvas Assignment Failure Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Normalize submission_status values into good or bad states and review the failure percentage per course name.",
   "visualization": "Bar chart of failure percentage by entity.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Canvas Assignment Failure Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `canvas:assignment`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Canvas Assignment Failure Rate' stops polling `canvas:assignment`; stale `course_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `canvas:assignment`. Dedup with `stats latest(*) by course_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

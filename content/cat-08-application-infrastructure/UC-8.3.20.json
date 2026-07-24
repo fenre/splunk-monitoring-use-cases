@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'NATS JetStream Consumer Ack Lag' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_nats_jetstream_consumer_ack_lag` (UC-8.3.20), SOC dashboard panel \"Operations — NATS JetStream Consumer Ack Lag\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='nats:jetstream' that satisfy the UC-8.3.20 SPL filters for 'NATS JetStream Consumer Ack Lag'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `messaging` / `nats:jetstream` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.3.20."
+    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='nats:jetstream' where `stream_name` satisfies `num_ack_pending` > 1000 for UC-8.3.20 ('NATS JetStream Consumer Ack Lag'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `messaging` / `nats:jetstream` events where `stream_name` stays below `num_ack_pending` > 1000, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.3.20."
   },
   "dataSources": "`jetstream_consumer_lag`, `ack_pending` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "NATS Prometheus exporter, `nats` server varz/jsz — Universal Forwarder (Splunkbase 617)",
   "spl": "index=messaging sourcetype=\"nats:jetstream\"\n| where num_ack_pending > 1000 OR num_redelivered > 100\n| stats max(num_ack_pending) as lag by stream_name, consumer_name\n| sort -lag",
-  "description": "`NumAckPending`, `NumRedelivered`, and consumer lag for JetStream streams indicate slow consumers or poison messages.",
+  "description": "`NumAckPending`, `NumRedelivered`, and consumer lag for JetStream streams indicate slow consumers or poison messages. Searches `index=messaging` with sourcetype `nats:jetstream` for UC-8.3.20, aggregating `max` by `stream_name` over `the scheduled window`. Alerts when grouped results cross `num_ack_pending` > 1000 in the saved search. Gives Operations operators a repeatable signal for 'NATS JetStream Consumer Ack Lag' without manual log review.",
   "value": "Early 'NATS JetStream Consumer Ack Lag' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Scrape `/jsz` or Prometheus metrics. Alert on rising ack_pending. Correlate with consumer pod restarts.",
   "visualization": "Line chart (ack pending), Table (stream, consumer, lag), Single value (max redelivered).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'NATS JetStream Consumer Ack Lag'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `messaging` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging`** — Planned work for 'NATS JetStream Consumer Ack Lag' shifts `max` over `span=1h` while `stream_name` remains in-scope for UC-8.3.20. Cross-check CMDB CHG.\n\n2. **Batch `max` on `nats:jetstream`** — Scheduled automation elevates `consumer_name` without crossing `num_ack_pending` > 1000. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `stream_name`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nats:jetstream`** — First 48h baseline for `stream_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `stream_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "prometheus"
   ],

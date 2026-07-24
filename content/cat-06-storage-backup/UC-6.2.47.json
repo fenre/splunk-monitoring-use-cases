@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'TrueNAS NFS export latency and RPC slow operations' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_truenas_nfs_export_latency_and_rpc_slow_operatio` (UC-6.2.47), SOC dashboard panel \"Operations — TrueNAS NFS export latency and RPC slow operations\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='truenas:pool' that satisfy the UC-6.2.47 SPL filters for 'TrueNAS NFS export latency and RPC slow operations'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `truenas:pool` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.47."
+    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='truenas:pool' where `client` satisfies detection threshold for UC-6.2.47 ('TrueNAS NFS export latency and RPC slow operations'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `storage` / `truenas:pool` events where `client` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.47."
   },
   "dataSources": "NFS server metrics or `truenas:pool` performance adjunct with NFS latency Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "TrueNAS reporting or `nfsstat` scripted to HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage (sourcetype=\"truenas:pool\" OR sourcetype=\"truenas:alert\")\n| search nfs OR NFS\n| eval client=coalesce(client_ip, nfs_client)\n| eval lat_ms=coalesce(nfs_latency_ms, rpc_latency_ms)\n| timechart span=5m perc95(lat_ms) as p95_ms by client, export_path",
-  "description": "Per-client NFS latency distinguishes overloaded clients from array-side CPU or ZIL contention affecting many hosts.",
-  "value": "Speeds remediation for EDA and render farms using NFS on TrueNAS. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Per-client NFS latency distinguishes overloaded clients from array-side CPU or ZIL contention affecting many hosts. Searches `index=storage` with sourcetype `truenas:pool` for UC-6.2.47, aggregating `count` by `client` over `5m`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'TrueNAS NFS export latency and RPC slow operations' without manual log review.",
+  "value": "Per-client NFS latency distinguishes overloaded clients from array-side CPU or ZIL contention affecting man.... Timely UC-6.2.47 alerting on 'TrueNAS NFS export latency and RPC slow operations' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "If only server-side stats exist, pair with client `nfsiostat` forwarders for triangulation. Tag exports with workload class via lookup.",
   "visualization": "Heatmap client × export, line chart p95.",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'TrueNAS NFS export latency and RPC slow operations'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `storage` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'TrueNAS NFS export latency and RPC slow operations' shifts `count` over `span=5m` while `client` remains in-scope for UC-6.2.47. Cross-check CMDB CHG.\n\n2. **Batch `count` on `truenas:pool`** — Scheduled automation elevates `export_path` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `client`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:pool`** — First 48h baseline for `client` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `client`, `exception_reason`, `valid_until`.",
   "equipment": [
     "truenas"
   ],

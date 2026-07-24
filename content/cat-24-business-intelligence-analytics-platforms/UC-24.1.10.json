@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Tableau Prep Conductor Flow Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_tableau_prep_conductor_flow_failures` (UC-24.1.10), SOC dashboard panel \"Operations — Tableau Prep Conductor Flow Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='tableau:backgrounder' that satisfy the UC-24.1.10 SPL filters for 'Tableau Prep Conductor Flow Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `tableau:backgrounder` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.1.10."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='tableau:backgrounder' where `flow_name` satisfies `failures` > 0 for UC-24.1.10 ('Tableau Prep Conductor Flow Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `tableau:backgrounder` events where `flow_name` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.1.10."
   },
   "dataSources": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect, Tableau Cloud Admin Insights / Activity Log exports.",
   "app": "Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.",
   "spl": "index=bi sourcetype=tableau:backgrounder job_type=run_flow\n| stats count as runs, sum(eval(finish_code!=0)) as failures, latest(finish_code) as last_code by flow_name\n| where failures>0\n| sort - failures",
   "description": "Tracks Tableau Prep Conductor flow runs and flags data-prep flows that fail, which break the extracts and dashboards downstream of them.",
-  "value": "A failed Prep flow starves every dashboard built on its output; catching flow failures protects the whole downstream chain of Tableau content.",
+  "value": "Tracks Tableau Prep Conductor flow runs and flags data-prep flows that fail, which break the extracts and d.... Timely UC-24.1.10 alerting on 'Tableau Prep Conductor Flow Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest Backgrounder run_flow events; schedule hourly and alert. Map each flow to the workbooks it feeds for impact analysis.",
   "visualization": "Table of failing flows, timechart of flow failures.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Tableau Prep Conductor Flow Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Tableau Prep Conductor Flow Failures' shifts `sum` over `span=1h` while `flow_name` remains in-scope for UC-24.1.10. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `tableau:backgrounder`** — Scheduled automation elevates `src` without crossing `failures` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `flow_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tableau:backgrounder`** — First 48h baseline for `flow_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `flow_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "db_connect",

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Seismic Monitoring Data Quality Validation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_seismic_monitoring_data_quality_validation` (UC-21.5.12), SOC dashboard panel \"Operations — Seismic Monitoring Data Quality Validation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='seismic:data' that satisfy the UC-21.5.12 SPL filters for 'Seismic Monitoring Data Quality Validation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `seismic:data` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.5.12."
+    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='seismic:data' where `station_id` satisfies `completeness` >= 99 for UC-21.5.12 ('Seismic Monitoring Data Quality Validation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ot` / `seismic:data` events where `station_id` stays below `completeness` >= 99, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.5.12."
   },
   "dataSources": "`index=ot` `sourcetype=\"seismic:data\"` fields `station_id`, `samples_expected`, `samples_received`, `snr_db` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Seismic acquisition system via HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"seismic:data\"\n| eval completeness=round(samples_received/nullif(samples_expected,0)*100,2)\n| eval quality_ok=if(completeness >= 99 AND snr_db >= 10, 1, 0)\n| stats avg(quality_ok) as pass_rate by station_id\n| eval pass_pct=round(pass_rate*100,2)\n| where pass_pct < 98\n| table station_id, pass_pct",
   "description": "Verifying seismic trace completeness and signal-to-noise ratio ensures monitoring programs meet technical specifications for reliable subsurface analysis.",
-  "value": "Service and risk leaders use signals from Seismic Monitoring Data Quality Validation to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "Service and risk leaders use signals from Seismic Monitoring Data Quality Validation to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Baseline SNR thresholds by site noise. Alert on missing traces or repeated gaps. Support field crew dispatch for sensor issues. **Domain context:** Seismic acquisition QC ties to contract specifications for mineral exploration or induced seismicity monitoring—completeness and SNR thresholds are survey-specific. **Splunk:** `pass_rate` from `avg(quality_ok)` needs representative event granularity; dedupe traces if ingested per file.",
   "visualization": "Time chart (completeness), SNR distribution, Station ranking table.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Seismic Monitoring Data Quality Validation'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `ot` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'Seismic Monitoring Data Quality Validation' shifts `avg` over `span=1h` while `station_id` remains in-scope for UC-21.5.12. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `seismic:data`** — Scheduled automation elevates `completeness` without crossing `completeness` >= 99. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `station_id`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `seismic:data`** — First 48h baseline for `station_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `station_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

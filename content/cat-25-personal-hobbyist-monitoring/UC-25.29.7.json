@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Chess Opening Win-Rate Breakdown' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_chess_opening_win_rate_breakdown` (UC-25.29.7), SOC dashboard panel \"Personal — Chess Opening Win-Rate Breakdown\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='chess:game' that satisfy the UC-25.29.7 SPL filters for 'Chess Opening Win-Rate Breakdown'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `chess:game` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.29.7."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='chess:game' where `opening` satisfies `games` >= 5 for UC-25.29.7 ('Chess Opening Win-Rate Breakdown'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `chess:game` events where `opening` stays below `games` >= 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.29.7."
   },
   "dataSources": "Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=chess:game\n| stats sum(eval(if(result=\"win\",1,0))) as wins, count as games by opening\n| where games>=5\n| eval win_pct=round(100*wins/games,1)\n| sort - win_pct",
-  "description": "Breaks your chess results down by opening so you learn which lines actually win for you and which to drop.",
-  "value": "Win-rate by opening is the fastest route to practical improvement, pointing your study where it pays off most.",
+  "description": "Breaks your chess results down by opening so you learn which lines actually win for you and which to drop. Searches `index=personal` with sourcetype `chess:game` for UC-25.29.7, aggregating `sum` by `opening` over `the scheduled window`. Alerts when grouped results cross `games` >= 5 in the saved search. Gives Personal operators a repeatable signal for 'Chess Opening Win-Rate Breakdown' without manual log review.",
+  "value": "Breaks your chess results down by opening so you learn which lines actually win for you and which to drop. Timely UC-25.29.7 alerting on 'Chess Opening Win-Rate Breakdown' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest game archives with opening tags; review win rate per opening with a minimum sample size.",
   "visualization": "Bar chart of win rate by chess opening.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Chess Opening Win-Rate Breakdown'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `chess:game`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Chess Opening Win-Rate Breakdown' stops polling `chess:game`; stale `opening` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `chess:game`. Dedup with `stats latest(*) by opening`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `games` >= 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

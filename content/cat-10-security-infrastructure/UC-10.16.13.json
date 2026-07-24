@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Symantec Endpoint Protection Blocked Malware by Risk and Host' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_symantec_endpoint_protection_blocked_malware_by_` (UC-10.16.13), SOC dashboard panel \"Security Infra — Symantec Endpoint Protection Blocked Malware by Risk and Host\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=endpoint` sourcetype='symantec:ep:risk:file' that satisfy the UC-10.16.13 SPL filters for 'Symantec Endpoint Protection Blocked Malware by Risk and Host'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `endpoint` / `symantec:ep:risk:file` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.16.13."
+    "positiveScenario": "Ingest synthetic events into `index=endpoint` sourcetype='symantec:ep:risk:file' where `Risk_Name` satisfies detection threshold for UC-10.16.13 ('Symantec Endpoint Protection Blocked Malware by Risk and Host'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `endpoint` / `symantec:ep:risk:file` events where `Risk_Name` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.16.13."
   },
   "dataSources": "SEPM client risk logs via `sourcetype=symantec:ep:risk:file` (dump file or supported forwarder collection)",
   "app": "Splunk Add-on for Symantec Endpoint Protection (Splunkbase 2772)",
   "spl": "index=endpoint sourcetype=\"symantec:ep:risk:file\" earliest=-24h\n| eval action=coalesce(Actual_Action, actual_action, \"\")\n| where action=\"Blocked\" OR action=\"Quarantined\" OR action=\"Cleaned\"\n| stats count by Risk_Name, Computer_Name, action\n| sort -count",
   "description": "Aggregating SEP risk events where the agent actively blocked, quarantined, or cleaned malware validates signature effectiveness and highlights persistent strains hitting specific machines.",
-  "value": "Shows which malware families are most common in successful blocks and which hosts see repeat detections, guiding reimaging or policy tightening without waiting for weekly SEPM reports.",
+  "value": "Aggregating SEP risk events where the agent actively blocked, quarantined, or cleaned malware validates sig.... Timely UC-10.16.13 alerting on 'Symantec Endpoint Protection Blocked Malware by Risk and Host' reduces missed threat campaigns, control regressions, and SOC SLA breaches before manual triage or audit channels escalate.",
   "implementation": "Deploy TA-sep14 (Splunk Add-on for Symantec Endpoint Protection) and ingest Client Risk logs from SEPM dumps or a supported forwarder path—avoid lossy UDP syslog for production. Map `Computer_Name` to CMDB. Tune `Actual_Action` values for your locale. Extend with threat intel lookups on `Risk_Name` or hash fields if extracted.",
   "visualization": "Bar chart (detections by Risk_Name), table (host × action), map or pie by action.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Symantec Endpoint Protection Blocked Malware by Risk and Host'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=endpoint` `symantec:ep:risk:file`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `endpoint`** — Planned work for 'Symantec Endpoint Protection Blocked Malware by Risk and Host' shifts `count` over `span=1h` while `Risk_Name` remains in-scope for UC-10.16.13. Cross-check CMDB CHG.\n\n2. **Batch `count` on `symantec:ep:risk:file`** — Scheduled automation elevates `Computer_Name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `Risk_Name`** — Health checks in `endpoint` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `symantec:ep:risk:file`** — First 48h baseline for `Risk_Name` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `Risk_Name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "broadcom_symantec",
     "syslog"

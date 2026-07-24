@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Realized Crypto PnL by Asset' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_realized_crypto_pnl_by_asset` (UC-25.12.15), SOC dashboard panel \"Personal — Realized Crypto PnL by Asset\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='coinbase:txn' that satisfy the UC-25.12.15 SPL filters for 'Realized Crypto PnL by Asset'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `coinbase:txn` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.12.15."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='coinbase:txn' where `asset` satisfies detection threshold for UC-25.12.15 ('Realized Crypto PnL by Asset'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `coinbase:txn` events where `asset` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.12.15."
   },
   "dataSources": "Crypto prices/holdings (`crypto:price`, `wallet:balance`), exchange transactions (`coinbase:txn`), budget/transaction exports (`firefly:txn`, `ynab:txn`), bill feeds. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Crypto exchange/wallet APIs (Coinbase, on-chain), budgeting exports (YNAB/Firefly III), and subscription trackers via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=coinbase:txn\n| stats sum(eval(if(type=\"sell\",usd_total,0))) as sell_usd, sum(eval(if(type=\"buy\",usd_total,0))) as buy_usd by asset\n| eval realized_pnl=round(sell_usd-buy_usd,2)\n| sort - realized_pnl",
   "description": "Summarises realized profit and loss by asset based on actual buy and sell cash flows rather than the mood of the chart today.",
-  "value": "Unrealized gains are emotional; realized PnL is concrete and useful for taxes, strategy review, and keeping narrative honest.",
+  "value": "Summarises realized profit and loss by asset based on actual buy and sell cash flows rather than the mood o.... Timely UC-25.12.15 alerting on 'Realized Crypto PnL by Asset' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward exchange transaction history with side and USD totals; review realized outcomes by asset whenever you rebalance or sell.",
   "visualization": "Table of assets by buy cash flow, sell cash flow, and realized PnL proxy.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Realized Crypto PnL by Asset'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `coinbase:txn`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Realized Crypto PnL by Asset' stops polling `coinbase:txn`; stale `asset` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `coinbase:txn`. Dedup with `stats latest(*) by asset`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "exchange"
   ],

@@ -57,17 +57,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Simulating an authentication by a non-inventoried host against the trading app causes the UC to fire within the hour naming the hostname and inventory_gap_reason='not in ICT asset inventory'.",
-    "negativeScenario": "A fully-inventoried host performing the same authentication does NOT fire.",
-    "fixtureRef": "",
-    "attackTechnique": "T1078",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `Authentication.dest` satisfies detection threshold for UC-22.3.42 ('DORA Art.7 — ICT systems inventory completeness: unmanaged endpoints attached to financial services'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `Authentication.dest` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.3.42."
   },
   "dataSources": "`index=endpoint` sourcetype=WinEventLog:Security / sourcetype=linux:audit; `index=cmdb` sourcetype=cmdb:ci_server; authoritative financial-service CMDB view `financial_services_servers.csv`. (Splunkbase 1621 — Splunk CIM Add-on)",
   "app": "Splunk Enterprise Security, Splunk Add-on for Microsoft Windows, Splunk Add-on for Unix and Linux",
   "spl": "| tstats summariesonly=t count FROM datamodel=Authentication WHERE Authentication.app IN (\"payments\",\"trading\",\"settlement\") BY Authentication.dest\n| rename Authentication.dest AS hostname\n| lookup financial_services_servers.csv hostname OUTPUT asset_id owner team\n| where isnull(asset_id)\n| eval inventory_gap_reason=\"not in ICT asset inventory\"\n| table hostname inventory_gap_reason count",
   "description": "Uses the CIM Authentication data model to find hosts that have been seen handling financial-service traffic but are absent from the official ICT asset CMDB. Under DORA Art.7 the financial entity must maintain 'up-to-date inventories' of ICT systems; a shadow endpoint with access to payments/trading/settlement is a direct Art.7 non-conformance.",
-  "value": "Turns the quarterly 'asset inventory reconciliation' into a continuous signal, closing the time window during which an unmanaged host can process financial transactions unnoticed.",
+  "value": "Uses the CIM Authentication data model to find hosts that have been seen handling financial-service traffic.... Timely UC-22.3.42 alerting on 'DORA Art.7 — ICT systems inventory completeness: unmanaged endpoints attached to financial services' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Onboard auth data to CIM Authentication DM; (2) maintain financial_services_servers.csv from the ICT asset register nightly; (3) schedule UC hourly; (4) hit opens a ServiceNow CMDB task to register the host; (5) SLA: resolve within 72h or isolate; (6) exclude build/imaging windows with an effective-from allowlist. Indexes required: `index=cmdb`, `index=endpoint`; Sourcetypes: `sourcetype=WinEventLog:Security`, `sourcetype=cmdb:ci_server;`, `sourcetype=linux:audit;`.",
   "visualization": "Bar chart of inventory gaps by financial service, table of hosts with count, single value 'hosts in gap'.",
   "cimModels": [],
@@ -85,7 +82,7 @@
       "url": "https://splunkbase.splunk.com/app/263"
     }
   ],
-  "knownFalsePositives": "1. **Shadow IT discovery lag** — Newly deployed systems awaiting CMDB registration during the onboarding window appear as unmanaged before registration completes.\n\n2. **Cloud auto-provisioned resources** — Ephemeral cloud resources (containers, serverless functions) may appear and disappear between inventory scans without representing persistent assets.\n\n3. **Decommissioned system cleanup** — Systems tagged for decommissioning awaiting final removal may appear in unmanaged asset reports during the disposal process.\n\n4. **Network scanner scope limitations** — Assets not reachable by network scanners (air-gapped, mobile) require alternative discovery methods on different schedules.\n\n5. **Inventory reconciliation timing** — Differences between CMDB, network scanner, and agent-based inventories resolve during scheduled reconciliation cycles.\n\n**Operational suppression:** Maintain a lookup table (`dora_approved_exceptions.csv`) mapping known legitimate activities by process owner, approval reference, and expiry date. Filter the SPL results against this lookup to suppress documented exceptions and reduce alert fatigue. Review and rotate entries quarterly per the ICT risk management framework review cycle.",
+  "knownFalsePositives": "1. **Authorised DORA control testing** — Internal audit exercises 'DORA Art.7 — ICT systems inventory completeness: unmanaged endpoints attached to financial services' (UC-22.3.42) on `Authentication.dest` during scheduled clause Art.7 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `dora_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `Authentication.dest`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `Authentication.dest` during normal service delivery.\n\n**Suppression mechanism:** `dora_exception_register.csv` keyed on `Authentication.dest`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1078"
   ],

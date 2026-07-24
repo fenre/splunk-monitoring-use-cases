@@ -122,15 +122,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When cloud-storage or database volumes tagged regulated_data=true are observed without an active encryption configuration (EBS-encryption, SSE-KMS, TDE), the UC fires naming the volume and classification.",
-    "negativeScenario": "Volumes with an encryption key ARN and AES-256 / AES-GCM active do NOT fire.",
-    "fixtureRef": "sample-data/uc-22.41.1-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `volume_id` satisfies detection threshold for UC-22.41.1 ('Encryption-at-rest coverage gap — unencrypted storage with regulated data'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `volume_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.41.1."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "| rest /services/cloud_storage/inventory splunk_server=* | where regulated_data=\"true\"\n| stats values(encryption_state) as state by volume_id region tenant\n| where mvfind(state, \"enabled\")<0\n| lookup data_classification.csv volume_id OUTPUT classification\n| table tenant region volume_id classification state",
   "description": "Produces a daily inventory of storage volumes that hold regulated data but are not encrypted at rest. Findings feed the remediation backlog and the evidence pack.",
-  "value": "Unencrypted regulated data is the most common PCI 3.5 / HIPAA finding — preventing it from appearing on the audit spreadsheet is the goal.",
+  "value": "Produces a daily inventory of storage volumes that hold regulated data but are not encrypted at rest. Timely UC-22.41.1 alerting on 'Encryption-at-rest coverage gap — unencrypted storage with regulated data' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Ingest cloud-inventory telemetry; (2) tag volumes via data_classification.csv; (3) run daily; (4) on finding, auto-open a CISO review.",
   "visualization": "Stacked bar of encrypted vs unencrypted by tenant, table of findings, single-value '% of regulated volumes encrypted'.",
   "cimModels": [],
@@ -156,7 +155,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised GDPR control testing** — Internal audit exercises 'Encryption-at-rest coverage gap — unencrypted storage with regulated data' (UC-22.41.1) on `volume_id` during scheduled clause Art.32 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `gdpr_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `volume_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `volume_id` during normal service delivery.\n\n**Suppression mechanism:** `gdpr_exception_register.csv` keyed on `volume_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "audit",
   "requiredFields": [

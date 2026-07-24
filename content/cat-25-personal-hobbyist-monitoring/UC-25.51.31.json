@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Sensor Calibration Exception Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_sensor_calibration_exception_rate` (UC-25.51.31), SOC dashboard panel \"Personal — Sensor Calibration Exception Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='health:glucose' that satisfy the UC-25.51.31 SPL filters for 'Sensor Calibration Exception Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `health:glucose` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.51.31."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='health:glucose' where `sensor_type` satisfies detection threshold for UC-25.51.31 ('Sensor Calibration Exception Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `health:glucose` events where `sensor_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.51.31."
   },
   "dataSources": "Pump telemetry (`health:glucose`), lab results (`health:lab`), therapy sessions (`health:pt`), symptom diaries (`health:symptom`), care tasks (`health:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Chronic-condition self-management telemetry — insulin-pump events, A1c lab imports, physical-therapy rep logs, and symptom diaries — streamed to Splunk HEC via device exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=health:glucose sensor_type=* calibration_exception=*\n| stats count as total, sum(eval(if(calibration_exception=\"yes\",1,0))) as matched by sensor_type\n| eval a_calibration_exception_pct=round(100*matched/total,1)\n| sort - a_calibration_exception_pct",
-  "description": "Measures the percentage of sensor readings that end with a calibration exception by sensor type.",
-  "value": "Completion and exception percentages make it easier to spot which sensor type are helping or hurting sensor readings.",
+  "description": "Measures the percentage of sensor readings that end with a calibration exception by sensor type. Searches `index=personal` with sourcetype `health:glucose` for UC-25.51.31, aggregating `sum` by `sensor_type` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Sensor Calibration Exception Rate' without manual log review.",
+  "value": "Measures the percentage of sensor readings that end with a calibration exception by sensor type. Timely UC-25.51.31 alerting on 'Sensor Calibration Exception Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store a normalized flag for `a calibration exception` on `health:glucose` events and summarize the hit rate by `sensor_type`.",
   "visualization": "Table of sensor type with percentage of sensor readings ending with a calibration exception.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Sensor Calibration Exception Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `health:glucose`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Sensor Calibration Exception Rate' stops polling `health:glucose`; stale `sensor_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `health:glucose`. Dedup with `stats latest(*) by sensor_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

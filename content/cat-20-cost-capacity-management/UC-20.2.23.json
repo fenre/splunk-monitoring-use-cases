@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'VM Sprawl Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_vm_sprawl_detection` (UC-20.2.23), SOC dashboard panel \"Operations — VM Sprawl Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=virtualization` sourcetype='vmware:inv:vm' that satisfy the UC-20.2.23 SPL filters for 'VM Sprawl Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `virtualization` / `vmware:inv:vm` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-20.2.23."
+    "positiveScenario": "Ingest synthetic events into `index=virtualization` sourcetype='vmware:inv:vm' where `folder` satisfies `vm_count` > 50 for UC-20.2.23 ('VM Sprawl Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `virtualization` / `vmware:inv:vm` events where `folder` stays below `vm_count` > 50, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-20.2.23."
   },
   "dataSources": "`vmware:inv:vm` Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
   "app": "vCenter inventory — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
   "spl": "index=virtualization sourcetype=\"vmware:inv:vm\" earliest=-1d\n| where power_state=\"poweredOn\"\n| stats count as vm_count by folder, owner\n| eventstats avg(vm_count) as fleet_avg\n| where vm_count > fleet_avg*3 AND vm_count>50\n| sort -vm_count",
-  "description": "Count of powered-on VMs per app owner vs license and growth rate — finds unchecked provisioning.",
+  "description": "Count of powered-on VMs per app owner vs license and growth rate — finds unchecked provisioning. Searches `index=virtualization` with sourcetype `vmware:inv:vm` for UC-20.2.23, aggregating `avg` by `folder` over `the scheduled window`. Alerts when grouped results cross `vm_count` > 50 in the saved search. Gives Operations operators a repeatable signal for 'VM Sprawl Detection' without manual log review.",
   "value": "Early 'VM Sprawl Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Map `owner` from folder or tags. Review quarterly for consolidation. Correlate with cost (UC-20.1).",
   "visualization": "Bar chart (VM count by owner), Table (sprawl candidates), Line chart (VM growth).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'VM Sprawl Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `virtualization` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `virtualization`** — Planned work for 'VM Sprawl Detection' shifts `avg` over `span=1h` while `folder` remains in-scope for UC-20.2.23. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `vmware:inv:vm`** — Scheduled automation elevates `owner` without crossing `vm_count` > 50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `folder`** — Health checks in `virtualization` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `vmware:inv:vm`** — First 48h baseline for `folder` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `folder`, `exception_reason`, `valid_until`.",
   "equipment": [
     "vmware"
   ],

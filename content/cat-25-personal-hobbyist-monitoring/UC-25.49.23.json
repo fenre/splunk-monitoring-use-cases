@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Shoe Rotation Rest Days by Pair' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_shoe_rotation_rest_days_by_pair` (UC-25.49.23), SOC dashboard panel \"Personal — Shoe Rotation Rest Days by Pair\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='style:shoes' that satisfy the UC-25.49.23 SPL filters for 'Shoe Rotation Rest Days by Pair'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `style:shoes` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.49.23."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='style:shoes' where `pair_name` satisfies detection threshold for UC-25.49.23 ('Shoe Rotation Rest Days by Pair'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `style:shoes` events where `pair_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.49.23."
   },
   "dataSources": "Closet activity (`style:wardrobe`), cleaning tasks (`style:cleaning`), shoe wears (`style:shoes`), beauty inventory (`beauty:product`), audits (`style:audit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Wardrobe and beauty telemetry — Stylebook closet exports, dry-cleaning reminders, shoe-rotation logs, and makeup inventory audits — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=style:shoes pair_name=* last_wear_epoch=* wear_epoch=*\n| eval lag_days=round((wear_epoch-last_wear_epoch)/86400,1)\n| stats avg(lag_days) as avg_lag_days, max(lag_days) as worst_lag_days by pair_name\n| sort - avg_lag_days",
   "description": "Measures rest days by shoe pair for shoe rotation. Runs scheduled SPL against `index=personal` to surface **Shoe Rotation Rest Days by Pair** so you can spot drift before it becomes a habit.",
-  "value": "Lag tracking shows which shoe pair create the slowest handoffs, syncs, or review loops inside shoe rotation.",
+  "value": "Measures rest days by shoe pair for shoe rotation. Timely UC-25.49.23 alerting on 'Shoe Rotation Rest Days by Pair' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture the timestamps needed to compute `rest days` on `style:shoes` events and aggregate them by `pair_name`.",
   "visualization": "Table of shoe pair with average and worst rest days.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Shoe Rotation Rest Days by Pair'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `style:shoes`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Shoe Rotation Rest Days by Pair' stops polling `style:shoes`; stale `pair_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `style:shoes`. Dedup with `stats latest(*) by pair_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Unauthorized VLAN Traffic Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_unauthorized_vlan_traffic_detection` (UC-5.7.9), SOC dashboard panel \"Operations — Unauthorized VLAN Traffic Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='netflow' that satisfy the UC-5.7.9 SPL filters for 'Unauthorized VLAN Traffic Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `netflow` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.7.9."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='netflow' where `src_vlan` satisfies detection threshold for UC-5.7.9 ('Unauthorized VLAN Traffic Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `netflow` events where `src_vlan` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.7.9."
   },
   "dataSources": "`stream:netflow` / `stream:ipfix` or `splunk_stream` with `src_vlan` and interface; optional `cisco:ios` for auth context Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Stream, NetFlow integrator — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=\"netflow\"\n| lookup vlan_authorization_lookup src_vlan OUTPUT authorized\n| where authorized!=\"yes\" OR isnull(authorized)\n| stats sum(bytes) as bytes, dc(src) as unique_hosts by src_vlan, input_interface\n| sort -bytes",
   "description": "Traffic originating from or destined to unauthorized VLANs indicates misconfigured switch ports, VLAN hopping attacks, or rogue devices.",
-  "value": "Network security teams validate VLAN segmentation policy in real time by detecting unauthorized inter-VLAN traffic, identifying potential VLAN hopping attacks, and monitoring for microsegmentation policy drift.",
+  "value": "Traffic originating from or destined to unauthorized VLANs indicates misconfigured switch ports, VLAN hoppi.... Timely UC-5.7.9 alerting on 'Unauthorized VLAN Traffic Detection' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Map flow data to VLANs via input interface. Maintain a lookup of authorized VLANs per port. Alert on traffic from unauthorized VLANs. Correlate with 802.1X status.",
   "visualization": "Table (VLAN, interface, hosts, volume), Alert panel, Status grid.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Unauthorized VLAN Traffic Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Unauthorized VLAN Traffic Detection' shifts `sum` over `span=1h` while `src_vlan` remains in-scope for UC-5.7.9. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `netflow`** — Scheduled automation elevates `input_interface` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_vlan`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netflow`** — First 48h baseline for `src_vlan` is unstable; join `vlan_authorization_lookup` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src_vlan`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "netflow",

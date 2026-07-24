@@ -68,17 +68,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Deploying a commit whose Veracode scan reports overall_state=fail returns gates_met=0.",
-    "negativeScenario": "A deploy with SAST pass + approved PR review is absent.",
-    "fixtureRef": "",
-    "attackTechnique": "T1195",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='veracode:scan' where `artifact` satisfies detection threshold for UC-22.11.95 ('PCI-DSS 6.2 — Bespoke-software SDLC: code-review + SAST completion before CDE deploy'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cicd` / `veracode:scan` events where `artifact` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.95."
   },
   "dataSources": "`index=cicd` sourcetype=github:actions OR sourcetype=gitlab:pipeline; SAST output `index=security` sourcetype=veracode:scan; CDE-service lookup `cde_services.csv`.",
   "app": "Splunk Add-on for GitHub (Splunkbase)",
   "spl": "index=cicd sourcetype IN (github:actions,gitlab:pipeline) event_type=deployment target_env IN (\"prod-cde\") earliest=-24h\n| stats latest(_time) AS deployed_at latest(commit_sha) AS commit_sha BY artifact service\n| join type=outer commit_sha\n  [search index=security sourcetype=veracode:scan earliest=-30d\n   | stats latest(overall_state) AS sast_state BY commit_sha]\n| join type=outer commit_sha\n  [search index=cicd event_type=pr_review state=approved earliest=-30d\n   | stats latest(reviewer) AS reviewer BY commit_sha\n   | eval review_state=\"approved\"]\n| eval gates_met=if(sast_state=\"pass\" AND review_state=\"approved\",1,0)\n| where gates_met=0\n| table artifact commit_sha service deployed_at sast_state review_state gates_met",
   "description": "For every deploy to a CDE service, assert that SAST passed and a PR review was approved before deploy. PCI-DSS 6.2 mandates a documented SDLC.",
-  "value": "Replaces the pre-release tick-box with continuous gate-enforcement evidence. Auditors see the commit→gate→deploy chain for every CDE deploy.",
+  "value": "For every deploy to a CDE service, assert that SAST passed and a PR review was approved before deploy. Timely UC-22.11.95 alerting on 'PCI-DSS 6.2 — Bespoke-software SDLC: code-review + SAST completion before CDE deploy' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Route CI/CD + SAST events; (2) maintain cde_services.csv; (3) schedule UC hourly; (4) gates_met=0 opens a security ticket; (5) pipeline policy revisions add gates. Indexes required: `index=cicd`, `index=security`; Sourcetypes: `sourcetype=github:actions`, `sourcetype=gitlab:pipeline`, `sourcetype=gitlab:pipeline;`, `sourcetype=veracode:scan`.",
   "visualization": "Table of gate-missing deploys, bar chart by service, single value 'recent deploys missing gates'.",
   "cimModels": [
@@ -113,7 +110,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised PCI DSS control testing** — Internal audit exercises 'PCI-DSS 6.2 — Bespoke-software SDLC: code-review + SAST completion before CDE deploy' (UC-22.11.95) on `artifact` during scheduled clause 6.2 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=cicd` `veracode:scan` without crossing evidence threshold. Cross-check engagement letter in `pci_dss_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `cicd` for `artifact`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `artifact` during normal service delivery.\n\n**Suppression mechanism:** `pci_dss_exception_register.csv` keyed on `artifact`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1195"
   ],

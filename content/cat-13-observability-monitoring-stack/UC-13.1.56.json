@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Prometheus Service Discovery Refresh Failure by Mechanism' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_prometheus_service_discovery_refresh_failure_by_` (UC-13.1.56), SOC dashboard panel \"Operations — Prometheus Service Discovery Refresh Failure by Mechanism\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=prometheus` sourcetype='prometheus:log' that satisfy the UC-13.1.56 SPL filters for 'Prometheus Service Discovery Refresh Failure by Mechanism'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `prometheus` / `prometheus:log` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.56."
+    "positiveScenario": "Ingest synthetic events into `index=prometheus` sourcetype='prometheus:log' where `sd_provider` satisfies detection threshold for UC-13.1.56 ('Prometheus Service Discovery Refresh Failure by Mechanism'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `prometheus` / `prometheus:log` events where `sd_provider` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.56."
   },
   "dataSources": "Prometheus server logs with service discovery errors Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Prometheus on Kubernetes with SD configs for k8s, Consul, EC2, etc. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=prometheus sourcetype=\"prometheus:log\"\n| search \"discovery\" AND (\"Failed\" OR \"error\" OR \"cancel\")\n| rex field=msg \"provider=(?<sd_provider>[^,\\s]+)\"\n| stats count by sd_provider, host\n| sort -count",
   "description": "SD failures silently shrink the scrape pool and drop monitors. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Isolates which discovery provider broke after cloud credential or RBAC changes. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "SD failures silently shrink the scrape pool and drop monitors. Timely UC-13.1.56 alerting on 'Prometheus Service Discovery Refresh Failure by Mechanism' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Increase log level for SD temporarily; redact secrets in messages.",
   "visualization": "Pie chart (provider), Table (host × provider).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Prometheus Service Discovery Refresh Failure by Mechanism'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `prometheus` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `prometheus`** — Planned work for 'Prometheus Service Discovery Refresh Failure by Mechanism' shifts `count` over `span=1h` while `sd_provider` remains in-scope for UC-13.1.56. Cross-check CMDB CHG.\n\n2. **Batch `count` on `prometheus:log`** — Scheduled automation elevates `host` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sd_provider`** — Health checks in `prometheus` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `prometheus:log`** — First 48h baseline for `sd_provider` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sd_provider`, `exception_reason`, `valid_until`.",
   "equipment": [
     "hardware_bmc",
     "hashicorp",

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Anomalous Traffic Patterns' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_anomalous_traffic_patterns` (UC-5.7.2), SOC dashboard panel \"Operations — Anomalous Traffic Patterns\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=netflow` sourcetype='target_sourcetype' that satisfy the UC-5.7.2 SPL filters for 'Anomalous Traffic Patterns'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `netflow` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.7.2."
+    "positiveScenario": "Ingest synthetic events into `index=netflow` sourcetype='target_sourcetype' where `src` satisfies `unique_ports` > 100 for UC-5.7.2 ('Anomalous Traffic Patterns'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `netflow` / `target_sourcetype` events where `src` stays below `unique_ports` > 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.7.2."
   },
   "dataSources": "`sourcetype=stream:netflow` or `stream:ipfix` or TA-parsed flow (`splunk_stream`, `netflow`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Add-on for NetFlow — Universal Forwarder (Splunkbase 617)",
   "spl": "index=netflow\n| stats dc(dest_port) as unique_ports, dc(dest) as unique_dests by src\n| where unique_ports > 100 OR unique_dests > 500\n| sort -unique_ports",
-  "description": "Unusual flows (new protocols, unexpected destinations) indicate compromise, misconfiguration, or shadow IT.",
+  "description": "Unusual flows (new protocols, unexpected destinations) indicate compromise, misconfiguration, or shadow IT. Searches `index=netflow` with sourcetype `configured sourcetype` for UC-5.7.2, aggregating `dc` by `src` over `the scheduled window`. Alerts when grouped results cross `unique_ports` > 100 in the saved search. Gives Operations operators a repeatable signal for 'Anomalous Traffic Patterns' without manual log review.",
   "value": "Network and security teams detect anomalous traffic patterns — volume spikes/drops, new external destinations, protocol shifts — that may indicate attacks, data exfiltration, or infrastructure failures.",
   "implementation": "Baseline normal flow patterns over 30 days. Alert on new protocol/port combinations, new external destinations, or unusual volume patterns.",
   "visualization": "Table, Scatter plot (ports vs. destinations), Timechart.",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Anomalous Traffic Patterns'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `netflow` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `netflow`** — Planned work for 'Anomalous Traffic Patterns' shifts `dc` over `span=1h` while `src` remains in-scope for UC-5.7.2. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `configured_sourcetype`** — Scheduled automation elevates `src` without crossing `unique_ports` > 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `netflow` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `src` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netflow"
   ],

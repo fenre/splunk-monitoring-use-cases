@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Detection False-Positive Rate by Camera' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_detection_false_positive_rate_by_camera` (UC-25.18.3), SOC dashboard panel \"Personal — Detection False-Positive Rate by Camera\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='frigate:event' that satisfy the UC-25.18.3 SPL filters for 'Detection False-Positive Rate by Camera'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `frigate:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.3."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='frigate:event' where `camera` satisfies detection threshold for UC-25.18.3 ('Detection False-Positive Rate by Camera'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `frigate:event` events where `camera` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.3."
   },
   "dataSources": "NVR object-detection (`frigate:event`), camera health (`camera:health`), alarm arm/disarm and life-safety (`alarm:event`), lock access (`lock:access`), plate recognition (`plate:detection`), doorbell (`doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Frigate / Blue Iris NVR object-detection events, camera health, alarm and smart-lock logs, and licence-plate recognition via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=frigate:event\n| stats sum(eval(if(false_positive=\"true\",1,0))) as fps, count as events by camera\n| eval fp_rate=round(100*fps/events,1)\n| sort - fp_rate",
-  "description": "Measures how often each camera raises a false detection so you can tune the noisy ones instead of ignoring all alerts.",
-  "value": "A camera that cries wolf trains you to ignore it; a false-positive rate shows exactly which needs zone or threshold tuning.",
+  "description": "Measures how often each camera raises a false detection so you can tune the noisy ones instead of ignoring all alerts. Searches `index=personal` with sourcetype `frigate:event` for UC-25.18.3, aggregating `sum` by `camera` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Detection False-Positive Rate by Camera' without manual log review.",
+  "value": "Measures how often each camera raises a false detection so you can tune the noisy ones instead of ignoring.... Timely UC-25.18.3 alerting on 'Detection False-Positive Rate by Camera' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Label reviewed detections as true or false; schedule weekly and rank cameras by false-positive rate.",
   "visualization": "Bar chart of false-positive rate by camera.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Detection False-Positive Rate by Camera'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `frigate:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Detection False-Positive Rate by Camera' stops polling `frigate:event`; stale `camera` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `frigate:event`. Dedup with `stats latest(*) by camera`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "cctv",
     "mqtt"

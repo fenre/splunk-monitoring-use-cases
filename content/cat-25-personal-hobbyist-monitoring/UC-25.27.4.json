@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Auto-Top-Off Water and Leak Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_auto_top_off_water_and_leak_watch` (UC-25.27.4), SOC dashboard panel \"Personal — Auto-Top-Off Water and Leak Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ato:event' that satisfy the UC-25.27.4 SPL filters for 'Auto-Top-Off Water and Leak Watch'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `ato:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.27.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ato:event' where `_time` satisfies detection threshold for UC-25.27.4 ('Auto-Top-Off Water and Leak Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `ato:event` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.27.4."
   },
   "dataSources": "Reef-tank parameters (`reeftank:param`), vivarium climate (`vivarium:climate`), fish feeder (`fishfeeder:event`), auto-doser (`doser:event`), auto-top-off (`ato:event`), pond sensors (`pondsensor:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Aquarium and vivarium controllers — reef-tank parameter monitors, auto-dosers, auto-top-off, reptile terrarium climate/UVB, and pond sensors — streamed to Splunk HEC via MQTT and controller APIs (e.g. Apex, GHL, ESPHome). — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=ato:event\n| bin _time span=1d\n| stats sum(topup_ml) as topped, count as cycles by _time\n| eventstats avg(topped) as usual\n| eval abnormal=if(topped>usual*2,1,0)",
-  "description": "Watches how much water the auto-top-off adds each day, flagging a spike that can mean a leak or runaway evaporation.",
-  "value": "A sudden jump in top-off volume is often the first sign of a leak or a stuck valve, caught here before the floor gets wet.",
+  "description": "Watches how much water the auto-top-off adds each day, flagging a spike that can mean a leak or runaway evaporation. Searches `index=personal` with sourcetype `ato:event` for UC-25.27.4, aggregating `sum` by `_time` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Auto-Top-Off Water and Leak Watch' without manual log review.",
+  "value": "Watches how much water the auto-top-off adds each day, flagging a spike that can mean a leak or runaway eva.... Timely UC-25.27.4 alerting on 'Auto-Top-Off Water and Leak Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest top-off events into `index=personal`; schedule daily and alert on abnormal top-off volume.",
   "visualization": "Column chart of daily top-off volume with a normal band.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Auto-Top-Off Water and Leak Watch'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ato:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Auto-Top-Off Water and Leak Watch' stops polling `ato:event`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ato:event`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

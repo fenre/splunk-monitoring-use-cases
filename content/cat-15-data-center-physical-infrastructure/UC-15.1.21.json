@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Electrical Panel Phase Balancing' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_electrical_panel_phase_balancing` (UC-15.1.21), SOC dashboard panel \"Operations — Electrical Panel Phase Balancing\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=power` sourcetype='panel:phase' that satisfy the UC-15.1.21 SPL filters for 'Electrical Panel Phase Balancing'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `power` / `panel:phase` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.1.21."
+    "positiveScenario": "Ingest synthetic events into `index=power` sourcetype='panel:phase' where `entity` satisfies detection threshold for UC-15.1.21 ('Electrical Panel Phase Balancing'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `power` / `panel:phase` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.1.21."
   },
   "dataSources": "`sourcetype=\"panel:phase\"` (main_l1_a, main_l2_a, main_l3_a) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Main distribution panel meters — Universal Forwarder (Splunkbase 617)",
   "spl": "index=power sourcetype=\"panel:phase\" panel_type=\"main\"\n| eval avg_a=(main_l1_a+main_l2_a+main_l3_a)/3\n| eval dev=max(abs(main_l1_a-avg_a), abs(main_l2_a-avg_a), abs(main_l3_a-avg_a))\n| where dev > avg_a*0.2\n| table panel_id, main_l1_a, main_l2_a, main_l3_a, dev",
-  "description": "Panel-level phase balance differs from rack PDU balance; both matter for neutral harmonics and breaker life.",
+  "description": "Panel-level phase balance differs from rack PDU balance; both matter for neutral harmonics and breaker life. Searches `index=power` with sourcetype `panel:phase` for UC-15.1.21, aggregating `max` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Electrical Panel Phase Balancing' without manual log review.",
   "value": "Early 'Electrical Panel Phase Balancing' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Alert when any phase deviates >20% from mean. Schedule rebalancing with facilities during maintenance.",
   "visualization": "Line chart (phase currents), Gauge (max deviation), Table (panels out of balance).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Electrical Panel Phase Balancing'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `power` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `power`** — Planned work for 'Electrical Panel Phase Balancing' shifts `max` over `span=1h` while `host` remains in-scope for UC-15.1.21. Cross-check CMDB CHG.\n\n2. **Batch `max` on `panel:phase`** — Scheduled automation elevates `avg_a` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `power` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `panel:phase`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'GuardDuty Severity Analysis' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_guardduty_severity_analysis` (UC-4.1.65), SOC dashboard panel \"Operations — GuardDuty Severity Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch:guardduty' that satisfy the UC-4.1.65 SPL filters for 'GuardDuty Severity Analysis'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch:guardduty` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.65."
+    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch:guardduty' where `severity` satisfies detection threshold for UC-4.1.65 ('GuardDuty Severity Analysis'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch:guardduty` events where `severity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.65."
   },
   "dataSources": "`sourcetype=aws:cloudwatch:guardduty (GuardDuty; often via EventBridge) (GuardDuty; often via EventBridge) (GuardDuty; often via EventBridge) (GuardDuty; often via EventBridge) (GuardDuty; often via EventBridge)`, GuardDuty S3 export Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch:guardduty\"\n| stats count by severity, type, accountId\n| sort -count",
-  "description": "Prioritizing GuardDuty findings by severity and type reduces noise and speeds triage versus raw event volume.",
+  "description": "Prioritizing GuardDuty findings by severity and type reduces noise and speeds triage versus raw event volume. Searches `index=aws` with sourcetype `aws:cloudwatch:guardduty` for UC-4.1.65, aggregating `count` by `severity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'GuardDuty Severity Analysis' without manual log review.",
   "value": "Early 'GuardDuty Severity Analysis' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Normalize severity (8–10 = high). Auto-suppress known pen-test ranges via lookup. Weekly trend of finding types. SOAR integration for HIGH and above with runbooks per `type`.",
   "visualization": "Bar chart (findings by type), Pie chart (severity), Table (account, type, count).",
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'GuardDuty Severity Analysis'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `aws` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'GuardDuty Severity Analysis' shifts `count` over `span=1h` while `severity` remains in-scope for UC-4.1.65. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch:guardduty`** — Scheduled automation elevates `type` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `severity`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch:guardduty`** — First 48h baseline for `severity` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `severity`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1580",
     "T1526"

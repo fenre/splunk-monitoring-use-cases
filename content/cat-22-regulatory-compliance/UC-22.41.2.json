@@ -66,15 +66,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When a TLS scan reveals a certificate expiring within 21 days, a protocol < TLS 1.2, or a non-AEAD cipher, the UC fires listing host, cert_expires_in, protocol, and cipher.",
-    "negativeScenario": "Hosts with TLS 1.2/1.3, AEAD ciphers, and certs ≥21 days from expiry do NOT fire.",
-    "fixtureRef": "sample-data/uc-22.41.2-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=tls` sourcetype='tls:scan' where `entity` satisfies `days_to_expiry` < 21 for UC-22.41.2 ('Certificate / TLS posture — weak cipher and expired-cert detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `tls` / `tls:scan` events where `entity` stays below `days_to_expiry` < 21, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.41.2."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=tls sourcetype=tls:scan earliest=-1h\n| eval days_to_expiry=round((expires-now())/86400,0)\n| where days_to_expiry<21 OR protocol!=\"TLSv1.2\" AND protocol!=\"TLSv1.3\" OR NOT match(cipher, \"^TLS_(AES|CHACHA20|ECDHE)\")\n| table host days_to_expiry protocol cipher",
   "description": "Continuous TLS-posture audit replacing periodic scan spreadsheets. Any finding feeds remediation and the cipher-and-cert evidence pack.",
-  "value": "Moves TLS posture from 'we scan quarterly' to 'we proved every TLS endpoint was compliant for every day of the period'.",
+  "value": "Continuous TLS-posture audit replacing periodic scan spreadsheets. Timely UC-22.41.2 alerting on 'Certificate / TLS posture — weak cipher and expired-cert detection' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Run scanner (SSL Labs CLI, OpenSSL-based scripts, Qualys SSL Labs); (2) feed to Splunk; (3) schedule hourly; (4) on finding, ticket via SOAR. Indexes required: `index=tls`; Sourcetypes: `sourcetype=tls:scan`.",
   "visualization": "Table of non-compliant hosts, stacked bar of protocol distribution, single-value '% of endpoints with strong TLS'.",
   "cimModels": [
@@ -102,7 +101,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "1. **Authorised penetration testing** — Annual or more frequent penetration tests conducted by QSA-approved assessors against cardholder data environment (CDE) systems produce expected security alerts that are pre-communicated and tracked via the test engagement letter.\n\n2. **PCI ASV scanning activity** — Quarterly external vulnerability scans performed by Approved Scanning Vendors generate network probe events that trigger IDS/IPS alerts as an expected part of the PCI DSS validation process.\n\n3. **Tokenization system batch processing** — The payment tokenization platform performs scheduled batch re-tokenization and token lifecycle management operations that produce high-volume cardholder data access patterns within approved operational windows.\n\n4. **Acquirer and processor settlement activity** — End-of-day settlement reconciliation between the merchant platform and payment processor involves legitimate PAN/SAD data transmission that is covered by the processor service provider agreement.\n\n**Suppression mechanism:** Maintain a `pci_exception_register` KV Store lookup containing approved pen-test engagement IDs, ASV scan source IPs, scheduled batch job names, and settlement processing windows. The search filters matches where `pci_exception_valid=true` and the exception has not expired.",
+  "knownFalsePositives": "1. **Authorised PCI DSS control testing** — Internal audit exercises 'Certificate / TLS posture — weak cipher and expired-cert detection' (UC-22.41.2) on `entity` during scheduled clause 4.2 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=tls` `tls:scan` without crossing `days_to_expiry` < 21. Cross-check engagement letter in `pci_dss_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `tls` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `pci_dss_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "audit",
   "requiredFields": [

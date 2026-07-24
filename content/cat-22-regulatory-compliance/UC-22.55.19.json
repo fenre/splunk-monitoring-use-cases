@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Mark a joint risk acceptance with only cyber-lead signature; UC-22.55.19 MUST flag `acceptance_status=\"safety_lead_signature_missing\"`.",
-    "negativeScenario": "All three sign; UC-22.55.19 MUST record `acceptance_status=\"current\"`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-22.55.19 ('CLC/TS 50701 Cyber-Safety Joint Risk Acceptance — acceptances signed by cyber lead, safety lead, and operations director'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.55.19."
   },
   "dataSources": "KV Store `rail_joint_risk_acceptance_lookup`. ServiceNow GRC. DocuSign sign-events.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_joint_risk_acceptance_lookup\n| where acceptance_status_in_register=\"open\"\n| eval acceptance_status = case(\n    isnull(cyber_lead_signed_at), \"cyber_lead_signature_missing\",\n    isnull(safety_lead_signed_at), \"safety_lead_signature_missing\",\n    isnull(ops_director_signed_at), \"ops_director_signature_missing\",\n    isnotnull(acceptance_expires_at) AND acceptance_expires_at < now(), \"acceptance_expired\",\n    1=1, \"current\")\n| where acceptance_status != \"current\"\n| table acceptance_id risk_id cyber_lead_signed_at safety_lead_signed_at ops_director_signed_at acceptance_expires_at acceptance_status",
   "description": "Tracks joint cyber-safety risk acceptances for completeness and currency. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "An accepted risk with only one signature is operationally accepted but governance-incomplete. NB and NSA inspect these.",
+  "value": "Tracks joint cyber-safety risk acceptances for completeness and currency. Timely UC-22.55.19 alerting on 'CLC/TS 50701 Cyber-Safety Joint Risk Acceptance — acceptances signed by cyber lead, safety lead, and operations director' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Maintain `rail_joint_risk_acceptance_lookup`. (2) DocuSign workflow with all three signatories. (3) Schedule UC-22.55.19 weekly Monday 07:30.",
   "visualization": "(Panel 1) Acceptance posture. (Panel 2) Missing-signature queue. (Panel 3) Expiry calendar.",
   "cimModels": [
@@ -76,7 +76,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit or GRC exercises 'CLC/TS 50701 Cyber-Safety Joint Risk Acceptance — acceptances signed by cyber lead, safety lead, and operations director' during scheduled clause CLC-TS-50701-c10-2 evidence collection. Match compliance programme calendar and accounts tagged `compliance_ops=true`.\n\n2. **External assessor sampling** — QSA or regulator sampling temporarily spikes `index=audit_evidence` `configured sourcetype` volume. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB-approved change pauses or reshapes ingestion to `audit_evidence`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected cross-boundary events during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Cyber-Safety Joint Risk Acceptance — acceptances signed by cyber lead, safety lead, and operations director' (UC-22.55.19) on `entity` during scheduled clause CLC-TS-50701-c10-2 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (governance acceptance)"
   ],

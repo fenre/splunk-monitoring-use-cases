@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Garmin Cadence vs Power Efficiency' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_garmin_cadence_vs_power_efficiency` (UC-25.28.28), SOC dashboard panel \"Personal — Garmin Cadence vs Power Efficiency\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='powermeter:ride' that satisfy the UC-25.28.28 SPL filters for 'Garmin Cadence vs Power Efficiency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `powermeter:ride` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.28.28."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='powermeter:ride' where `workout_name` satisfies detection threshold for UC-25.28.28 ('Garmin Cadence vs Power Efficiency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `powermeter:ride` events where `workout_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.28.28."
   },
   "dataSources": "Whoop recovery and strain (`whoop:day`), Garmin ride power (`powermeter:ride`), Stryd runs (`stryd:run`), and gymnastics skill attempts (`gymnastics:skill`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Training telemetry from Whoop, Garmin power meters, Stryd running power, and gymnastics skill trackers maintained in Sheets or app exports sent to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=powermeter:ride\n| stats avg(cadence_rpm) as avg_cadence_rpm avg(power_efficiency_pct) as avg_power_efficiency_pct by workout_name\n| sort 0 - avg_cadence_rpm",
   "description": "Ranks workoutss by cadence and power efficiency. Runs scheduled SPL against `index=personal` to surface **Garmin Cadence vs Power Efficiency** so you can spot drift before it becomes a habit.",
-  "value": "Cadence plus efficiency helps you see which sessions are teaching good power delivery instead of just producing fatigue.",
+  "value": "Ranks workoutss by cadence and power efficiency. Timely UC-25.28.28 alerting on 'Garmin Cadence vs Power Efficiency' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send cadence and power efficiency events to `index=personal` and keep `workout_name` populated so the leaderboard stays actionable.",
   "visualization": "Bar chart of cadence and power efficiency by workouts.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Garmin Cadence vs Power Efficiency'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `powermeter:ride`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Garmin Cadence vs Power Efficiency' stops polling `powermeter:ride`; stale `workout_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `powermeter:ride`. Dedup with `stats latest(*) by workout_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

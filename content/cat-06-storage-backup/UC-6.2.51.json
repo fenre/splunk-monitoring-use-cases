@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'TrueNAS network interface errors discards and packet loss rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_truenas_network_interface_errors_discards_and_pa` (UC-6.2.51), SOC dashboard panel \"Operations — TrueNAS network interface errors discards and packet loss rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='truenas:alert' that satisfy the UC-6.2.51 SPL filters for 'TrueNAS network interface errors discards and packet loss rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `truenas:alert` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.51."
+    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='truenas:alert' where `hostname` satisfies `errs` > 0 for UC-6.2.51 ('TrueNAS network interface errors discards and packet loss rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `storage` / `truenas:alert` events where `hostname` stays below `errs` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.51."
   },
   "dataSources": "Interface stats `truenas:alert` or SNMP polled metrics normalized to Splunk Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Telegraf/SNMP TA or TrueNAS reporting — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"truenas:alert\" earliest=-4h\n| search NIC OR interface OR \"rx err\" OR \"tx err\" OR discard\n| eval iface=coalesce(interface, nic)\n| eval err=coalesce(rx_errors, tx_errors, errors)\n| eval drop=coalesce(rx_dropped, tx_dropped, drops)\n| stats sum(err) as errs sum(drop) as drops by hostname, iface\n| where errs > 0 OR drops > 0\n| sort - errs",
-  "description": "Rising interface errors correlate with cable, SFP, or switch issues that manifest as mysterious NFS timeouts.",
-  "value": "Shortens layer-1 troubleshooting for high-throughput NAS uplinks. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Rising interface errors correlate with cable, SFP, or switch issues that manifest as mysterious NFS timeouts. Searches `index=storage` with sourcetype `truenas:alert` for UC-6.2.51, aggregating `sum` by `hostname` over `the scheduled window`. Alerts when grouped results cross `errs` > 0 in the saved search. Gives Operations operators a repeatable signal for 'TrueNAS network interface errors discards and packet loss rate' without manual log review.",
+  "value": "Rising interface errors correlate with cable, SFP, or switch issues that manifest as mysterious NFS timeouts. Timely UC-6.2.51 alerting on 'TrueNAS network interface errors discards and packet loss rate' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Prefer 1-minute SNMP counters; compute delta with `streamstats`. Join to switch port from CMDB.",
   "visualization": "Timechart (errors), table (iface, errs).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'TrueNAS network interface errors discards and packet loss rate'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `storage` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'TrueNAS network interface errors discards and packet loss rate' shifts `sum` over `span=1h` while `hostname` remains in-scope for UC-6.2.51. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `truenas:alert`** — Scheduled automation elevates `iface` without crossing `errs` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `hostname`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:alert`** — First 48h baseline for `hostname` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `hostname`, `exception_reason`, `valid_until`.",
   "equipment": [
     "snmp",
     "truenas"

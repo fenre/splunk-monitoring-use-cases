@@ -54,16 +54,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Removing today's review artefact for the pan:traffic source returns it in the daily output.",
-    "negativeScenario": "A source with a reviewed_at timestamp within the day is absent.",
-    "fixtureRef": "",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=compliance` sourcetype='review:daily' where `source]` satisfies detection threshold for UC-22.11.101 ('PCI-DSS 10.6 — Log review: daily-review evidence for CDE data sources'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `compliance` / `review:daily` events where `source]` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.101."
   },
   "dataSources": "`index=compliance` sourcetype=review:daily (from SOC daily review tool); CDE-source list `pci_cde_log_sources.csv`.",
   "app": "Splunk Enterprise Security (Splunkbase)",
   "spl": "| inputlookup pci_cde_log_sources.csv\n| join type=outer source\n  [search index=compliance sourcetype=review:daily earliest=-1d\n   | stats latest(reviewer) AS reviewer latest(_time) AS reviewed_at latest(artefact_id) AS artefact_id BY source]\n| eval review_today=if(reviewed_at>=relative_time(now(),\"@d\"),1,0)\n| where review_today=0\n| table source reviewer reviewed_at artefact_id review_today",
   "description": "PCI-DSS 10.6 requires daily review of logs. This UC tests the presence of the daily review record — the auditor-visible outcome of the control.",
-  "value": "Auditors frequently disallow 'we review daily' without evidence. The review artefact lookup gives the evidence.",
+  "value": "PCI-DSS 10. Timely UC-22.11.101 alerting on 'PCI-DSS 10.6 — Log review: daily-review evidence for CDE data sources' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) SOC tool must write review artefacts to index=compliance; (2) maintain pci_cde_log_sources.csv; (3) schedule UC daily at 23:55 UTC; (4) gap opens a ticket for the next morning's shift; (5) monthly CISO report. Sourcetypes: `sourcetype=review:daily`.",
   "visualization": "Table of sources missing review, time chart by day, single value 'days with gaps (30d)'.",
   "cimModels": [
@@ -92,7 +90,7 @@
       "title": "NIST Cybersecurity Framework"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised PCI DSS control testing** — Internal audit exercises 'PCI-DSS 10.6 — Log review: daily-review evidence for CDE data sources' (UC-22.11.101) on `source]` during scheduled clause 10.6 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=compliance` `review:daily` without crossing evidence threshold. Cross-check engagement letter in `pci_dss_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `compliance` for `source]`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `source]` during normal service delivery.\n\n**Suppression mechanism:** `pci_dss_exception_register.csv` keyed on `source]`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Baseline",
   "securityDomain": "audit",
   "requiredFields": [

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Looker Peak Concurrency Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_looker_peak_concurrency_tracking` (UC-24.3.19), SOC dashboard panel \"Operations — Looker Peak Concurrency Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='looker:system_activity' that satisfy the UC-24.3.19 SPL filters for 'Looker Peak Concurrency Tracking'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `looker:system_activity` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.3.19."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='looker:system_activity' where `_time` satisfies detection threshold for UC-24.3.19 ('Looker Peak Concurrency Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `looker:system_activity` events where `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.3.19."
   },
   "dataSources": "Looker System Activity (`looker:system_activity`), Looker API (`looker:api`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Looker System Activity via DB Connect/API; Looker instance logs via UF; plan and query events via HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=looker:system_activity\n| bin _time span=5m\n| stats dc(session_id) as concurrent by _time\n| timechart span=1h max(concurrent) as peak_concurrency, avg(concurrent) as avg_concurrency",
   "description": "Measures concurrent Looker sessions in five-minute buckets and rolls the peak up hourly, revealing the load peaks that drive sizing and licensing decisions.",
-  "value": "Peak concurrency, not average, determines whether Looker has enough capacity; tracking it prevents peak-hour slowdowns and right-sizes the platform.",
+  "value": "Measures concurrent Looker sessions in five-minute buckets and rolls the peak up hourly, revealing the load.... Timely UC-24.3.19 alerting on 'Looker Peak Concurrency Tracking' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest Looker session events; schedule hourly and alert when peak concurrency approaches the licensed or engineered limit.",
   "visualization": "Timechart of Looker peak vs. average concurrency.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Looker Peak Concurrency Tracking'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Looker Peak Concurrency Tracking' shifts `dc` over `span=5m` while `_time` remains in-scope for UC-24.3.19. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `looker:system_activity`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `looker:system_activity`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],

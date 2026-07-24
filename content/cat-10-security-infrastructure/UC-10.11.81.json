@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Tanium Asset Discovery Reconciliation' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_tanium_asset_discovery_reconciliation` (UC-10.11.81), SOC dashboard panel \"Security Infra — Tanium Asset Discovery Reconciliation\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=endpoint` sourcetype='tanium:asset' that satisfy the UC-10.11.81 SPL filters for 'Tanium Asset Discovery Reconciliation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `endpoint` / `tanium:asset` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.11.81."
+    "positiveScenario": "Ingest synthetic events into `index=endpoint` sourcetype='tanium:asset' where `computer_id` satisfies detection threshold for UC-10.11.81 ('Tanium Asset Discovery Reconciliation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `endpoint` / `tanium:asset` events where `computer_id` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.11.81."
   },
   "dataSources": "`sourcetype=tanium:asset` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_tanium` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=endpoint sourcetype=\"tanium:asset\"\n| stats latest(last_seen) as ls by computer_id\n| join max=1 computer_id [| inputlookup cmdb_assets]\n| where isnull(cmdb_id)",
-  "description": "Reconciliation ensures every managed asset appears in authoritative inventories.",
+  "description": "Reconciliation ensures every managed asset appears in authoritative inventories. Searches `index=endpoint` with sourcetype `tanium:asset` for UC-10.11.81, aggregating `count` by `computer_id` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'Tanium Asset Discovery Reconciliation' without manual log review.",
   "value": "Early 'Tanium Asset Discovery Reconciliation' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Compare Tanium inventory to CMDB. Investigate unmanaged IDs as rogue or stale.",
   "visualization": "Table (unreconciled), Single value (gap count).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Tanium Asset Discovery Reconciliation'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=endpoint` `tanium:asset`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `endpoint`** — Planned work for 'Tanium Asset Discovery Reconciliation' shifts `count` over `span=1h` while `computer_id` remains in-scope for UC-10.11.81. Cross-check CMDB CHG.\n\n2. **Batch `count` on `tanium:asset`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `computer_id`** — Health checks in `endpoint` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tanium:asset`** — First 48h baseline for `computer_id` is unstable; join `cmdb_assets]` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `computer_id`, `exception_reason`, `valid_until`.",
   "detectionType": "Hunting",
   "securityDomain": "endpoint",
   "equipment": [

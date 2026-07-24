@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'SASE Tunnel Health' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_sase_tunnel_health` (UC-17.3.15), SOC dashboard panel \"Network — SASE Tunnel Health\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=sase` sourcetype='sase:tunnel' that satisfy the UC-17.3.15 SPL filters for 'SASE Tunnel Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `sase` / `sase:tunnel` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.15."
+    "positiveScenario": "Ingest synthetic events into `index=sase` sourcetype='sase:tunnel' where `tunnel_id` satisfies `packet_loss_pct` < 2 for UC-17.3.15 ('SASE Tunnel Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `sase` / `sase:tunnel` events where `tunnel_id` stays below `packet_loss_pct` < 2, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.15."
   },
   "dataSources": "`sourcetype=sase:tunnel`, SD-WAN to SASE Indexes: sase. Sourcetypes: sase:tunnel. Key fields: healthy, latency_ms, packet_loss_pct, site, tunnel_id. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk_TA_zscaler`, `Splunk_TA_paloalto` (Prisma Access), Cato Networks Events App (Splunkbase 8037), `TA-fortinet_fortigate` (FortiSASE), Netskope Add-on for Splunk (Splunkbase 3808)",
   "spl": "index=sase sourcetype=\"sase:tunnel\" earliest=-24h\n| eval healthy=if(match(lower(state),\"(?i)up|active\") AND packet_loss_pct < 2 AND latency_ms < 200,1,0)\n| where healthy=0\n| stats latest(latency_ms) as latency_ms latest(packet_loss_pct) as loss by tunnel_id, site\n| sort loss",
-  "description": "Monitors IPSec/GRE/SSL tunnels from branch to SASE PoPs — packet loss, latency, and down events.",
+  "description": "Monitors IPSec/GRE/SSL tunnels from branch to SASE PoPs — packet loss, latency, and down events. Searches `index=sase` with sourcetype `sase:tunnel` for UC-17.3.15, aggregating `count` by `tunnel_id` over `the scheduled window`. Alerts when grouped results cross `packet_loss_pct` < 2 in the saved search. Gives Network operators a repeatable signal for 'SASE Tunnel Health' without manual log review.",
   "value": "Network operations teams monitor SASE tunnel health across all sites and users, detecting down tunnels, degraded connections with high latency or packet loss, and flapping tunnels that silently degrade user experience without triggering traditional outage alerts.",
   "implementation": "Field names vary (Zscaler GRE, Prisma IPSec). Use unified summary index if multi-vendor.",
   "visualization": "Table (unhealthy tunnels), Geo map (site), Line chart (loss trend).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'SASE Tunnel Health'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `sase`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `sase:tunnel` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `sase`** — Planned work for 'SASE Tunnel Health' shifts `count` over `span=1h` while `tunnel_id` remains in-scope for UC-17.3.15. Cross-check CMDB CHG.\n\n2. **Batch `count` on `sase:tunnel`** — Scheduled automation elevates `site` without crossing `packet_loss_pct` < 2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `tunnel_id`** — Health checks in `sase` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `sase:tunnel`** — First 48h baseline for `tunnel_id` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `tunnel_id`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1133"
   ],

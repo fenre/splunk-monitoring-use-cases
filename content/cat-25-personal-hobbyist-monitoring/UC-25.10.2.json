@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Outdoor Air-Quality (Wildfire Smoke) Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_outdoor_air_quality_wildfire_smoke_watch` (UC-25.10.2), SOC dashboard panel \"Personal — Outdoor Air-Quality (Wildfire Smoke) Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='purpleair:aqi' that satisfy the UC-25.10.2 SPL filters for 'Outdoor Air-Quality (Wildfire Smoke) Watch'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `purpleair:aqi` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='purpleair:aqi' where `entity` satisfies `aqi` <= 50 for UC-25.10.2 ('Outdoor Air-Quality (Wildfire Smoke) Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `purpleair:aqi` events where `entity` stays below `aqi` <= 50, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.2."
   },
   "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil/greenhouse sensors, aquarium controllers. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=purpleair:aqi\n| timechart span=1h avg(aqi) as aqi\n| eval category=case(aqi<=50,\"good\",aqi<=100,\"moderate\",aqi<=150,\"unhealthy for sensitive\",1=1,\"unhealthy\")\n| where aqi>100",
   "description": "Trends the outdoor air-quality index from a nearby sensor and alerts when smoke or pollution makes it unsafe to open windows or exercise outside.",
-  "value": "During wildfire season a local sensor beats a distant official station; a timely alert protects your lungs and tells you when to close up.",
+  "value": "Trends the outdoor air-quality index from a nearby sensor and alerts when smoke or pollution makes it unsaf.... Timely UC-25.10.2 alerting on 'Outdoor Air-Quality (Wildfire Smoke) Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest a local outdoor air-quality feed; schedule hourly and alert when the index becomes unhealthy.",
   "visualization": "Line chart of hourly outdoor air-quality index with category bands.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Outdoor Air-Quality (Wildfire Smoke) Watch'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `purpleair:aqi`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Outdoor Air-Quality (Wildfire Smoke) Watch' stops polling `purpleair:aqi`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1h` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `purpleair:aqi`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `aqi` <= 50. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

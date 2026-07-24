@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Kafka Client Topic Authorization Failure Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_kafka_client_topic_authorization_failure_audit` (UC-8.7.12), SOC dashboard panel \"Operations — Kafka Client Topic Authorization Failure Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=kafka` sourcetype='kafka:serverLog' that satisfy the UC-8.7.12 SPL filters for 'Kafka Client Topic Authorization Failure Audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `kafka` / `kafka:serverLog` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.7.12."
+    "positiveScenario": "Ingest synthetic events into `index=kafka` sourcetype='kafka:serverLog' where `entity` satisfies detection threshold for UC-8.7.12 ('Kafka Client Topic Authorization Failure Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `kafka` / `kafka:serverLog` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.7.12."
   },
   "dataSources": "Kafka broker log `sourcetype=kafka:serverLog` (authorization failures on produce/consume)",
   "app": "Splunk Add-on for Kafka (`Splunk_TA_kafka`, Splunkbase 2935); pair with `sourcetype=kafka:authorizer` where authorizer logging is enabled",
   "spl": "index=kafka sourcetype=\"kafka:serverLog\"\n| search \"TopicAuthorizationException\" OR \"Authorization failed\" OR (\"DENIED\" AND \"Principal\")\n| table _time, host, _raw",
   "description": "Denied produce/fetch attempts document who tried to access which topic—evidence for least-privilege reviews and insider-threat investigations.",
-  "value": "Produces auditor-friendly evidence that sensitive topics reject unauthorized clients and highlights misconfigured service accounts early.",
+  "value": "Denied produce/fetch attempts document who tried to access which topic—evidence for least-privilege reviews.... Timely UC-8.7.12 alerting on 'Kafka Client Topic Authorization Failure Audit' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ensure broker logging includes principal/topic context. Retain 13 months in a restricted index for regulated workloads. Mask client secrets if present.",
   "visualization": "Table (recent denials), Timeline (authorization failures), Stats (count by principal).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Kafka Client Topic Authorization Failure Audit'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `kafka` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `kafka`** — Planned work for 'Kafka Client Topic Authorization Failure Audit' shifts `count` over `span=1h` while `host` remains in-scope for UC-8.7.12. Cross-check CMDB CHG.\n\n2. **Batch `count` on `kafka:serverLog`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:serverLog`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka"
   ],

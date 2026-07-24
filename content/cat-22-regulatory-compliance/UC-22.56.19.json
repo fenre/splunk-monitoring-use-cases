@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Disable Veeam backup job on TSA-regulated asset. Within 24h UC-22.56.19 MUST flag `backup_status=stale`.",
-    "negativeScenario": "Re-enable job; backup runs successfully within RTO. UC-22.56.19 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='veeam:job' where `asset_id]` satisfies `days_since_test` > 180 for UC-22.56.19 ('TSA-SD multi-modal backup integrity + recovery-time-objective surveillance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `veeam:job` events where `asset_id]` stays below `days_since_test` > 180, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.56.19."
   },
   "dataSources": "Veeam Backup & Replication (`veeam:job`). Commvault (`commvault:job:event`). Rubrik (`rubrik:event`). NetBackup. TSA asset register. RTO register (KV Store `tsa_rto_lookup`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Veeam (Splunkbase 3973), Splunk Add-on for Commvault (Splunkbase 4115), Splunk Add-on for Rubrik (Splunkbase 4316).",
   "spl": "| inputlookup tsa_rto_lookup\n| where tsa_in_scope=true\n| join type=left asset_id [search (sourcetype=veeam:job OR sourcetype=commvault:job:event OR sourcetype=rubrik:event) status=success | stats latest(_time) as last_backup max(eval(if(test_restore=true, _time, null))) as last_test_restore by asset_id]\n| eval hours_since_backup = round((now() - last_backup) / 3600, 1)\n| eval days_since_test = round((now() - last_test_restore) / 86400, 0)\n| eval backup_status = case(\n    isnull(last_backup), \"missing\",\n    hours_since_backup > rpo_hours, \"stale\",\n    isnull(last_test_restore) OR days_since_test > 180, \"untested\",\n    1=1, \"healthy\")\n| where backup_status IN (\"missing\",\"stale\",\"untested\")\n| table facility_id asset_id modality rto_hours rpo_hours hours_since_backup days_since_test backup_status",
-  "description": "Reconciles backup-job telemetry with TSA asset register and per-asset RPO/RTO; surfaces missing/stale/untested backups.",
-  "value": "TSA inspectors will demand backup evidence as part of recovery posture. Untested backups are a frequent enforcement finding.",
+  "description": "Reconciles backup-job telemetry with TSA asset register and per-asset RPO/RTO; surfaces missing/stale/untested backups. Searches `index=target_index` with sourcetype `veeam:job` for UC-22.56.19, aggregating `max` by `asset_id]` over `the scheduled window`. Alerts when grouped results cross `days_since_test` > 180 in the saved search. Gives Compliance operators a repeatable signal for 'TSA-SD multi-modal backup integrity + recovery-time-objective surveillance' without manual log review.",
+  "value": "Reconciles backup-job telemetry with TSA asset register and per-asset RPO/RTO; surfaces missing/stale/untes.... Timely UC-22.56.19 alerting on 'TSA-SD multi-modal backup integrity + recovery-time-objective surveillance' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `tsa_rto_lookup` with asset, RPO, RTO. (2) Schedule UC-22.56.19 daily. (3) Build the `TSA Backup Health` dashboard.",
   "visualization": "(Panel 1) Backup status by modality. (Panel 2) Stale-trend (30 days). (Panel 3) DR-test currency heat-map. (Panel 4) Top-10 critical untested assets.",
   "cimModels": [
@@ -67,7 +67,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Snapshot-based backups**: some assets use snapshot-only protection. Pin in lookup with `protection_type=snapshot`.\n2. **Air-gapped backups**: pin with `air_gapped=true`; the job telemetry may not reach Splunk in real time.\n\n**Suppression mechanism**: KV Store `tsa_backup_exception_lookup`.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD multi-modal backup integrity + recovery-time-objective surveillance' (UC-22.56.19) on `asset_id]` during scheduled clause TSA-SCAS-backup-rto sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `veeam:job` without crossing `days_since_test` > 180. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `asset_id]`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `asset_id]` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `asset_id]`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1485",
     "T1490",

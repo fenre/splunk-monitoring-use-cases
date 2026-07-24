@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Login Anomaly Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_login_anomaly_detection` (UC-11.2.4), SOC dashboard panel \"Operations — Login Anomaly Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=gws` sourcetype='gws:login' that satisfy the UC-11.2.4 SPL filters for 'Login Anomaly Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `gws` / `gws:login` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.2.4."
+    "positiveScenario": "Ingest synthetic events into `index=gws` sourcetype='gws:login' where `actor.email` satisfies `count` > 5 for UC-11.2.4 ('Login Anomaly Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `gws` / `gws:login` events where `actor.email` stays below `count` > 5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.2.4."
   },
   "dataSources": "Google Workspace login audit log Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_GoogleWorkspace` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=gws sourcetype=\"gws:login\" event_name=\"login_failure\"\n| stats count by actor.email, ip_address\n| where count > 5",
-  "description": "Suspicious login activity (new device, unusual location, failed MFA) indicates potential account compromise.",
+  "description": "Suspicious login activity (new device, unusual location, failed MFA) indicates potential account compromise. Searches `index=gws` with sourcetype `gws:login` for UC-11.2.4, aggregating `count` by `actor.email` over `the scheduled window`. Alerts when grouped results cross `count` > 5 in the saved search. Gives Operations operators a repeatable signal for 'Login Anomaly Detection' without manual log review.",
   "value": "Early 'Login Anomaly Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ingest login audit logs. Track failed logins, new device registrations, and unusual locations. Alert on multiple failures, suspicious activity events, and login from new countries. Correlate with Google's built-in risk signals.",
   "visualization": "Table (suspicious logins), Geo map (login locations), Line chart (failure rate), Bar chart (failures by user).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Login Anomaly Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `gws` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `gws`** — Planned work for 'Login Anomaly Detection' shifts `count` over `span=1h` while `actor.email` remains in-scope for UC-11.2.4. Cross-check CMDB CHG.\n\n2. **Batch `count` on `gws:login`** — Scheduled automation elevates `ip_address` without crossing `count` > 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `actor.email`** — Health checks in `gws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gws:login`** — First 48h baseline for `actor.email` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `actor.email`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'TempDB Contention (SQL Server)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_tempdb_contention_sql_server` (UC-7.1.10), SOC dashboard panel \"Operations — TempDB Contention (SQL Server)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='dbconnect:wait_stats' that satisfy the UC-7.1.10 SPL filters for 'TempDB Contention (SQL Server)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `dbconnect:wait_stats` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.10."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='dbconnect:wait_stats' where `wait_type` satisfies detection threshold for UC-7.1.10 ('TempDB Contention (SQL Server)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `dbconnect:wait_stats` events where `wait_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.10."
   },
   "dataSources": "`sys.dm_os_wait_stats` (PAGELATCH waits), `sys.dm_exec_query_stats` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "DB Connect, Splunk_TA_microsoft-sqlserver — Universal Forwarder (Splunkbase 617)",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'TempDB Contention (SQL Server)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'TempDB Contention (SQL Server)' shifts `sum` over `span=1h` while `wait_type` remains in-scope for UC-7.1.10. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `dbconnect:wait_stats`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `wait_type`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:wait_stats`** — First 48h baseline for `wait_type` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `wait_type`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mssql"

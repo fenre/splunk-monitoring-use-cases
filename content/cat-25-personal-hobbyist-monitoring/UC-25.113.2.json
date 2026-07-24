@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Filter Pressure Rise Before Clean' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_filter_pressure_rise_before_clean` (UC-25.113.2), SOC dashboard panel \"Personal — Filter Pressure Rise Before Clean\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='spa:filter' that satisfy the UC-25.113.2 SPL filters for 'Filter Pressure Rise Before Clean'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `spa:filter` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.113.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='spa:filter' where `entity` satisfies `pressure_psi` >= 25 for UC-25.113.2 ('Filter Pressure Rise Before Clean'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `spa:filter` events where `entity` stays below `pressure_psi` >= 25, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.113.2."
   },
   "dataSources": "Hot Spring sessions (`hotspring:session`), spa chemistry logs (`spa:chemistry`), filter maintenance records (`spa:filter`), and spa energy usage (`spa:energy`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Hot Spring session logs, spa chemistry test results, filter maintenance records, and energy consumption telemetry streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=spa:filter filter_id=* pressure_psi=* days_since_clean=*\n| where pressure_psi>=25 OR days_since_clean>30\n| sort - pressure_psi\n| table filter_id pressure_psi days_since_clean filter_status",
-  "description": "Flags spa filters with pressure at or above twenty-five PSI or not cleaned in thirty days.",
-  "value": "High filter pressure reduces circulation and makes the heater work harder, raising energy bills.",
+  "description": "Flags spa filters with pressure at or above twenty-five PSI or not cleaned in thirty days. Searches `index=personal` with sourcetype `spa:filter` for UC-25.113.2, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `pressure_psi` >= 25 in the saved search. Gives Personal operators a repeatable signal for 'Filter Pressure Rise Before Clean' without manual log review.",
+  "value": "Flags spa filters with pressure at or above twenty-five PSI or not cleaned in thirty days. Timely UC-25.113.2 alerting on 'Filter Pressure Rise Before Clean' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Track `pressure_psi` and `days_since_clean` on each filter reading and clean when pressure rises.",
   "visualization": "Gauge of filter pressure with days-since-clean overlay.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Filter Pressure Rise Before Clean'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `spa:filter`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Filter Pressure Rise Before Clean' stops polling `spa:filter`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `spa:filter`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `pressure_psi` >= 25. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

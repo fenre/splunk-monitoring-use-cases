@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'QuickSight SPICE Capacity Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_quicksight_spice_capacity_utilization` (UC-24.6.6), SOC dashboard panel \"Operations — QuickSight SPICE Capacity Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='aws:cloudwatch' that satisfy the UC-24.6.6 SPL filters for 'QuickSight SPICE Capacity Utilization'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `aws:cloudwatch` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.6.6."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='aws:cloudwatch' where `account_id` satisfies `used_gb` > 0 for UC-24.6.6 ('QuickSight SPICE Capacity Utilization'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `aws:cloudwatch` events where `account_id` stays below `used_gb` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.6.6."
   },
   "dataSources": "MicroStrategy DSSErrors/statistics, Cognos audit database via DB Connect, BusinessObjects Auditing/CMS logs, Oracle Analytics usage tracking, ThoughtSpot audit logs, QuickSight CloudTrail and SPICE CloudWatch metrics. Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "MicroStrategy / IBM Cognos / SAP BusinessObjects / Oracle Analytics / ThoughtSpot / Amazon QuickSight logs via Universal Forwarder, vendor admin APIs, and cloud provider TAs (`Splunk_TA_aws` for QuickSight). — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=bi sourcetype=aws:cloudwatch namespace=\"AWS/QuickSight\" metric_name=SPICECapacityConsumedInBytes\n| stats latest(Maximum) as used_bytes by account_id, region\n| eval used_gb=round(used_bytes/1024/1024/1024,1)\n| where used_gb>0\n| sort - used_gb",
   "description": "Tracks Amazon QuickSight SPICE in-memory capacity consumption so teams can top up before ingestion and refresh fail on a full engine.",
-  "value": "A full SPICE engine blocks dataset refreshes and new imports; capacity visibility prevents an avoidable outage and controls spend.",
+  "value": "Tracks Amazon QuickSight SPICE in-memory capacity consumption so teams can top up before ingestion and refr.... Timely UC-24.6.6 alerting on 'QuickSight SPICE Capacity Utilization' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest QuickSight CloudWatch metrics via `Splunk_TA_aws`; schedule hourly; alert near the limit.",
   "visualization": "Single-value SPICE usage, capacity trend, alert.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'QuickSight SPICE Capacity Utilization'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'QuickSight SPICE Capacity Utilization' shifts `count` over `span=1h` while `account_id` remains in-scope for UC-24.6.6. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch`** — Scheduled automation elevates `region` without crossing `used_gb` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `account_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for `account_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `account_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "db_connect",

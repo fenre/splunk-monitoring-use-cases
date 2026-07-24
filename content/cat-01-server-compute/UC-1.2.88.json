@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Windows Search Indexer Issues' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_windows_search_indexer_issues` (UC-1.2.88), SOC dashboard panel \"Linux — Windows Search Indexer Issues\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Application' EventCode=3028 that satisfy the UC-1.2.88 SPL filters for 'Windows Search Indexer Issues'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Application` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.88."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Application' EventCode=3028 where `entity` satisfies detection threshold for UC-1.2.88 ('Windows Search Indexer Issues'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Application` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.88."
   },
   "dataSources": "`sourcetype=WinEventLog:Application` (Source=Windows Search Service, EventCode 3028, 3036, 7010, 7040, 7042) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Application\" Source=\"Windows Search Service\"\n  EventCode IN (3028, 3036, 7010, 7040, 7042)\n| eval issue=case(EventCode=3028,\"Index corrupted\",EventCode=3036,\"Indexer failed\",EventCode=7040,\"Catalog corrupted\",EventCode=7042,\"Index rebuild started\")\n| table _time, host, issue, CatalogName\n| sort -_time",
   "description": "Search Indexer crashes and high resource usage affect file server performance and SharePoint crawling. Index corruption requires full rebuild.",
-  "value": "A broken or rebuilding Windows Search service on a file or mail-heavy server can hide results and burn CPU. Catching it early keeps shared-folder and in-box experiences predictable.",
+  "value": "Search Indexer crashes and high resource usage affect file server performance and SharePoint crawling. Timely UC-1.2.88 alerting on 'Windows Search Indexer Issues' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Monitor on file servers and SharePoint servers where search indexing is critical. EventCode 3028/7040=index corruption (requires rebuild), 3036=indexer service failure. Also monitor Perfmon `Windows Search Indexer` object for `Items in Progress` and `Index Size`. A stuck \"Items in Progress\" >0 for extended periods indicates a hung indexer.",
   "visualization": "Table (indexer events), Single value (index health status), Line chart (index size over time).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Windows Search Indexer Issues'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `WinEventLog:Application`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Windows Search Indexer Issues'. Correlate with apt/yum logs in the same `WinEventLog:Application` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Application`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "sharepoint",
     "windows"

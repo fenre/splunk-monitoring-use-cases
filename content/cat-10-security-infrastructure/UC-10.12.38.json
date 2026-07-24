@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'Cart Abandonment Correlation' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_cart_abandonment_correlation` (UC-10.12.38), SOC dashboard panel \"Security Infra — Cart Abandonment Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='segment:track' that satisfy the UC-10.12.38 SPL filters for 'Cart Abandonment Correlation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `segment:track` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.38."
+    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='segment:track' where `checkout_error` satisfies detection threshold for UC-10.12.38 ('Cart Abandonment Correlation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `web` / `segment:track` events where `checkout_error` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.38."
   },
   "dataSources": "`sourcetype=\"segment:track\"`, `sourcetype=\"app:checkout\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Web analytics, app logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"segment:track\"\n| transaction session_id maxspan=30m\n| eval has_checkout=if(match(mvjoin(event,\"|\"),\"Checkout\"),1,0)\n| eval has_order=if(match(mvjoin(event,\"|\"),\"Order Completed\"),1,0)\n| where has_checkout=1 AND has_order=0\n| stats count by checkout_error\n| sort -count",
-  "description": "Links payment errors, latency, and coupon issues to abandonment for revenue recovery.",
+  "description": "Links payment errors, latency, and coupon issues to abandonment for revenue recovery. Searches `index=web` with sourcetype `segment:track` for UC-10.12.38, aggregating `count` by `checkout_error` over `30m`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'Cart Abandonment Correlation' without manual log review.",
   "value": "Early 'Cart Abandonment Correlation' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Privacy-compliant session stitching; A/B test fixes on top error codes.",
   "visualization": "Funnel (checkout steps), Bar chart (errors vs. abandon), Line chart (recovery campaigns).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Cart Abandonment Correlation'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=web` `segment:track`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'Cart Abandonment Correlation' shifts `count` over `span=30m` while `checkout_error` remains in-scope for UC-10.12.38. Cross-check CMDB CHG.\n\n2. **Batch `count` on `segment:track`** — Scheduled automation elevates `has_checkout` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `checkout_error`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `segment:track`** — First 48h baseline for `checkout_error` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `checkout_error`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

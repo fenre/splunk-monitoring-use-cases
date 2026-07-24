@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Marina Power Cost per Weekend Stay' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_marina_power_cost_per_weekend_stay` (UC-25.43.31), SOC dashboard panel \"Personal — Marina Power Cost per Weekend Stay\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='marina:power' that satisfy the UC-25.43.31 SPL filters for 'Marina Power Cost per Weekend Stay'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `marina:power` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.43.31."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='marina:power' where `marina_name` satisfies detection threshold for UC-25.43.31 ('Marina Power Cost per Weekend Stay'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `marina:power` events where `marina_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.43.31."
   },
   "dataSources": "Battery telemetry (`marine:battery`), AIS traffic (`marine:ais`), shore power (`marina:power`), tide forecasts (`tide:table`), export syncs (`marine:export`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Boating and marine telemetry — Victron BMV battery exports, AIS transponder logs, shore-power meter readings, and NOAA tide tables — streamed to Splunk HEC via NMEA exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=marina:power marina_name=* weekend_cost_usd=*\n| stats avg(weekend_cost_usd) as avg_weekend_cost_usd, count as events by marina_name\n| sort - avg_weekend_cost_usd",
   "description": "Shows average weekend power cost by marina for weekend marina stays. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Average weekend power cost by marina helps compare weekend marina stays across the factors that matter most.",
+  "value": "Shows average weekend power cost by marina for weekend marina stays. Timely UC-25.43.31 alerting on 'Marina Power Cost per Weekend Stay' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture `weekend_cost_usd` on `marina:power` events and normalize `marina_name` so Splunk can summarize performance by marina.",
   "visualization": "Bar chart of average weekend power cost by marina.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Marina Power Cost per Weekend Stay'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `marina:power`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Marina Power Cost per Weekend Stay' stops polling `marina:power`; stale `marina_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `marina:power`. Dedup with `stats latest(*) by marina_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

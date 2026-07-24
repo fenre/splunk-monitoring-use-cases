@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Environmental Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_environmental_monitoring` (UC-14.4.2), SOC dashboard panel \"Operations — Environmental Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=iot` sourcetype='sensor:environmental' that satisfy the UC-14.4.2 SPL filters for 'Environmental Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `iot` / `sensor:environmental` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.4.2."
+    "positiveScenario": "Ingest synthetic events into `index=iot` sourcetype='sensor:environmental' where `entity` satisfies `temp_f` > 90 for UC-14.4.2 ('Environmental Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `iot` / `sensor:environmental` events where `entity` stays below `temp_f` > 90, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.4.2."
   },
   "dataSources": "Environmental sensor data (temperature, humidity, water leak, smoke) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "MQTT input, IoT platform API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=iot sourcetype=\"sensor:environmental\"\n| where water_detected=\"true\" OR smoke_detected=\"true\" OR temp_f > 90\n| table _time, sensor_id, location, alert_type, value",
-  "description": "Distributed environmental sensors provide early warning of conditions that could damage equipment or inventory.",
+  "description": "Distributed environmental sensors provide early warning of conditions that could damage equipment or inventory. Searches `index=iot` with sourcetype `sensor:environmental` for UC-14.4.2, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `temp_f` > 90 in the saved search. Gives Operations operators a repeatable signal for 'Environmental Monitoring' without manual log review.",
   "value": "Early 'Environmental Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Deploy environmental sensors in server rooms, warehouses, and facilities. Ingest via MQTT or API. Alert immediately on water leak or smoke detection. Track temperature/humidity trends per location.",
   "visualization": "Floor plan (sensors with status), Line chart (environmental trends), Table (alerts), Single value (active environmental alerts).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Environmental Monitoring'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `iot` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `iot`** — Planned work for 'Environmental Monitoring' shifts `count` over `span=1h` while `host` remains in-scope for UC-14.4.2. Cross-check CMDB CHG.\n\n2. **Batch `count` on `sensor:environmental`** — Scheduled automation elevates `src` without crossing `temp_f` > 90. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `iot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `sensor:environmental`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "mqtt"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Windows Subsystem for Linux (WSL) Activity' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_windows_subsystem_for_linux_wsl_activity` (UC-1.2.94), SOC dashboard panel \"Linux — Windows Subsystem for Linux (WSL) Activity\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=1 that satisfy the UC-1.2.94 SPL filters for 'Windows Subsystem for Linux (WSL) Activity'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.94."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=1 where `entity` satisfies detection threshold for UC-1.2.94 ('Windows Subsystem for Linux (WSL) Activity'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.94."
   },
   "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 1), `sourcetype=WinEventLog:Security` (EventCode 4688) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog (EventCode=1 OR EventCode=4688)\n| where match(Image, \"(?i)(wsl\\.exe|wslhost\\.exe|bash\\.exe.*windows)\") OR match(ParentImage, \"(?i)wsl\")\n| table _time, host, User, Image, CommandLine, ParentImage, ParentCommandLine\n| sort -_time",
   "description": "WSL can be abused to run Linux-based attack tools while evading Windows-focused security tooling. Monitoring WSL activity closes this visibility gap.",
-  "value": "WSL and Linux userlands on server images expand the attack surface. New distros, shells, or root actions where Linux is not expected often mean policy drift or early foothold activity.",
+  "value": "WSL can be abused to run Linux-based attack tools while evading Windows-focused security tooling. Timely UC-1.2.94 alerting on 'Windows Subsystem for Linux (WSL) Activity' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Monitor for WSL process execution (wsl.exe, wslhost.exe, bash.exe from WindowsApps). Track what commands are executed inside WSL via Sysmon process creation. On servers, WSL should not be installed — alert on any WSL activity. On workstations, baseline normal usage and alert on anomalies like network tools (nmap, netcat) or credential access tools.",
   "visualization": "Table (WSL commands), Timechart (usage patterns), Alert on server WSL usage.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Windows Subsystem for Linux (WSL) Activity'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `configured sourcetype`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Windows Subsystem for Linux (WSL) Activity'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

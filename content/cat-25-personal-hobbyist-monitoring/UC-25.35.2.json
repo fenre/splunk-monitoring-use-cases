@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Allergy Symptom vs Pollen Correlation' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_allergy_symptom_vs_pollen_correlation` (UC-25.35.2), SOC dashboard panel \"Personal — Allergy Symptom vs Pollen Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='symptom:log' that satisfy the UC-25.35.2 SPL filters for 'Allergy Symptom vs Pollen Correlation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `symptom:log` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.35.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='symptom:log' where `_time` satisfies detection threshold for UC-25.35.2 ('Allergy Symptom vs Pollen Correlation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `symptom:log` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.35.2."
   },
   "dataSources": "Posture readings (`posture:reading`), symptom logs (`symptom:log`), bathroom visits (`bathroom:visit`), sneeze events (`sneeze:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Everyday body-signal logs — posture sensors, symptom and allergy journals, hydration-linked bathroom logs, and quirky personal counters — sent to Splunk HEC via wearables, MQTT, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal (sourcetype=symptom:log OR sourcetype=purpleair:aqi)\n| bin _time span=1d\n| stats avg(eval(if(sourcetype==\"symptom:log\",severity,null()))) as symptoms, avg(pollen_index) as pollen by _time\n| sort - _time",
-  "description": "Lines up your allergy symptom severity against pollen and air-quality readings to find your real triggers.",
-  "value": "Matching symptoms to environmental data pinpoints which days and triggers to prepare for with medication.",
+  "description": "Lines up your allergy symptom severity against pollen and air-quality readings to find your real triggers. Searches `index=personal` with sourcetype `symptom:log` for UC-25.35.2, aggregating `avg` by `_time` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Allergy Symptom vs Pollen Correlation' without manual log review.",
+  "value": "Lines up your allergy symptom severity against pollen and air-quality readings to find your real triggers. Timely UC-25.35.2 alerting on 'Allergy Symptom vs Pollen Correlation' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Join symptom logs with air-quality/pollen data in `index=personal`; trend both together.",
   "visualization": "Dual-axis chart of symptom severity and pollen index.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Allergy Symptom vs Pollen Correlation'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `symptom:log`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Allergy Symptom vs Pollen Correlation' stops polling `symptom:log`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `symptom:log`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

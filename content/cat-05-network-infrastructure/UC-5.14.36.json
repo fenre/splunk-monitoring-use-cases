@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Envoy Circuit Breaker Open Events by Cluster' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_envoy_circuit_breaker_open_events_by_cluster` (UC-5.14.36), SOC dashboard panel \"Operations — Envoy Circuit Breaker Open Events by Cluster\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='envoy:stats' that satisfy the UC-5.14.36 SPL filters for 'Envoy Circuit Breaker Open Events by Cluster'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `proxy` / `envoy:stats` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.36."
+    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='envoy:stats' where `cluster_name` satisfies detection threshold for UC-5.14.36 ('Envoy Circuit Breaker Open Events by Cluster'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `proxy` / `envoy:stats` events where `cluster_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.36."
   },
   "dataSources": "`index=proxy` `sourcetype=envoy:stats` Prometheus text from `/stats/prometheus` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"envoy:stats\"\n| search metric_name=\"*circuit_breakers*open*\" OR metric_name=\"*cx_open*\"\n| eval v=tonumber(metric_value)\n| where v > 0\n| timechart span=1m max(v) by cluster_name",
   "description": "Open breakers shed load but indicate real upstream pain. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Operations teams detect Envoy circuit breaker activations per upstream cluster, identifying saturated backends where Envoy is short-circuiting requests to prevent cascade failures.",
+  "value": "Open breakers shed load but indicate real upstream pain. Timely UC-5.14.36 alerting on 'Envoy Circuit Breaker Open Events by Cluster' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Scrape via OpenTelemetry Collector or Telegraf; normalize `cluster_name` label.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Envoy Circuit Breaker Open Events by Cluster'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `proxy` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy`** — Planned work for 'Envoy Circuit Breaker Open Events by Cluster' shifts `max` over `span=1m` while `cluster_name` remains in-scope for UC-5.14.36. Cross-check CMDB CHG.\n\n2. **Batch `max` on `envoy:stats`** — Scheduled automation elevates `v` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cluster_name`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `envoy:stats`** — First 48h baseline for `cluster_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cluster_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "envoy",
     "opentelemetry",

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'dbt Job SLA and Backfill Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dbt_job_sla_and_backfill_tracking` (UC-24.7.12), SOC dashboard panel \"Operations — dbt Job SLA and Backfill Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='dbt:run_results' that satisfy the UC-24.7.12 SPL filters for 'dbt Job SLA and Backfill Tracking'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dataops` / `dbt:run_results` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.12."
+    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='dbt:run_results' where `_time` satisfies `longest_min` > 60 for UC-24.7.12 ('dbt Job SLA and Backfill Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dataops` / `dbt:run_results` events where `_time` stays below `longest_min` > 60, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.12."
   },
   "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops sourcetype=dbt:run_results\n| bin _time span=1d\n| stats max(eval(elapsed_time)) as longest_run, count as invocations by _time, job_name\n| eval longest_min=round(longest_run/60,1)\n| where longest_min>60\n| sort - _time",
   "description": "Rolls up dbt job elapsed time and invocation counts per day to track SLA adherence and spot backfills or reruns that blow past the normal window.",
-  "value": "Backfills and reruns can silently consume the build window and warehouse budget; tracking daily job time keeps the transformation layer predictable.",
+  "value": "Rolls up dbt job elapsed time and invocation counts per day to track SLA adherence and spot backfills or re.... Timely UC-24.7.12 alerting on 'dbt Job SLA and Backfill Tracking' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Emit run results to HEC; schedule daily; alert on jobs exceeding the window. Correlate spikes with backfill activity.",
   "visualization": "Timechart of daily job time, table of long runs.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'dbt Job SLA and Backfill Tracking'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `dataops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `dataops`** — Planned work for 'dbt Job SLA and Backfill Tracking' shifts `max` over `span=1d` while `_time` remains in-scope for UC-24.7.12. Cross-check CMDB CHG.\n\n2. **Batch `max` on `dbt:run_results`** — Scheduled automation elevates `job_name` without crossing `longest_min` > 60. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbt:run_results`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache"
   ],

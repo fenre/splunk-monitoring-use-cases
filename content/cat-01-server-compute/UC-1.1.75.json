@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Failed su Attempts' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_failed_su_attempts` (UC-1.1.75), SOC dashboard panel \"Linux — Failed su Attempts\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='linux_secure' that satisfy the UC-1.1.75 SPL filters for 'Failed su Attempts'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `linux_secure` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.75."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='linux_secure' where `host` satisfies `failures` > 3 for UC-1.1.75 ('Failed su Attempts'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `linux_secure` events where `host` stays below `failures` > 3, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.75."
   },
   "dataSources": "`sourcetype=linux_secure` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=linux_secure (\"su:\" AND (\"FAILED\" OR \"authentication failure\"))\n| stats count as failures by host, user\n| where failures>3",
   "description": "Counts each **(host,user)** line where **su** failed in the time window, then pages when a tuple is above a few failures (credential guessing or a stuck script).",
-  "value": "**su** failures are a tight signal on servers where people should be using **sudo** or **SAML**-backed access instead of direct **su** to **root** or shared break-glass accounts.",
+  "value": "Counts each **(host,user)** line where **su** failed in the time window, then pages when a tuple is above a.... Timely UC-1.1.75 alerting on 'Failed su Attempts' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Tighten the `OR` to your distro’s exact `su` failure substring. Add `| search user=root OR target=root` if you only want privilege-escalation style **su** attempts, not all failed `su` to a normal user.",
   "visualization": "Table, Alert",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Failed su Attempts'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `linux_secure`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Failed su Attempts'. Correlate with apt/yum logs in the same `linux_secure` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_secure`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `failures` > 3.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],

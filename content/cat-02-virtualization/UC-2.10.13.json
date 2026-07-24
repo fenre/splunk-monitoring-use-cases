@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'VxRail vSAN Resync ETA and Throttle Pressure' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_vxrail_vsan_resync_eta_and_throttle_pressure` (UC-2.10.13), SOC dashboard panel \"Linux — VxRail vSAN Resync ETA and Throttle Pressure\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vxrail` sourcetype='vxrail:vsan' that satisfy the UC-2.10.13 SPL filters for 'VxRail vSAN Resync ETA and Throttle Pressure'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vxrail` / `vxrail:vsan` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.10.13."
+    "positiveScenario": "Ingest synthetic events into `index=vxrail` sourcetype='vxrail:vsan' where `cluster_id` satisfies `remain` > 1099511627776 for UC-2.10.13 ('VxRail vSAN Resync ETA and Throttle Pressure'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `vxrail` / `vxrail:vsan` events where `cluster_id` stays below `remain` > 1099511627776, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.10.13."
   },
   "dataSources": "`index=vxrail` `sourcetype=\"vxrail:vsan\"` — `cluster_id`, `resync_bytes_remaining`, `resync_eta_sec`, `throttle_mbps`, `congestion` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "vSAN performance service metrics scraped to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=vxrail sourcetype=\"vxrail:vsan\" earliest=-6h\n| eval remain=tonumber(resync_bytes_remaining)\n| eval eta=tonumber(resync_eta_sec)\n| where remain>1099511627776 OR eta>86400 OR tonumber(throttle_mbps)<50\n| stats latest(remain) as bytes_left, latest(eta) as eta_sec, latest(throttle_mbps) as throttle by cluster_id",
   "description": "Long resync ETAs after maintenance extend vulnerability windows. Throttle saturation shows contention with production IO.",
-  "value": "Helps operators decide when to pause workloads or widen maintenance windows. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Long resync ETAs after maintenance extend vulnerability windows. Timely UC-2.10.13 alerting on 'VxRail vSAN Resync ETA and Throttle Pressure' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Ingest resync metrics every 5 minutes. Alert when ETA exceeds policy. Compare with `vxrail:vsan_capacity` free chunk balance.",
   "visualization": "Area chart bytes remaining; gauge ETA; line chart throttle.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'VxRail vSAN Resync ETA and Throttle Pressure'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `vxrail` `vxrail:vsan`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `vxrail`** — Package managers spike `cluster_id` metrics for 'VxRail vSAN Resync ETA and Throttle Pressure'. Correlate with apt/yum logs in the same `vxrail:vsan` window.\n\n2. **Nightly backup I/O on `cluster_id`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vxrail:vsan`** — Nagios/Zabbix polls `cluster_id` and mimics sustained load without crossing `remain` > 1099511627776.\n\n4. **New host onboarding** — `cluster_id` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `cluster_id`, `valid_until`.",
   "equipment": [
     "vxrail"
   ],

@@ -13,13 +13,13 @@
   "exclusions": "Covers the detection logic documented for 'Wire Transfer Anomaly Detection' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_wire_transfer_anomaly_detection` (UC-10.12.2), SOC dashboard panel \"Security Infra — Wire Transfer Anomaly Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=banking` sourcetype='wire:outbound' that satisfy the UC-10.12.2 SPL filters for 'Wire Transfer Anomaly Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `banking` / `wire:outbound` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.2."
+    "positiveScenario": "Ingest synthetic events into `index=banking` sourcetype='wire:outbound' where `customer_id` satisfies `med` > 0 for UC-10.12.2 ('Wire Transfer Anomaly Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `banking` / `wire:outbound` events where `customer_id` stays below `med` > 0, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.2."
   },
   "dataSources": "`sourcetype=\"wire:outbound\"`, `sourcetype=\"swift:fin\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Wire host / SWIFT TA, core banking — Universal Forwarder (Splunkbase 617)",
   "spl": "index=banking sourcetype=\"wire:outbound\" status=\"posted\"\n| eventstats median(amount_usd) as med by customer_id\n| eval ratio=if(med>0, amount_usd/med, 0)\n| where ratio>5 OR amount_usd>250000\n| stats values(beneficiary_id) as beneficiaries, sum(amount_usd) as total by customer_id, _time\n| sort -total",
-  "description": "Flags unusual outbound wires (amount, beneficiary, corridor) for BEC and mule-account schemes.",
+  "description": "Flags unusual outbound wires (amount, beneficiary, corridor) for BEC and mule-account schemes. Searches `index=banking` with sourcetype `wire:outbound` for UC-10.12.2, aggregating `median` by `customer_id` over `the scheduled window`. Alerts when grouped results cross `med` > 0 in the saved search. Gives Security Infra operators a repeatable signal for 'Wire Transfer Anomaly Detection' without manual log review.",
   "value": "Early 'Wire Transfer Anomaly Detection' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Normalize amounts to USD; maintain beneficiary risk lists. Alert on first-time high-value beneficiaries, round-dollar spikes, and wires initiated after new payee setup.",
   "visualization": "Table (high-risk wires), Bar chart (amount by corridor), Timeline (wire events per customer).",
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Wire Transfer Anomaly Detection'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=banking` `wire:outbound`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `banking`** — Planned work for 'Wire Transfer Anomaly Detection' shifts `median` over `span=1h` while `customer_id` remains in-scope for UC-10.12.2. Cross-check CMDB CHG.\n\n2. **Batch `median` on `wire:outbound`** — Scheduled automation elevates `_time` without crossing `med` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `customer_id`** — Health checks in `banking` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `wire:outbound`** — First 48h baseline for `customer_id` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `customer_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

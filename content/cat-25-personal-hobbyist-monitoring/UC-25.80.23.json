@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Outdoor Comfort Score vs Humidity Correlation' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_outdoor_comfort_score_vs_humidity_correlation` (UC-25.80.23), SOC dashboard panel \"Personal — Outdoor Comfort Score vs Humidity Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='personalweather:daily' that satisfy the UC-25.80.23 SPL filters for 'Outdoor Comfort Score vs Humidity Correlation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `personalweather:daily` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.80.23."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='personalweather:daily' where `day` satisfies detection threshold for UC-25.80.23 ('Outdoor Comfort Score vs Humidity Correlation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `personalweather:daily` events where `day` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.80.23."
   },
   "dataSources": "Weather-station readings (`weatherstation:reading`), daily weather-impact rollups (`personalweather:daily`), sleep correlation records (`personalweather:sleep`), step correlation records (`personalweather:steps`), mood correlation records (`personalweather:mood`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Local weather-station readings correlated with personal sleep, steps, mood, and outdoor-activity summaries in Splunk via scripted inputs and daily rollups. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=personalweather:daily\n| stats avg(outdoor_comfort_score) as metric_value avg(humidity_pct) as avg_humidity by day\n| stats corr(metric_value, avg_humidity) as corr_value",
-  "description": "Measures whether humidity is a meaningful driver of changes in outdoor comfort score.",
-  "value": "Humidity can matter more than temperature for comfort, sleep, or activity, so it deserves its own correlation view.",
+  "description": "Measures whether humidity is a meaningful driver of changes in outdoor comfort score. Searches `index=personal` with sourcetype `personalweather:daily` for UC-25.80.23, aggregating `avg` by `day` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Outdoor Comfort Score vs Humidity Correlation' without manual log review.",
+  "value": "Measures whether humidity is a meaningful driver of changes in outdoor comfort score. Timely UC-25.80.23 alerting on 'Outdoor Comfort Score vs Humidity Correlation' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Include indoor or outdoor humidity consistently from the same weather source when building the daily rollups.",
   "visualization": "Single-value correlation panel for outdoor comfort score versus humidity.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Outdoor Comfort Score vs Humidity Correlation'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `personalweather:daily`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Outdoor Comfort Score vs Humidity Correlation' stops polling `personalweather:daily`; stale `day` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `personalweather:daily`. Dedup with `stats latest(*) by day`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "snmp"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Automation Success Rate by Routine' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_automation_success_rate_by_routine` (UC-25.4.11), SOC dashboard panel \"Personal — Automation Success Rate by Routine\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='homeassistant:event' that satisfy the UC-25.4.11 SPL filters for 'Automation Success Rate by Routine'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `homeassistant:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.4.11."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='homeassistant:event' where `automation` satisfies `runs` >= 5 for UC-25.4.11 ('Automation Success Rate by Routine'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `homeassistant:event` events where `automation` stays below `runs` >= 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.4.11."
   },
   "dataSources": "Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Hubitat/openHAB logs, Node-RED flow events (`nodered:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST - forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=homeassistant:event event_type=automation_completed\n| stats count as runs, sum(eval(result=\"success\")) as success by automation\n| eval success_pct=round(100*success/runs,1)\n| where runs>=5 AND success_pct<95\n| sort success_pct",
-  "description": "Computes a per-automation success rate so you can stop treating every failed routine as an isolated annoyance.",
-  "value": "A home feels reliable when its routines are boringly consistent; success-rate math shows which automation is the real repeat offender.",
+  "description": "Computes a per-automation success rate so you can stop treating every failed routine as an isolated annoyance. Searches `index=personal` with sourcetype `homeassistant:event` for UC-25.4.11, aggregating `sum` by `automation` over `the scheduled window`. Alerts when grouped results cross `runs` >= 5 in the saved search. Gives Personal operators a repeatable signal for 'Automation Success Rate by Routine' without manual log review.",
+  "value": "Computes a per-automation success rate so you can stop treating every failed routine as an isolated annoyance. Timely UC-25.4.11 alerting on 'Automation Success Rate by Routine' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward completion and result fields for each automation; review daily and repair routines that keep landing below target.",
   "visualization": "Table of automations by run count and success percentage.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Automation Success Rate by Routine'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homeassistant:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Automation Success Rate by Routine' stops polling `homeassistant:event`; stale `automation` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homeassistant:event`. Dedup with `stats latest(*) by automation`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `runs` >= 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Jira Epic Without Open Child Issues for Extended Period' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_jira_epic_without_open_child_issues_for_extended` (UC-16.3.21), SOC dashboard panel \"Operations — Jira Epic Without Open Child Issues for Extended Period\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='jira:cloud:issues' that satisfy the UC-16.3.21 SPL filters for 'Jira Epic Without Open Child Issues for Extended Period'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `jira:cloud:issues` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.3.21."
+    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='jira:cloud:issues' where `entity` satisfies `stale_d` > 14 for UC-16.3.21 ('Jira Epic Without Open Child Issues for Extended Period'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `itsm` / `jira:cloud:issues` events where `entity` stays below `stale_d` > 14, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.3.21."
   },
   "dataSources": "Jira issues denormalized with `child_open_count` from ETL or lookup Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Nightly Jira REST export augmented with child counts in HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"jira:cloud:issues\" OR sourcetype=\"jira:issue\"\n| where issue_type=\"Epic\" AND epic_status IN (\"To Do\",\"In Progress\")\n| eval stale_d=(now()-updated_epoch)/86400\n| where stale_d > 14 AND child_open_count=0\n| table key, epic_name, project, stale_d\n| sort -stale_d",
   "description": "Orphan epics mask portfolio reporting and waste capacity forecasts. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Keeps SAFe/PMO views honest by flagging empty epics. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Orphan epics mask portfolio reporting and waste capacity forecasts. Timely UC-16.3.21 alerting on 'Jira Epic Without Open Child Issues for Extended Period' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Populate `child_open_count` via scheduled search into KV store lookup.",
   "visualization": "Table (epic list), Pie chart (by portfolio).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Jira Epic Without Open Child Issues for Extended Period'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `itsm` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Jira Epic Without Open Child Issues for Extended Period' shifts `count` over `span=1h` while `host` remains in-scope for UC-16.3.21. Cross-check CMDB CHG.\n\n2. **Batch `count` on `jira:cloud:issues`** — Scheduled automation elevates `stale_d` without crossing `stale_d` > 14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jira:cloud:issues`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "jira"
   ],

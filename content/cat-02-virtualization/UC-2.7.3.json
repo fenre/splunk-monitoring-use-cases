@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Proxmox VE Cluster Quorum Loss Detection from Corosync and pmxcfs Signals' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_proxmox_ve_cluster_quorum_loss_detection_from_co` (UC-2.7.3), SOC dashboard panel \"Linux — Proxmox VE Cluster Quorum Loss Detection from Corosync and pmxcfs Signals\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=pve` sourcetype='proxmox:task' that satisfy the UC-2.7.3 SPL filters for 'Proxmox VE Cluster Quorum Loss Detection from Corosync and pmxcfs Signals'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `pve` / `proxmox:task` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.7.3."
+    "positiveScenario": "Ingest synthetic events into `index=pve` sourcetype='proxmox:task' where `sev` satisfies `sigs` >= 5 for UC-2.7.3 ('Proxmox VE Cluster Quorum Loss Detection from Corosync and pmxcfs Signals'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `pve` / `proxmox:task` events where `sev` stays below `sigs` >= 5, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.7.3."
   },
   "dataSources": "`index=pve` `sourcetype=\"proxmox:task\"` (pmxcfs, cluster join) and `sourcetype=\"proxmox:ha\"` with corosync/pmxcfs keywords; optional dedicated `sourcetype=\"linux_syslog\"` host corosync file Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder with inputs on `/var/log/corosync/corosync.log` and `journalctl -u corosync`; tag or merge into `proxmox:task` patterns — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=pve (sourcetype=\"proxmox:task\" OR sourcetype=\"proxmox:ha\") earliest=-4h\n| search match(lower(_raw), \"(?i)quorum|qdevice|not quorate|lost.*quorum|split.?brain|totem.*fault|ring.*fault\")\n| eval sev=if(match(lower(_raw), \"(?i)lost.*quorum|not quorate|split.?brain\"), \"critical\", \"warning\")\n| bin _time span=5m\n| stats count as sigs, values(host) as nodes by sev, _time\n| where sigs>=5 AND sev=\"critical\"",
   "description": "Quorum loss freezes cluster management APIs and can strand operators during incidents. Corosync and pmxcfs messages are the earliest observable signals of ring faults, vote drift, or qdevice misconfiguration.",
-  "value": "Shortens time-to-detect for cluster brain-split conditions and prevents destructive manual intervention on partially connected nodes.",
+  "value": "Quorum loss freezes cluster management APIs and can strand operators during incidents. Timely UC-2.7.3 alerting on 'Proxmox VE Cluster Quorum Loss Detection from Corosync and pmxcfs Signals' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Route corosync logs with host, ring, and node identity. Build eventtypes for quorum phrases. Page on critical phrases; throttle warnings with a sustained-count threshold. Correlate with NIC driver updates and switch port events.",
   "visualization": "Timeline of quorum-related signals; choropleth or table of affected nodes; raw drilldown.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Proxmox VE Cluster Quorum Loss Detection from Corosync and pmxcfs Signals'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `pve` `proxmox:task`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `pve`** — Package managers spike `sev` metrics for 'Proxmox VE Cluster Quorum Loss Detection from Corosync and pmxcfs Signals'. Correlate with apt/yum logs in the same `proxmox:task` window.\n\n2. **Nightly backup I/O on `sev`** — Predictable `values` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `proxmox:task`** — Nagios/Zabbix polls `sev` and mimics sustained load without crossing `sigs` >= 5.\n\n4. **New host onboarding** — `sev` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `sev`, `valid_until`.",
   "equipment": [
     "proxmox",
     "syslog"

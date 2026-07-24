@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'NTFS Corruption and Self-Healing' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_ntfs_corruption_and_self_healing` (UC-1.2.68), SOC dashboard panel \"Linux — NTFS Corruption and Self-Healing\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:System' EventCode=55 that satisfy the UC-1.2.68 SPL filters for 'NTFS Corruption and Self-Healing'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:System` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.68."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:System' EventCode=55 where `entity` satisfies detection threshold for UC-1.2.68 ('NTFS Corruption and Self-Healing'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:System` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.68."
   },
   "dataSources": "`sourcetype=WinEventLog:System` (Source=Ntfs, EventCode 55, 98, 137, 140) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:System\" Source=\"Ntfs\" EventCode IN (55, 98, 137, 140)\n| eval issue=case(EventCode=55,\"NTFS corruption detected\",EventCode=98,\"Volume dirty flag set\",EventCode=137,\"Self-healing started\",EventCode=140,\"Self-healing completed\")\n| table _time, host, issue, DriveName, CorruptionType\n| sort -_time",
   "description": "NTFS corruption can cause data loss, application failures, and boot issues. Self-healing events indicate disk degradation that will worsen.",
-  "value": "Catching file-system corruption and self-heal activity early helps avoid silent data loss, unplanned reboots, and long restores on servers that the business relies on.",
+  "value": "NTFS corruption can cause data loss, application failures, and boot issues. Timely UC-1.2.68 alerting on 'NTFS Corruption and Self-Healing' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "NTFS events log automatically. EventCode 55=structure corruption on volume (critical), 98=volume marked dirty (chkdsk needed at boot), 137/140=self-healing activity. Any EventCode 55 requires immediate attention — indicates metadata corruption that may spread. Correlate with WHEA (hardware) and SMART events to determine if underlying disk is failing. Schedule chkdsk offline and plan disk replacement.",
   "visualization": "Table (corruption events), Timeline, Single value (affected volumes — target: 0).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'NTFS Corruption and Self-Healing'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `WinEventLog:System`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'NTFS Corruption and Self-Healing'. Correlate with apt/yum logs in the same `WinEventLog:System` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:System`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

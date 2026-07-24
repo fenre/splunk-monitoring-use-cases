@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Spotify for Artists Save-to-Stream Ratio' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_spotify_for_artists_save_to_stream_ratio` (UC-25.45.25), SOC dashboard panel \"Personal — Spotify for Artists Save-to-Stream Ratio\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='music:streaming' that satisfy the UC-25.45.25 SPL filters for 'Spotify for Artists Save-to-Stream Ratio'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `music:streaming` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.45.25."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='music:streaming' where `track_name` satisfies detection threshold for UC-25.45.25 ('Spotify for Artists Save-to-Stream Ratio'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `music:streaming` events where `track_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.45.25."
   },
   "dataSources": "Release events (`music:distribution`), Bandcamp activity (`music:bandcamp`), project exports (`music:project`), streaming analytics (`music:streaming`), metadata tasks (`music:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Music-making and creator telemetry — DistroKid release exports, Bandcamp sales activity, Cockos Reaper project stats, and Spotify for Artists analytics — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=music:streaming track_name=* saved_after_stream=*\n| stats count as total, sum(eval(if(saved_after_stream=\"yes\",1,0))) as matched by track_name\n| eval a_save_after_streaming_pct=round(100*matched/total,1)\n| sort - a_save_after_streaming_pct",
-  "description": "Measures the percentage of Spotify listener sessions that end with a save after streaming by track.",
-  "value": "Completion and exception percentages make it easier to spot which track are helping or hurting Spotify listener sessions.",
+  "description": "Measures the percentage of Spotify listener sessions that end with a save after streaming by track. Searches `index=personal` with sourcetype `music:streaming` for UC-25.45.25, aggregating `sum` by `track_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Spotify for Artists Save-to-Stream Ratio' without manual log review.",
+  "value": "Measures the percentage of Spotify listener sessions that end with a save after streaming by track. Timely UC-25.45.25 alerting on 'Spotify for Artists Save-to-Stream Ratio' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store a normalized flag for `a save after streaming` on `music:streaming` events and summarize the hit rate by `track_name`.",
   "visualization": "Table of track with percentage of Spotify listener sessions ending with a save after streaming.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Spotify for Artists Save-to-Stream Ratio'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `music:streaming`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Spotify for Artists Save-to-Stream Ratio' stops polling `music:streaming`; stale `track_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `music:streaming`. Dedup with `stats latest(*) by track_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

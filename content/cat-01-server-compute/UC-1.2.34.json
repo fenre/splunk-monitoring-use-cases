@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'AppLocker / WDAC Policy Violations' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_applocker_wdac_policy_violations` (UC-1.2.34), SOC dashboard panel \"Linux — AppLocker / WDAC Policy Violations\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=8004 that satisfy the UC-1.2.34 SPL filters for 'AppLocker / WDAC Policy Violations'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.34."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=8004 where `host` satisfies detection threshold for UC-1.2.34 ('AppLocker / WDAC Policy Violations'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.34."
   },
   "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-AppLocker/EXE and DLL` (EventCode 8004, 8007) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-AppLocker*\" EventCode IN (8004, 8007)\n| eval block_type=case(EventCode=8004,\"EXE blocked\",EventCode=8007,\"Script blocked\")\n| stats count by host, block_type, RuleNameOrId, FilePath, UserName\n| sort -count",
   "description": "AppLocker/WDAC blocks track unauthorized application execution attempts. High violation rates indicate persistent threats or misconfigured policies.",
-  "value": "Allow-list programs are a strong control, but you still need the signal when a rule fires at scale.",
+  "value": "AppLocker/WDAC blocks track unauthorized application execution attempts. Timely UC-1.2.34 alerting on 'AppLocker / WDAC Policy Violations' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Enable AppLocker EXE, DLL, and Script rules in enforcement or audit mode. EventCode 8003/8006=allowed, 8004/8007=blocked. In audit mode (EventCode 8003), use data to build baseline before enforcement. Track blocked attempts per host — spikes indicate attack attempts or policy gaps. Correlate FilePath with threat intel.",
   "visualization": "Bar chart (top blocked apps), Table (blocks by host), Timechart (block rate over time).",
   "cimModels": [
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'AppLocker / WDAC Policy Violations'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `configured sourcetype`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'AppLocker / WDAC Policy Violations'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

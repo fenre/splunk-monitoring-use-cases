@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Wind Gust and Storm Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_wind_gust_and_storm_alert` (UC-25.10.5), SOC dashboard panel \"Personal — Wind Gust and Storm Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='weatherflow:obs' that satisfy the UC-25.10.5 SPL filters for 'Wind Gust and Storm Alert'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `weatherflow:obs` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.5."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='weatherflow:obs' where `date_hour` satisfies `peak_gust` > 15 for UC-25.10.5 ('Wind Gust and Storm Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `weatherflow:obs` events where `date_hour` stays below `peak_gust` > 15, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.5."
   },
   "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil/greenhouse sensors, aquarium controllers. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=weatherflow:obs\n| stats max(wind_gust_ms) as peak_gust, avg(wind_avg_ms) as avg_wind by date_hour\n| where peak_gust>15\n| sort - peak_gust",
   "description": "Flags high wind gusts recorded at your own location so you can secure garden furniture, trampolines, and bins before they take off.",
-  "value": "Hyper-local wind data beats a town-wide forecast; a timely gust alert prevents the classic storm-day chase down the street.",
+  "value": "Flags high wind gusts recorded at your own location so you can secure garden furniture, trampolines, and bi.... Timely UC-25.10.5 alerting on 'Wind Gust and Storm Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest weather-station wind data; schedule hourly and alert when gusts exceed your threshold.",
   "visualization": "Chart of peak wind gusts by hour with a warning threshold.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Wind Gust and Storm Alert'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `weatherflow:obs`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Wind Gust and Storm Alert' stops polling `weatherflow:obs`; stale `date_hour` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `weatherflow:obs`. Dedup with `stats latest(*) by date_hour`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `peak_gust` > 15. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

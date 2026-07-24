@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Warm-Up Time vs Practice Quality' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_warm_up_time_vs_practice_quality` (UC-25.45.11), SOC dashboard panel \"Personal — Warm-Up Time vs Practice Quality\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='practice:session' that satisfy the UC-25.45.11 SPL filters for 'Warm-Up Time vs Practice Quality'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `practice:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.45.11."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='practice:session' where `warmup_bucket` satisfies detection threshold for UC-25.45.11 ('Warm-Up Time vs Practice Quality'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `practice:session` events where `warmup_bucket` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.45.11."
   },
   "dataSources": "Practice sessions (`practice:session`), DAW sessions (`daw:session`), release/streaming stats (`release:stats`), gig setlists (`setlist:play`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Music and creator telemetry — practice-tracker apps (Modacity), DAW project logs, and streaming/creator analytics (Spotify for Artists, YouTube Studio) — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=practice:session\n| stats avg(quality_score) as avg_quality, avg(minutes) as avg_minutes, count as sessions by warmup_bucket\n| sort warmup_bucket",
-  "description": "Compares whether longer or more deliberate warm-ups correlate with better practice sessions.",
-  "value": "Warm-ups are easy to skip when rushed, but the data can show whether they actually improve the session quality.",
+  "description": "Compares whether longer or more deliberate warm-ups correlate with better practice sessions. Searches `index=personal` with sourcetype `practice:session` for UC-25.45.11, aggregating `avg` by `warmup_bucket` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Warm-Up Time vs Practice Quality' without manual log review.",
+  "value": "Compares whether longer or more deliberate warm-ups correlate with better practice sessions. Timely UC-25.45.11 alerting on 'Warm-Up Time vs Practice Quality' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Track practice sessions with warmup buckets and quality scores; compare average quality by warmup profile.",
   "visualization": "Warmup-bucket table of average practice quality and minutes.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Warm-Up Time vs Practice Quality'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `practice:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Warm-Up Time vs Practice Quality' stops polling `practice:session`; stale `warmup_bucket` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `practice:session`. Dedup with `stats latest(*) by warmup_bucket`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk",
     "cisco"

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Aranet Seasonal Baseline Comparison for HVAC Efficiency' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_aranet_seasonal_baseline_comparison_for_hvac_eff` (UC-14.10.15), SOC dashboard panel \"Operations — Aranet Seasonal Baseline Comparison for HVAC Efficiency\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=environment` sourcetype='aranet:sensor' that satisfy the UC-14.10.15 SPL filters for 'Aranet Seasonal Baseline Comparison for HVAC Efficiency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `environment` / `aranet:sensor` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.10.15."
+    "positiveScenario": "Ingest synthetic events into `index=environment` sourcetype='aranet:sensor' where `season` satisfies detection threshold for UC-14.10.15 ('Aranet Seasonal Baseline Comparison for HVAC Efficiency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `environment` / `aranet:sensor` events where `season` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.10.15."
   },
   "dataSources": "`index=environment` · `sourcetype=\"aranet:sensor\"` (co2_ppm, temp_c, humidity_pct, pressure_hpa, battery_pct, rssi_dbm) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom HEC or scripted input from Aranet Cloud API / Aranet PRO base station — Universal Forwarder (Splunkbase 617)",
   "spl": "index=environment sourcetype=\"aranet:sensor\" earliest=-400d\n| eval temp=tonumber(coalesce(temp_c, \"\"))\n| eval m=tonumber(strftime(_time, \"%m\"))\n| eval season=case(m=1 OR m=2 OR m=12,\"winter\", m=6 OR m=7 OR m=8,\"summer\", 1=1,\"shoulder\")\n| stats avg(temp) as avg_indoor by season location",
-  "description": "Comparing shoulder, summer, and winter indoor profiles shows drift in economizer or reheat strategy effectiveness.",
-  "value": "Quantifies retrofit ROI and flags stuck dampers seasonally. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Comparing shoulder, summer, and winter indoor profiles shows drift in economizer or reheat strategy effectiveness. Searches `index=environment` with sourcetype `aranet:sensor` for UC-14.10.15, aggregating `avg` by `season` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Aranet Seasonal Baseline Comparison for HVAC Efficiency' without manual log review.",
+  "value": "Comparing shoulder, summer, and winter indoor profiles shows drift in economizer or reheat strategy effecti.... Timely UC-14.10.15 alerting on 'Aranet Seasonal Baseline Comparison for HVAC Efficiency' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "(1) Align UTC to building timezone. (2) Control for occupancy using CO2 gate. (3) Export to sustainability reporting.",
   "visualization": "Seasonal box plot; year-over-year line.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Aranet Seasonal Baseline Comparison for HVAC Efficiency'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `environment` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `environment`** — Planned work for 'Aranet Seasonal Baseline Comparison for HVAC Efficiency' shifts `avg` over `span=1h` while `season` remains in-scope for UC-14.10.15. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `aranet:sensor`** — Scheduled automation elevates `location` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `season`** — Health checks in `environment` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aranet:sensor`** — First 48h baseline for `season` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `season`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aranet"
   ],

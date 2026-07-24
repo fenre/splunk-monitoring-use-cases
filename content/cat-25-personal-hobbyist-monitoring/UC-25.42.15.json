@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Approach Type Mix Over the Month' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_approach_type_mix_over_the_month` (UC-25.42.15), SOC dashboard panel \"Personal — Approach Type Mix Over the Month\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flightlog:entry' that satisfy the UC-25.42.15 SPL filters for 'Approach Type Mix Over the Month'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `flightlog:entry` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.15."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flightlog:entry' where `_time` satisfies detection threshold for UC-25.42.15 ('Approach Type Mix Over the Month'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `flightlog:entry` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.15."
   },
   "dataSources": "Pilot logbook (`flightlog:entry`), avionics telemetry (`avionics:telemetry`), flight-sim sessions (`flightsim:session`), pre-flight checklists (`preflight:check`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Pilot and flight-sim telemetry — electronic logbooks (ForeFlight, LogTen Pro), Stratux / GDL90 avionics receivers, and Microsoft Flight Simulator / X-Plane SimConnect sessions — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=flightlog:entry approach_type=*\n| bin _time span=1mon\n| stats count as approaches by _time approach_type\n| sort - _time",
-  "description": "Shows whether your recent instrument or proficiency work is varied or repetitive.",
-  "value": "A diverse approach mix often builds broader readiness than repeating only the familiar type.",
+  "description": "Shows whether your recent instrument or proficiency work is varied or repetitive. Searches `index=personal` with sourcetype `flightlog:entry` for UC-25.42.15, aggregating `count` by `_time` over `1m`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Approach Type Mix Over the Month' without manual log review.",
+  "value": "Shows whether your recent instrument or proficiency work is varied or repetitive. Timely UC-25.42.15 alerting on 'Approach Type Mix Over the Month' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Tag logbook entries with approach type; summarize monthly counts by approach category.",
   "visualization": "Stacked monthly chart of approaches by type.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Approach Type Mix Over the Month'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flightlog:entry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Approach Type Mix Over the Month' stops polling `flightlog:entry`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flightlog:entry`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hardware_bmc"
   ],

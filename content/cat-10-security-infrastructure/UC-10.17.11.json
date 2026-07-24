@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'SonicWall Per-Zone Interface Bandwidth Utilization (SonicWall)' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_sonicwall_per_zone_interface_bandwidth_utilizati` (UC-10.17.11), SOC dashboard panel \"Security Infra — SonicWall Per-Zone Interface Bandwidth Utilization (SonicWall)\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=netops` sourcetype='dell:sonicwall' that satisfy the UC-10.17.11 SPL filters for 'SonicWall Per-Zone Interface Bandwidth Utilization (SonicWall)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `netops` / `dell:sonicwall` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.17.11."
+    "positiveScenario": "Ingest synthetic events into `index=netops` sourcetype='dell:sonicwall' where `iface` satisfies detection threshold for UC-10.17.11 ('SonicWall Per-Zone Interface Bandwidth Utilization (SonicWall)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `netops` / `dell:sonicwall` events where `iface` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.17.11."
   },
   "dataSources": "`sourcetype=dell:sonicwall` traffic statistics or NetFlow exported from SonicWall where available",
   "app": "Dell SonicWall Add-on for Splunk (Splunkbase 6203)",
   "spl": "index=netops sourcetype=\"dell:sonicwall\" earliest=-24h\n| where match(_raw,\"(?i)interface|X1|X2|zone\")\n| rex field=_raw \"(?i)(?<iface>X\\d+|ae\\d+).*?(?<kbps>\\d+)\\s*kbps\"\n| timechart span=15m max(kbps) by iface",
-  "description": "Understanding bytes per zone prevents saturated uplinks from masquerading as application bugs.",
-  "value": "Guides upgrades and QoS changes with data instead of anecdotes. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Understanding bytes per zone prevents saturated uplinks from masquerading as application bugs. Searches `index=netops` with sourcetype `dell:sonicwall` for UC-10.17.11, aggregating `max` by `iface` over `15m`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'SonicWall Per-Zone Interface Bandwidth Utilization (SonicWall)' without manual log review.",
+  "value": "Understanding bytes per zone prevents saturated uplinks from masquerading as application bugs. Timely UC-10.17.11 alerting on 'SonicWall Per-Zone Interface Bandwidth Utilization (SonicWall)' reduces missed threat campaigns, control regressions, and SOC SLA breaches before manual triage or audit channels escalate.",
   "implementation": "If only syslog throughput is available, supplement with SNMP polling scripted input for `rx_bps`/`tx_bps`.",
   "visualization": "Timechart (bps by zone), area chart (95th percentile).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'SonicWall Per-Zone Interface Bandwidth Utilization (SonicWall)'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=netops` `dell:sonicwall`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `netops`** — Planned work for 'SonicWall Per-Zone Interface Bandwidth Utilization (SonicWall)' shifts `max` over `span=15m` while `iface` remains in-scope for UC-10.17.11. Cross-check CMDB CHG.\n\n2. **Batch `max` on `dell:sonicwall`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `iface`** — Health checks in `netops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dell:sonicwall`** — First 48h baseline for `iface` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `iface`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "netflow",

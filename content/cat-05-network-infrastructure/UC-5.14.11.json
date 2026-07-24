@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Varnish Thread Pool Queue Length (thread_queue_len)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_varnish_thread_pool_queue_length_thread_queue_le` (UC-5.14.11), SOC dashboard panel \"Operations — Varnish Thread Pool Queue Length (thread_queue_len)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='varnish:stats' that satisfy the UC-5.14.11 SPL filters for 'Varnish Thread Pool Queue Length (thread_queue_len)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `proxy` / `varnish:stats` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.11."
+    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='varnish:stats' where `host` satisfies `tql` > 0 for UC-5.14.11 ('Varnish Thread Pool Queue Length (thread_queue_len)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `proxy` / `varnish:stats` events where `host` stays below `tql` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.11."
   },
   "dataSources": "`index=proxy` `sourcetype=varnish:stats` JSON from `varnishstat -j` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"varnish:stats\"\n| eval tql=tonumber(thread_queue_len)\n| where tql > 0\n| timechart span=1m max(tql) as thread_queue_len by host",
   "description": "Queued threads mean requests wait before VCL runs. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Operations teams monitor Varnish thread pool queue depth and thread creation failures, detecting request processing bottlenecks before dropped connections occur.",
+  "value": "Queued threads mean requests wait before VCL runs. Timely UC-5.14.11 alerting on 'Varnish Thread Pool Queue Length (thread_queue_len)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll every 30s via scripted input to HEC; flatten counter names per version.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Varnish Thread Pool Queue Length (thread_queue_len)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `proxy` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy`** — Planned work for 'Varnish Thread Pool Queue Length (thread_queue_len)' shifts `max` over `span=1m` while `host` remains in-scope for UC-5.14.11. Cross-check CMDB CHG.\n\n2. **Batch `max` on `varnish:stats`** — Scheduled automation elevates `tql` without crossing `tql` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `varnish:stats`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog",
     "varnish"

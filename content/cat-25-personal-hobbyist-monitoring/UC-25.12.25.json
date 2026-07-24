@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Copilot Reimbursement Outstanding Age' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_copilot_reimbursement_outstanding_age` (UC-25.12.25), SOC dashboard panel \"Personal — Copilot Reimbursement Outstanding Age\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='copilot:transaction' that satisfy the UC-25.12.25 SPL filters for 'Copilot Reimbursement Outstanding Age'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `copilot:transaction` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.12.25."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='copilot:transaction' where `payee` satisfies `outstanding_usd` > 0 for UC-25.12.25 ('Copilot Reimbursement Outstanding Age'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `copilot:transaction` events where `payee` stays below `outstanding_usd` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.12.25."
   },
   "dataSources": "Personal finance telemetry (`monarch:transaction`, `copilot:transaction`, `plaid:account`, `plaid:transaction`, `plaid:investment`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Monarch Money, Copilot Money, Plaid-connected accounts, Plaid investments, and brokerage CSV exports ingested into Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=copilot:transaction tag=\"reimbursable\"\n| stats sum(amount_usd) as outstanding_usd, max(days_outstanding) as max_days_outstanding by payee\n| where outstanding_usd>0 AND max_days_outstanding>30\n| sort - max_days_outstanding",
   "description": "Uses Copilot reimbursable transactions telemetry to monitor how long outstanding reimbursements have been sitting open in index=personal.",
-  "value": "Splunk turns the feed into an operational check for money that should have come back already, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Copilot reimbursable transactions telemetry to monitor how long outstanding reimbursements have been s.... Timely UC-25.12.25 alerting on 'Copilot Reimbursement Outstanding Age' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Copilot reimbursable transactions data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Payee table of outstanding reimbursement age.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Copilot Reimbursement Outstanding Age'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `copilot:transaction`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Copilot Reimbursement Outstanding Age' stops polling `copilot:transaction`; stale `payee` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `copilot:transaction`. Dedup with `stats latest(*) by payee`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `outstanding_usd` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hardware_bmc",
     "mqtt"

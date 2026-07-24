@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Cloud Run Revision Traffic and Error Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cloud_run_revision_traffic_and_error_rate` (UC-4.3.21), SOC dashboard panel \"Operations — Cloud Run Revision Traffic and Error Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='google:gcp:monitoring' that satisfy the UC-4.3.21 SPL filters for 'Cloud Run Revision Traffic and Error Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `gcp` / `google:gcp:monitoring` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.21."
+    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='google:gcp:monitoring' where `resource.labels.revision_name` satisfies `error_rate` > 1 for UC-4.3.21 ('Cloud Run Revision Traffic and Error Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `gcp` / `google:gcp:monitoring` events where `resource.labels.revision_name` stays below `error_rate` > 1, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.21."
   },
   "dataSources": "Cloud Run metrics (request_count, container_instance_count, container_cpu_utilizations) Collected via Splunk Add-on for Google Cloud Platform (Splunkbase 3084) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_google-cloudplatform` — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
   "spl": "index=gcp sourcetype=\"google:gcp:monitoring\" metric.type=\"run.googleapis.com/request_count\"\n| timechart span=5m sum(value) by resource.labels.revision_name\n| eval error_rate = request_count_5xx / request_count * 100\n| where error_rate > 1",
-  "description": "Cloud Run revision traffic and errors indicate service health. Supports canary and blue-green deployment monitoring.",
+  "description": "Cloud Run revision traffic and errors indicate service health. Supports canary and blue-green deployment monitoring. Searches `index=gcp` with sourcetype `google:gcp:monitoring` for UC-4.3.21, aggregating `sum` by `resource.labels.revision_name` over `5m`. Alerts when grouped results cross `error_rate` > 1 in the saved search. Gives Operations operators a repeatable signal for 'Cloud Run Revision Traffic and Error Rate' without manual log review.",
   "value": "Early 'Cloud Run Revision Traffic and Error Rate' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Collect Cloud Run metrics. Alert on 5xx rate >1% or container instance count spike. Monitor cold start and latency. Track traffic split across revisions for canary analysis.",
   "visualization": "Line chart (requests, errors by revision), Table (revision, error rate), Gauge (traffic % by revision).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cloud Run Revision Traffic and Error Rate'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `gcp` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `gcp`** — Planned work for 'Cloud Run Revision Traffic and Error Rate' shifts `sum` over `span=5m` while `resource.labels.revision_name` remains in-scope for UC-4.3.21. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `google:gcp:monitoring`** — Scheduled automation elevates `error_rate` without crossing `error_rate` > 1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `resource.labels.revision_name`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `google:gcp:monitoring`** — First 48h baseline for `resource.labels.revision_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `resource.labels.revision_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "gcp"
   ],

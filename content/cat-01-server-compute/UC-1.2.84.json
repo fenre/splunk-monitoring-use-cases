@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Sysmon Named Pipe Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_sysmon_named_pipe_monitoring` (UC-1.2.84), SOC dashboard panel \"Linux — Sysmon Named Pipe Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Microsoft-Windows-Sysmon/Operational' that satisfy the UC-1.2.84 SPL filters for 'Sysmon Named Pipe Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Microsoft-Windows-Sysmon/Operational` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.84."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Microsoft-Windows-Sysmon/Operational' where `entity` satisfies detection threshold for UC-1.2.84 ('Sysmon Named Pipe Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Microsoft-Windows-Sysmon/Operational` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.84."
   },
   "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 17, 18) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows`, Sysmon required — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-Sysmon/Operational\"\n  EventCode IN (17, 18)\n| where match(PipeName, \"(?i)(MSSE-|msagent_|postex_|status_|mojo\\.|cobaltstrike|beacon)\")\n| table _time, host, EventCode, PipeName, Image, User\n| sort -_time",
   "description": "Named pipes are used for inter-process communication and by tools like Cobalt Strike, Mimikatz, and PsExec. Detecting unusual named pipes reveals C2 and lateral movement.",
-  "value": "Named pipes are normal for Windows IPC but also a lane for tool-style activity. The search highlights unusual server-side pipe traffic worth triage before lateral spread.",
+  "value": "Named pipes are used for inter-process communication and by tools like Cobalt Strike, Mimikatz, and PsExec. Timely UC-1.2.84 alerting on 'Sysmon Named Pipe Monitoring' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Deploy Sysmon with PipeCreated (17) and PipeConnected (18) monitoring. Known malicious pipe names: `MSSE-*` (Metasploit), `msagent_*` (Cobalt Strike), `postex_*` (Cobalt Strike post-exploitation), `status_*` (default Cobalt Strike). Also detect PsExec pipes (`PSEXESVC`). Baseline normal pipes per application role, then alert on anomalies.",
   "visualization": "Table (pipe events), Bar chart (top pipe names), Timeline, Alert on known-bad patterns.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Sysmon Named Pipe Monitoring'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `WinEventLog:Microsoft-Windows-Sysmon/Operational`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Sysmon Named Pipe Monitoring'. Correlate with apt/yum logs in the same `WinEventLog:Microsoft-Windows-Sysmon/Operational` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Microsoft-Windows-Sysmon/Operational`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

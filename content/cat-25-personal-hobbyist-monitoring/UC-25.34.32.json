@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Discounted Purchase Regret Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_discounted_purchase_regret_rate` (UC-25.34.32), SOC dashboard panel \"Personal — Discounted Purchase Regret Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='microspend:txn' that satisfy the UC-25.34.32 SPL filters for 'Discounted Purchase Regret Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `microspend:txn` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.34.32."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='microspend:txn' where `_time` satisfies detection threshold for UC-25.34.32 ('Discounted Purchase Regret Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `microspend:txn` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.34.32."
   },
   "dataSources": "Micro-spend transactions (`microspend:txn`), cashback events (`cashback:event`), price tracker alerts (`pricetrack:alert`), and tip logs (`tiplog:shift`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Micro-finance telemetry for latte-factor spending, cashback apps, price tracking, and tip logging sent to Splunk HEC via finance exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=microspend:txn\n| search discounted=true regretted=true\n| bin _time span=1w\n| stats count as regretted_buys avg(discount_pct) as avg_discount_pct by _time category\n| sort - _time",
   "description": "Tracks regretted discounted purchases over time and breaks it out by category. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Discounted regret shows whether sales are helping you save or simply accelerating low-value purchases.",
+  "value": "Tracks regretted discounted purchases over time and breaks it out by category. Timely UC-25.34.32 alerting on 'Discounted Purchase Regret Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send regretted discounted purchases events to `index=personal` with the fields used in the breakdown and review the resulting trend at 1w granularity.",
   "visualization": "Stacked time chart of regretted discounted purchases by category.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Discounted Purchase Regret Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `microspend:txn`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Discounted Purchase Regret Rate' stops polling `microspend:txn`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `microspend:txn`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

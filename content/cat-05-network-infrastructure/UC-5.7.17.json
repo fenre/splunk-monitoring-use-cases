@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Asymmetric Routing Detection via Flow Analysis' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_asymmetric_routing_detection_via_flow_analysis` (UC-5.7.17), SOC dashboard panel \"Operations — Asymmetric Routing Detection via Flow Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=netflow` sourcetype='target_sourcetype' that satisfy the UC-5.7.17 SPL filters for 'Asymmetric Routing Detection via Flow Analysis'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `netflow` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.7.17."
+    "positiveScenario": "Ingest synthetic events into `index=netflow` sourcetype='target_sourcetype' where `left` satisfies `mb_total` > 50 for UC-5.7.17 ('Asymmetric Routing Detection via Flow Analysis'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `netflow` / `target_sourcetype` events where `left` stays below `mb_total` > 50, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.7.17."
   },
   "dataSources": "`index=netflow` with bidirectional visibility preferred (`sourcetype=netflow` or `stream:ipfix`) containing normalized `src`, `dest`, `bytes`, `packets`; deploy at chokepoints capturing both forward and return paths or synthesize pairs across mirrored collectors with caution.",
   "app": "Splunk Add-on for NetFlow (Splunkbase 1838)",
   "spl": "index=netflow earliest=-4h\n| eval left=min(src,dest), right=max(src,dest)\n| eval fwd_bytes=if(src=left, bytes, 0), rev_bytes=if(src=right, bytes, 0)\n| stats sum(fwd_bytes) as bytes_lr sum(rev_bytes) as bytes_rl sum(bytes) as total_bytes sum(packets) as pkts by left right\n| eval imbalance=abs(bytes_lr-bytes_rl)/(bytes_lr+bytes_rl+1)\n| eval mb_total=round(total_bytes/1048576,2)\n| where mb_total>50 AND imbalance>0.80 AND bytes_lr>0 AND bytes_rl>0\n| sort -imbalance\n| head 75",
   "description": "Rebuilds unordered endpoint pairs and compares byte totals measured from each direction’s viewpoint to flag conversations where one leg dominates despite bidirectional traffic expectations.",
-  "value": "Routing engineers localize multi-homed misconfigurations and firewall state bypass attempts faster; security analysts distinguish purposeful one-way bulk copies from asymmetric-path blind spots that hide return-channel threats.",
+  "value": "Rebuilds unordered endpoint pairs and compares byte totals measured from each direction’s viewpoint to flag.... Timely UC-5.7.17 alerting on 'Asymmetric Routing Detection via Flow Analysis' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ensure overlapping collectors cover both directions or annotate partial visibility per site; tune minimum-megabyte and imbalance ratios; document legitimate multicast and satellite asymmetry exceptions.",
   "visualization": "Chord-like table of left/right with imbalance bar; dual-axis chart bytes_lr versus bytes_rl; map interfaces when fields exist.",
   "references": [
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Asymmetric Routing Detection via Flow Analysis'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `netflow` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `netflow`** — Planned work for 'Asymmetric Routing Detection via Flow Analysis' shifts `min` over `span=1h` while `left` remains in-scope for UC-5.7.17. Cross-check CMDB CHG.\n\n2. **Batch `min` on `configured_sourcetype`** — Scheduled automation elevates `right` without crossing `mb_total` > 50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `left`** — Health checks in `netflow` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `left` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `left`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netflow"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'iNaturalist Species ID Agreement Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_inaturalist_species_id_agreement_rate` (UC-25.26.20), SOC dashboard panel \"Personal — iNaturalist Species ID Agreement Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='inat:observation' that satisfy the UC-25.26.20 SPL filters for 'iNaturalist Species ID Agreement Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `inat:observation` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.26.20."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='inat:observation' where `_time` satisfies `attempts` > 0 for UC-25.26.20 ('iNaturalist Species ID Agreement Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `inat:observation` events where `_time` stays below `attempts` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.26.20."
   },
   "dataSources": "iNaturalist observations (`inat:observation`), moth trap sessions (`mothtrap:session`), bat detections (`batdetector:pass`), and trail-cam label events (`trailcam:label`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Backyard biodiversity telemetry from iNaturalist exports, moth-trap image batches, AudioMoth bat detectors, and trail-camera AI labeling pipelines sent to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=inat:observation\n| bin _time span=1w\n| stats count as attempts count(eval(community_agrees=\"true\")) as successful by _time taxon_group\n| eval success_pct=if(attempts>0,round(100*successful/attempts,1),0)\n| sort - _time",
   "description": "Tracks success rate for iNaturalist identifications by taxon group. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Community agreement rate is a grounded way to see which observation types need cleaner photos or more review.",
+  "value": "Tracks success rate for iNaturalist identifications by taxon group. Timely UC-25.26.20 alerting on 'iNaturalist Species ID Agreement Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture explicit outcome states for iNaturalist identifications events in `index=personal` and review both attempts and success percentage over time.",
   "visualization": "Time chart of success percentage for iNaturalist identifications by taxon group.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'iNaturalist Species ID Agreement Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `inat:observation`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'iNaturalist Species ID Agreement Rate' stops polling `inat:observation`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `inat:observation`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `attempts` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "dell_emc"
   ],

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Detection rule false positive rate tracking' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_detection_rule_false_positive_rate_tracking` (UC-10.10.1), SOC dashboard panel \"Security Infra — Detection rule false positive rate tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=summary` sourcetype='detection_metrics' that satisfy the UC-10.10.1 SPL filters for 'Detection rule false positive rate tracking'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `summary` / `detection_metrics` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.10.1."
+    "positiveScenario": "Ingest synthetic events into `index=summary` sourcetype='detection_metrics' where `rule_name` satisfies `total_hits` > 0 for UC-10.10.1 ('Detection rule false positive rate tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `summary` / `detection_metrics` events where `rule_name` stays below `total_hits` > 0, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.10.1."
   },
   "dataSources": "Summary metrics from ES or custom TA populating detection_metrics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Enterprise Security / custom — Universal Forwarder (Splunkbase 617)",
   "spl": "index=summary sourcetype=detection_metrics\n| bin _time span=1d\n| eval fp_rate=if(total_hits>0, false_positives/total_hits, 0)\n| timechart span=1d avg(fp_rate) by rule_name",
-  "description": "Tracks the ratio of false positives to total hits per correlation search to prioritize tuning.",
+  "description": "Tracks the ratio of false positives to total hits per correlation search to prioritize tuning. Searches `index=summary` with sourcetype `detection_metrics` for UC-10.10.1, aggregating `avg` by `rule_name` over `1d`. Alerts when grouped results cross `total_hits` > 0 in the saved search. Gives Security Infra operators a repeatable signal for 'Detection rule false positive rate tracking' without manual log review.",
   "value": "Early 'Detection rule false positive rate tracking' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Normalize field names to your Splunk ES version and index names. Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.",
   "visualization": "Table, Single value, Time chart",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Approved vulnerability scanner** — Scanner `src` triggers high-severity signatures for 'Detection rule false positive rate tracking'. Join `scanner_ips` before threshold.\n\n2. **Signature definition update** — Vendor content push reclassifies benign traffic. Compare threat_id first_seen with content release date.\n\n3. **Red-team emulation** — Atomic test traffic from approved exercise hosts.\n\n4. **Backup replication traffic** — Off-hours bulk transfer matches lateral-movement heuristics.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `threat_id`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `summary`** — Planned work for 'Detection rule false positive rate tracking' shifts `avg` over `span=1d` while `rule_name` remains in-scope for UC-10.10.1. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `detection_metrics`** — Scheduled automation elevates `fp_rate` without crossing `total_hits` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `rule_name`** — Health checks in `summary` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `detection_metrics`** — First 48h baseline for `rule_name` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `rule_name`, `exception_reason`, `valid_until`.",
   "detectionType": "Operational metrics",
   "securityDomain": "soc_operations",
   "equipment": [

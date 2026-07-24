@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'Stale Account Detection' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_stale_account_detection` (UC-9.1.10), SOC dashboard panel \"IAM — Stale Account Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ad` sourcetype='ad:accounts' that satisfy the UC-9.1.10 SPL filters for 'Stale Account Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ad` / `ad:accounts` events outside the detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.1.10."
+    "positiveScenario": "Ingest synthetic events into `index=ad` sourcetype='ad:accounts' where `entity` satisfies `days_inactive` > 90 for UC-9.1.10 ('Stale Account Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ad` / `ad:accounts` events where `entity` stays below `days_inactive` > 90, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.1.10."
   },
   "dataSources": "AD attributes (lastLogonTimestamp, pwdLastSet) via scripted input Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scripted input (PowerShell AD query) — Universal Forwarder (Splunkbase 617)",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled IAM maintenance** — Planned directory or IdP change generates expected deviations for 'Stale Account Detection'. Cross-check change records.\n\n2. **Onboarding burst** — New accounts or apps produce atypical `ad` volume.\n\n3. **Monitoring synthetic bind checks** — Health probes from known scanner hosts.\n\n4. **Stale application credential** — Single entity dominates `ad:accounts` failures.\n\n**Suppression mechanism:** `iam_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `ad`** — Planned work for 'Stale Account Detection' shifts `count` over `span=1h` while `host` remains in-scope for UC-9.1.10. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ad:accounts`** — Scheduled automation elevates `days_inactive` without crossing `days_inactive` > 90. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ad` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ad:accounts`** — First 48h baseline for `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078.002",
     "T1087.002"

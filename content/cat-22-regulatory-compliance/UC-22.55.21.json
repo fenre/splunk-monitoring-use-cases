@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Mark a Signal Engineering Lead's training as expired 60 days ago. UC-22.55.21 MUST flag `competence_status=\"training_expired\"`.",
-    "negativeScenario": "Refresh training; UC-22.55.21 MUST record `competence_status=\"current\"`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-22.55.21 ('CLC/TS 50701 Rail Cybersecurity Competence — role-specific training current for every staff member with rail-cyber accountability'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.55.21."
   },
   "dataSources": "KV Store `rail_competence_lookup`. LMS (KnowBe4, Workday Learning, Cornerstone OnDemand) completion HEC events.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_competence_lookup\n| where staff_status=\"active\"\n| eval now_ts = now()\n| eval competence_status = case(\n    isnull(training_completed_at), \"training_missing\",\n    isnotnull(training_expires_at) AND training_expires_at < now_ts, \"training_expired\",\n    isnotnull(training_expires_at) AND training_expires_at < now_ts + 30 * 86400, \"training_expiring_soon\",\n    1=1, \"current\")\n| where competence_status != \"current\"\n| table staff_id staff_role training_course_id training_completed_at training_expires_at competence_status",
-  "description": "Cross-references staff roles with role-mapped training completion. Surfaces missing, expired, or expiring training.",
-  "value": "Untrained or expired-training staff is a top NSA audit finding. This UC enforces currency.",
+  "description": "Cross-references staff roles with role-mapped training completion. Surfaces missing, expired, or expiring training. Searches `index=target_index` with sourcetype `configured sourcetype` for UC-22.55.21, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'CLC/TS 50701 Rail Cybersecurity Competence — role-specific training current for every staff member with rail-cyber accountability' without manual log review.",
+  "value": "Cross-references staff roles with role-mapped training completion. Timely UC-22.55.21 alerting on 'CLC/TS 50701 Rail Cybersecurity Competence — role-specific training current for every staff member with rail-cyber accountability' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Define role-to-course mapping. (2) LMS pushes completion events to Splunk. (3) Schedule UC-22.55.21 weekly Monday 08:00.",
   "visualization": "(Panel 1) Competence-status by role. (Panel 2) Expiring queue. (Panel 3) Completion-rate trend.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit or GRC exercises 'CLC/TS 50701 Rail Cybersecurity Competence — role-specific training current for every staff member with rail-cyber accountability' during scheduled clause CLC-TS-50701-c11-2 evidence collection. Match compliance programme calendar and accounts tagged `compliance_ops=true`.\n\n2. **External assessor sampling** — QSA or regulator sampling temporarily spikes `index=audit_evidence` `configured sourcetype` volume. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB-approved change pauses or reshapes ingestion to `audit_evidence`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected cross-boundary events during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Rail Cybersecurity Competence — role-specific training current for every staff member with rail-cyber accountability' (UC-22.55.21) on `entity` during scheduled clause CLC-TS-50701-c11-2 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (training governance)"
   ],

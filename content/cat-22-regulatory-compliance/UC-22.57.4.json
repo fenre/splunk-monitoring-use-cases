@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set `submission_due_date` to yesterday with `submitted_at=null`. UC-22.57.4 MUST flag.",
-    "negativeScenario": "Submit before due date with attestation. UC-22.57.4 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies `days_to_due` > 30 for UC-22.57.4 ('SG Cyber Act annual cybersecurity risk assessment evidence + Commissioner submission tracker'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `days_to_due` > 30, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.57.4."
   },
   "dataSources": "KV Store `csa_ra_lookup` (cii_id, ra_year, due_date, submitted_at, assessment_doc_url, attestation_signer, attestation_date, commissioner_acknowledgement_id).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup csa_ra_lookup\n| eval days_to_due = round((due_date - now())/86400, 0)\n| eval submission_status = case(\n    isnotnull(submitted_at) AND submitted_at <= due_date AND isnotnull(attestation_signer), \"on_time\",\n    isnotnull(submitted_at) AND submitted_at > due_date, \"late\",\n    isnull(submitted_at) AND days_to_due > 30, \"in_window\",\n    isnull(submitted_at) AND days_to_due > 0 AND days_to_due <= 30, \"due_soon\",\n    isnull(submitted_at) AND days_to_due <= 0, \"overdue\",\n    1=1, \"unknown\")\n| where submission_status IN (\"overdue\",\"due_soon\",\"late\")\n| table cii_id ra_year due_date submitted_at submission_status assessment_doc_url attestation_signer commissioner_acknowledgement_id",
   "description": "Mirror of TSA CAP tracker (UC-22.56.8) for CSA annual cyber risk assessment. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Missing the annual RA submission is a §15(1) violation with personal liability. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Mirror of TSA CAP tracker (UC-22. Timely UC-22.57.4 alerting on 'SG Cyber Act annual cybersecurity risk assessment evidence + Commissioner submission tracker' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `csa_ra_lookup` annually. (2) Schedule UC-22.57.4 daily. (3) Build the `CSA Annual RA Tracker` dashboard.",
   "visualization": "(Panel 1) Status by CII. (Panel 2) Days-to-due. (Panel 3) Attestation chain. (Panel 4) 5-year history.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit or GRC exercises 'SG Cyber Act annual cybersecurity risk assessment evidence + Commissioner submission tracker' during scheduled clause SG-CA-s15(1) evidence collection. Match compliance programme calendar and accounts tagged `compliance_ops=true`.\n\n2. **External assessor sampling** — QSA or regulator sampling temporarily spikes `index=audit_evidence` `configured sourcetype` volume. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB-approved change pauses or reshapes ingestion to `audit_evidence`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected cross-boundary events during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
+  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit exercises 'SG Cyber Act annual cybersecurity risk assessment evidence + Commissioner submission tracker' (UC-22.57.4) on `entity` during scheduled clause SG-CA-s15(1) sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `days_to_due` > 30. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (governance)"
   ],

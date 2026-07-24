@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'HVAC Filter Runtime Threshold' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_hvac_filter_runtime_threshold` (UC-25.70.4), SOC dashboard panel \"Personal — HVAC Filter Runtime Threshold\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ecobee:thermostat' that satisfy the UC-25.70.4 SPL filters for 'HVAC Filter Runtime Threshold'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `ecobee:thermostat` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.70.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ecobee:thermostat' where `filter_name` satisfies `runtime_hours` > 300 for UC-25.70.4 ('HVAC Filter Runtime Threshold'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `ecobee:thermostat` events where `filter_name` stays below `runtime_hours` > 300, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.70.4."
   },
   "dataSources": "LG ThinQ washer cycles (`thinq:washer`), LG ThinQ dryer cycles (`thinq:dryer`), Home Connect dishwasher runs (`homeconnect:dishwasher`), and ecobee HVAC runtime (`ecobee:thermostat`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "LG ThinQ washer and dryer telemetry, Home Connect dishwasher data, and ecobee HVAC runtime exported into Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=ecobee:thermostat runtime_minutes=*\n| stats sum(runtime_minutes) as total_runtime_minutes by filter_name\n| eval runtime_hours=round(total_runtime_minutes/60,1)\n| where runtime_hours>300\n| sort - runtime_hours",
-  "description": "Uses accumulated HVAC runtime to trigger filter changes on actual use instead of vague calendar memory.",
-  "value": "Runtime-based maintenance is more honest than date-based maintenance because a mild month is not the same as a brutal one.",
+  "description": "Uses accumulated HVAC runtime to trigger filter changes on actual use instead of vague calendar memory. Searches `index=personal` with sourcetype `ecobee:thermostat` for UC-25.70.4, aggregating `sum` by `filter_name` over `the scheduled window`. Alerts when grouped results cross `runtime_hours` > 300 in the saved search. Gives Personal operators a repeatable signal for 'HVAC Filter Runtime Threshold' without manual log review.",
+  "value": "Uses accumulated HVAC runtime to trigger filter changes on actual use instead of vague calendar memory. Timely UC-25.70.4 alerting on 'HVAC Filter Runtime Threshold' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Roll up ecobee runtime by active filter period and alert when the chosen runtime threshold is passed.",
   "visualization": "Gauge or table of filter runtime hours against replacement threshold.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'HVAC Filter Runtime Threshold'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ecobee:thermostat`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'HVAC Filter Runtime Threshold' stops polling `ecobee:thermostat`; stale `filter_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ecobee:thermostat`. Dedup with `stats latest(*) by filter_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `runtime_hours` > 300. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

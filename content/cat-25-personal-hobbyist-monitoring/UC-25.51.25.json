@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Symptom Diary Entry Freshness' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_symptom_diary_entry_freshness` (UC-25.51.25), SOC dashboard panel \"Personal — Symptom Diary Entry Freshness\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='health:symptom' that satisfy the UC-25.51.25 SPL filters for 'Symptom Diary Entry Freshness'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `health:symptom` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.51.25."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='health:symptom' where `symptom_family` satisfies detection threshold for UC-25.51.25 ('Symptom Diary Entry Freshness'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `health:symptom` events where `symptom_family` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.51.25."
   },
   "dataSources": "Pump telemetry (`health:glucose`), lab results (`health:lab`), therapy sessions (`health:pt`), symptom diaries (`health:symptom`), care tasks (`health:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Chronic-condition self-management telemetry — insulin-pump events, A1c lab imports, physical-therapy rep logs, and symptom diaries — streamed to Splunk HEC via device exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=health:symptom symptom_family=* symptom_epoch=* logged_epoch=*\n| eval lag_hours=round((logged_epoch-symptom_epoch)/3600,1)\n| stats avg(lag_hours) as avg_lag_hours, max(lag_hours) as worst_lag_hours by symptom_family\n| sort - avg_lag_hours",
   "description": "Measures symptom logging lag by symptom family for symptom diaries. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Lag tracking shows which symptom family create the slowest handoffs, syncs, or review loops inside symptom diaries.",
+  "value": "Measures symptom logging lag by symptom family for symptom diaries. Timely UC-25.51.25 alerting on 'Symptom Diary Entry Freshness' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture the timestamps needed to compute `symptom logging lag` on `health:symptom` events and aggregate them by `symptom_family`.",
   "visualization": "Table of symptom family with average and worst symptom logging lag.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Symptom Diary Entry Freshness'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `health:symptom`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Symptom Diary Entry Freshness' stops polling `health:symptom`; stale `symptom_family` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `health:symptom`. Dedup with `stats latest(*) by symptom_family`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

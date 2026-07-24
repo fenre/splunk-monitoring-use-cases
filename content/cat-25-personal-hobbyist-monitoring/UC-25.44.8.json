@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Tackle and Gear Inventory' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_tackle_and_gear_inventory` (UC-25.44.8), SOC dashboard panel \"Personal — Tackle and Gear Inventory\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='fishing:catch' that satisfy the UC-25.44.8 SPL filters for 'Tackle and Gear Inventory'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `fishing:catch` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.44.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='fishing:catch' where `item` satisfies detection threshold for UC-25.44.8 ('Tackle and Gear Inventory'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `fishing:catch` events where `item` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.44.8."
   },
   "dataSources": "Fishing catches (`fishing:catch`), fishfinder sonar (`fishfinder:reading`), foraging finds (`foraging:find`), game-cam triggers (`gamecam:trigger`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Outdoor logs — fishing apps (Fishbrain), sonar / fishfinder exports, game/trail cameras, and foraging journals — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=fishing:catch event=gear\n| stats latest(quantity) as qty, latest(condition) as condition by item\n| where qty<min_stock OR condition=\"worn\"\n| sort item",
-  "description": "Tracks your lures, lines, and gear, flagging what is worn or running low before the next trip.",
-  "value": "Discovering you are out of the right lure at the water is a wasted trip; an inventory check prevents it.",
+  "description": "Tracks your lures, lines, and gear, flagging what is worn or running low before the next trip. Searches `index=personal` with sourcetype `fishing:catch` for UC-25.44.8, aggregating `count` by `item` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Tackle and Gear Inventory' without manual log review.",
+  "value": "Tracks your lures, lines, and gear, flagging what is worn or running low before the next trip. Timely UC-25.44.8 alerting on 'Tackle and Gear Inventory' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log gear stock into `index=personal`; flag low or worn items.",
   "visualization": "Table of tackle needing restock or replacement.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Tackle and Gear Inventory'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `fishing:catch`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Tackle and Gear Inventory' stops polling `fishing:catch`; stale `item` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `fishing:catch`. Dedup with `stats latest(*) by item`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

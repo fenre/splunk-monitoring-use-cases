@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Dropped Packets by Network Interface' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_dropped_packets_by_network_interface` (UC-1.1.63), SOC dashboard panel \"Linux — Dropped Packets by Network Interface\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='interfaces' that satisfy the UC-1.1.63 SPL filters for 'Dropped Packets by Network Interface'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `interfaces` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.63."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='interfaces' where `host` satisfies `total_dropped` > 0 for UC-1.1.63 ('Dropped Packets by Network Interface'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `interfaces` events where `host` stays below `total_dropped` > 0, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.63."
   },
   "dataSources": "`sourcetype=interfaces` (fields `dropped_in` / `dropped_out` from `/proc` via Splunk_TA_nix, when exposed) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=interfaces host=*\n| bin _time span=5m\n| stats max(dropped_in) as di max(dropped_out) as do by host, interface, _time\n| eval total_dropped=di+do\n| where total_dropped>0\n| timechart max(total_dropped) by host, interface",
   "description": "Surfaces interfaces where the cumulative **dropped** counters are non-zero in the lookback, then trends the maximum of the combined in+out drop count in each bucket so you can see whether the condition persists.",
-  "value": "Packet drops on the host precede many application time-outs; this view nudges you toward buffer, ring, and coalesce tuning with NIC vendor guidance before the problem scales up.",
+  "value": "Surfaces interfaces where the cumulative **dropped** counters are non-zero in the lookback, then trends the.... Timely UC-1.1.63 alerting on 'Dropped Packets by Network Interface' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Not every `interfaces` build exposes per-interface drop fields—confirm with **Fieldsummary** in Search. If fields are missing, add a `custom:ethtool` or `nstat` script for the counters you need instead of this exact SPL.",
   "visualization": "Timechart, Alert",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Dropped Packets by Network Interface'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `interfaces`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Dropped Packets by Network Interface'. Correlate with apt/yum logs in the same `interfaces` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `max` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `interfaces`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `total_dropped` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],

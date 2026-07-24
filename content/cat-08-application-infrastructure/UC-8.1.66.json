@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Memcached Memory Usage vs maxbytes Threshold' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_memcached_memory_usage_vs_maxbytes_threshold` (UC-8.1.66), SOC dashboard panel \"Operations — Memcached Memory Usage vs maxbytes Threshold\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=infrastructure` sourcetype='memcached:stats' that satisfy the UC-8.1.66 SPL filters for 'Memcached Memory Usage vs maxbytes Threshold'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `infrastructure` / `memcached:stats` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.66."
+    "positiveScenario": "Ingest synthetic events into `index=infrastructure` sourcetype='memcached:stats' where `entity` satisfies `lim` > 0 for UC-8.1.66 ('Memcached Memory Usage vs maxbytes Threshold'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `infrastructure` / `memcached:stats` events where `entity` stays below `lim` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.66."
   },
   "dataSources": "`stats` `bytes` and `limit_maxbytes` on `memcached:stats` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "collectd/Telegraf memcached input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=infrastructure sourcetype=\"memcached:stats\"\n| eval used=tonumber(bytes)\n| eval lim=tonumber(limit_maxbytes)\n| eval used_pct=if(lim>0, round(100*used/lim,1), null())\n| where used_pct > 90 OR used > lim*0.95",
   "description": "When `bytes` approaches `limit_maxbytes`, evictions accelerate and new large items may fail. Watching used percentage avoids surprise latency cliffs during traffic growth.",
-  "value": "Supports right-sizing memory per cluster before peak events exhaust slab space. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "When `bytes` approaches `limit_maxbytes`, evictions accelerate and new large items may fail. Timely UC-8.1.66 alerting on 'Memcached Memory Usage vs maxbytes Threshold' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Confirm 64-bit counters parse correctly. For multiple instances per host, include `instance` or `port` in the host key. Alert at 90% with warning; 95% page on-call.",
   "visualization": "Area chart (used vs lim), Gauge (used_pct).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Memcached Memory Usage vs maxbytes Threshold'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `infrastructure` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `infrastructure`** — Planned work for 'Memcached Memory Usage vs maxbytes Threshold' shifts `count` over `span=1h` while `host` remains in-scope for UC-8.1.66. Cross-check CMDB CHG.\n\n2. **Batch `count` on `memcached:stats`** — Scheduled automation elevates `used` without crossing `lim` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `infrastructure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `memcached:stats`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "memcached"
   ],

@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set `role_incumbent_id` for the 'Signal Engineering Cybersecurity Lead' role to NULL or backdate `role_assigned_at` 25+ months. UC-22.55.2 MUST flag `role_status=\"role_vacant\"` or `role_status=\"assignment_stale\"`.",
-    "negativeScenario": "Assign a named incumbent, sign the role letter, set `role_assigned_at=now`, `role_review_due_at=+24 months`. UC-22.55.2 MUST record `role_status=\"current\"`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies `assignment_age_months` > 24 for UC-22.55.2 ('CLC/TS 50701 Rail Cybersecurity Governance Roles — named accountabilities for cyber-safety integration'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `assignment_age_months` > 24, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.55.2."
   },
   "dataSources": "KV Store `rail_csms_roles_lookup` populated by HR and Rail Cybersecurity Lead. Workday HCM (`workday:worker`). Active Directory / Azure AD (`ad:user`, `azuread:user`). DocuSign for signed role-assignment letters.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Azure AD (Splunkbase 4055), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_csms_roles_lookup\n| eval now_ts = now()\n| eval assignment_age_months = if(isnotnull(role_assigned_at), round((now_ts - role_assigned_at) / 86400 / 30, 1), null())\n| eval role_status = case(\n    isnull(role_incumbent_id) OR role_incumbent_id=\"\", \"role_vacant\",\n    isnull(role_assigned_at), \"assignment_unsigned\",\n    assignment_age_months > 24, \"assignment_stale\",\n    isnotnull(role_review_due_at) AND role_review_due_at < now_ts, \"review_overdue\",\n    isnull(accountability_scope) OR accountability_scope=\"\", \"scope_undefined\",\n    1=1, \"current\")\n| where role_status != \"current\"\n| table role_id role_name role_incumbent_id role_incumbent_name role_assigned_at role_review_due_at accountability_scope assignment_age_months role_status",
   "description": "Verifies every CLC/TS 50701 governance role has a current, named incumbent with signed assignment letter and documented accountability scope.",
-  "value": "Vacant or unsigned governance roles are the most common deficiency cited by Notified Bodies during CLC/TS 50701 assessment. This UC ensures the role matrix is current.",
+  "value": "Verifies every CLC/TS 50701 governance role has a current, named incumbent with signed assignment letter an.... Timely UC-22.55.2 alerting on 'CLC/TS 50701 Rail Cybersecurity Governance Roles — named accountabilities for cyber-safety integration' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Define the required roles per the operator's CSMS in `rail_csms_roles_lookup`. (2) HR + Rail Cybersecurity Lead co-sign role-assignment letters via DocuSign. (3) Schedule UC-22.55.2 weekly Monday 02:30.",
   "visualization": "(Panel 1) Role-incumbent matrix. (Panel 2) Vacant-role queue. (Panel 3) Assignment-age distribution. (Panel 4) Review-due calendar.",
   "cimModels": [
@@ -76,7 +76,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Role in transition** — outgoing incumbent and incoming incumbent overlap; 30-day grace. Suppression: `role_status_override=transition` with explicit successor.\n\n2. **Multi-entity shared role** — one incumbent covers multiple entities; the lookup allows this via cross-entity role pointers.\n\n**Suppression mechanism**: KV Store `clc_22_55_2_exceptions` with documented Rail-CISO approval and 60-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Rail Cybersecurity Governance Roles — named accountabilities for cyber-safety integration' (UC-22.55.2) on `entity` during scheduled clause CLC-TS-50701-c5-2 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `assignment_age_months` > 24. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (governance-role inventory)"
   ],

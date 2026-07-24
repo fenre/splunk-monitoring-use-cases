@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Horus Telemetry Failure Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_horus_telemetry_failure_rate` (UC-25.21.50), SOC dashboard panel \"Personal — Horus Telemetry Failure Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='horus:telemetry' that satisfy the UC-25.21.50 SPL filters for 'Horus Telemetry Failure Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `horus:telemetry` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.21.50."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='horus:telemetry' where `payload_id` satisfies detection threshold for UC-25.21.50 ('Horus Telemetry Failure Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `horus:telemetry` events where `payload_id` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.21.50."
   },
   "dataSources": "APRS packets (`aprs:packet`), WSPR spots (`wspr:spot`), satellite passes (`satpass:prediction`), NOAA APT captures (`noaa:apt`), meteor-scatter pings (`meteorscatter:ping`), SSTV images (`sstv:image`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Software-defined radio and ham stations — APRS igate, WSPR beacon, NOAA weather-satellite (APT) receiver, meteor-scatter monitor, and SSTV decoder — logging to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=horus:telemetry\n| eval status_value=lower(coalesce(telemetry_status,\"unknown\"))\n| eval failed=if(match(status_value,\"error|fail|alert|overdue|late|stale|breach\"),1,0)\n| stats count as events, sum(failed) as failed_events by payload_id\n| eval failure_pct=round(100*failed_events/events,1)\n| sort - failure_pct - failed_events",
-  "description": "Measures how often Horus telemetry records land in an unhealthy or exception state for each payload.",
-  "value": "A plain failure-rate view highlights noisy devices, flaky automations, and habits that repeatedly slip.",
+  "description": "Measures how often Horus telemetry records land in an unhealthy or exception state for each payload. Searches `index=personal` with sourcetype `horus:telemetry` for UC-25.21.50, aggregating `sum` by `payload_id` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Horus Telemetry Failure Rate' without manual log review.",
+  "value": "Measures how often Horus telemetry records land in an unhealthy or exception state for each payload. Timely UC-25.21.50 alerting on 'Horus Telemetry Failure Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Normalize telemetry_status values into good or bad states and review the failure percentage per payload.",
   "visualization": "Bar chart of failure percentage by entity.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Horus Telemetry Failure Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `horus:telemetry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Horus Telemetry Failure Rate' stops polling `horus:telemetry`; stale `payload_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `horus:telemetry`. Dedup with `stats latest(*) by payload_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

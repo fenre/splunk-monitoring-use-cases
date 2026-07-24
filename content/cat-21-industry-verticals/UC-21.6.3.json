@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'In-Store Wi-Fi and Network Infrastructure Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_in_store_wi_fi_and_network_infrastructure_health` (UC-21.6.3), SOC dashboard panel \"Operations — In-Store Wi-Fi and Network Infrastructure Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=retail` sourcetype='wifi:controller' that satisfy the UC-21.6.3 SPL filters for 'In-Store Wi-Fi and Network Infrastructure Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `retail` / `wifi:controller` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.6.3."
+    "positiveScenario": "Ingest synthetic events into `index=retail` sourcetype='wifi:controller' where `store_id` satisfies `avg_clients` > 0 for UC-21.6.3 ('In-Store Wi-Fi and Network Infrastructure Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `retail` / `wifi:controller` events where `store_id` stays below `avg_clients` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.6.3."
   },
   "dataSources": "`index=retail` `sourcetype=\"wifi:controller\"` (store_id, ap_name, client_count, assoc_failures, cpu_pct) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Wi-Fi controller syslog / SNMP trap HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=retail sourcetype=\"wifi:controller\"\n| bin _time span=5m\n| stats sum(assoc_failures) as fails, avg(client_count) as avg_clients, max(cpu_pct) as max_cpu by store_id, ap_name, _time\n| eval fail_rate=if(avg_clients>0, round(100*fails/avg_clients,2), fails)\n| where fails > 20 OR max_cpu > 85 OR fail_rate > 2\n| table _time, store_id, ap_name, fails, avg_clients, max_cpu, fail_rate",
   "description": "mPOS, guest Wi-Fi, and IoT rely on store LAN/WLAN; tracking AP association failures and controller health prevents silent outages during promotions.",
-  "value": "Service and risk leaders use signals from In-Store Wi-Fi and Network Infrastructure Health to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "Service and risk leaders use signals from In-Store Wi-Fi and Network Infrastructure Health to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Normalize vendor-specific fields in props/transforms; retain `ap_name` and `store_id` on every sample. Alert on controller CPU and on APs with repeated association failures compared to peers in the same store. **Domain context:** Guest Wi-Fi and mPOS share airtime—high `assoc_failures` during promotions may be RF contention, not controller fault. **Splunk:** `fail_rate` uses fails per avg_clients—validate denominator when client counts are sampled sparsely.",
   "visualization": "Time chart (assoc failures), Status grid (AP health), Line chart (controller CPU).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'In-Store Wi-Fi and Network Infrastructure Health'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `retail` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `retail`** — Planned work for 'In-Store Wi-Fi and Network Infrastructure Health' shifts `sum` over `span=5m` while `store_id` remains in-scope for UC-21.6.3. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `wifi:controller`** — Scheduled automation elevates `ap_name` without crossing `avg_clients` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `store_id`** — Health checks in `retail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `wifi:controller`** — First 48h baseline for `store_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `store_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "snmp",
     "syslog"

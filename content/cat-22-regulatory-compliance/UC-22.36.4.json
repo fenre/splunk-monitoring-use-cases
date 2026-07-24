@@ -57,16 +57,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "A single subject_token with four failed identity verifications in 14 days appears in the output the next day.",
-    "negativeScenario": "A new-ticket flow with one correctly-matched verification does not appear.",
-    "fixtureRef": "",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=dsar` sourcetype='onetrust:dsar' where `subject_token` satisfies `failures` >= 3 for UC-22.36.4 ('DSAR identity-verification friction — failed-verification anomaly'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dsar` / `onetrust:dsar` events where `subject_token` stays below `failures` >= 3, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.36.4."
   },
   "dataSources": "DSAR platform identity-verification events (OneTrust, TrustArc, ServiceNow Privacy), IdP step-up audit logs, manual review tickets.",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=dsar sourcetype=onetrust:dsar OR sourcetype=servicenow:privacy action=verification earliest=-14d\n| eval pass=if(result=\"success\",1,0), fail=if(result=\"failure\",1,0)\n| stats sum(pass) as passes sum(fail) as failures values(ticket_id) as ticket_ids by subject_token\n| where failures>=3 AND passes<1\n| table subject_token failures ticket_ids",
   "description": "Surfaces data-subjects whose right-exercise attempts repeatedly fail verification, which — aggregated over time — is a reliable indicator either of a broken verification UX or of a deliberate design that frustrates rights. Either interpretation is a DPO priority.",
-  "value": "Takes the single most common enforcement narrative ('the verification process itself denied the right') and turns it into a measurable metric.",
+  "value": "Surfaces data-subjects whose right-exercise attempts repeatedly fail verification, which — aggregated over.... Timely UC-22.36.4 alerting on 'DSAR identity-verification friction — failed-verification anomaly' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Ensure DSAR verification events emit subject_token and result; (2) run daily; (3) feed findings to a DPO review dashboard; (4) after a fixed threshold, escalate via SOAR for legal review. Indexes required: `index=dsar`; Sourcetypes: `sourcetype=onetrust:dsar`, `sourcetype=servicenow:privacy`.",
   "visualization": "Bar chart of verification failure rate per channel, table of repeat-failure subjects, single-value 'repeat-failure subjects (14d)'. Key fields: `failures`, `pass`, `passes`, `subject_token`, `ticket_ids`.",
   "cimModels": [],
@@ -90,7 +88,7 @@
       "title": "ICO — GDPR Guidance"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised GDPR control testing** — Internal audit exercises 'DSAR identity-verification friction — failed-verification anomaly' (UC-22.36.4) on `subject_token` during scheduled clause Art.12(6) sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=dsar` `onetrust:dsar` without crossing `failures` >= 3. Cross-check engagement letter in `gdpr_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `dsar` for `subject_token`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `subject_token` during normal service delivery.\n\n**Suppression mechanism:** `gdpr_exception_register.csv` keyed on `subject_token`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Anomaly",
   "securityDomain": "access",
   "requiredFields": [

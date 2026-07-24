@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Hot Spring Session Water Temperature Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_hot_spring_session_water_temperature_leaderboard` (UC-25.113.9), SOC dashboard panel \"Personal — Hot Spring Session Water Temperature Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='hotspring:session' that satisfy the UC-25.113.9 SPL filters for 'Hot Spring Session Water Temperature Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `hotspring:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.113.9."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='hotspring:session' where `spa_name` satisfies detection threshold for UC-25.113.9 ('Hot Spring Session Water Temperature Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `hotspring:session` events where `spa_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.113.9."
   },
   "dataSources": "Hot Spring sessions (`hotspring:session`), spa chemistry logs (`spa:chemistry`), filter maintenance records (`spa:filter`), and spa energy usage (`spa:energy`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Hot Spring session logs, spa chemistry test results, filter maintenance records, and energy consumption telemetry streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=hotspring:session water_temp_f=*\n| stats sum(water_temp_f) as total_value, avg(water_temp_f) as avg_value by spa_name\n| sort - total_value",
-  "description": "Ranks spa values by total and average water temperature across Hot Spring session events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks spa values by total and average water temperature across Hot Spring session events. Searches `index=personal` with sourcetype `hotspring:session` for UC-25.113.9, aggregating `sum` by `spa_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Hot Spring Session Water Temperature Leaderboard' without manual log review.",
+  "value": "Ranks spa values by total and average water temperature across Hot Spring session events. Timely UC-25.113.9 alerting on 'Hot Spring Session Water Temperature Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `water_temp_f` values for each Hot Spring session event and review total and average water temperature by spa.",
   "visualization": "Table of entities ranked by total water temperature.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Hot Spring Session Water Temperature Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `hotspring:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Hot Spring Session Water Temperature Leaderboard' stops polling `hotspring:session`; stale `spa_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `hotspring:session`. Dedup with `stats latest(*) by spa_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

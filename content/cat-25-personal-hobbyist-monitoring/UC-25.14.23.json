@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'ADS-B Low Altitude Overflight Count' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_ads_b_low_altitude_overflight_count` (UC-25.14.23), SOC dashboard panel \"Personal — ADS-B Low Altitude Overflight Count\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='adsb:aircraft' that satisfy the UC-25.14.23 SPL filters for 'ADS-B Low Altitude Overflight Count'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `adsb:aircraft` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.23."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='adsb:aircraft' where `callsign` satisfies `altitude_ft` < 3000 for UC-25.14.23 ('ADS-B Low Altitude Overflight Count'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `adsb:aircraft` events where `callsign` stays below `altitude_ft` < 3000, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.23."
   },
   "dataSources": "Travel telemetry (`adsb:aircraft`, `flightaware:flight`, `marinetraffic:vessel`, `tolltag:trip`, `abrp:trip`, `evcharger:session`, `travel:document`, `commute:trip`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "FlightAware, OpenSky, MarineTraffic, ADS-B receivers, ABRP trip plans, toll-tag exports, and EV charging receipts forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=adsb:aircraft\n| bin _time span=1d\n| stats count(eval(altitude_ft<3000)) as low_overflights by callsign _time\n| where low_overflights>0\n| sort - low_overflights",
-  "description": "Uses ADS-B receiver data telemetry to monitor how many low-altitude overflights happened each day in index=personal.",
-  "value": "Splunk turns the feed into an operational check for aircraft patterns that are more noticeable from the property, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses ADS-B receiver data telemetry to monitor how many low-altitude overflights happened each day in index=personal. Searches `index=personal` with sourcetype `adsb:aircraft` for UC-25.14.23, aggregating `count` by `callsign` over `1d`. Alerts when grouped results cross `altitude_ft` < 3000 in the saved search. Gives Personal operators a repeatable signal for 'ADS-B Low Altitude Overflight Count' without manual log review.",
+  "value": "Uses ADS-B receiver data telemetry to monitor how many low-altitude overflights happened each day in index=.... Timely UC-25.14.23 alerting on 'ADS-B Low Altitude Overflight Count' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest ADS-B receiver data data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Daily callsign table of low overflights.",
   "cimModels": [],
@@ -60,7 +60,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'ADS-B Low Altitude Overflight Count'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `adsb:aircraft`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'ADS-B Low Altitude Overflight Count' stops polling `adsb:aircraft`; stale `callsign` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `adsb:aircraft`. Dedup with `stats latest(*) by callsign`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `altitude_ft` < 3000. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

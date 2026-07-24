@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'ZooKeeper Snapshot and Transaction Log Size Growth' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_zookeeper_snapshot_and_transaction_log_size_grow` (UC-8.1.57), SOC dashboard panel \"Operations — ZooKeeper Snapshot and Transaction Log Size Growth\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=infrastructure` sourcetype='zookeeper:mntr' that satisfy the UC-8.1.57 SPL filters for 'ZooKeeper Snapshot and Transaction Log Size Growth'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `infrastructure` / `zookeeper:mntr` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.57."
+    "positiveScenario": "Ingest synthetic events into `index=infrastructure` sourcetype='zookeeper:mntr' where `host` satisfies `bytes_per_hour` > 1073741824 for UC-8.1.57 ('ZooKeeper Snapshot and Transaction Log Size Growth'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `infrastructure` / `zookeeper:mntr` events where `host` stays below `bytes_per_hour` > 1073741824, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.57."
   },
   "dataSources": "`mntr` `zk_approximate_data_size` / `zk_znode_count`; UF disk metrics on `dataDir` / `dataLogDir` (e.g. `df` sourcetype) for true filesystem growth Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scripted `mntr` to Splunk plus host metrics for the ZooKeeper journal and snapshot directories — Universal Forwarder (Splunkbase 617)",
   "spl": "index=infrastructure sourcetype=\"zookeeper:mntr\"\n| eval approx=tonumber(zk_approximate_data_size)\n| eval nodes=tonumber(zk_znode_count)\n| bin _time span=1h\n| stats latest(approx) as approx_bytes latest(nodes) as znodes by host, _time\n| streamstats window=24 global=f last(approx_bytes) as _prev_bytes_per_hour by host\n| eval bytes_per_hour = approx_bytes - _prev_bytes_per_hour| where bytes_per_hour > 1073741824 OR approx_bytes > 5368709120",
   "description": "Sharp growth in approximate data size or znode footprint usually precedes full disks on `dataDir`/`dataLogDir` and longer snapshot cycles—both extend recovery time after failures.",
-  "value": "Avoids emergency purges and extended downtime when txn logs or snapshots consume the data volume.",
+  "value": "Sharp growth in approximate data size or znode footprint usually precedes full disks on `dataDir`/`dataLogD.... Timely UC-8.1.57 alerting on 'ZooKeeper Snapshot and Transaction Log Size Growth' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll `mntr` hourly for trend; add `df` or Prometheus `node_filesystem_size_bytes` for the volumes backing txn logs and snapshots. When alerts fire, verify `autopurge.snapRetainCount` / `snapCount` and that snapshots complete (check `zookeeper:log` for snapshot messages).",
   "visualization": "Line chart (approx_bytes, bytes_per_hour), Table (host).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'ZooKeeper Snapshot and Transaction Log Size Growth'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `infrastructure` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `infrastructure`** — Planned work for 'ZooKeeper Snapshot and Transaction Log Size Growth' shifts `count` over `span=1h` while `host` remains in-scope for UC-8.1.57. Cross-check CMDB CHG.\n\n2. **Batch `count` on `zookeeper:mntr`** — Scheduled automation elevates `_time` without crossing `bytes_per_hour` > 1073741824. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `infrastructure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zookeeper:mntr`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "prometheus",
     "zookeeper"

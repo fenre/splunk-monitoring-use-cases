@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'CPU Steal Time Elevation (Virtual Machines)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_cpu_steal_time_elevation_virtual_machines` (UC-1.1.27), SOC dashboard panel \"Linux — CPU Steal Time Elevation (Virtual Machines)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='vmstat' that satisfy the UC-1.1.27 SPL filters for 'CPU Steal Time Elevation (Virtual Machines)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `vmstat` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.27."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='vmstat' where `host` satisfies `avg_steal_time` > 5 for UC-1.1.27 ('CPU Steal Time Elevation (Virtual Machines)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `vmstat` events where `host` stays below `avg_steal_time` > 5, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.27."
   },
   "dataSources": "`sourcetype=vmstat` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=vmstat host=*\n| stats avg(st) as avg_steal_time by host\n| where avg_steal_time > 5",
-  "description": "High steal time indicates VM is contending with host resources, affecting application performance.",
-  "value": "When a guest loses CPU to 'steal' time, it means the hypervisor or neighbors are eating the host; we surface that so you can move VMs or add host capacity before users feel the drag.",
+  "description": "High steal time indicates VM is contending with host resources, affecting application performance. Searches `index=os` with sourcetype `vmstat` for UC-1.1.27, aggregating `avg` by `host` over `the scheduled window`. Alerts when grouped results cross `avg_steal_time` > 5 in the saved search. Gives Linux operators a repeatable signal for 'CPU Steal Time Elevation (Virtual Machines)' without manual log review.",
+  "value": "High steal time indicates VM is contending with host resources, affecting application performance. Timely UC-1.1.27 alerting on 'CPU Steal Time Elevation (Virtual Machines)' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Use Splunk_TA_nix vmstat input which automatically extracts steal time percentage. Create alerts for hosts where average steal time exceeds 5% over a 10-minute window, indicating overcommitment on hypervisor.",
   "visualization": "Timechart, Gauge",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'CPU Steal Time Elevation (Virtual Machines)'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `vmstat`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'CPU Steal Time Elevation (Virtual Machines)'. Correlate with apt/yum logs in the same `vmstat` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmstat`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `avg_steal_time` > 5.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hyperv",
     "linux"

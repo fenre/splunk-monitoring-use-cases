@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Interface Error Rate Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_interface_error_rate_trending` (UC-5.1.27), SOC dashboard panel \"Operations — Interface Error Rate Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='snmp:interface' that satisfy the UC-5.1.27 SPL filters for 'Interface Error Rate Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `snmp:interface` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.27."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='snmp:interface' where `host` satisfies `interval_sec` > 0 for UC-5.1.27 ('Interface Error Rate Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `snmp:interface` events where `host` stays below `interval_sec` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.27."
   },
   "dataSources": "IF-MIB (ifInErrors, ifOutErrors), EtherLike-MIB Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=snmp:interface\n| streamstats current=f last(ifInErrors) as prev_in, last(ifOutErrors) as prev_out, last(_time) as prev_time by host, ifDescr\n| eval delta_in=ifInErrors-coalesce(prev_in,0), delta_out=ifOutErrors-coalesce(prev_out,0)\n| eval interval_sec=_time-prev_time | where interval_sec>0 AND interval_sec<900\n| eval in_err_rate=round(delta_in/interval_sec*60,2), out_err_rate=round(delta_out/interval_sec*60,2)\n| where in_err_rate>0 OR out_err_rate>0\n| timechart span=5m avg(in_err_rate) as in_errors_per_min, avg(out_err_rate) as out_errors_per_min by host",
   "description": "CRC, runts, giants, input/output errors as rate over time. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Network engineers analyze 30-day interface error rate trends to detect gradually degrading links and schedule proactive cable or optic replacement before complete failure.",
+  "value": "CRC, runts, giants, input/output errors as rate over time. Timely UC-5.1.27 alerting on 'Interface Error Rate Trending' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll IF-MIB (ifInErrors, ifOutErrors) and EtherLike-MIB (dot3StatsFCSErrors) every 300s. Use streamstats for delta calculation. Alert when error rate exceeds threshold (e.g., >1/min on uplinks). Exclude admin-down interfaces.",
   "visualization": "Line chart (error rate over time), Table (host, interface, rate), Heatmap.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Interface Error Rate Trending'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Interface Error Rate Trending' shifts `avg` over `span=5m` while `host` remains in-scope for UC-5.1.27. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `snmp:interface`** — Scheduled automation elevates `ifDescr` without crossing `interval_sec` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:interface`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp",

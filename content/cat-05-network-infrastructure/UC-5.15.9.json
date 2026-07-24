@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Infoblox IPAM Duplicate Address and Conflict Events (Infoblox)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_infoblox_ipam_duplicate_address_and_conflict_eve` (UC-5.15.9), SOC dashboard panel \"Operations — Infoblox IPAM Duplicate Address and Conflict Events (Infoblox)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=netops` sourcetype='infoblox:audit' that satisfy the UC-5.15.9 SPL filters for 'Infoblox IPAM Duplicate Address and Conflict Events (Infoblox)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `netops` / `infoblox:audit` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.15.9."
+    "positiveScenario": "Ingest synthetic events into `index=netops` sourcetype='infoblox:audit' where `conflict_ip` satisfies detection threshold for UC-5.15.9 ('Infoblox IPAM Duplicate Address and Conflict Events (Infoblox)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `netops` / `infoblox:audit` events where `conflict_ip` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.15.9."
   },
   "dataSources": "`index=netops` `sourcetype=infoblox:audit` administrative and system audit trails capturing IPAM lease conflicts, DUPLICATE_IP markers, DHCP conflict warnings; optionally DHCP logs `sourcetype=infoblox:dhcp` with DHCPDECLINE/DHCPNAK patterns correlated later.",
   "app": "Splunk Add-on for Infoblox (Splunkbase 2934)",
   "spl": "index=netops sourcetype=\"infoblox:audit\" earliest=-24h\n| search (\"duplicate\" OR \"DUPLICATE\" OR \"conflict\" OR \"IP conflict\" OR \"already in use\" OR \"ADDRESS_CONFLICT\")\n| rex field=_raw \"(?i)(?:ip|address)[\\\\s:=]+(?<conflict_ip>\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3})\"\n| rex field=_raw \"(?i)(?:mac|hardware)[\\\\s:=]+(?<conflict_mac>[0-9a-fA-F:.-]{12,})\"\n| rex field=_raw \"(?i)(?:member|appliance)[\\\\s:=]+(?<member>[^\\\\s,;]+)\"\n| stats count values(conflict_mac) as macs latest(_time) as last by conflict_ip member host\n| sort - count",
   "description": "Search surfaces Infoblox audit events referencing duplicate IP allocations or DHCP/IPAM conflicts so overlapping leases or manual static overlaps are corrected before intermittent connectivity complaints spread.",
-  "value": "Enterprise reliability improves because duplicate IPv4 assignments—a frequent root cause of phantom drops for laptops and printers—are traced to authoritative Grid messages instead of guessed from switch counters alone.",
+  "value": "Search surfaces Infoblox audit events referencing duplicate IP allocations or DHCP/IPAM conflicts so overla.... Timely UC-5.15.9 alerting on 'Infoblox IPAM Duplicate Address and Conflict Events (Infoblox)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Forward full audit category, maintain regex extracts per NIOS release notes, schedule hourly alerts with drilldown to Grid IPAM lease grid, pair with DHCP DECLINE correlation optional.",
   "visualization": "Table (conflict_ip, member, count, last), choropleth-style subnet grouping via lookup, timeline overlay.",
   "cimModels": [],
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Infoblox IPAM Duplicate Address and Conflict Events (Infoblox)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `netops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `netops`** — Planned work for 'Infoblox IPAM Duplicate Address and Conflict Events (Infoblox)' shifts `values` over `span=1h` while `conflict_ip` remains in-scope for UC-5.15.9. Cross-check CMDB CHG.\n\n2. **Batch `values` on `infoblox:audit`** — Scheduled automation elevates `member` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `conflict_ip`** — Health checks in `netops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `infoblox:audit`** — First 48h baseline for `conflict_ip` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `conflict_ip`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "infoblox"

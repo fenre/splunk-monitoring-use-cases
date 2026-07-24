@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'ClickHouse ReplicatedMergeTree Replica Read-Only Mode and Absolute Delay' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_clickhouse_replicatedmergetree_replica_read_only` (UC-7.1.56), SOC dashboard panel \"Operations — ClickHouse ReplicatedMergeTree Replica Read-Only Mode and Absolute Delay\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='clickhouse:replicas' that satisfy the UC-7.1.56 SPL filters for 'ClickHouse ReplicatedMergeTree Replica Read-Only Mode and Absolute Delay'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `clickhouse:replicas` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.56."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='clickhouse:replicas' where `database` satisfies detection threshold for UC-7.1.56 ('ClickHouse ReplicatedMergeTree Replica Read-Only Mode and Absolute Delay'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `clickhouse:replicas` events where `database` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.56."
   },
   "dataSources": "`system.replicas` / replication queue metrics ingested as `clickhouse:replicas` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scheduled SQL to Splunk via HEC exporting `system.replicas` columns — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"clickhouse:replicas\"\n| eval q=tonumber(queue_size)\n| where q > 500 OR is_readonly==1 OR is_readonly==\"true\"\n| stats max(q) as max_queue latest(absolute_delay) as abs_delay_sec by database, table, host\n| sort -max_queue",
   "description": "A deep `queue_size` or rising `absolute_delay` means replicas are not applying log entries fast enough, which risks read inconsistency and recovery time after failures. Read-only mode transitions often precede user-visible errors.",
-  "value": "Supports HA commitments on ReplicatedMergeTree by catching ZooKeeper/network/part issues before replicas diverge or queries fail.",
+  "value": "A deep `queue_size` or rising `absolute_delay` means replicas are not applying log entries fast enough, whi.... Timely UC-7.1.56 alerting on 'ClickHouse ReplicatedMergeTree Replica Read-Only Mode and Absolute Delay' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll `SELECT database, table, queue_size, absolute_delay, is_readonly FROM system.replicas` on each node every 60s. Normalize booleans. Alert queue_size >1000 (tune per table size) or sustained growth over 30 minutes. Correlate with `clickhouse:server_log` ZooKeeper errors.",
   "visualization": "Line chart (queue_size by table), Single value (max queue), Table (database, table, host, is_readonly).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'ClickHouse ReplicatedMergeTree Replica Read-Only Mode and Absolute Delay'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'ClickHouse ReplicatedMergeTree Replica Read-Only Mode and Absolute Delay' shifts `max` over `span=1h` while `database` remains in-scope for UC-7.1.56. Cross-check CMDB CHG.\n\n2. **Batch `max` on `clickhouse:replicas`** — Scheduled automation elevates `table` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `database`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `clickhouse:replicas`** — First 48h baseline for `database` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `database`, `exception_reason`, `valid_until`.",
   "equipment": [
     "clickhouse",
     "zookeeper"

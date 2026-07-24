@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Remote Desktop Gateway Health' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_remote_desktop_gateway_health` (UC-17.2.16), SOC dashboard panel \"Network — Remote Desktop Gateway Health\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=windows` sourcetype='WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational' that satisfy the UC-17.2.16 SPL filters for 'Remote Desktop Gateway Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `windows` / `WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.2.16."
+    "positiveScenario": "Ingest synthetic events into `index=windows` sourcetype='WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational' where `outcome` satisfies detection threshold for UC-17.2.16 ('Remote Desktop Gateway Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `windows` / `WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational` events where `outcome` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.2.16."
   },
   "dataSources": "`sourcetype=ms:iis`, `WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational` (if inputs use **XML** rendering, use `XmlWinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational` instead) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "Windows TA, IIS TA — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=windows sourcetype=\"WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational\" earliest=-24h\n| where EventCode IN (200,201,300,302)\n| eval outcome=if(EventCode IN (200,201),\"success\",\"failure\")\n| timechart span=15m count by outcome",
-  "description": "Monitors RD Gateway (HTTP/UDP) auth success, connection failures, and capacity for hybrid workers.",
-  "value": "IT operations teams monitor RD Gateway connection health and authentication patterns, detecting brute-force attacks against HTTPS-tunneled RDP access and identifying gateway availability issues before they impact remote workers.",
+  "description": "Monitors RD Gateway (HTTP/UDP) auth success, connection failures, and capacity for hybrid workers. Searches `index=windows` with sourcetype `WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational` for UC-17.2.16, aggregating `count` by `outcome` over `15m`. Alerts when grouped results cross configured threshold in the saved search. Gives Network operators a repeatable signal for 'Remote Desktop Gateway Health' without manual log review.",
+  "value": "Monitors RD Gateway (HTTP/UDP) auth success, connection failures, and capacity for hybrid workers. Timely UC-17.2.16 alerting on 'Remote Desktop Gateway Health' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Map Event IDs per OS version. Alert when failure ratio >10% over 1h. Add IIS logs for HTTP 503/502.",
   "visualization": "Line chart (success vs failure), Single value (failure %), Table (recent errors).",
   "cimModels": [
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Remote Desktop Gateway Health'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `windows`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `wineventlog:microsoft-windows-terminalservices-gateway/operational` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `windows`** — Planned work for 'Remote Desktop Gateway Health' shifts `count` over `span=15m` while `outcome` remains in-scope for UC-17.2.16. Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational`** — Scheduled automation elevates `outcome` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `outcome`** — Health checks in `windows` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational`** — First 48h baseline for `outcome` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `outcome`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1021.001"
   ],

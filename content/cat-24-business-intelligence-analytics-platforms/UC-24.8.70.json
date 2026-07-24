@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Informatica IICS Task Freshness SLA' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_informatica_iics_task_freshness_sla` (UC-24.8.70), SOC dashboard panel \"Operations — Informatica IICS Task Freshness SLA\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='informatica:iics' that satisfy the UC-24.8.70 SPL filters for 'Informatica IICS Task Freshness SLA'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `informatica:iics` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.8.70."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='informatica:iics' where `task_name` satisfies `hours_stale` > 12 for UC-24.8.70 ('Informatica IICS Task Freshness SLA'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `informatica:iics` events where `task_name` stays below `hours_stale` > 12, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.8.70."
   },
   "dataSources": "Informatica IICS runs (`informatica:iics`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Informatica Intelligent Cloud Services monitor logs via the IICS REST API to HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=informatica:iics status=\"SUCCESS\"\n| stats latest(_time) as last_success by task_name\n| eval hours_stale=round((now()-last_success)/3600,1)\n| where hours_stale>12\n| sort - hours_stale",
   "description": "Tracks the last successful update of each Informatica IICS task and flags those that have not refreshed within their freshness window, catching stale data even when no job reports a failure.",
-  "value": "A task can go stale without any error (a paused schedule, a missed trigger); freshness-SLA monitoring closes that blind spot for Informatica IICS.",
+  "value": "Tracks the last successful update of each Informatica IICS task and flags those that have not refreshed wit.... Timely UC-24.8.70 alerting on 'Informatica IICS Task Freshness SLA' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest Informatica IICS success events; schedule hourly and alert when a critical task exceeds its freshness window.",
   "visualization": "Table of task by hours stale, freshness heat map.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Informatica IICS Task Freshness SLA'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Informatica IICS Task Freshness SLA' shifts `count` over `span=1h` while `task_name` remains in-scope for UC-24.8.70. Cross-check CMDB CHG.\n\n2. **Batch `count` on `informatica:iics`** — Scheduled automation elevates `hours_stale` without crossing `hours_stale` > 12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `task_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `informatica:iics`** — First 48h baseline for `task_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `task_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

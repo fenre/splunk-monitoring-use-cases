@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Azure Container Registry Pull/Push and Vulnerability Scan' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_azure_container_registry_pull_push_and_vulnerabi` (UC-4.2.21), SOC dashboard panel \"Operations — Azure Container Registry Pull/Push and Vulnerability Scan\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=azure` sourcetype='mscs:azure:diagnostics' that satisfy the UC-4.2.21 SPL filters for 'Azure Container Registry Pull/Push and Vulnerability Scan'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `azure` / `mscs:azure:diagnostics` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.2.21."
+    "positiveScenario": "Ingest synthetic events into `index=azure` sourcetype='mscs:azure:diagnostics' where `identity_claim_upn` satisfies detection threshold for UC-4.2.21 ('Azure Container Registry Pull/Push and Vulnerability Scan'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `azure` / `mscs:azure:diagnostics` events where `identity_claim_upn` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.2.21."
   },
   "dataSources": "ACR diagnostic logs (Pull, Push), Defender for Containers / ACR vulnerability scan Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=azure sourcetype=\"mscs:azure:diagnostics\" ResourceType=\"MICROSOFT.CONTAINERREGISTRY/REGISTRIES\" OperationName=\"Pull\"\n| stats count by identity_claim_upn repository\n| eventstats avg(count) as avg_pull, stdev(count) as stdev_pull\n| where count > avg_pull + 2*stdev_pull",
-  "description": "ACR stores container images. Unusual pull/push or image scan findings indicate abuse or vulnerable images in use.",
+  "description": "ACR stores container images. Unusual pull/push or image scan findings indicate abuse or vulnerable images in use. Searches `index=azure` with sourcetype `mscs:azure:diagnostics` for UC-4.2.21, aggregating `avg` by `identity_claim_upn` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Azure Container Registry Pull/Push and Vulnerability Scan' without manual log review.",
   "value": "Early 'Azure Container Registry Pull/Push and Vulnerability Scan' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Enable ACR diagnostic logs. Baseline pull/push by identity and repo; alert on anomalies. Ingest vulnerability scan results from Defender or ACR task; alert on critical/high in production repos.",
   "visualization": "Table (user, repo, pulls), Bar chart (top pullers), Table (image, CVE, severity).",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Azure Container Registry Pull/Push and Vulnerability Scan'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `azure` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `azure`** — Planned work for 'Azure Container Registry Pull/Push and Vulnerability Scan' shifts `avg` over `span=1h` while `identity_claim_upn` remains in-scope for UC-4.2.21. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `mscs:azure:diagnostics`** — Scheduled automation elevates `repository` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `identity_claim_upn`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:diagnostics`** — First 48h baseline for `identity_claim_upn` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `identity_claim_upn`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1610",
     "T1613"

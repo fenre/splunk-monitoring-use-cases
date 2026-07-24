@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Automation Latency (Trigger to Action)' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_automation_latency_trigger_to_action` (UC-25.4.10), SOC dashboard panel \"Personal — Automation Latency (Trigger to Action)\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='homeassistant:event' that satisfy the UC-25.4.10 SPL filters for 'Automation Latency (Trigger to Action)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `homeassistant:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.4.10."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='homeassistant:event' where `automation` satisfies `p95_ms` > 2000 for UC-25.4.10 ('Automation Latency (Trigger to Action)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `homeassistant:event` events where `automation` stays below `p95_ms` > 2000, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.4.10."
   },
   "dataSources": "Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Node-RED flow events (`nodered:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=homeassistant:event event_type=automation_triggered\n| eval latency_ms=action_time*1000-trigger_time*1000\n| stats avg(latency_ms) as avg_ms, p95(latency_ms) as p95_ms by automation\n| where p95_ms>2000\n| sort - p95_ms",
   "description": "Measures the delay between an automation being triggered and its action completing, flagging the sluggish ones that make your home feel laggy.",
-  "value": "A light that takes two seconds to react feels broken; measuring automation latency finds the slow flows worth optimising.",
+  "value": "Measures the delay between an automation being triggered and its action completing, flagging the sluggish o.... Timely UC-25.4.10 alerting on 'Automation Latency (Trigger to Action)' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward automations with trigger and action timestamps; schedule daily and tune the slowest automations.",
   "visualization": "Table of automations by 95th-percentile latency.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Automation Latency (Trigger to Action)'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homeassistant:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Automation Latency (Trigger to Action)' stops polling `homeassistant:event`; stale `automation` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homeassistant:event`. Dedup with `stats latest(*) by automation`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `p95_ms` > 2000. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Threat Hunting Indicators' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_threat_hunting_indicators` (UC-10.3.6), SOC dashboard panel \"Security Infra — Threat Hunting Indicators\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=edr` sourcetype='crowdstrike:events' that satisfy the UC-10.3.6 SPL filters for 'Threat Hunting Indicators'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `edr` / `crowdstrike:events` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.3.6."
+    "positiveScenario": "Ingest synthetic events into `index=edr` sourcetype='crowdstrike:events' where `entity` satisfies detection threshold for UC-10.3.6 ('Threat Hunting Indicators'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `edr` / `crowdstrike:events` events where `entity` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.3.6."
   },
   "dataSources": "EDR process telemetry, file events, network connections Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "EDR TA (telemetry data) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edr sourcetype=\"crowdstrike:events\"\n| search (process_name=\"powershell.exe\" AND command_line=\"*-enc*\")\n    OR (process_name=\"rundll32.exe\" AND parent_process_name!=\"explorer.exe\")\n    OR (process_name=\"certutil.exe\" AND command_line=\"*-urlcache*\")\n| table _time, hostname, user, process_name, command_line, parent_process_name",
-  "description": "Proactive threat hunting using EDR telemetry detects stealthy threats that evade automated detection.",
+  "description": "Proactive threat hunting using EDR telemetry detects stealthy threats that evade automated detection. Searches `index=edr` with sourcetype `crowdstrike:events` for UC-10.3.6, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'Threat Hunting Indicators' without manual log review.",
   "value": "Early 'Threat Hunting Indicators' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ingest EDR telemetry (process creation, network connections, file writes). Create hunting queries for LOLBin usage, encoded PowerShell, suspicious parent-child process relationships. Schedule as recurring searches for continuous hunting.",
   "visualization": "Table (suspicious indicators), Timeline (hunting hits), Bar chart (indicators by technique).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Threat Hunting Indicators'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=edr` `crowdstrike:events`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `edr`** — Planned work for 'Threat Hunting Indicators' shifts `count` over `span=1h` while `host` remains in-scope for UC-10.3.6. Cross-check CMDB CHG.\n\n2. **Batch `count` on `crowdstrike:events`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `edr` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `crowdstrike:events`** — First 48h baseline for `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "crowdstrike"
   ],

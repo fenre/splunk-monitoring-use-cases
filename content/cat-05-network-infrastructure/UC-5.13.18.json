@@ -13,7 +13,7 @@
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:networkhealth\"\n| where healthScore > 0 AND totalCount > 0\n| stats latest(healthScore) as health_score latest(badCount) as bad latest(totalCount) as total\n| eval bad_pct=round(bad*100/total,1)\n| where health_score < 70 OR bad_pct > 10\n| table health_score, bad, total, bad_pct",
   "description": "Fires an alert when the aggregate network health score drops below 70 or when more than 10% of managed elements are unhealthy, indicating a systemic multi-device degradation event that individual device alerts (UC-5.13.3) may not escalate correctly because no single device crossed its threshold — this catches correlated failures that collectively represent a major incident.",
-  "value": "UC-5.13.3 pages you when one device is sick. This UC pages you when the *network* is sick — multiple devices degrading simultaneously in a way that drops the aggregate score. A campus-wide score below 70 means the problem is systemic: a spanning tree convergence event, a firmware push gone wrong, a shared upstream failure, or an HVAC failure causing thermal throttling across a building. The aggregate alert ensures you don't miss correlated failures that individually fall just above device-level thresholds but collectively represent a P1 incident. It's the difference between 'switch A is unhealthy' (one ticket) and 'the entire building is degraded' (incident commander).",
+  "value": "Fires an alert when the aggregate network health score drops below 70 or when more than 10% of managed elem.... Timely UC-5.13.18 alerting on 'Network Health Degradation Alerting' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Same data feed as UC-5.13.16. Schedule as alert: cron `*/15 * * * *`, time range `-30m to now`, trigger on any results. Throttle for 4 hours. This is a high-severity alert — route to the network operations lead, not just the on-call engineer. A campus-wide health drop is an incident, not a ticket.",
   "visualization": "(1) Alert results: health_score, bad, total, bad_pct — colour-coded red. (2) Single value: current health_score as a large gauge (same as UC-5.13.16 but with the alert context). (3) Timechart from UC-5.13.17 showing the health score drop in context. (4) Drilldown links to UC-5.13.1 (which devices?), UC-5.13.5 (which sites?), UC-5.13.9 (are clients affected?).",
   "references": [
@@ -34,7 +34,7 @@
       "url": "https://docs.splunk.com/Documentation/Splunk/latest/Alert/Setupalertactions"
     }
   ],
-  "knownFalsePositives": "**Planned maintenance window affecting aggregate health score.** During a firmware upgrade involving multiple devices, the aggregate score drops as devices reload. Distinguish by correlating with ITSM change records or `index=catalyst sourcetype=\"cisco:dnac:audit:logs\"` for upgrade tasks. Suppress with `catalyst_maintenance_windows` lookup.\n\n**Assurance recomputation cycle.** Brief drops to 0 during Assurance recomputation are filtered by `where healthScore > 0` in the SPL. If the filter is removed, false alerts will fire at the top of each hour.\n\n**Single high-impact device failure inflating the score drop.** A core switch failure adds 1 to `badCount` but drops `healthScore` by 10+ points due to weighted scoring. Distinguish by checking whether `bad = 1` — a single-device failure should be handled by UC-5.13.3, not this aggregate alert. Consider adding `| where bad > 2` to filter single-device events.\n\n**Catalyst Center scope change.** Adding or removing devices from management changes `totalCount`, shifting `bad_pct`. Distinguish by tracking `totalCount` stability: if `totalCount` changed significantly between consecutive polls, the score shift may be an inventory change rather than health degradation.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Network Health Degradation Alerting' shifts `count` over `span=1h` while `host` remains in-scope for UC-5.13.18. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:networkhealth`** — Scheduled automation elevates `bad_pct` without crossing `healthScore` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:networkhealth`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -53,5 +53,9 @@
   "prerequisiteUseCases": [
     "UC-5.13.16"
   ],
-  "wave": "walk"
+  "wave": "walk",
+  "controlTest": {
+    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:networkhealth' where `entity` satisfies `healthScore` > 0 for UC-5.13.18 ('Network Health Degradation Alerting'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:networkhealth` events where `entity` stays below `healthScore` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.18."
+  }
 }

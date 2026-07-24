@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'PostgreSQL Database Size Growth Trend' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_postgresql_database_size_growth_trend` (UC-7.4.19), SOC dashboard panel \"Operations — PostgreSQL Database Size Growth Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='postgresql:db_size' that satisfy the UC-7.4.19 SPL filters for 'PostgreSQL Database Size Growth Trend'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `postgresql:db_size` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.4.19."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='postgresql:db_size' where `datname` satisfies detection threshold for UC-7.4.19 ('PostgreSQL Database Size Growth Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `postgresql:db_size` events where `datname` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.4.19."
   },
   "dataSources": "`pg_database_size(datname)` or `pg_stat_database` with size export (`pg_database_size`) on `postgresql:db_size`",
   "app": "Splunk DB Connect (Splunkbase 2686)",
   "spl": "index=database sourcetype=\"postgresql:db_size\"\n| eval size_gb=round(size_bytes/1073741824,2)\n| timechart span=1d max(size_gb) as db_gb by datname, host\n| streamstats window=14 avg(db_gb) as baseline by datname, host\n| where db_gb > baseline*1.2",
   "description": "Database-level byte growth complements tablespace monitoring and catches bloat, logging, or staging schemas before backups and disk alerts fail.",
-  "value": "Improves capacity forecasting for PostgreSQL clusters where per-database chargeback or tenant isolation matters.",
+  "value": "Database-level byte growth complements tablespace monitoring and catches bloat, logging, or staging schemas.... Timely UC-7.4.19 alerting on 'PostgreSQL Database Size Growth Trend' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Daily DB Connect query listing datname and pg_database_size. Exclude template databases. Alert on percentage growth versus trailing baseline. Correlate with autovacuum and WAL metrics.",
   "visualization": "Line chart (GB per database), Table (growth %), Stacked area (top databases).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'PostgreSQL Database Size Growth Trend'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'PostgreSQL Database Size Growth Trend' shifts `max` over `span=1d` while `datname` remains in-scope for UC-7.4.19. Cross-check CMDB CHG.\n\n2. **Batch `max` on `postgresql:db_size`** — Scheduled automation elevates `host` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `datname`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `postgresql:db_size`** — First 48h baseline for `datname` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `datname`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "oracle",

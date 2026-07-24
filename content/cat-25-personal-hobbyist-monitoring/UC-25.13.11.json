@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Email Send-After-Hours Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_email_send_after_hours_trend` (UC-25.13.11), SOC dashboard panel \"Personal — Email Send-After-Hours Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='email:metadata' that satisfy the UC-25.13.11 SPL filters for 'Email Send-After-Hours Trend'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `email:metadata` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.13.11."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='email:metadata' where `_time` satisfies `hour` >= 20 for UC-25.13.11 ('Email Send-After-Hours Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `email:metadata` events where `_time` stays below `hour` >= 20, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.13.11."
   },
   "dataSources": "RescueTime activity (`rescuetime:activity`), screen-time exports (`screentime:usage`), GitHub events (`github:personal`), habit-tracker logs (`habit:entry`), calendar exports (`calendar:event`), email metadata (`email:metadata`), password-audit reports (`passwordmanager:audit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Screen-time / RescueTime exports, GitHub personal activity, habit/journal trackers, password-audit exports, and calendar/email feeds via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=email:metadata direction=outbound\n| eval hour=strftime(_time,\"%H\")\n| where hour>=20 OR hour<7\n| bin _time span=1w\n| stats count as after_hours_sends by _time\n| where after_hours_sends>10\n| sort - after_hours_sends",
   "description": "Counts how many emails you send outside normal hours, a simple pulse on boundary creep and late-night cognitive residue.",
-  "value": "A few nighttime messages are fine; a sustained trend often means work is spilling into time you wanted for recovery or family.",
+  "value": "Counts how many emails you send outside normal hours, a simple pulse on boundary creep and late-night cogni.... Timely UC-25.13.11 alerting on 'Email Send-After-Hours Trend' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward email metadata with direction and timestamp; review weekly after-hours volume and decide whether the pattern is intentional.",
   "visualization": "Weekly line chart of outbound after-hours email count.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Email Send-After-Hours Trend'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `email:metadata`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Email Send-After-Hours Trend' stops polling `email:metadata`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `email:metadata`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hour` >= 20. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "github",
     "security_essentials"

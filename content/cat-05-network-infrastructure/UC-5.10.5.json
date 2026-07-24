@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'SIP Registration Storm Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_sip_registration_storm_detection` (UC-5.10.5), SOC dashboard panel \"Operations — SIP Registration Storm Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='stream:sip' that satisfy the UC-5.10.5 SPL filters for 'SIP Registration Storm Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `target_index` / `stream:sip` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.10.5."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='stream:sip' where `_time` satisfies detection threshold for UC-5.10.5 ('SIP Registration Storm Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `stream:sip` events where `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.10.5."
   },
   "dataSources": "`sourcetype=stream:sip` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk App for Stream` (Splunkbase #1809) — Universal Forwarder (Splunkbase 617)",
   "spl": "sourcetype=\"stream:sip\" method=\"REGISTER\"\n| bin _time span=5m\n| stats count as register_count, dc(src) as unique_sources by _time\n| eventstats avg(register_count) as baseline, stdev(register_count) as stdev_reg\n| eval threshold=baseline+(3*stdev_reg)\n| where register_count>threshold\n| eval spike_factor=round(register_count/baseline, 1)",
   "description": "Detects sudden spikes in SIP REGISTER messages that can overwhelm IMS/SBC infrastructure — caused by mass device reboots, network flaps, or DDoS attacks. Early detection prevents cascading core failures.",
-  "value": "NOC teams detect registration storms within minutes of onset and distinguish mass device re-registration (self-limiting) from device loops and DDoS attacks (requiring intervention), preventing cascading IMS core failures.",
+  "value": "Detects sudden spikes in SIP REGISTER messages that can overwhelm IMS/SBC infrastructure — caused by mass d.... Timely UC-5.10.5 alerting on 'SIP Registration Storm Detection' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Configure Splunk App for Stream to capture SIP REGISTER traffic on the IMS/SBC interfaces. Use a 5-minute time bucket for aggregation. Calculate a rolling baseline using `eventstats` and flag any bucket where REGISTER volume exceeds 3 standard deviations above the mean. The `dc(src)` field helps distinguish between a mass re-registration event (many unique sources) vs. a single device stuck in a registration loop (few unique sources, high count). Alert the NOC immediately as registration storms can cascade into full core outages within minutes.",
   "visualization": "Line chart (REGISTER count over time with dynamic baseline threshold line), Single value (current spike factor vs. baseline), Table (time bucket, register_count, unique_sources, baseline, threshold — highlighting rows above threshold), Area chart (unique sources over time to correlate with storms).",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'SIP Registration Storm Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `target index` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index`** — Planned work for 'SIP Registration Storm Detection' shifts `dc` over `span=5m` while `_time` remains in-scope for UC-5.10.5. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `stream:sip`** — Scheduled automation elevates `threshold` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `stream:sip`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kubernetes",
     "stream"

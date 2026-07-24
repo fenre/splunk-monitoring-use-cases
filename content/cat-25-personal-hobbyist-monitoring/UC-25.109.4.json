@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Vacuum Battery Depletion Anomaly' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_vacuum_battery_depletion_anomaly` (UC-25.109.4), SOC dashboard panel \"Personal — Vacuum Battery Depletion Anomaly\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='vacuum:runtime' that satisfy the UC-25.109.4 SPL filters for 'Vacuum Battery Depletion Anomaly'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `vacuum:runtime` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.109.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='vacuum:runtime' where `device_name` satisfies `z_score` <= -2 for UC-25.109.4 ('Vacuum Battery Depletion Anomaly'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `vacuum:runtime` events where `device_name` stays below `z_score` <= -2, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.109.4."
   },
   "dataSources": "Roborock sessions (`roborock:session`), Tidy schedules (`tidy:schedule`), cleaning checklists (`cleaning:checklist`), and vacuum runtime logs (`vacuum:runtime`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Roborock vacuum session exports, Tidy scheduling logs, cleaning checklists, and runtime telemetry from robot vacuums ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=vacuum:runtime device_name=* battery_pct_end=* runtime_minutes=*\n| eventstats avg(battery_pct_end) as avg_battery, stdev(battery_pct_end) as battery_stdev by device_name\n| eval z_score=round((battery_pct_end-avg_battery)/nullif(battery_stdev,0),2)\n| where z_score<=-2\n| table _time device_name runtime_minutes battery_pct_end avg_battery z_score",
-  "description": "Detects vacuum sessions where end-of-run battery fell two standard deviations below the device average.",
-  "value": "Sudden battery drops often precede failing cells or brushes binding, causing incomplete cleans.",
+  "description": "Detects vacuum sessions where end-of-run battery fell two standard deviations below the device average. Searches `index=personal` with sourcetype `vacuum:runtime` for UC-25.109.4, aggregating `avg` by `device_name` over `the scheduled window`. Alerts when grouped results cross `z_score` <= -2 in the saved search. Gives Personal operators a repeatable signal for 'Vacuum Battery Depletion Anomaly' without manual log review.",
+  "value": "Detects vacuum sessions where end-of-run battery fell two standard deviations below the device average. Timely UC-25.109.4 alerting on 'Vacuum Battery Depletion Anomaly' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture `battery_pct_end` and `runtime_minutes` on every run and alert on low-battery outliers.",
   "visualization": "Table of anomalous sessions with battery z-score.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Vacuum Battery Depletion Anomaly'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vacuum:runtime`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Vacuum Battery Depletion Anomaly' stops polling `vacuum:runtime`; stale `device_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vacuum:runtime`. Dedup with `stats latest(*) by device_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `z_score` <= -2. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

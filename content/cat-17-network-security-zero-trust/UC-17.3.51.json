@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Akamai Guardicore Agent Health' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_akamai_guardicore_agent_health` (UC-17.3.51), SOC dashboard panel \"Network — Akamai Guardicore Agent Health\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=microseg` sourcetype='guardicore:agent' that satisfy the UC-17.3.51 SPL filters for 'Akamai Guardicore Agent Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `microseg` / `guardicore:agent` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.51."
+    "positiveScenario": "Ingest synthetic events into `index=microseg` sourcetype='guardicore:agent' where `agent_id` satisfies detection threshold for UC-17.3.51 ('Akamai Guardicore Agent Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `microseg` / `guardicore:agent` events where `agent_id` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.51."
   },
   "dataSources": "Guardicore agent status events Indexes: microseg. Sourcetypes: guardicore:agent. Key fields: agent_id, healthy, hostname, os. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=microseg sourcetype=\"guardicore:agent\" earliest=-4h\n| eval healthy=if(match(lower(status),\"(?i)active|running|connected\"),1,0)\n| stats latest(healthy) as current_status latest(_time) as last_seen by agent_id, hostname, os\n| where current_status=0 OR last_seen < relative_time(now(), \"-2h\")\n| sort last_seen",
   "description": "Guardicore agents on workloads enforce segmentation policies. Offline or degraded agents leave workloads unprotected — effectively disabling zero trust enforcement on that asset.",
-  "value": "Security operations teams monitor Guardicore agent health across all workloads, detecting disconnected agents that create segmentation gaps, tracking version compliance, and ensuring every workload maintains active microsegmentation enforcement.",
+  "value": "Guardicore agents on workloads enforce segmentation policies. Timely UC-17.3.51 alerting on 'Akamai Guardicore Agent Health' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Alert when agents go offline for >30 minutes on critical assets. Report on agent coverage (% of assets with active agents). Track agent version compliance.",
   "visualization": "Single value (offline agents), Table (unhealthy agents), Pie chart (agent status), Line chart (coverage trend).",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Akamai Guardicore Agent Health'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `microseg`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `guardicore:agent` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `microseg`** — Planned work for 'Akamai Guardicore Agent Health' shifts `count` over `span=1h` while `agent_id` remains in-scope for UC-17.3.51. Cross-check CMDB CHG.\n\n2. **Batch `count` on `guardicore:agent`** — Scheduled automation elevates `hostname` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `agent_id`** — Health checks in `microseg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `guardicore:agent`** — First 48h baseline for `agent_id` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `agent_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "guardicore"
   ],

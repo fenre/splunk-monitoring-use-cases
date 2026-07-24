@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Greenhouse and Soil-Moisture Guardian' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_greenhouse_and_soil_moisture_guardian` (UC-25.10.6), SOC dashboard panel \"Personal — Greenhouse and Soil-Moisture Guardian\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='plant:sensor' that satisfy the UC-25.10.6 SPL filters for 'Greenhouse and Soil-Moisture Guardian'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `plant:sensor` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.6."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='plant:sensor' where `plant` satisfies `moisture` < 20 for UC-25.10.6 ('Greenhouse and Soil-Moisture Guardian'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `plant:sensor` events where `plant` stays below `moisture` < 20, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.6."
   },
   "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil/greenhouse sensors, aquarium controllers. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=plant:sensor\n| stats latest(soil_moisture_pct) as moisture, latest(temp_c) as temp by plant\n| eval status=case(moisture<20,\"needs water\",temp>35,\"too hot\",temp<5,\"too cold\",1=1,\"happy\")\n| where status!=\"happy\"\n| sort moisture",
   "description": "Watches soil moisture and temperature for your plants or greenhouse and tells you exactly which ones need water or shelter.",
-  "value": "Plant sensors turn a green thumb into a data feed; per-plant alerts save a prized tomato crop from a hot weekend away.",
+  "value": "Watches soil moisture and temperature for your plants or greenhouse and tells you exactly which ones need w.... Timely UC-25.10.6 alerting on 'Greenhouse and Soil-Moisture Guardian' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward soil and greenhouse sensor readings; schedule twice daily and alert on plants that are dry or stressed.",
   "visualization": "Table of plants by soil moisture and temperature with a status flag.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Greenhouse and Soil-Moisture Guardian'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `plant:sensor`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Greenhouse and Soil-Moisture Guardian' stops polling `plant:sensor`; stale `plant` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `plant:sensor`. Dedup with `stats latest(*) by plant`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `moisture` < 20. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

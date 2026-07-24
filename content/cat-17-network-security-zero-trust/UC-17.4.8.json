@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Cloudflare Access Zero Trust Policy Deny Events by User and Application (`cloudflare:json`)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_cloudflare_access_zero_trust_policy_deny_events_` (UC-17.4.8), SOC dashboard panel \"Network — Cloudflare Access Zero Trust Policy Deny Events by User and Application (`cloudflare:json`)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=zt` sourcetype='cloudflare:json' that satisfy the UC-17.4.8 SPL filters for 'Cloudflare Access Zero Trust Policy Deny Events by User and Application (`cloudflare:json`)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `zt` / `cloudflare:json` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.4.8."
+    "positiveScenario": "Ingest synthetic events into `index=zt` sourcetype='cloudflare:json' where `UserEmail` satisfies detection threshold for UC-17.4.8 ('Cloudflare Access Zero Trust Policy Deny Events by User and Application (`cloudflare:json`)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `zt` / `cloudflare:json` events where `UserEmail` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.4.8."
   },
   "dataSources": "Cloudflare Logpush JSON delivered to Splunk HEC/S3 with `sourcetype=cloudflare:json` (HTTP requests, firewall, Workers, DNS, Access as configured)",
   "app": "Cloudflare App for Splunk (Splunkbase 4501) + Logpush JSON (`cloudflare:json`)",
   "spl": "index=zt sourcetype=\"cloudflare:json\" earliest=-24h\n| where match(_raw,\"(?i)Access|JWT|identity\")\n| spath UserEmail\n| spath AppUUID\n| spath Action\n| where match(Action,\"(?i)deny|block\")\n| stats count by UserEmail, AppUUID, IPCountry\n| sort -count",
   "description": "Access denials highlight over-tight policies, terminated employees still trying SSO, or credential stuffing against SaaS.",
-  "value": "IAM and security teams identify over-restrictive policies blocking legitimate users, detect brute-force attempts against ZTNA-protected applications, and spot terminated employees still attempting access through lingering sessions or credentials.",
+  "value": "Access denials highlight over-tight policies, terminated employees still trying SSO, or credential stuffing.... Timely UC-17.4.8 alerting on 'Cloudflare Access Zero Trust Policy Deny Events by User and Application (`cloudflare:json`)' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Configure Logpush jobs per dataset; route all into a unified `cloudflare:json` sourcetype or use transforms to normalize. Use `spath` for PascalCase fields. Create macros per zone name.",
   "visualization": "Table (user, app, country), timechart (deny rate).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Cloudflare Access Zero Trust Policy Deny Events by User and Application (`cloudflare:json`)'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `zt`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `cloudflare:json` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `zt`** — Planned work for 'Cloudflare Access Zero Trust Policy Deny Events by User and Application (`cloudflare:json`)' shifts `count` over `span=1h` while `UserEmail` remains in-scope for UC-17.4.8. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cloudflare:json`** — Scheduled automation elevates `AppUUID` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `UserEmail`** — Health checks in `zt` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cloudflare:json`** — First 48h baseline for `UserEmail` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `UserEmail`, `exception_reason`, `valid_until`.",
   "securityDomain": "cloud",
   "equipment": [
     "cloudflare"

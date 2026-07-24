@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Trunk Utilization (Cisco CUCM)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_trunk_utilization_cisco_cucm` (UC-11.3.4), SOC dashboard panel \"Operations — Trunk Utilization (Cisco CUCM)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=voip` sourcetype='cisco:ucm:cdr' that satisfy the UC-11.3.4 SPL filters for 'Trunk Utilization (Cisco CUCM)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `voip` / `cisco:ucm:cdr` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.3.4."
+    "positiveScenario": "Ingest synthetic events into `index=voip` sourcetype='cisco:ucm:cdr' where `_time` satisfies `concurrent_calls` > 20 for UC-11.3.4 ('Trunk Utilization (Cisco CUCM)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `voip` / `cisco:ucm:cdr` events where `_time` stays below `concurrent_calls` > 20, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.3.4."
   },
   "dataSources": "CDR records, gateway/trunk metrics Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "UCM CDR, gateway logs — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=voip sourcetype=\"cisco:ucm:cdr\"\n| bin _time span=15m\n| stats dc(globalCallID_callId) as concurrent_calls by _time, trunk_group\n| where concurrent_calls > 20",
-  "description": "Trunk capacity limits cause busy signals and missed calls. Monitoring prevents capacity-related service degradation.",
+  "description": "Trunk capacity limits cause busy signals and missed calls. Monitoring prevents capacity-related service degradation. Searches `index=voip` with sourcetype `cisco:ucm:cdr` for UC-11.3.4, aggregating `dc` by `_time` over `15m`. Alerts when grouped results cross `concurrent_calls` > 20 in the saved search. Gives Operations operators a repeatable signal for 'Trunk Utilization (Cisco CUCM)' without manual log review.",
   "value": "Early 'Trunk Utilization (Cisco CUCM)' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Track concurrent calls per trunk group from CDR data. Alert when utilization exceeds 80% of capacity. Monitor for trunk failures and failover events. Report on peak utilization for capacity planning.",
   "visualization": "Line chart (trunk utilization), Gauge (% capacity per trunk), Table (trunk utilization summary).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Trunk Utilization (Cisco CUCM)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `voip` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `voip`** — Planned work for 'Trunk Utilization (Cisco CUCM)' shifts `dc` over `span=15m` while `_time` remains in-scope for UC-11.3.4. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `cisco:ucm:cdr`** — Scheduled automation elevates `trunk_group` without crossing `concurrent_calls` > 20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ucm:cdr`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Workshop Dust and Noise Exposure' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_workshop_dust_and_noise_exposure` (UC-25.17.10), SOC dashboard panel \"Personal — Workshop Dust and Noise Exposure\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='workshop:air' that satisfy the UC-25.17.10 SPL filters for 'Workshop Dust and Noise Exposure'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `workshop:air` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.17.10."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='workshop:air' where `entity` satisfies `noise` > 85 for UC-25.17.10 ('Workshop Dust and Noise Exposure'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `workshop:air` events where `entity` stays below `noise` > 85, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.17.10."
   },
   "dataSources": "Print jobs (`octoprint:job`), printer firmware telemetry (`printer:telemetry`), filament spools (`filament:spool`), CNC/laser jobs (`cnc:job`), workshop air (`workshop:air`), cordless tool batteries (`tool:battery`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "OctoPrint / Klipper (Moonraker) print servers, printer firmware telemetry, filament spool tracking, CNC/laser job logs, and workshop air/tool sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=workshop:air location=workshop\n| timechart span=5m max(pm25) as dust, max(noise_db) as noise\n| eval hearing_risk=if(noise>85,1,0), dust_risk=if(dust>35,1,0)",
-  "description": "Logs fine dust and noise levels in the workshop, the two exposures that quietly damage lungs and hearing over years.",
-  "value": "Dust and noise harm accumulates invisibly; a running exposure record prompts a mask or ear defenders before it matters.",
+  "description": "Logs fine dust and noise levels in the workshop, the two exposures that quietly damage lungs and hearing over years. Searches `index=personal` with sourcetype `workshop:air` for UC-25.17.10, aggregating `max` by `entity` over `5m`. Alerts when grouped results cross `noise` > 85 in the saved search. Gives Personal operators a repeatable signal for 'Workshop Dust and Noise Exposure' without manual log review.",
+  "value": "Logs fine dust and noise levels in the workshop, the two exposures that quietly damage lungs and hearing ov.... Timely UC-25.17.10 alerting on 'Workshop Dust and Noise Exposure' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Place air-quality and sound sensors in the workshop; alert when dust or noise crosses safe exposure levels.",
   "visualization": "Time chart of workshop dust and noise with safety thresholds.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Workshop Dust and Noise Exposure'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `workshop:air`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Workshop Dust and Noise Exposure' stops polling `workshop:air`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `5m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `workshop:air`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `5m` bins on UTC vs local schedule skew `noise` > 85. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

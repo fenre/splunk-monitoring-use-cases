@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Travel Packing Rewear Coverage' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_travel_packing_rewear_coverage` (UC-25.49.30), SOC dashboard panel \"Personal — Travel Packing Rewear Coverage\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='style:wardrobe' that satisfy the UC-25.49.30 SPL filters for 'Travel Packing Rewear Coverage'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `style:wardrobe` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.49.30."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='style:wardrobe' where `trip_name` satisfies detection threshold for UC-25.49.30 ('Travel Packing Rewear Coverage'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `style:wardrobe` events where `trip_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.49.30."
   },
   "dataSources": "Closet activity (`style:wardrobe`), cleaning tasks (`style:cleaning`), shoe wears (`style:shoes`), beauty inventory (`beauty:product`), audits (`style:audit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Wardrobe and beauty telemetry — Stylebook closet exports, dry-cleaning reminders, shoe-rotation logs, and makeup inventory audits — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=style:wardrobe trip_name=* rewear_covered=*\n| stats count as total, sum(eval(if(rewear_covered=\"yes\",1,0))) as matched by trip_name\n| eval rewear_coverage_pct=round(100*matched/total,1)\n| sort - rewear_coverage_pct",
   "description": "Measures the percentage of packing plans that end with rewear coverage by trip. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Completion and exception percentages make it easier to spot which trip are helping or hurting packing plans.",
+  "value": "Measures the percentage of packing plans that end with rewear coverage by trip. Timely UC-25.49.30 alerting on 'Travel Packing Rewear Coverage' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store a normalized flag for `rewear coverage` on `style:wardrobe` events and summarize the hit rate by `trip_name`.",
   "visualization": "Table of trip with percentage of packing plans ending with rewear coverage.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Travel Packing Rewear Coverage'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `style:wardrobe`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Travel Packing Rewear Coverage' stops polling `style:wardrobe`; stale `trip_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `style:wardrobe`. Dedup with `stats latest(*) by trip_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

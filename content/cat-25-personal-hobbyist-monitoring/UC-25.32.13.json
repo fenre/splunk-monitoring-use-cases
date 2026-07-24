@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Keep-in-Touch Rotation Gaps' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_keep_in_touch_rotation_gaps` (UC-25.32.13), SOC dashboard panel \"Personal — Keep-in-Touch Rotation Gaps\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='keptintouch:contact' that satisfy the UC-25.32.13 SPL filters for 'Keep-in-Touch Rotation Gaps'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `keptintouch:contact` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.32.13."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='keptintouch:contact' where `person` satisfies `days_since` > 45 for UC-25.32.13 ('Keep-in-Touch Rotation Gaps'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `keptintouch:contact` events where `person` stays below `days_since` > 45, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.32.13."
   },
   "dataSources": "Relationship check-ins (`relationship:checkin`), date nights (`datenight:log`), gift ideas (`giftidea:item`), keep-in-touch contacts (`keptintouch:contact`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Relationship and togetherness logs — shared check-in apps, date-night and gift-idea lists, and stay-in-touch reminders — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=keptintouch:contact person=*\n| stats latest(_time) as last_contact, values(channel) as channels by person\n| eval days_since=round((now()-last_contact)/86400,0)\n| where days_since>45\n| sort - days_since",
   "description": "Lists loved ones who have quietly fallen out of your contact rotation. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "The people who matter most are often the easiest to delay contacting because there is no hard deadline.",
+  "value": "Lists loved ones who have quietly fallen out of your contact rotation. Timely UC-25.32.13 alerting on 'Keep-in-Touch Rotation Gaps' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Collect contact reminders and completions in `index=personal`; alert when the contact gap exceeds your threshold.",
   "visualization": "Table of people with days since last contact and last-used channel.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Keep-in-Touch Rotation Gaps'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `keptintouch:contact`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Keep-in-Touch Rotation Gaps' stops polling `keptintouch:contact`; stale `person` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `values` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `keptintouch:contact`. Dedup with `stats latest(*) by person`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_since` > 45. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Spoofed Email Detection' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_spoofed_email_detection` (UC-10.4.5), SOC dashboard panel \"Security Infra — Spoofed Email Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=email` sourcetype='dmarc:aggregate' that satisfy the UC-10.4.5 SPL filters for 'Spoofed Email Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `email` / `dmarc:aggregate` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.4.5."
+    "positiveScenario": "Ingest synthetic events into `index=email` sourcetype='dmarc:aggregate' where `src` satisfies detection threshold for UC-10.4.5 ('Spoofed Email Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `email` / `dmarc:aggregate` events where `src` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.4.5."
   },
   "dataSources": "DMARC aggregate reports, email authentication logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Email security TA — Universal Forwarder (Splunkbase 617)",
   "spl": "index=email sourcetype=\"dmarc:aggregate\"\n| where dkim_result!=\"pass\" OR spf_result!=\"pass\"\n| stats count by src, header_from, dkim_result, spf_result, disposition\n| sort -count",
-  "description": "DMARC/SPF/DKIM failures indicate email spoofing attempts. Monitoring validates email authentication configuration.",
+  "description": "DMARC/SPF/DKIM failures indicate email spoofing attempts. Monitoring validates email authentication configuration. Searches `index=email` with sourcetype `dmarc:aggregate` for UC-10.4.5, aggregating `count` by `src` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'Spoofed Email Detection' without manual log review.",
   "value": "Early 'Spoofed Email Detection' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Configure DMARC reporting (aggregate to a designated mailbox). Ingest DMARC XML reports. Track authentication failures by sending domain. Alert on spoofing of your own domains. Move toward DMARC p=reject for full protection.",
   "visualization": "Table (authentication failures), Bar chart (failures by domain), Pie chart (pass vs fail), Line chart (spoofing trend).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Spoofed Email Detection'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=email` `dmarc:aggregate`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `email`** — Planned work for 'Spoofed Email Detection' shifts `count` over `span=1h` while `src` remains in-scope for UC-10.4.5. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dmarc:aggregate`** — Scheduled automation elevates `header_from` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `email` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dmarc:aggregate`** — First 48h baseline for `src` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

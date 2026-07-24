@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Repository Webhook Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_repository_webhook_health` (UC-12.1.19), SOC dashboard panel \"Operations — Repository Webhook Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='github:webhook_delivery' that satisfy the UC-12.1.19 SPL filters for 'Repository Webhook Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `devops` / `github:webhook_delivery` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.1.19."
+    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='github:webhook_delivery' where `repository` satisfies `status_code` >= 400 for UC-12.1.19 ('Repository Webhook Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `devops` / `github:webhook_delivery` events where `repository` stays below `status_code` >= 400, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.1.19."
   },
   "dataSources": "`delivery` records with `status_code`, `error_message` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "GitHub Webhook deliveries API, Splunk HEC receiver logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"github:webhook_delivery\"\n| where status_code>=400 OR delivered=\"false\"\n| stats count by repository, hook_id, status_code\n| where count > 5\n| sort -count",
-  "description": "Failed webhook deliveries break CI, security scanning, and Splunk ingestion—monitor delivery logs and HTTP status.",
+  "description": "Failed webhook deliveries break CI, security scanning, and Splunk ingestion—monitor delivery logs and HTTP status. Searches `index=devops` with sourcetype `github:webhook_delivery` for UC-12.1.19, aggregating `count` by `repository` over `the scheduled window`. Alerts when grouped results cross `status_code` >= 400 in the saved search. Gives Operations operators a repeatable signal for 'Repository Webhook Health' without manual log review.",
   "value": "Early 'Repository Webhook Health' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Poll recent deliveries or ingest GitHub Enterprise audit. Alert on sustained 4xx/5xx to Splunk HEC. Verify TLS cert on endpoint.",
   "visualization": "Table (failing hooks), Line chart (failure rate), Single value (open incidents).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Repository Webhook Health'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `devops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `devops`** — Planned work for 'Repository Webhook Health' shifts `count` over `span=1h` while `repository` remains in-scope for UC-12.1.19. Cross-check CMDB CHG.\n\n2. **Batch `count` on `github:webhook_delivery`** — Scheduled automation elevates `hook_id` without crossing `status_code` >= 400. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `repository`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `github:webhook_delivery`** — First 48h baseline for `repository` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `repository`, `exception_reason`, `valid_until`.",
   "equipment": [
     "github"
   ],

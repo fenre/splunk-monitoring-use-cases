@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'ForeFlight Export Freshness by Tail Number' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_foreflight_export_freshness_by_tail_number` (UC-25.42.19), SOC dashboard panel \"Personal — ForeFlight Export Freshness by Tail Number\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flight:log' that satisfy the UC-25.42.19 SPL filters for 'ForeFlight Export Freshness by Tail Number'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `flight:log` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.19."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flight:log' where `tail_number` satisfies detection threshold for UC-25.42.19 ('ForeFlight Export Freshness by Tail Number'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `flight:log` events where `tail_number` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.19."
   },
   "dataSources": "Flight logs (`flight:log`), flight-plan snapshots (`simbrief:plan`), network sessions (`vatsim:session`), prep tasks (`checkride:prep`), export syncs (`flight:export`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Aviation and flight-sim telemetry — ForeFlight exports, SimBrief flight plans, VATSIM session logs, and checkride-prep trackers — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=flight:log tail_number=* export_epoch=* flight_end_epoch=*\n| eval lag_hours=round((export_epoch-flight_end_epoch)/3600,1)\n| stats avg(lag_hours) as avg_lag_hours, max(lag_hours) as worst_lag_hours by tail_number\n| sort - avg_lag_hours",
   "description": "Measures ForeFlight export lag by tail number for electronic-flight-bag syncs. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Lag tracking shows which tail number create the slowest handoffs, syncs, or review loops inside electronic-flight-bag syncs.",
+  "value": "Measures ForeFlight export lag by tail number for electronic-flight-bag syncs. Timely UC-25.42.19 alerting on 'ForeFlight Export Freshness by Tail Number' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture the timestamps needed to compute `ForeFlight export lag` on `flight:log` events and aggregate them by `tail_number`.",
   "visualization": "Table of tail number with average and worst ForeFlight export lag.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'ForeFlight Export Freshness by Tail Number'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flight:log`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'ForeFlight Export Freshness by Tail Number' stops polling `flight:log`; stale `tail_number` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flight:log`. Dedup with `stats latest(*) by tail_number`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

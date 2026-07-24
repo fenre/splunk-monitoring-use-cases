@@ -90,13 +90,13 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='veeam:job' that satisfy the UC-6.3.13 SPL filters for 'Backup RPO and RTO Compliance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `backup` / `veeam:job` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.3.13."
+    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='veeam:job' where `system_name]` satisfies detection threshold for UC-6.3.13 ('Backup RPO and RTO Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `backup` / `veeam:job` events where `system_name]` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.3.13."
   },
   "dataSources": "Last successful backup time, last restore test duration Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Backup TA + CMDB lookup — Universal Forwarder (Splunkbase 617)",
   "spl": "| inputlookup cmdb_systems.csv WHERE backup_tier=*\n| join system_name max=0\n    [search index=backup sourcetype=\"veeam:job\" status=\"Success\" earliest=-7d\n     | stats latest(_time) as last_ok by system_name]\n| eval hours_since_ok=round((now()-last_ok)/3600,1)\n| lookup backup_rpo_hours tier OUTPUT rpo_hours\n| where hours_since_ok > rpo_hours\n| table system_name tier hours_since_ok rpo_hours",
-  "description": "Compares actual backup completion time and restore test duration against business RPO/RTO targets per application tier.",
+  "description": "Compares actual backup completion time and restore test duration against business RPO/RTO targets per application tier. Searches `index=backup` with sourcetype `veeam:job` for UC-6.3.13, aggregating `count` by `system_name]` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Backup RPO and RTO Compliance' without manual log review.",
   "value": "Early 'Backup RPO and RTO Compliance' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Maintain lookup of RPO hours per tier. Join to last successful backup. Alert when hours_since_ok exceeds RPO. Add parallel search for restore drill duration vs RTO.",
   "visualization": "Table (systems breaching RPO), Gauge (% RPO compliant), Line chart (hours since backup by tier).",
@@ -125,7 +125,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Backup RPO and RTO Compliance'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `backup` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `backup`** — Planned work for 'Backup RPO and RTO Compliance' shifts `count` over `span=1h` while `system_name]` remains in-scope for UC-6.3.13. Cross-check CMDB CHG.\n\n2. **Batch `count` on `veeam:job`** — Scheduled automation elevates `hours_since_ok` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `system_name]`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `veeam:job`** — First 48h baseline for `system_name]` is unstable; join `backup_rpo_hours` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `system_name]`, `exception_reason`, `valid_until`.",
   "equipment": [
     "veeam"
   ],

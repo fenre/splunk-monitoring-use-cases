@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Cloudflare Tunnel 502 Origin Error Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_cloudflare_tunnel_502_origin_error_rate` (UC-25.9.24), SOC dashboard panel \"Personal — Cloudflare Tunnel 502 Origin Error Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='cloudflared:connector' that satisfy the UC-25.9.24 SPL filters for 'Cloudflare Tunnel 502 Origin Error Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `cloudflared:connector` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.24."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='cloudflared:connector' where `hostname` satisfies `requests` >= 20 for UC-25.9.24 ('Cloudflare Tunnel 502 Origin Error Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `cloudflared:connector` events where `hostname` stays below `requests` >= 20, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.24."
   },
   "dataSources": "Personal network telemetry (`openwrt:syslog`, `unifi:event`, `pihole:query`, `adguard:query`, `tailscale:netmap`, `cloudflared:connector`, `doh:query`, `speedtest:result`, `uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "OpenWrt, UniFi, Pi-hole, AdGuard Home, Tailscale, Cloudflare Tunnel, DNS over HTTPS resolvers, and scheduled probes via syslog, APIs, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=cloudflared:connector\n| stats count as requests, sum(eval(status_code=502)) as bad_gateway by hostname\n| eval error_pct=round(100*bad_gateway/requests,1)\n| where requests>=20 AND error_pct>1\n| sort - error_pct",
   "description": "Uses Cloudflare Tunnel request logs telemetry to monitor which public hostnames are returning origin 502s in index=personal.",
-  "value": "Splunk turns the feed into an operational check for services that are healthy locally but broken through the tunnel, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Cloudflare Tunnel request logs telemetry to monitor which public hostnames are returning origin 502s i.... Timely UC-25.9.24 alerting on 'Cloudflare Tunnel 502 Origin Error Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Cloudflare Tunnel request logs data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Hostname table of 502 error percentage.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Cloudflare Tunnel 502 Origin Error Rate'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `cloudflared:connector`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Cloudflare Tunnel 502 Origin Error Rate' stops polling `cloudflared:connector`; stale `hostname` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `cloudflared:connector`. Dedup with `stats latest(*) by hostname`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `requests` >= 20. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "cloudflare",
     "mqtt",

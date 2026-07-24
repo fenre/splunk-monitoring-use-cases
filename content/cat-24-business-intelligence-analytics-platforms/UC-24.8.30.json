@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Azure Data Factory Error-Rate Trend Anomaly' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_azure_data_factory_error_rate_trend_anomaly` (UC-24.8.30), SOC dashboard panel \"Operations — Azure Data Factory Error-Rate Trend Anomaly\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='azure:datafactory' that satisfy the UC-24.8.30 SPL filters for 'Azure Data Factory Error-Rate Trend Anomaly'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `azure:datafactory` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.8.30."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='azure:datafactory' where `_time` satisfies detection threshold for UC-24.8.30 ('Azure Data Factory Error-Rate Trend Anomaly'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `azure:datafactory` events where `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.8.30."
   },
   "dataSources": "ADF pipeline/activity runs (`azure:datafactory`). Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
   "app": "Azure Data Factory diagnostics via Azure Monitor/Event Hub and the ADF REST API via HEC. — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=bi sourcetype=azure:datafactory\n| bin _time span=1h\n| stats count as events, sum(eval(status=\"Failed\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
   "description": "Baselines the hourly error rate for Azure Data Factory and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
-  "value": "An error-rate spike is the earliest signal that Azure Data Factory is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "value": "Baselines the hourly error rate for Azure Data Factory and flags hours where it spikes more than three stan.... Timely UC-24.8.30 alerting on 'Azure Data Factory Error-Rate Trend Anomaly' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest Azure Data Factory logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
   "visualization": "Timechart of Azure Data Factory error rate with anomaly band.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Azure Data Factory Error-Rate Trend Anomaly'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Azure Data Factory Error-Rate Trend Anomaly' shifts `sum` over `span=1h` while `_time` remains in-scope for UC-24.8.30. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `azure:datafactory`** — Scheduled automation elevates `error_rate` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `azure:datafactory`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure"
   ],

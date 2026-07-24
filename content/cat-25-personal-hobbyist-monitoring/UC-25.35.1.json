@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Posture Slouch-Time per Work Day' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_posture_slouch_time_per_work_day` (UC-25.35.1), SOC dashboard panel \"Personal — Posture Slouch-Time per Work Day\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='posture:reading' that satisfy the UC-25.35.1 SPL filters for 'Posture Slouch-Time per Work Day'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `posture:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.35.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='posture:reading' where `_time` satisfies detection threshold for UC-25.35.1 ('Posture Slouch-Time per Work Day'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `posture:reading` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.35.1."
   },
   "dataSources": "Posture readings (`posture:reading`), symptom logs (`symptom:log`), bathroom visits (`bathroom:visit`), sneeze events (`sneeze:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Everyday body-signal logs — posture sensors, symptom and allergy journals, hydration-linked bathroom logs, and quirky personal counters — sent to Splunk HEC via wearables, MQTT, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=posture:reading\n| bin _time span=1d\n| stats sum(eval(if(state=\"slouch\",duration_min,0))) as slouch_min, sum(duration_min) as total by _time\n| eval slouch_pct=round(100*slouch_min/total,1)\n| sort - _time",
-  "description": "Measures how much of each work day you spent slouching versus sitting upright, a nudge for your back.",
-  "value": "Posture is hard to self-assess; a daily slouch percentage turns a vague ache into a habit you can improve.",
+  "description": "Measures how much of each work day you spent slouching versus sitting upright, a nudge for your back. Searches `index=personal` with sourcetype `posture:reading` for UC-25.35.1, aggregating `sum` by `_time` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Posture Slouch-Time per Work Day' without manual log review.",
+  "value": "Measures how much of each work day you spent slouching versus sitting upright, a nudge for your back. Timely UC-25.35.1 alerting on 'Posture Slouch-Time per Work Day' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest a posture sensor into `index=personal`; review daily slouch time and percentage.",
   "visualization": "Column chart of daily slouch time as a percentage.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Posture Slouch-Time per Work Day'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `posture:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Posture Slouch-Time per Work Day' stops polling `posture:reading`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `posture:reading`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

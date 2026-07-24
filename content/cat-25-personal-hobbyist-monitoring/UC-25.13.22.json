@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Calendar Free-Busy Overload Day' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_calendar_free_busy_overload_day` (UC-25.13.22), SOC dashboard panel \"Personal — Calendar Free-Busy Overload Day\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='calendar:freebusy' that satisfy the UC-25.13.22 SPL filters for 'Calendar Free-Busy Overload Day'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `calendar:freebusy` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.13.22."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='calendar:freebusy' where `calendar` satisfies `busy_min` > 480 for UC-25.13.22 ('Calendar Free-Busy Overload Day'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `calendar:freebusy` events where `calendar` stays below `busy_min` > 480, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.13.22."
   },
   "dataSources": "Personal productivity telemetry (`obsidian:sync`, `obsidian:note`, `todoist:task`, `toggl:timeentry`, `calendar:freebusy`, `calendar:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Obsidian Sync, Todoist, Toggl Track, Google Calendar / iCloud calendar exports, and task metadata ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=calendar:freebusy\n| bin _time span=1d\n| stats sum(busy_min) as busy_min by calendar _time\n| where busy_min>480\n| sort - busy_min",
   "description": "Uses Calendar free-busy exports telemetry to monitor days where scheduled busy time crossed a full workday in index=personal.",
-  "value": "Splunk turns the feed into an operational check for calendar overload before it feels normal, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Calendar free-busy exports telemetry to monitor days where scheduled busy time crossed a full workday.... Timely UC-25.13.22 alerting on 'Calendar Free-Busy Overload Day' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Calendar free-busy exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Daily chart of busy minutes by calendar.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Calendar Free-Busy Overload Day'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `calendar:freebusy`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Calendar Free-Busy Overload Day' stops polling `calendar:freebusy`; stale `calendar` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `calendar:freebusy`. Dedup with `stats latest(*) by calendar`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `busy_min` > 480. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

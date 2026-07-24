@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Dice-Fairness Audit for the Table' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_dice_fairness_audit_for_the_table` (UC-25.46.6), SOC dashboard panel \"Personal — Dice-Fairness Audit for the Table\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='xp:award' that satisfy the UC-25.46.6 SPL filters for 'Dice-Fairness Audit for the Table'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `xp:award` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.46.6."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='xp:award' where `player` satisfies `rolls` >= 30 for UC-25.46.6 ('Dice-Fairness Audit for the Table'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `xp:award` events where `player` stays below `rolls` >= 30, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.46.6."
   },
   "dataSources": "Campaign sessions (`campaign:session`), NPC ledger (`npc:ledger`), loot drops (`loot:drop`), XP awards (`xp:award`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tabletop RPG telemetry — virtual-tabletop session logs (Roll20, Foundry VTT), campaign trackers (World Anvil), and XP / loot / NPC ledgers — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=xp:award event=roll\n| stats count as rolls, avg(d20) as avg_roll by player\n| eval expected=10.5, deviation=round(avg_roll-expected,2)\n| where rolls>=30\n| sort - deviation",
-  "description": "Audits each player's long-run d20 average to check whether a lucky-feeling set of dice is actually skewed.",
-  "value": "Over enough rolls, a genuinely biased die shows up; this settles good-natured accusations at the table with data.",
+  "description": "Audits each player's long-run d20 average to check whether a lucky-feeling set of dice is actually skewed. Searches `index=personal` with sourcetype `xp:award` for UC-25.46.6, aggregating `avg` by `player` over `the scheduled window`. Alerts when grouped results cross `rolls` >= 30 in the saved search. Gives Personal operators a repeatable signal for 'Dice-Fairness Audit for the Table' without manual log review.",
+  "value": "Audits each player's long-run d20 average to check whether a lucky-feeling set of dice is actually skewed. Timely UC-25.46.6 alerting on 'Dice-Fairness Audit for the Table' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest roll data into `index=personal`; compare each player's average to the expected value.",
   "visualization": "Bar chart of average roll deviation by player.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Dice-Fairness Audit for the Table'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `xp:award`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Dice-Fairness Audit for the Table' stops polling `xp:award`; stale `player` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `xp:award`. Dedup with `stats latest(*) by player`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `rolls` >= 30. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

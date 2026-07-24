@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Force any required CCoP control family to lack evidence for >30 days. UC-22.57.3 MUST flag.",
-    "negativeScenario": "Maintain fresh evidence per family. UC-22.57.3 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=audit_evidence` sourcetype='target_sourcetype' where `control_family` satisfies `hours_since_evidence` > 720 for UC-22.57.3 ('SG Cyber Act Cybersecurity Code of Practice (CCoP 2.0) compliance roll-up scorecard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `audit_evidence` / `target_sourcetype` events where `control_family` stays below `hours_since_evidence` > 720, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.57.3."
   },
   "dataSources": "KV Store `csa_ccop_control_lookup` (control_id, control_family, evidence_search). `audit_evidence` summary index (cross-search via lookup). KV Store `csa_ccop_exception_lookup`.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup csa_ccop_control_lookup\n| map maxsearches=120 search=\"search index=audit_evidence $evidence_search$ earliest=-30d@d | head 1 | eval control_id=\\\"$control_id$\\\" | eval control_family=\\\"$control_family$\\\" | eval evidence_present=\\\"true\\\" | eval last_evidence=_time | fields control_id control_family evidence_present last_evidence\"\n| fillnull value=\"false\" evidence_present\n| eval hours_since_evidence = case(isnotnull(last_evidence), round((now()-last_evidence)/3600,1), 1=1, null)\n| eval health = case(\n    evidence_present=\"false\", \"missing\",\n    hours_since_evidence > 720, \"stale\",\n    1=1, \"current\")\n| stats values(control_id) as control_ids count(eval(health=\"missing\")) as missing count(eval(health=\"stale\")) as stale count(eval(health=\"current\")) as current count as total by control_family\n| eval gap_pct = round((missing+stale)*100/total, 1)\n| table control_family total current stale missing gap_pct",
-  "description": "Cross-references the CCoP control register against `audit_evidence` index to score each control family.",
-  "value": "CCoP compliance is the single most-inspected dimension of CSA enforcement. This dashboard converts noisy evidence into one scorecard.",
+  "description": "Cross-references the CCoP control register against `audit_evidence` index to score each control family. Searches `index=audit_evidence` with sourcetype `configured sourcetype` for UC-22.57.3, aggregating `values` by `control_family` over `the scheduled window`. Alerts when grouped results cross `hours_since_evidence` > 720 in the saved search. Gives Compliance operators a repeatable signal for 'SG Cyber Act Cybersecurity Code of Practice (CCoP 2.0) compliance roll-up scorecard' without manual log review.",
+  "value": "Cross-references the CCoP control register against `audit_evidence` index to score each control family. Timely UC-22.57.3 alerting on 'SG Cyber Act Cybersecurity Code of Practice (CCoP 2.0) compliance roll-up scorecard' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `csa_ccop_control_lookup` mapping each CCoP control to a Splunk evidence search. (2) Schedule UC-22.57.3 daily. (3) Build the `CSA CCoP Scorecard` dashboard.",
   "visualization": "(Panel 1) Control-family heat-map. (Panel 2) Gap trend (90 days). (Panel 3) Top-10 missing controls. (Panel 4) Exception-register expiry.",
   "cimModels": [
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **CCoP version drift**: ensure register matches the version in effect (CCoP 2.0 from 4 Jul 2022, with future amendments).\n2. **Search latency**: some control evidence may emit weekly; tune `expected_silence_hours` per control.\n3. **Sector-specific addenda**: certain sectors have sector-CCoP appendices; capture in extended register.\n\n**Suppression mechanism**: KV Store `csa_ccop_exception_lookup`.",
+  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit exercises 'SG Cyber Act Cybersecurity Code of Practice (CCoP 2.0) compliance roll-up scorecard' (UC-22.57.3) on `control_family` during scheduled clause SG-CA-s11 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `hours_since_evidence` > 720. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `control_family`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `control_family` during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `control_family`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (governance)"
   ],

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Splunk Version Compliance (operational inventory)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_splunk_version_compliance_operational_inventory` (UC-13.1.43), SOC dashboard panel \"Operations — Splunk Version Compliance (operational inventory)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=inventory` sourcetype='splunk:version_inventory' that satisfy the UC-13.1.43 SPL filters for 'Splunk Version Compliance (operational inventory)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `inventory` / `splunk:version_inventory` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.43."
+    "positiveScenario": "Ingest synthetic events into `index=inventory` sourcetype='splunk:version_inventory' where `group` satisfies `version_count` > 1 for UC-13.1.43 ('Splunk Version Compliance (operational inventory)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `inventory` / `splunk:version_inventory` events where `group` stays below `version_count` > 1, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.1.43."
   },
   "dataSources": "`| rest /services/server/info` (scripted aggregate), `sourcetype=splunk:version_inventory` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Monitoring Console, REST inventory — Universal Forwarder (Splunkbase 617)",
   "spl": "index=inventory sourcetype=\"splunk:version_inventory\"\n| stats dc(version) as version_count, values(version) as versions by group\n| where version_count > 1\n| table group, versions",
-  "description": "Drift across Splunk Enterprise versions breaks feature parity and support eligibility.",
+  "description": "Drift across Splunk Enterprise versions breaks feature parity and support eligibility. Searches `index=inventory` with sourcetype `splunk:version_inventory` for UC-13.1.43, aggregating `dc` by `group` over `the scheduled window`. Alerts when grouped results cross `version_count` > 1 in the saved search. Gives Operations operators a repeatable signal for 'Splunk Version Compliance (operational inventory)' without manual log review.",
   "value": "Early 'Splunk Version Compliance (operational inventory)' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Nightly scheduled search hits `server/info` on all peers via SH with credentials or forwarder-side scripted input. Compare to approved matrix. Report non-compliant hosts.",
   "visualization": "Table (hosts × version), Pie chart (version distribution).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Splunk Version Compliance (operational inventory)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `inventory` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `inventory`** — Planned work for 'Splunk Version Compliance (operational inventory)' shifts `dc` over `span=1h` while `group` remains in-scope for UC-13.1.43. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `splunk:version_inventory`** — Scheduled automation elevates `src` without crossing `version_count` > 1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `group`** — Health checks in `inventory` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `splunk:version_inventory`** — First 48h baseline for `group` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `group`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

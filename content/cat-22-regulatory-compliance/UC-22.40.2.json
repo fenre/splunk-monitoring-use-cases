@@ -52,15 +52,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When a break-glass account is used but no matching approval record exists 48 hours after session close, the UC fires naming the account, session_id, and initiator.",
-    "negativeScenario": "Usages with an approval record and sign-off by the designated reviewer do NOT fire.",
-    "fixtureRef": "sample-data/uc-22.40.2-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=pam` sourcetype='breakglass:approval' where `account` satisfies detection threshold for UC-22.40.2 ('Break-glass account usage review with mandatory post-use approval'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `pam` / `breakglass:approval` events where `account` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.40.2."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=pam breakglass=true earliest=-14d\n| stats min(_time) as started max(_time) as ended values(session_id) as session_id by account initiator\n| join account session_id [search index=grc sourcetype=breakglass:approval | stats values(approver) as approver max(_time) as approved_at by account session_id]\n| where isnull(approved_at) AND (now()-ended)>172800\n| table account initiator started ended session_id approved_at",
   "description": "Every break-glass activation must be followed by a reviewer sign-off within 48 hours. The UC surfaces any usage that escaped the governance loop.",
-  "value": "Break-glass misuse is the most audited sub-case of privileged access; a missing approval is a textbook SOX-ITGC deficiency.",
+  "value": "Every break-glass activation must be followed by a reviewer sign-off within 48 hours. Timely UC-22.40.2 alerting on 'Break-glass account usage review with mandatory post-use approval' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Tag break-glass accounts at vault time; (2) emit approval events from the GRC tool; (3) schedule every 30 min; (4) on miss, notify CISO and engage SOAR. Indexes required: `index=grc`, `index=pam`; Sourcetypes: `sourcetype=breakglass:approval`.",
   "visualization": "Table of break-glass activations with approval status, bar chart of usages per quarter, single-value 'activations with 48h approval'. Key fields: `account`, `approved_at`, `approver`, `ended`, `initiator`, `session_id`.",
   "cimModels": [],
@@ -85,7 +84,7 @@
       "title": "NIST SP 800-53 Rev. 5"
     }
   ],
-  "knownFalsePositives": "1. **Authorised security assessment activities** — Planned security control assessments, continuous monitoring scans, and Plan of Action and Milestones (POA&M) validation tests generate expected control deviation signals that are part of the Assessment & Authorisation process.\n\n2. **System authorisation boundary changes** — During ATO re-authorisation, system boundary expansions, or inheritance model updates, temporary control gaps may appear in the monitoring baseline until the updated security plan is approved by the Authorising Official.\n\n3. **Interconnection Security Agreement (ISA) activity** — Data exchanges with authorised external systems operating under signed ISAs produce cross-boundary traffic that triggers network monitoring alerts but is covered by the formal interconnection agreement.\n\n4. **FIPS 199 impact-level re-categorisation** — When system categorisation changes (e.g., Moderate to High), the transition period produces control baseline mismatches until the enhanced controls are fully implemented per the approved implementation schedule.\n\n**Suppression mechanism:** Maintain a `nist_800_53_exception_filter` KV Store lookup containing approved assessment schedule entries, POA&M IDs, ISA identifiers, and system re-categorisation project IDs. The correlation search filters against this lookup and suppresses matches with valid exception entries.",
+  "knownFalsePositives": "1. **Authorised NIST 800 53 control testing** — Internal audit exercises 'Break-glass account usage review with mandatory post-use approval' (UC-22.40.2) on `account` during scheduled clause AC-6 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=pam` `breakglass:approval` without crossing evidence threshold. Cross-check engagement letter in `nist_800_53_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `pam` for `account`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `account` during normal service delivery.\n\n**Suppression mechanism:** `nist_800_53_exception_register.csv` keyed on `account`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "identity",
   "requiredFields": [

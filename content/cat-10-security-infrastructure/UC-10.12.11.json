@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'Market Data Feed Latency' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_market_data_feed_latency` (UC-10.12.11), SOC dashboard panel \"Security Infra — Market Data Feed Latency\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=marketdata` sourcetype='mktdata:bbo' that satisfy the UC-10.12.11 SPL filters for 'Market Data Feed Latency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `marketdata` / `mktdata:bbo` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.11."
+    "positiveScenario": "Ingest synthetic events into `index=marketdata` sourcetype='mktdata:bbo' where `feed` satisfies `p95_lat` > 5 for UC-10.12.11 ('Market Data Feed Latency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `marketdata` / `mktdata:bbo` events where `feed` stays below `p95_lat` > 5, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.11."
   },
   "dataSources": "`sourcetype=\"mktdata:itch\"`, `sourcetype=\"mktdata:bbo\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Feed handler logs, hardware timestamping — Universal Forwarder (Splunkbase 617)",
   "spl": "index=marketdata sourcetype=\"mktdata:bbo\"\n| eval latency_ms=(ingest_time - exchange_send_time)*1000\n| timechart span=1m perc95(latency_ms) as p95_lat by feed\n| where p95_lat > 5",
-  "description": "Stale ticks distort pricing and execution; required for exchange member obligations and best-ex policies.",
+  "description": "Stale ticks distort pricing and execution; required for exchange member obligations and best-ex policies. Searches `index=marketdata` with sourcetype `mktdata:bbo` for UC-10.12.11, aggregating `count` by `feed` over `1m`. Alerts when grouped results cross `p95_lat` > 5 in the saved search. Gives Security Infra operators a repeatable signal for 'Market Data Feed Latency' without manual log review.",
   "value": "Early 'Market Data Feed Latency' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Use PTP-synced clocks; alert on gap messages, sequence breaks, or latency SLO breach per venue.",
   "visualization": "Line chart (p95 latency by feed), Single value (max gap), Heatmap (symbol × latency).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Market Data Feed Latency'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=marketdata` `mktdata:bbo`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `marketdata`** — Planned work for 'Market Data Feed Latency' shifts `count` over `span=1m` while `feed` remains in-scope for UC-10.12.11. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mktdata:bbo`** — Scheduled automation elevates `latency_ms` without crossing `p95_lat` > 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `feed`** — Health checks in `marketdata` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mktdata:bbo`** — First 48h baseline for `feed` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `feed`, `exception_reason`, `valid_until`.",
   "equipment": [
     "exchange"
   ],

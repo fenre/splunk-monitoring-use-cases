@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'API Error Rate by Endpoint' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_api_error_rate_by_endpoint` (UC-8.4.1), SOC dashboard panel \"Operations — API Error Rate by Endpoint\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=api` sourcetype='kong:access' that satisfy the UC-8.4.1 SPL filters for 'API Error Rate by Endpoint'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `api` / `kong:access` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.4.1."
+    "positiveScenario": "Ingest synthetic events into `index=api` sourcetype='kong:access' where `request_uri` satisfies `status` >= 400 for UC-8.4.1 ('API Error Rate by Endpoint'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `api` / `kong:access` events where `request_uri` stays below `status` >= 400, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.4.1."
   },
   "dataSources": "API gateway access logs (Kong, Apigee, AWS API Gateway) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom log input, gateway access logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=api sourcetype=\"kong:access\"\n| eval is_error=if(status>=400,1,0)\n| stats count, sum(is_error) as errors by request_uri, upstream_service\n| eval error_rate=round(errors/count*100,2)\n| where error_rate > 5\n| sort -error_rate",
-  "description": "Per-endpoint error rates pinpoint failing services, enabling targeted debugging rather than broad investigation.",
+  "description": "Per-endpoint error rates pinpoint failing services, enabling targeted debugging rather than broad investigation. Searches `index=api` with sourcetype `kong:access` for UC-8.4.1, aggregating `sum` by `request_uri` over `the scheduled window`. Alerts when grouped results cross `status` >= 400 in the saved search. Gives Operations operators a repeatable signal for 'API Error Rate by Endpoint' without manual log review.",
   "value": "Early 'API Error Rate by Endpoint' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Forward API gateway access logs to Splunk. Parse endpoint, status code, latency, and consumer identity. Calculate error rates per endpoint. Alert when any endpoint exceeds error threshold. Break down by 4xx vs 5xx.",
   "visualization": "Table (endpoints with error rates), Bar chart (error rate by endpoint), Line chart (error rate trend per endpoint).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'API Error Rate by Endpoint'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `api` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `api`** — Planned work for 'API Error Rate by Endpoint' shifts `sum` over `span=1h` while `request_uri` remains in-scope for UC-8.4.1. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `kong:access`** — Scheduled automation elevates `upstream_service` without crossing `status` >= 400. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `request_uri`** — Health checks in `api` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kong:access`** — First 48h baseline for `request_uri` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `request_uri`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

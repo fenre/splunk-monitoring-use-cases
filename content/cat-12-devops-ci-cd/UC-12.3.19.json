@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'AWX Inventory Sync From Cloud Source Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_awx_inventory_sync_from_cloud_source_failures` (UC-12.3.19), SOC dashboard panel \"Operations — AWX Inventory Sync From Cloud Source Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=automation` sourcetype='awx:job_events' that satisfy the UC-12.3.19 SPL filters for 'AWX Inventory Sync From Cloud Source Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `automation` / `awx:job_events` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.3.19."
+    "positiveScenario": "Ingest synthetic events into `index=automation` sourcetype='awx:job_events' where `inventory_id` satisfies detection threshold for UC-12.3.19 ('AWX Inventory Sync From Cloud Source Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `automation` / `awx:job_events` events where `inventory_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.3.19."
   },
   "dataSources": "AWX inventory update jobs and server logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "AWX external logging + optional Tower syslog forwarder — Universal Forwarder (Splunkbase 617)",
   "spl": "index=automation sourcetype=\"awx:job_events\" OR sourcetype=\"awx:server\"\n| search \"inventory\" AND (\"sync\" OR \"update\") AND (\"fail\" OR \"error\" OR \"403\" OR \"429\")\n| stats latest(_time) as last_err, count by inventory_id, source\n| sort -count",
   "description": "Stale dynamic inventory causes runs against wrong hosts or empty limits. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects SCM/cloud inventory sync failures before job templates target empty groups.",
+  "value": "Stale dynamic inventory causes runs against wrong hosts or empty limits. Timely UC-12.3.19 alerting on 'AWX Inventory Sync From Cloud Source Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Map `inventory_id` to human name via lookup. Watch for cloud API throttling.",
   "visualization": "Table (inventory × source), Single value (open failures).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'AWX Inventory Sync From Cloud Source Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `automation` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `automation`** — Planned work for 'AWX Inventory Sync From Cloud Source Failures' shifts `count` over `span=1h` while `inventory_id` remains in-scope for UC-12.3.19. Cross-check CMDB CHG.\n\n2. **Batch `count` on `awx:job_events`** — Scheduled automation elevates `source` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `inventory_id`** — Health checks in `automation` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `awx:job_events`** — First 48h baseline for `inventory_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `inventory_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Procare Attendance Hours Present Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_procare_attendance_hours_present_leaderboard` (UC-25.89.15), SOC dashboard panel \"Personal — Procare Attendance Hours Present Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='procare:attendance' that satisfy the UC-25.89.15 SPL filters for 'Procare Attendance Hours Present Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `procare:attendance` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.89.15."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='procare:attendance' where `child_name` satisfies detection threshold for UC-25.89.15 ('Procare Attendance Hours Present Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `procare:attendance` events where `child_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.89.15."
   },
   "dataSources": "brightwheel check-ins (`brightwheel:checkin`), Procare attendance (`procare:attendance`), Huckleberry sleep logs (`huckleberry:sleep`), daycare incidents (`daycare:incident`), and nanny timesheets (`nanny:timesheet`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "brightwheel check-in exports, Procare attendance logs, Huckleberry sleep tracking, daycare incident reports, and nanny timesheet entries streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=procare:attendance hours_present=*\n| stats sum(hours_present) as total_value, avg(hours_present) as avg_value by child_name\n| sort - total_value",
-  "description": "Ranks child values by total and average hours present across Procare attendance events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks child values by total and average hours present across Procare attendance events. Searches `index=personal` with sourcetype `procare:attendance` for UC-25.89.15, aggregating `sum` by `child_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Procare Attendance Hours Present Leaderboard' without manual log review.",
+  "value": "Ranks child values by total and average hours present across Procare attendance events. Timely UC-25.89.15 alerting on 'Procare Attendance Hours Present Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `hours_present` values for each Procare attendance event and review total and average hours present by child.",
   "visualization": "Table of entities ranked by total hours present.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Procare Attendance Hours Present Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `procare:attendance`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Procare Attendance Hours Present Leaderboard' stops polling `procare:attendance`; stale `child_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `procare:attendance`. Dedup with `stats latest(*) by child_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

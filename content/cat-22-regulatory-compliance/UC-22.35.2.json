@@ -137,16 +137,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When an indexer's primary bucket hash ceases to match the replicated peer's hash, the UC fires within one search interval and records the bucket_id, index, and divergence timestamp.",
-    "negativeScenario": "During normal hot-to-warm rolling (which re-hashes but preserves chain continuity) the UC does NOT fire.",
-    "fixtureRef": "sample-data/uc-22.35.2-fixture.json",
-    "attackTechnique": "T1070"
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `index` satisfies `uniques` > 1 for UC-22.35.2 ('Log tamper detection via write-once-read-many chain-of-custody'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `index` stays below `uniques` > 1, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.35.2."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "| rest /services/cluster/master/buckets splunk_server=* | eval primary_hash=coalesce('primaries{}.bucket_flags.hash','bucket_hash') | stats values(primary_hash) as hashes dc(primary_hash) as uniques by index, bucket_id | where uniques>1\n| eval divergence_detected_at=strftime(now(),\"%Y-%m-%dT%H:%M:%SZ\")\n| table divergence_detected_at index bucket_id hashes",
   "description": "Compares the cryptographic bucket hash across indexer peer nodes and raises a finding whenever the primary and its replicas disagree. A divergence is the earliest evidence of on-disk tampering or a replication-layer fault — both of which break the audit chain-of-custody that GDPR, HIPAA, PCI DSS, SOC 2, and SOX ITGC assume.",
-  "value": "Produces defensible chain-of-custody evidence: auditors can be shown a 30-day view in which every bucket was either green or had a timestamped remediation ticket.",
+  "value": "Compares the cryptographic bucket hash across indexer peer nodes and raises a finding whenever the primary.... Timely UC-22.35.2 alerting on 'Log tamper detection via write-once-read-many chain-of-custody' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Enable indexer-cluster replication with searchFactor≥2, replicationFactor≥3; (2) schedule the REST probe every 5 minutes; (3) pipe hits to compliance_summary and to ITSI as a KPI; (4) escalate to CISO on any bucket divergence older than 30 minutes.",
   "visualization": "Heat-map of indexes × buckets over 30d (green/red); single value for '% of buckets verified'; time-chart of open divergences.",
   "cimModels": [],
@@ -177,7 +175,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised GDPR control testing** — Internal audit exercises 'Log tamper detection via write-once-read-many chain-of-custody' (UC-22.35.2) on `index` during scheduled clause Art.32 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `uniques` > 1. Cross-check engagement letter in `gdpr_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `index`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `index` during normal service delivery.\n\n**Suppression mechanism:** `gdpr_exception_register.csv` keyed on `index`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1070"
   ],

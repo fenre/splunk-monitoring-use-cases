@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Netskope Cloud App Risk Assessment' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_netskope_cloud_app_risk_assessment` (UC-17.3.32), SOC dashboard panel \"Network — Netskope Cloud App Risk Assessment\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=casb` sourcetype='netskope:events' that satisfy the UC-17.3.32 SPL filters for 'Netskope Cloud App Risk Assessment'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `casb` / `netskope:events` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.32."
+    "positiveScenario": "Ingest synthetic events into `index=casb` sourcetype='netskope:events' where `app_name` satisfies `cci_score` < 50 for UC-17.3.32 ('Netskope Cloud App Risk Assessment'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `casb` / `netskope:events` events where `app_name` stays below `cci_score` < 50, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.32."
   },
   "dataSources": "`sourcetype=netskope:events` or `netskope:application` Indexes: casb. Sourcetypes: netskope:events. Key fields: app_name, category, cci_score. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Netskope Add-on for Splunk (Splunkbase 3808)",
   "spl": "index=casb sourcetype=\"netskope:events\" earliest=-7d\n| where cci_score < 50\n| stats dc(user) as users, sum(numbytes) as bytes by app_name, cci_score, category\n| eval gb=round(bytes/1073741824,2)\n| sort -users",
   "description": "Netskope assigns Cloud Confidence Index (CCI) scores to SaaS applications. Tracking high-risk (low CCI) app usage reveals shadow IT and data exposure. Trending CCI across the organization supports SaaS governance and vendor risk management.",
-  "value": "Cloud security teams assess the risk landscape of SaaS applications using Netskope's Cloud Confidence Index, identifying high-risk shadow IT with significant user adoption and data uploads, and prioritizing remediation of insecure cloud services.",
+  "value": "Netskope assigns Cloud Confidence Index (CCI) scores to SaaS applications. Timely UC-17.3.32 alerting on 'Netskope Cloud App Risk Assessment' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Configure the Netskope Add-on REST input for application events. Map `cci_score` (0–100) to risk tiers (0–30 critical, 31–50 high). Alert when new high-risk apps appear with >5 users. Report weekly on shadow IT growth and data volume to unsanctioned apps.",
   "visualization": "Table (risky apps by users and data volume), Pie chart (CCI distribution), Bar chart (top unsanctioned apps), Line chart (shadow IT trend).",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Netskope Cloud App Risk Assessment'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `casb`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `netskope:events` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `casb`** — Planned work for 'Netskope Cloud App Risk Assessment' shifts `dc` over `span=1h` while `app_name` remains in-scope for UC-17.3.32. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `netskope:events`** — Scheduled automation elevates `cci_score` without crossing `cci_score` < 50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `app_name`** — Health checks in `casb` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netskope:events`** — First 48h baseline for `app_name` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `app_name`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1102"
   ],

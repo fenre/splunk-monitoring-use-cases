@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Kafka Connect Connector Task Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_kafka_connect_connector_task_failures` (UC-24.8.5), SOC dashboard panel \"Operations — Kafka Connect Connector Task Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='kafka:connect' that satisfy the UC-24.8.5 SPL filters for 'Kafka Connect Connector Task Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dataops` / `kafka:connect` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.8.5."
+    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='kafka:connect' where `connector` satisfies detection threshold for UC-24.8.5 ('Kafka Connect Connector Task Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dataops` / `kafka:connect` events where `connector` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.8.5."
   },
   "dataSources": "Fivetran log-service events and REST API (`connectors`, sync status), Airbyte job logs (`airbyte:job`), Matillion task history, Kafka Connect connector/task status, AWS Glue job runs (CloudWatch), ADF pipeline runs (Azure Monitor). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF). — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops sourcetype=kafka:connect\n| stats latest(state) as state by connector, task\n| where state=\"FAILED\"\n| sort connector, task",
   "description": "Polls Kafka Connect connector and task status and flags tasks in the FAILED state, which stall streaming ingestion into or out of the data platform.",
-  "value": "A failed Connect task silently halts a streaming pipeline; task-level status is the only reliable way to catch it before data gaps appear.",
+  "value": "Polls Kafka Connect connector and task status and flags tasks in the FAILED state, which stall streaming in.... Timely UC-24.8.5 alerting on 'Kafka Connect Connector Task Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll the Connect REST `/connectors/*/status` endpoint into HEC; schedule every 5 minutes; alert on FAILED tasks. Auto-restart where safe.",
   "visualization": "Table of failed connectors/tasks, timechart of failures, alert.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Kafka Connect Connector Task Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `dataops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `dataops`** — Planned work for 'Kafka Connect Connector Task Failures' shifts `count` over `span=1h` while `connector` remains in-scope for UC-24.8.5. Cross-check CMDB CHG.\n\n2. **Batch `count` on `kafka:connect`** — Scheduled automation elevates `task` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `connector`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:connect`** — First 48h baseline for `connector` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `connector`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "azure",

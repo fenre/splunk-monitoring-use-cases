@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Home-Cleaner Refill Concentrate Usage' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_home_cleaner_refill_concentrate_usage` (UC-25.50.17), SOC dashboard panel \"Personal — Home-Cleaner Refill Concentrate Usage\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='recycling:weight' that satisfy the UC-25.50.17 SPL filters for 'Home-Cleaner Refill Concentrate Usage'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `recycling:weight` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.50.17."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='recycling:weight' where `_time` satisfies detection threshold for UC-25.50.17 ('Home-Cleaner Refill Concentrate Usage'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `recycling:weight` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.50.17."
   },
   "dataSources": "Carbon estimates (`carbon:estimate`), recycling weight (`recycling:weight`), food waste (`foodwaste:log`), repairs (`repair:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Sustainability telemetry — carbon-footprint apps, home recycling scales, food-waste logs, and repair / reuse journals — streamed to Splunk HEC via APIs, MQTT, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=recycling:weight stream=refill\n| bin _time span=1mon\n| stats sum(eval(if(package_type=\"refill\",kg,0))) as refill_kg, sum(eval(if(package_type=\"single_use\",kg,0))) as single_use_kg by _time\n| eval refill_share_pct=round(100*refill_kg/(refill_kg+single_use_kg),1)\n| sort - _time",
-  "description": "Compares refill or concentrate packaging with single-use cleaner packaging over time.",
-  "value": "Refill systems only pay off if they become the dominant behavior, not an occasional exception.",
+  "description": "Compares refill or concentrate packaging with single-use cleaner packaging over time. Searches `index=personal` with sourcetype `recycling:weight` for UC-25.50.17, aggregating `sum` by `_time` over `1m`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Home-Cleaner Refill Concentrate Usage' without manual log review.",
+  "value": "Compares refill or concentrate packaging with single-use cleaner packaging over time. Timely UC-25.50.17 alerting on 'Home-Cleaner Refill Concentrate Usage' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Track cleaner packaging by type in a refill stream and chart monthly refill share percentage.",
   "visualization": "Line chart of refill versus single-use cleaner packaging share.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Home-Cleaner Refill Concentrate Usage'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `recycling:weight`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Home-Cleaner Refill Concentrate Usage' stops polling `recycling:weight`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `recycling:weight`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "m365",
     "mqtt"

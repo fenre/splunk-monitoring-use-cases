@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Virtual Server Availability (F5 BIG-IP)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_virtual_server_availability_f5_big_ip` (UC-5.3.2), SOC dashboard panel \"Operations — Virtual Server Availability (F5 BIG-IP)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='f5:bigip:syslog' that satisfy the UC-5.3.2 SPL filters for 'Virtual Server Availability (F5 BIG-IP)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `f5:bigip:syslog` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.3.2."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='f5:bigip:syslog' where `entity` satisfies detection threshold for UC-5.3.2 ('Virtual Server Availability (F5 BIG-IP)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `f5:bigip:syslog` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.3.2."
   },
   "dataSources": "`sourcetype=f5:bigip:syslog`, iControl REST Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_f5-bigip`, SNMP — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=network sourcetype=\"f5:bigip:syslog\" \"virtual\" (\"disabled\" OR \"offline\" OR \"unavailable\")\n| table _time host virtual_server status | sort -_time",
   "description": "VIP down = application unreachable. Direct service impact. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Application delivery teams track F5 BIG-IP virtual server availability across the fleet, detecting unavailable VIPs and unstable state changes that indicate service disruptions or pool-level failures.",
+  "value": "VIP down = application unreachable. Timely UC-5.3.2 alerting on 'Virtual Server Availability (F5 BIG-IP)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Forward syslog. Monitor VIP status via SNMP or iControl REST. Alert on any state change away from \"available\".",
   "visualization": "Status indicator per VIP, Events timeline (critical).",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Virtual Server Availability (F5 BIG-IP)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Virtual Server Availability (F5 BIG-IP)' shifts `count` over `span=1h` while `host` remains in-scope for UC-5.3.2. Cross-check CMDB CHG.\n\n2. **Batch `count` on `f5:bigip:syslog`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `f5:bigip:syslog`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "f5",
     "snmp",

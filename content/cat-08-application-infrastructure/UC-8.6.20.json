@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Tomcat Catalina SEVERE Log Storms' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_tomcat_catalina_severe_log_storms` (UC-8.6.20), SOC dashboard panel \"Operations — Tomcat Catalina SEVERE Log Storms\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=application` sourcetype='tomcat:catalina' that satisfy the UC-8.6.20 SPL filters for 'Tomcat Catalina SEVERE Log Storms'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `application` / `tomcat:catalina` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.6.20."
+    "positiveScenario": "Ingest synthetic events into `index=application` sourcetype='tomcat:catalina' where `host` satisfies `count` > 50 for UC-8.6.20 ('Tomcat Catalina SEVERE Log Storms'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `application` / `tomcat:catalina` events where `host` stays below `count` > 50, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.6.20."
   },
   "dataSources": "`index=application` `sourcetype=tomcat:catalina` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Add-on for Tomcat — Universal Forwarder (Splunkbase 617)",
   "spl": "index=application sourcetype=\"tomcat:catalina\"\n| search \"SEVERE\" OR \"Exception\" OR \"OutOfMemoryError\"\n| bin _time span=5m\n| stats count by host\n| where count > 50",
-  "description": "Log storms precede thread death, memory pressure, or database outages in Tomcat-hosted applications.",
-  "value": "Automates first-pass triage of Java stack traces without manual tailing. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Log storms precede thread death, memory pressure, or database outages in Tomcat-hosted applications. Searches `index=application` with sourcetype `tomcat:catalina` for UC-8.6.20, aggregating `count` by `host` over `5m`. Alerts when grouped results cross `count` > 50 in the saved search. Gives Operations operators a repeatable signal for 'Tomcat Catalina SEVERE Log Storms' without manual log review.",
+  "value": "Log storms precede thread death, memory pressure, or database outages in Tomcat-hosted applications. Timely UC-8.6.20 alerting on 'Tomcat Catalina SEVERE Log Storms' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Deduplicate known stack hashes via `cluster` command; route to owners per webapp.",
   "visualization": "Timechart (events), top messages, drill to raw.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Tomcat Catalina SEVERE Log Storms'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `application` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `application`** — Planned work for 'Tomcat Catalina SEVERE Log Storms' shifts `count` over `span=5m` while `host` remains in-scope for UC-8.6.20. Cross-check CMDB CHG.\n\n2. **Batch `count` on `tomcat:catalina`** — Scheduled automation elevates `src` without crossing `count` > 50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `application` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tomcat:catalina`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "tomcat"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Spotify Skip Rate by Playlist' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_spotify_skip_rate_by_playlist` (UC-25.7.11), SOC dashboard panel \"Personal — Spotify Skip Rate by Playlist\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='spotify:play' that satisfy the UC-25.7.11 SPL filters for 'Spotify Skip Rate by Playlist'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `spotify:play` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.7.11."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='spotify:play' where `context_name` satisfies `plays` >= 10 for UC-25.7.11 ('Spotify Skip Rate by Playlist'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `spotify:play` events where `context_name` stays below `plays` >= 10, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.7.11."
   },
   "dataSources": "Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player and achievements (`steam:player`), Sonarr events (`sonarr:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and the *arr stack (Sonarr/Radarr) APIs and webhooks via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=spotify:play\n| stats count as plays, sum(eval(skipped=\"true\")) as skips by context_name\n| eval skip_rate=round(100*skips/plays,1)\n| where plays>=10 AND skip_rate>40\n| sort - skip_rate",
   "description": "Measures which playlists, radios, or contexts you abandon most often, giving you a brutally honest quality score for your own music curation.",
-  "value": "Skip behaviour is feedback you do not have to think about; turning it into a metric helps improve playlists and discover what actually fits your mood.",
+  "value": "Measures which playlists, radios, or contexts you abandon most often, giving you a brutally honest quality.... Timely UC-25.7.11 alerting on 'Spotify Skip Rate by Playlist' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward Spotify playback data with skip markers; review the highest skip-rate contexts and prune or rebuild them.",
   "visualization": "Table of playlists by plays, skips, and skip rate.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Spotify Skip Rate by Playlist'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `spotify:play`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Spotify Skip Rate by Playlist' stops polling `spotify:play`; stale `context_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `spotify:play`. Dedup with `stats latest(*) by context_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `plays` >= 10. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

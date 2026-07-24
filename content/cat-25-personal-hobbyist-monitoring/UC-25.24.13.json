@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Egg Production Consistency by Henhouse' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_egg_production_consistency_by_henhouse` (UC-25.24.13), SOC dashboard panel \"Personal — Egg Production Consistency by Henhouse\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='coop:egg' that satisfy the UC-25.24.13 SPL filters for 'Egg Production Consistency by Henhouse'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `coop:egg` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.24.13."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='coop:egg' where `coop` satisfies detection threshold for UC-25.24.13 ('Egg Production Consistency by Henhouse'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `coop:egg` events where `coop` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.24.13."
   },
   "dataSources": "Beehive weight and entrance activity (`beehive:weight`), hive climate (`beehive:climate`), brooder climate (`brooder:climate`), egg counts (`coop:egg`), rain-barrel level (`rainbarrel:level`), greenhouse climate (`greenhouse:climate`), orchard bloom observations (`orchard:bloom`), and milking logs (`milking:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Homestead telemetry from beehive monitors, coop sensors, brooder controls, greenhouse sensors, rain barrels, orchard logs, and milking records streamed to Splunk HEC via MQTT, LoRaWAN, and Home Assistant. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=coop:egg\n| bin _time span=1d\n| stats sum(eggs) as eggs by coop _time\n| eventstats avg(eggs) as baseline_eggs by coop\n| eval delta_eggs=eggs-baseline_eggs",
-  "description": "Tracks daily egg totals against each coop's own baseline so drop-offs are easier to spot early.",
-  "value": "Consistency often matters more than absolute output because it highlights stress, molting, or feed issues quickly.",
+  "description": "Tracks daily egg totals against each coop's own baseline so drop-offs are easier to spot early. Searches `index=personal` with sourcetype `coop:egg` for UC-25.24.13, aggregating `sum` by `coop` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Egg Production Consistency by Henhouse' without manual log review.",
+  "value": "Tracks daily egg totals against each coop's own baseline so drop-offs are easier to spot early. Timely UC-25.24.13 alerting on 'Egg Production Consistency by Henhouse' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log daily egg counts per coop from a counter or simple mobile form and compare them with that coop's average.",
   "visualization": "Line chart of daily eggs and baseline delta by coop.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Egg Production Consistency by Henhouse'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `coop:egg`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Egg Production Consistency by Henhouse' stops polling `coop:egg`; stale `coop` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `coop:egg`. Dedup with `stats latest(*) by coop`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "m365",
     "mqtt"

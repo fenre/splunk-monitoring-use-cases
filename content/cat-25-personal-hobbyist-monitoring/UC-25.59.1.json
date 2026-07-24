@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Personal SLOs and Error Budgets' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_personal_slos_and_error_budgets` (UC-25.59.1), SOC dashboard panel \"Personal — Personal SLOs and Error Budgets\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='streak:status' that satisfy the UC-25.59.1 SPL filters for 'Personal SLOs and Error Budgets'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `streak:status` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.59.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='streak:status' where `habit` satisfies `slo_pct` < 90 for UC-25.59.1 ('Personal SLOs and Error Budgets'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `streak:status` events where `habit` stays below `slo_pct` < 90, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.59.1."
   },
   "dataSources": "Life score (`lifeos:score`), quests / tasks (`quest:task`), habit streaks (`streak:status`), life achievements (`achievement:life`), household leaderboard (`household:leaderboard`), plus every other `index=personal` sourcetype as input. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "The parody-the-enterprise meta layer — a Personal NOC (house-health wall), Personal SOC (entry / impossible-travel), Personal SRE (SLOs on your own habits), and a gamification layer (XP, achievements, streaks, household leaderboards) — all computed in Splunk over `index=personal`. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=streak:status\n| bin _time span=1mon\n| stats sum(eval(if(met=\"yes\",1,0))) as good_days, count as days by habit _time\n| eval slo_pct=round(100*good_days/days,1), error_budget=round(days*0.1,0), budget_used=days-good_days\n| where slo_pct<90",
-  "description": "Treats your habits like service objectives — a 90% target with an error budget — and flags the ones falling short.",
-  "value": "Borrowing the reliability engineer's error-budget idea makes habit-keeping realistic: it allows off-days without abandoning the goal.",
+  "description": "Treats your habits like service objectives — a 90% target with an error budget — and flags the ones falling short. Searches `index=personal` with sourcetype `streak:status` for UC-25.59.1, aggregating `sum` by `habit` over `1m`. Alerts when grouped results cross `slo_pct` < 90 in the saved search. Gives Personal operators a repeatable signal for 'Personal SLOs and Error Budgets' without manual log review.",
+  "value": "Treats your habits like service objectives — a 90% target with an error budget — and flags the ones falling.... Timely UC-25.59.1 alerting on 'Personal SLOs and Error Budgets' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest daily habit outcomes into `index=personal`; compute each habit's objective and error budget.",
   "visualization": "Table of habits with objective attainment and budget used.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Personal SLOs and Error Budgets'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `streak:status`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Personal SLOs and Error Budgets' stops polling `streak:status`; stale `habit` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `streak:status`. Dedup with `stats latest(*) by habit`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew `slo_pct` < 90. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

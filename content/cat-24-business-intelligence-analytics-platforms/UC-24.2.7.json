@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Power BI Report and Dashboard Usage' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_power_bi_report_and_dashboard_usage` (UC-24.2.7), SOC dashboard panel \"Operations — Power BI Report and Dashboard Usage\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='o365:management:activity' that satisfy the UC-24.2.7 SPL filters for 'Power BI Report and Dashboard Usage'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `o365:management:activity` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.2.7."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='o365:management:activity' where `ReportName` satisfies detection threshold for UC-24.2.7 ('Power BI Report and Dashboard Usage'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `o365:management:activity` events where `ReportName` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.2.7."
   },
   "dataSources": "Power BI activity events (`o365:management:activity` with `Workload=PowerBI`), Power BI REST Admin API (`/admin/groups`, `/datasets/refreshes`, `/capacities/refreshables`), on-prem data gateway `Mashup`/`GatewayInfo` logs, Premium capacity metrics. Collected via Splunk Add-on for Microsoft Office 365 (Splunkbase 4054) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Add-on for Microsoft Cloud Services / Microsoft 365 (`Splunk_TA_microsoft-cloudservices`) for the Power BI activity log; Power BI REST Admin API and on-prem data gateway logs via HEC scripted inputs. — Splunk Add-on for Microsoft Office 365 (Splunkbase 4054)",
   "spl": "index=bi sourcetype=o365:management:activity Workload=PowerBI Activity=ViewReport\n| stats count as views, dc(UserId) as unique_users, latest(_time) as last_viewed by ReportName, WorkspaceName\n| eval days_since=round((now()-last_viewed)/86400,0)\n| sort - views",
   "description": "Uses the Power BI activity log to rank reports by usage and identify stale reports nobody opens, informing content rationalisation and capacity savings.",
-  "value": "Unused reports still consume refresh capacity and clutter workspaces; adoption data lets teams retire dead content and justify capacity investment.",
+  "value": "Uses the Power BI activity log to rank reports by usage and identify stale reports nobody opens, informing.... Timely UC-24.2.7 alerting on 'Power BI Report and Dashboard Usage' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest the Power BI audit log via the Office 365 Management Activity API; schedule weekly; share stale-report lists with owners.",
   "visualization": "Bar chart of top reports, table of stale reports, adoption trend.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Power BI Report and Dashboard Usage'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Power BI Report and Dashboard Usage' shifts `dc` over `span=1h` while `ReportName` remains in-scope for UC-24.2.7. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `o365:management:activity`** — Scheduled automation elevates `WorkspaceName` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ReportName`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `o365:management:activity`** — First 48h baseline for `ReportName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ReportName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure",
     "m365"

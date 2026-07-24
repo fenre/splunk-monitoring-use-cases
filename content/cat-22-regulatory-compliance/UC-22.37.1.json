@@ -75,15 +75,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When a subject's active consent grant is older than the configured max_consent_age_days (default 365) and the processing activity is still observed in application logs, the UC fires.",
-    "negativeScenario": "Processing activities with lawful basis ≠ consent (e.g. Art.6(1)(c) legal obligation) do NOT fire.",
-    "fixtureRef": "sample-data/uc-22.37.1-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=cmp` sourcetype='onetrust:consent' where `subject_token` satisfies `consent_age_days` > 365 for UC-22.37.1 ('Consent capture evidence freshness — stale-consent alerting'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cmp` / `onetrust:consent` events where `subject_token` stays below `consent_age_days` > 365, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.37.1."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=cmp sourcetype=onetrust:consent earliest=-400d\n| stats max(_time) as last_consent by subject_token purpose\n| eval consent_age_days=round((now()-last_consent)/86400,0)\n| where consent_age_days>365\n| join subject_token [search index=app_activity earliest=-30d | stats count by subject_token | where count>0]\n| table subject_token purpose last_consent consent_age_days",
   "description": "Flags subjects whose consent is older than the program threshold yet whose data is still being processed. Stale consent is a lawful-basis failure — Art.6/Art.7 require consent to remain current and demonstrable.",
-  "value": "Prevents the 'set-and-forget' consent anti-pattern that surfaces in nearly every GDPR supervisory-authority enforcement action.",
+  "value": "Flags subjects whose consent is older than the program threshold yet whose data is still being processed. Timely UC-22.37.1 alerting on 'Consent capture evidence freshness — stale-consent alerting' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Ingest CMP events with purpose taxonomy; (2) set max_consent_age_days via macro; (3) run daily; (4) pipe to SOAR to drive a re-consent workflow. Indexes required: `index=app_activity`, `index=cmp`; Sourcetypes: `sourcetype=onetrust:consent`.",
   "visualization": "Histogram of consent age by purpose; table of stale subjects; single-value for '% of processing with fresh consent'.",
   "cimModels": [],
@@ -106,7 +105,7 @@
       "title": "Splunk Security Essentials (Splunkbase 742)"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised GDPR control testing** — Internal audit exercises 'Consent capture evidence freshness — stale-consent alerting' (UC-22.37.1) on `subject_token` during scheduled clause Art.7 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=cmp` `onetrust:consent` without crossing `consent_age_days` > 365. Cross-check engagement letter in `gdpr_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `cmp` for `subject_token`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `subject_token` during normal service delivery.\n\n**Suppression mechanism:** `gdpr_exception_register.csv` keyed on `subject_token`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "audit",
   "requiredFields": [

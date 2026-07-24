@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Tableau Backgrounder Queue Backlog' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_tableau_backgrounder_queue_backlog` (UC-24.1.6), SOC dashboard panel \"Operations — Tableau Backgrounder Queue Backlog\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='tableau:backgrounder' that satisfy the UC-24.1.6 SPL filters for 'Tableau Backgrounder Queue Backlog'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `tableau:backgrounder` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.1.6."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='tableau:backgrounder' where `_time` satisfies `backlog` > 50 for UC-24.1.6 ('Tableau Backgrounder Queue Backlog'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `tableau:backgrounder` events where `_time` stays below `backlog` > 50, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.1.6."
   },
   "dataSources": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect, Tableau Cloud Admin Insights / Activity Log exports.",
   "app": "Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.",
   "spl": "index=bi sourcetype=tableau:backgrounder\n| bin _time span=15m\n| stats sum(eval(job_status=\"Pending\")) as pending, sum(eval(job_status=\"Running\")) as running by _time\n| eval backlog=pending\n| where backlog>50\n| sort - _time",
   "description": "Buckets Backgrounder job status over time to reveal when the pending-job queue grows faster than workers can drain it, the leading indicator of missed refresh windows.",
-  "value": "A growing Backgrounder backlog is the earliest sign you need more Backgrounder capacity; catching it prevents cascading refresh delays and late dashboards.",
+  "value": "Buckets Backgrounder job status over time to reveal when the pending-job queue grows faster than workers ca.... Timely UC-24.1.6 alerting on 'Tableau Backgrounder Queue Backlog' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Schedule every 15 minutes; tune the backlog threshold to your worker count. When backlog is chronic, add Backgrounder processes or stagger schedules.",
   "visualization": "Timechart of pending vs running jobs, alert on sustained backlog.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Tableau Backgrounder Queue Backlog'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Tableau Backgrounder Queue Backlog' shifts `sum` over `span=15m` while `_time` remains in-scope for UC-24.1.6. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `tableau:backgrounder`** — Scheduled automation elevates `backlog` without crossing `backlog` > 50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tableau:backgrounder`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "db_connect",

@@ -12,7 +12,7 @@
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:client\" connectionType=\"WIRELESS\"\n| stats avg(healthScore{}.score) as avg_health dc(macAddress) as client_count by ssid, vlanId\n| eval health_status=case(avg_health>=80,\"Good\", avg_health>=60,\"Fair\", 1==1,\"Poor\")\n| sort avg_health",
   "description": "Breaks down wireless client health by SSID and VLAN, isolating which wireless networks and network segments have the poorest user experience — so you can tell whether the problem is your corporate SSID, your guest SSID, your IoT SSID, or a specific VLAN that's serving a bad DHCP pool.",
-  "value": "UC-5.13.9 tells you wireless health is low; this UC tells you *which SSID*. A corporate SSID at 85% healthy alongside a guest SSID at 50% is a very different problem from both at 60%. The corporate SSID carries VoIP and Webex — that's a P2 incident. The guest SSID carries personal devices — that's a facilities request. Without the SSID split, you'd investigate everything; with it, you focus on the SSID that matters most to the business. The VLAN dimension adds another layer: a VLAN with a nearly-full DHCP scope will show concentrated poor health while the SSID as a whole looks fine.",
+  "value": "Breaks down wireless client health by SSID and VLAN, isolating which wireless networks and network segments.... Timely UC-5.13.12 alerting on 'Client Health by SSID and VLAN' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Requires the `client` detail input (heavier than `clienthealth`). Enable the `client` input: Inputs → Create → Client Detail, account `catcenter-prod`, index `catalyst`, interval `900`. Validate that `ssid` and `vlanId` are populated in the events. For wired-only environments, remove the `connectionType=\"WIRELESS\"` filter.",
   "visualization": "(1) Table: ssid, vlanId, avg_health, client_count, health_status — sorted by avg_health ascending (worst SSIDs first). (2) Stacked bar: client_count by health_status per SSID. (3) Optional heatmap: SSID (rows) × VLAN (columns) with avg_health as colour intensity. (4) Drilldown: click an SSID → filter to UC-5.13.42 (RSSI/SNR) for that SSID to see if the issue is signal quality or something else.",
   "references": [
@@ -33,7 +33,7 @@
       "url": "docs/guides/catalyst-center.md#sample-events"
     }
   ],
-  "knownFalsePositives": "**Guest SSID inherently lower health due to diverse client devices.** Guest SSIDs serve personal devices (phones, tablets, laptops) with varied hardware capabilities and driver quality. Average health for guest SSIDs is typically 10–20 points lower than corporate SSIDs. Distinguish by comparing health scores against per-SSID baselines rather than a universal threshold. Suppress by setting separate thresholds per SSID using a `ssid_thresholds` lookup.\n\n**IoT SSID with constrained devices reporting low health.** IoT devices (sensors, cameras, digital signage) often have limited wireless capabilities and report lower health scores. Distinguish by checking the `hostType` field — IoT devices may report as specific types. Suppress by excluding IoT SSIDs from the client health comparison or using IoT-specific health thresholds.\n\n**VLAN with nearly-full DHCP scope causing concentrated poor health.** When a VLAN's DHCP scope is 95%+ full, new clients fail to get IP addresses and report poor health. The VLAN will show disproportionate poor health while other VLANs on the same SSID are fine. Distinguish by correlating with DHCP server statistics (`show ip dhcp pool` or DHCP server logs). Do not suppress — this is a real capacity issue that needs DHCP scope expansion.\n\n**Hidden SSID or disabled SSID appearing in the data.** SSIDs that are disabled or hidden may still have a few clients associated (cached profiles). These show very low client counts with potentially poor health. Distinguish by checking whether `client_count < 5`. Suppress by filtering `| where client_count >= 10` for operational dashboards.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Client Health by SSID and VLAN' shifts `avg` over `span=1h` while `ssid` remains in-scope for UC-5.13.12. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `cisco:dnac:client`** — Scheduled automation elevates `vlanId` without crossing `avg_health` >= 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ssid`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:client`** — First 48h baseline for `ssid` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ssid`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -52,5 +52,9 @@
   "prerequisiteUseCases": [
     "UC-5.13.9"
   ],
-  "wave": "walk"
+  "wave": "walk",
+  "controlTest": {
+    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:client' where `ssid` satisfies `avg_health` >= 80 for UC-5.13.12 ('Client Health by SSID and VLAN'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:client` events where `ssid` stays below `avg_health` >= 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.12."
+  }
 }

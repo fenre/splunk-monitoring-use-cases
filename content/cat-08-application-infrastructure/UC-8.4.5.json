@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'Service-to-Service Call Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_service_to_service_call_failures` (UC-8.4.5), SOC dashboard panel \"Operations — Service-to-Service Call Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=mesh` sourcetype='envoy:access' that satisfy the UC-8.4.5 SPL filters for 'Service-to-Service Call Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `mesh` / `envoy:access` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.4.5."
+    "positiveScenario": "Ingest synthetic events into `index=mesh` sourcetype='envoy:access' where `upstream_cluster` satisfies `response_code` >= 500 for UC-8.4.5 ('Service-to-Service Call Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `mesh` / `envoy:access` events where `upstream_cluster` stays below `response_code` >= 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.4.5."
   },
   "dataSources": "Envoy access logs (upstream_cluster, response_code), Istio telemetry Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Istio/Envoy access logs, Linkerd tap — Universal Forwarder (Splunkbase 617)",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Service-to-Service Call Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `mesh` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `mesh`** — Planned work for 'Service-to-Service Call Failures' shifts `count` over `span=1h` while `upstream_cluster` remains in-scope for UC-8.4.5. Cross-check CMDB CHG.\n\n2. **Batch `count` on `envoy:access`** — Scheduled automation elevates `downstream_cluster` without crossing `response_code` >= 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `upstream_cluster`** — Health checks in `mesh` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `envoy:access`** — First 48h baseline for `upstream_cluster` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `upstream_cluster`, `exception_reason`, `valid_until`.",
   "equipment": [
     "envoy"
   ],

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Cloud Run/Functions Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cloud_run_functions_errors` (UC-4.3.8), SOC dashboard panel \"Operations — Cloud Run/Functions Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='google:gcp:pubsub:message' that satisfy the UC-4.3.8 SPL filters for 'Cloud Run/Functions Errors'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `gcp` / `google:gcp:pubsub:message` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.8."
+    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='google:gcp:pubsub:message' where `function` satisfies detection threshold for UC-4.3.8 ('Cloud Run/Functions Errors'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `gcp` / `google:gcp:pubsub:message` events where `function` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.8."
   },
   "dataSources": "Cloud Run/Functions logs via Cloud Logging Collected via Splunk Add-on for Google Cloud Platform (Splunkbase 3084) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_google-cloudplatform` — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
   "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" resource.type=\"cloud_function\" severity=\"ERROR\"\n| spath output=function path=resource.labels.function_name\n| stats count by function, textPayload\n| sort -count",
-  "description": "Serverless function errors and cold starts impact application reliability and user experience.",
+  "description": "Serverless function errors and cold starts impact application reliability and user experience. Searches `index=gcp` with sourcetype `google:gcp:pubsub:message` for UC-4.3.8, aggregating `count` by `function` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Cloud Run/Functions Errors' without manual log review.",
   "value": "Early 'Cloud Run/Functions Errors' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Forward Cloud Run/Functions logs via Pub/Sub. Monitor error rates, execution duration, and cold start frequency. Alert on error rate >5%.",
   "visualization": "Line chart (errors over time), Bar chart (top error functions), Single value.",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cloud Run/Functions Errors'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `gcp` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `gcp`** — Planned work for 'Cloud Run/Functions Errors' shifts `count` over `span=1h` while `function` remains in-scope for UC-4.3.8. Cross-check CMDB CHG.\n\n2. **Batch `count` on `google:gcp:pubsub:message`** — Scheduled automation elevates `textPayload` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `function`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `google:gcp:pubsub:message`** — First 48h baseline for `function` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `function`, `exception_reason`, `valid_until`.",
   "equipment": [
     "gcp"
   ],

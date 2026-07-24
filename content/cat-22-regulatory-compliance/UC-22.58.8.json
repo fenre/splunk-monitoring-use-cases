@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Force any UC-22.58.x to stop firing for 48 hours. UC-22.58.8 MUST flag staleness within 24h.",
-    "negativeScenario": "All UC-22.58.x evidence current. UC-22.58.8 MUST roll up green."
+    "positiveScenario": "Ingest synthetic events into `index=audit_evidence` sourcetype='target_sourcetype' where `uc` satisfies `hours_since_evidence` > 48 for UC-22.58.8 ('France LPM master compliance dashboard + Direction Générale + Délégué OIV attestation roll-up'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `audit_evidence` / `target_sourcetype` events where `uc` stays below `hours_since_evidence` > 48, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.58.8."
   },
   "dataSources": "Cross-search of `audit_evidence` for `reg=FR-LPM`. Indexes: audit_evidence. Key fields: health, hours_since_evidence, uc. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Enterprise Security (Splunkbase 263).",
   "spl": "search index=audit_evidence reg=FR-LPM earliest=-30d@d\n| eval uc = case(\n    match(_raw, \"uc=22\\.58\\.\"), \"22.58.\" + replace(_raw, \".*uc=22\\.58\\.(\\d+).*\", \"\\1\"),\n    1=1, \"unknown\")\n| stats count as evidence_rows latest(_time) as last_evidence by uc\n| eval hours_since_evidence = round((now() - last_evidence) / 3600, 1)\n| eval health = case(\n    hours_since_evidence > 48, \"stale\",\n    evidence_rows = 0, \"missing\",\n    1=1, \"current\")\n| sort uc\n| table uc evidence_rows last_evidence hours_since_evidence health",
   "description": "Daily roll-up showing UC-22.58.x evidence health. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Direction Générale + Délégué OIV-facing scorecard; defensible in ANSSI/PASSI inspections.",
+  "value": "Daily roll-up showing UC-22. Timely UC-22.58.8 alerting on 'France LPM master compliance dashboard + Direction Générale + Délégué OIV attestation roll-up' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Schedule UC-22.58.8 daily. (2) Build the `LPM Master Scorecard` dashboard. (3) Sign-off monthly by Délégué OIV.",
   "visualization": "(Panel 1) Per-UC health. (Panel 2) Trend (12-month). (Panel 3) Top outstanding. (Panel 4) Délégué OIV monthly attestation history.",
   "cimModels": [
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Authorised FR LPM control testing** — Internal audit or GRC exercises 'France LPM master compliance dashboard + Direction Générale + Délégué OIV attestation roll-up' during scheduled clause FR-ANSSI-rule-detection-pdis-qualification evidence collection. Match compliance programme calendar and accounts tagged `compliance_ops=true`.\n\n2. **External assessor sampling** — QSA or regulator sampling temporarily spikes `index=audit_evidence` `configured sourcetype` volume. Cross-check engagement letter in `fr_lpm_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB-approved change pauses or reshapes ingestion to `audit_evidence`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected cross-boundary events during normal service delivery.\n\n**Suppression mechanism:** `fr_lpm_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
+  "knownFalsePositives": "1. **Authorised FR LPM control testing** — Internal audit exercises 'France LPM master compliance dashboard + Direction Générale + Délégué OIV attestation roll-up' (UC-22.58.8) on `uc` during scheduled clause FR-ANSSI-rule-detection-pdis-qualification sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `hours_since_evidence` > 48. Cross-check engagement letter in `fr_lpm_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `uc`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `uc` during normal service delivery.\n\n**Suppression mechanism:** `fr_lpm_exception_register.csv` keyed on `uc`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (governance roll-up)"
   ],

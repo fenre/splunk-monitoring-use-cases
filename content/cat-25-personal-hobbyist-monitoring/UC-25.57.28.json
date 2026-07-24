@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Community Partner Referral Yield' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_community_partner_referral_yield` (UC-25.57.28), SOC dashboard panel \"Personal — Community Partner Referral Yield\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='community:impact' that satisfy the UC-25.57.28 SPL filters for 'Community Partner Referral Yield'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `community:impact` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.57.28."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='community:impact' where `partner_name` satisfies detection threshold for UC-25.57.28 ('Community Partner Referral Yield'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `community:impact` events where `partner_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.57.28."
   },
   "dataSources": "Volunteer shifts (`community:shift`), donations (`community:donation`), mutual-aid requests (`community:mutualaid`), service ops (`community:impact`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Community-service telemetry — food-bank shift logs, blood-donation records, and mutual-aid request maps — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=community:impact partner_name=* referrals_closed=*\n| stats avg(referrals_closed) as avg_referrals_closed, count as events by partner_name\n| sort - avg_referrals_closed",
   "description": "Shows average closed referrals by community partner for partner outcomes. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Average closed referrals by community partner helps compare partner outcomes across the factors that matter most.",
+  "value": "Shows average closed referrals by community partner for partner outcomes. Timely UC-25.57.28 alerting on 'Community Partner Referral Yield' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture `referrals_closed` on `community:impact` events and normalize `partner_name` so Splunk can summarize performance by community partner.",
   "visualization": "Bar chart of average closed referrals by community partner.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Community Partner Referral Yield'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `community:impact`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Community Partner Referral Yield' stops polling `community:impact`; stale `partner_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `community:impact`. Dedup with `stats latest(*) by partner_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "dell_emc"
   ],

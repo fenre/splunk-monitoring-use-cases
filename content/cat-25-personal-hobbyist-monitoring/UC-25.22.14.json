@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Autofocus Drift Through the Night' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_autofocus_drift_through_the_night` (UC-25.22.14), SOC dashboard panel \"Personal — Autofocus Drift Through the Night\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='focus:metric' that satisfy the UC-25.22.14 SPL filters for 'Autofocus Drift Through the Night'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `focus:metric` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.22.14."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='focus:metric' where `telescope` satisfies detection threshold for UC-25.22.14 ('Autofocus Drift Through the Night'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `focus:metric` events where `telescope` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.22.14."
   },
   "dataSources": "Observing sessions (`astronomy:session`), sky quality (`skyquality:reading`), mount telemetry (`mount:session`), focus metrics (`focus:metric`), observatory roof state (`observatory:roof`), sub-frame results (`astroimage:sub`), and all-sky detections (`allsky:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Astronomy telemetry from N.I.N.A., KStars/Ekos, Sky Quality Meters, all-sky cameras, focus routines, roof controllers, and image-rejection logs streamed to Splunk HEC via APIs and scripted exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=focus:metric\n| timechart span=30m avg(focus_position) as focus_position by telescope",
-  "description": "Charts average focus position through the night so temperature-driven focus drift is easy to see.",
-  "value": "Focus drift quietly softens data, and a time-based chart helps you decide whether autofocus cadence is too loose.",
+  "description": "Charts average focus position through the night so temperature-driven focus drift is easy to see. Searches `index=personal` with sourcetype `focus:metric` for UC-25.22.14, aggregating `avg` by `telescope` over `30m`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Autofocus Drift Through the Night' without manual log review.",
+  "value": "Charts average focus position through the night so temperature-driven focus drift is easy to see. Timely UC-25.22.14 alerting on 'Autofocus Drift Through the Night' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Export each autofocus routine result with telescope name and final focus position from N.I.N.A. or Ekos.",
   "visualization": "Time chart of focus position by telescope across the night.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Autofocus Drift Through the Night'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `focus:metric`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Autofocus Drift Through the Night' stops polling `focus:metric`; stale `telescope` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `30m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `focus:metric`. Dedup with `stats latest(*) by telescope`.\n\n4. **Timezone bucket misalignment** — `30m` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

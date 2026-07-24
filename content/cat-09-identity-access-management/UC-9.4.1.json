@@ -91,13 +91,13 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=pam` sourcetype='cyberark:session' that satisfy the UC-9.4.1 SPL filters for 'Privileged Session Audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `pam` / `cyberark:session` events outside the detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.4.1."
+    "positiveScenario": "Ingest synthetic events into `index=pam` sourcetype='cyberark:session' where `entity` satisfies detection threshold for UC-9.4.1 ('Privileged Session Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `pam` / `cyberark:session` events where `entity` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.4.1."
   },
   "dataSources": "PAM session logs (session start/end, target system, user, protocol) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk_TA_cyberark, BeyondTrust TA for Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pam sourcetype=\"cyberark:session\"\n| table _time, user, target_host, target_account, protocol, duration_min, session_id\n| sort -_time",
-  "description": "Complete audit trail of privileged sessions is required for compliance (SOX, PCI, HIPAA) and security investigation.",
+  "description": "Complete audit trail of privileged sessions is required for compliance (SOX, PCI, HIPAA) and security investigation. Searches `index=pam` with sourcetype `cyberark:session` for UC-9.4.1, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives IAM operators a repeatable signal for 'Privileged Session Audit' without manual log review.",
   "value": "Early 'Privileged Session Audit' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
   "implementation": "Install vendor PAM TA. Forward PAM vault/session logs to Splunk. Track all privileged sessions with full metadata. Alert on sessions outside business hours or to unexpected targets. Retain logs per compliance requirements.",
   "visualization": "Table (session history), Bar chart (sessions by user), Timeline (privileged access events), Heatmap (user × time of day).",
@@ -127,7 +127,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled IAM maintenance** — Planned directory or IdP change generates expected deviations for 'Privileged Session Audit'. Cross-check change records.\n\n2. **Onboarding burst** — New accounts or apps produce atypical `pam` volume.\n\n3. **Monitoring synthetic bind checks** — Health probes from known scanner hosts.\n\n4. **Stale application credential** — Single entity dominates `cyberark:session` failures.\n\n**Suppression mechanism:** `iam_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `pam`** — Planned work for 'Privileged Session Audit' shifts `count` over `span=1h` while `host` remains in-scope for UC-9.4.1. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cyberark:session`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `pam` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cyberark:session`** — First 48h baseline for `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078.002"
   ],

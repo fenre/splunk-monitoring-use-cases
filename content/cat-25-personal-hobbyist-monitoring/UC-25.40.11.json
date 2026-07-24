@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Missing-Signal Detector by Morning' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_missing_signal_detector_by_morning` (UC-25.40.11), SOC dashboard panel \"Personal — Missing-Signal Detector by Morning\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='target_sourcetype' that satisfy the UC-25.40.11 SPL filters for 'Missing-Signal Detector by Morning'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.40.11."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='target_sourcetype' where `sourcetype` satisfies `age_hours` > 24 for UC-25.40.11 ('Missing-Signal Detector by Morning'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `target_sourcetype` events where `sourcetype` stays below `age_hours` > 24, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.40.11."
   },
   "dataSources": "Daily life scores (`lifescore:daily`), personal SLO status (`personalslo:status`), cross-signal correlations (`correlation:pair`), plus every other `index=personal` sourcetype as input. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "The meta layer — correlating every `index=personal` feed (sleep, activity, mood, weather, spend, productivity, home telemetry) into daily life scores, personal SLOs, and cross-signal anomaly detection, all computed in Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal earliest=-24h\n| stats latest(_time) as last_seen by sourcetype\n| eval age_hours=round((now()-last_seen)/3600,1)\n| where age_hours>24\n| sort - age_hours",
-  "description": "Shows which feeds failed to report in the last day and may have fallen out of your personal data picture.",
-  "value": "A digital twin is only as useful as its freshest signals, so silence is a first-class problem.",
+  "description": "Shows which feeds failed to report in the last day and may have fallen out of your personal data picture. Searches `index=personal` with sourcetype `configured sourcetype` for UC-25.40.11, aggregating `count` by `sourcetype` over `the scheduled window`. Alerts when grouped results cross `age_hours` > 24 in the saved search. Gives Personal operators a repeatable signal for 'Missing-Signal Detector by Morning' without manual log review.",
+  "value": "Shows which feeds failed to report in the last day and may have fallen out of your personal data picture. Timely UC-25.40.11 alerting on 'Missing-Signal Detector by Morning' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Review all `index=personal` feeds daily; alert when a sourcetype has gone stale beyond one day.",
   "visualization": "Table of sourcetypes with hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Missing-Signal Detector by Morning'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `configured sourcetype`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Missing-Signal Detector by Morning' stops polling `configured sourcetype`; stale `sourcetype` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `configured sourcetype`. Dedup with `stats latest(*) by sourcetype`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `age_hours` > 24. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

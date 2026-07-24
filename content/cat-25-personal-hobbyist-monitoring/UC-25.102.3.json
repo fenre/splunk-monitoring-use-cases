@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Return Prep Time Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_return_prep_time_trend` (UC-25.102.3), SOC dashboard panel \"Personal — Return Prep Time Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='turbotax:return' that satisfy the UC-25.102.3 SPL filters for 'Return Prep Time Trend'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `turbotax:return` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.102.3."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='turbotax:return' where `filing_status` satisfies detection threshold for UC-25.102.3 ('Return Prep Time Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `turbotax:return` events where `filing_status` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.102.3."
   },
   "dataSources": "TurboTax returns (`turbotax:return`), IRS transcripts (`irs:transcript`), tax estimates (`tax:estimate`), tax payments (`tax:payment`), and W-2 imports (`w2:import`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "TurboTax return exports, IRS transcript pulls, tax estimate calculators, payment confirmations, and W-2 import logs ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=turbotax:return prep_minutes=* tax_year=*\n| timechart span=1y avg(prep_minutes) as avg_prep, max(prep_minutes) as worst_prep by filing_status\n| fillnull value=0",
-  "description": "Trends average and maximum TurboTax return preparation minutes by filing status across tax years.",
-  "value": "Prep-time drift shows when life complexity outgrew DIY and a CPA might save hours and mistakes.",
+  "description": "Trends average and maximum TurboTax return preparation minutes by filing status across tax years. Searches `index=personal` with sourcetype `turbotax:return` for UC-25.102.3, aggregating `avg` by `filing_status` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Return Prep Time Trend' without manual log review.",
+  "value": "Trends average and maximum TurboTax return preparation minutes by filing status across tax years. Timely UC-25.102.3 alerting on 'Return Prep Time Trend' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log `prep_minutes` and `filing_status` on each return session and compare year-over-year averages.",
   "visualization": "Multi-series line chart of prep minutes by filing status.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Return Prep Time Trend'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `turbotax:return`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Return Prep Time Trend' stops polling `turbotax:return`; stale `filing_status` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `turbotax:return`. Dedup with `stats latest(*) by filing_status`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Security Lane Processing Time and Queue Length' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_security_lane_processing_time_and_queue_length` (UC-21.7.2), SOC dashboard panel \"Operations — Security Lane Processing Time and Queue Length\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=airport` sourcetype='airport:security' that satisfy the UC-21.7.2 SPL filters for 'Security Lane Processing Time and Queue Length'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `airport` / `airport:security` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.7.2."
+    "positiveScenario": "Ingest synthetic events into `index=airport` sourcetype='airport:security' where `lane_id` satisfies `avg_wait` > 600 for UC-21.7.2 ('Security Lane Processing Time and Queue Length'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `airport` / `airport:security` events where `lane_id` stays below `avg_wait` > 600, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.7.2."
   },
   "dataSources": "`index=airport` `sourcetype=\"airport:security\"` (terminal_id, lane_id, queue_depth, wait_time_sec, throughput_pph) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Queue analytics / security lane sensors via HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=airport sourcetype=\"airport:security\"\n| bin _time span=5m\n| stats avg(wait_time_sec) as avg_wait, max(queue_depth) as max_q, avg(throughput_pph) as avg_thr by lane_id, terminal_id, _time\n| where avg_wait > 600 OR max_q > 80 OR avg_thr < 120\n| eval avg_wait_min=round(avg_wait/60,1)\n| table _time, terminal_id, lane_id, avg_wait_min, max_q, avg_thr",
   "description": "Passenger screening wait times drive missed flights and terminal congestion; monitoring queue depth and lane throughput supports dynamic staffing.",
-  "value": "Service and risk leaders use signals from Security Lane Processing Time and Queue Length to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "Service and risk leaders use signals from Security Lane Processing Time and Queue Length to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Ingest lidar or camera analytics exports with consistent `lane_id`. Align with airport peak bank schedules via CSV lookup. Coordinate alerts with security operations, not for access control decisions alone. **Domain context:** Checkpoint wait standards vary by program (PreCheck vs standard); privacy rules limit retention of video/lidar—prefer aggregated metrics in Splunk.",
   "visualization": "Time chart (wait time by lane), Area chart (queue depth), Heatmap (terminal × hour).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Security Lane Processing Time and Queue Length'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `airport` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `airport`** — Planned work for 'Security Lane Processing Time and Queue Length' shifts `avg` over `span=5m` while `lane_id` remains in-scope for UC-21.7.2. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `airport:security`** — Scheduled automation elevates `terminal_id` without crossing `avg_wait` > 600. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `lane_id`** — Health checks in `airport` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airport:security`** — First 48h baseline for `lane_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `lane_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "checkpoint"
   ],

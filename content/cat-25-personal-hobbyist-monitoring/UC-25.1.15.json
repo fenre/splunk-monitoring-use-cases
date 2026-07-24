@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Rest-Day Compliance After Long Run' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_rest_day_compliance_after_long_run` (UC-25.1.15), SOC dashboard panel \"Personal — Rest-Day Compliance After Long Run\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='strava:activity' that satisfy the UC-25.1.15 SPL filters for 'Rest-Day Compliance After Long Run'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `strava:activity` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.15."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='strava:activity' where `athlete` satisfies `distance_km` >= 18 for UC-25.1.15 ('Rest-Day Compliance After Long Run'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `strava:activity` events where `athlete` stays below `distance_km` >= 18, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.15."
   },
   "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift ride exports (`zwift:activity`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as file inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=strava:activity sport=Run\n| sort 0 athlete _time\n| streamstats current=f last(eval(if(distance_km>=18,_time,null()))) as prev_long_run_time by athlete\n| eval hours_since_long_run=round((_time-prev_long_run_time)/3600,1)\n| where prev_long_run_time>0 AND hours_since_long_run<24\n| sort - _time",
   "description": "Checks whether you sneak in another run too soon after a long run, catching the classic habit of skipping the recovery day you promised yourself.",
-  "value": "Many hobby injuries come from ignoring easy recovery rules, not from a single dramatic workout; this query spots the recovery shortcut immediately.",
+  "value": "Checks whether you sneak in another run too soon after a long run, catching the classic habit of skipping t.... Timely UC-25.1.15 alerting on 'Rest-Day Compliance After Long Run' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Tag long runs with distance and load them into Splunk; alert whenever another run lands within 24 hours of a long effort.",
   "visualization": "Table of follow-on runs started less than 24 hours after a long run.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Rest-Day Compliance After Long Run'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `strava:activity`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Rest-Day Compliance After Long Run' stops polling `strava:activity`; stale `athlete` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `strava:activity`. Dedup with `stats latest(*) by athlete`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `distance_km` >= 18. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

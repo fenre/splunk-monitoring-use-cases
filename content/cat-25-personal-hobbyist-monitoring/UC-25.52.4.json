@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Check-In Call Cadence' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_check_in_call_cadence` (UC-25.52.4), SOC dashboard panel \"Personal — Check-In Call Cadence\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='checkin:call' that satisfy the UC-25.52.4 SPL filters for 'Check-In Call Cadence'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `checkin:call` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.52.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='checkin:call' where `contact` satisfies `days_since` > 3 for UC-25.52.4 ('Check-In Call Cadence'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `checkin:call` events where `contact` stays below `days_since` > 3, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.52.4."
   },
   "dataSources": "Daily activity (`eldercare:activity`), fall alerts (`fall:alert`), medication reminders (`medreminder:event`), check-in calls (`checkin:call`), wandering alerts (`wandering:alert`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Elder-care and accessibility telemetry — activity and fall sensors (Apple Watch fall detection, motion mats), medication dispensers, and check-in / video-call logs — streamed to Splunk HEC via APIs and smart-home hubs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=checkin:call\n| stats max(_time) as last_call by contact\n| eval days_since=round((now()-last_call)/86400,1)\n| where days_since>3\n| sort - days_since",
-  "description": "Tracks how long it has been since each family member last checked in on a loved one and nudges when the gap grows.",
-  "value": "Sharing the caring load is easier when everyone can see who last called and who is overdue.",
+  "description": "Tracks how long it has been since each family member last checked in on a loved one and nudges when the gap grows. Searches `index=personal` with sourcetype `checkin:call` for UC-25.52.4, aggregating `max` by `contact` over `the scheduled window`. Alerts when grouped results cross `days_since` > 3 in the saved search. Gives Personal operators a repeatable signal for 'Check-In Call Cadence' without manual log review.",
+  "value": "Tracks how long it has been since each family member last checked in on a loved one and nudges when the gap.... Timely UC-25.52.4 alerting on 'Check-In Call Cadence' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest check-in calls into `index=personal`; flag contacts who have not called recently.",
   "visualization": "Table of contacts with days since last check-in.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Check-In Call Cadence'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `checkin:call`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Check-In Call Cadence' stops polling `checkin:call`; stale `contact` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `checkin:call`. Dedup with `stats latest(*) by contact`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_since` > 3. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -68,17 +68,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "A deliberate DLP test file containing cardholder PAN sent to an unlisted cloud-share triggers a hit within 30m.",
-    "negativeScenario": "Confidential data sent to a partner with approved='yes' is absent.",
-    "fixtureRef": "",
-    "attackTechnique": "T1048",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=dlp` sourcetype='target_sourcetype' where `dlp_policy` satisfies detection threshold for UC-22.8.38 ('SOC 2 C1.1 — Confidentiality: sensitive-data exposure at the egress boundary'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dlp` / `target_sourcetype` events where `dlp_policy` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.8.38."
   },
   "dataSources": "`index=dlp` sourcetype=symantec:dlp OR sourcetype=microsoft:purview:dlp; approved-destination lookup `approved_egress.csv`.",
   "app": "Splunk Add-on for Microsoft Purview, Splunk Add-on for Symantec DLP (Splunkbase)",
   "spl": "index=dlp sourcetype IN (symantec:dlp,microsoft:purview:dlp) severity IN (\"high\",\"critical\") earliest=-30m\n| rename destination_ip AS dest policy_name AS dlp_policy\n| lookup approved_egress.csv dest OUTPUT approved\n| where approved!=\"yes\" OR isnull(approved)\n| stats count BY dlp_policy severity user dest approved",
-  "description": "Surfaces DLP detections for confidential-class data whose destination is not in the approved-egress registry.",
-  "value": "C1.1 confidentiality assurance hinges on continuous detection of data leaving the boundary. This UC gives the DPO a queryable control output.",
+  "description": "Surfaces DLP detections for confidential-class data whose destination is not in the approved-egress registry. Searches `index=dlp` with sourcetype `configured sourcetype` for UC-22.8.38, aggregating `count` by `dlp_policy` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'SOC 2 C1.1 — Confidentiality: sensitive-data exposure at the egress boundary' without manual log review.",
+  "value": "Surfaces DLP detections for confidential-class data whose destination is not in the approved-egress registry. Timely UC-22.8.38 alerting on 'SOC 2 C1.1 — Confidentiality: sensitive-data exposure at the egress boundary' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Onboard DLP; (2) maintain approved_egress.csv; (3) schedule UC every 30m; (4) hit opens a P1 to DPO + user's manager; (5) weekly DPO report. Indexes required: `index=dlp`; Sourcetypes: `sourcetype=microsoft:purview:dlp`, `sourcetype=microsoft:purview:dlp;`, `sourcetype=symantec:dlp`.",
   "visualization": "Table of unapproved egress detections, bar chart by policy, single value 'new unapproved egress (1h)'.",
   "cimModels": [
@@ -111,7 +108,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised SOC 2 control testing** — Internal audit exercises 'SOC 2 C1.1 — Confidentiality: sensitive-data exposure at the egress boundary' (UC-22.8.38) on `dlp_policy` during scheduled clause C1.1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=dlp` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `soc_2_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `dlp` for `dlp_policy`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `dlp_policy` during normal service delivery.\n\n**Suppression mechanism:** `soc_2_exception_register.csv` keyed on `dlp_policy`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1048"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Window & Door Open-Duration Heat Loss' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_window_door_open_duration_heat_loss` (UC-25.37.6), SOC dashboard panel \"Personal — Window & Door Open-Duration Heat Loss\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='structural:tilt' that satisfy the UC-25.37.6 SPL filters for 'Window & Door Open-Duration Heat Loss'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `structural:tilt` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.37.6."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='structural:tilt' where `opening` satisfies `open_min` > 60 for UC-25.37.6 ('Window & Door Open-Duration Heat Loss'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `structural:tilt` events where `opening` stays below `open_min` > 60, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.37.6."
   },
   "dataSources": "Mould risk (`mould:risk`), crack meters (`crackmeter:reading`), HVAC filter life (`hvacfilter:life`), structural tilt (`structural:tilt`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Building-health sensors — indoor humidity / mould-risk monitors, crack and tilt meters, HVAC filter-life trackers, and damp sensors — streamed to Splunk HEC via MQTT and ESPHome. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=structural:tilt event=opening OR sourcetype=alarm:event event=opening\n| bin _time span=1d\n| stats sum(open_min) as open_min by opening _time\n| where open_min>60\n| sort - open_min",
-  "description": "Totals how long windows and external doors were left open in cold weather, quantifying heat lost.",
-  "value": "A door left ajar bleeds heat and money; totalling open-time makes an invisible waste visible.",
+  "description": "Totals how long windows and external doors were left open in cold weather, quantifying heat lost. Searches `index=personal` with sourcetype `structural:tilt` for UC-25.37.6, aggregating `sum` by `opening` over `1d`. Alerts when grouped results cross `open_min` > 60 in the saved search. Gives Personal operators a repeatable signal for 'Window & Door Open-Duration Heat Loss' without manual log review.",
+  "value": "Totals how long windows and external doors were left open in cold weather, quantifying heat lost. Timely UC-25.37.6 alerting on 'Window & Door Open-Duration Heat Loss' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest contact-sensor open durations into `index=personal`; flag openings left open a long time.",
   "visualization": "Column chart of daily open-duration by window or door.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Window & Door Open-Duration Heat Loss'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `structural:tilt`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Window & Door Open-Duration Heat Loss' stops polling `structural:tilt`; stale `opening` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `structural:tilt`. Dedup with `stats latest(*) by opening`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `open_min` > 60. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

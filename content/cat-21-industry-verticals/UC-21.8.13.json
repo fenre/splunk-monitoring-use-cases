@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Asterisk Queue Log Abandon Rate and Service Level Breach' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_asterisk_queue_log_abandon_rate_and_service_leve` (UC-21.8.13), SOC dashboard panel \"Operations — Asterisk Queue Log Abandon Rate and Service Level Breach\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=voip` sourcetype='asterisk:queue_log' that satisfy the UC-21.8.13 SPL filters for 'Asterisk Queue Log Abandon Rate and Service Level Breach'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `voip` / `asterisk:queue_log` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.8.13."
+    "positiveScenario": "Ingest synthetic events into `index=voip` sourcetype='asterisk:queue_log' where `_time` satisfies `enters` > 30 for UC-21.8.13 ('Asterisk Queue Log Abandon Rate and Service Level Breach'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `voip` / `asterisk:queue_log` events where `_time` stays below `enters` > 30, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.8.13."
   },
   "dataSources": "`index=voip` `sourcetype=asterisk:queue_log` pipe-delimited events (`COMPLETEAGENT`, `ABANDON`, `ENTERQUEUE`, `CONNECT`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Asterisk `queue_log` file monitoring via Universal Forwarder — Universal Forwarder (Splunkbase 617)",
   "spl": "index=voip sourcetype=asterisk:queue_log\n| eval q=coalesce(queue, qname)\n| eval is_abandon=if(event=\"ABANDON\",1,0), is_enter=if(event=\"ENTERQUEUE\",1,0), is_answer=if(event=\"CONNECT\",1,0)\n| bin _time span=1h\n| stats sum(is_enter) as enters, sum(is_abandon) as abandons, sum(is_answer) as answers by _time, host, q\n| eval abandon_rate=round(100*abandons/nullif(enters,0),2)\n| eval sla_met=round(100*answers/nullif(enters,0),2)\n| where enters>30 AND (abandon_rate>15 OR sla_met<75)",
   "description": "The Asterisk `queue_log` is the canonical source for ENTERQUEUE, ABANDON, and CONNECT events. Hourly abandon percentage and connect ratio highlight understaffed intervals or misrouted IVR paths before executive dashboards show revenue impact.",
-  "value": "Protects revenue and NPS on carrier or enterprise contact centers running Asterisk queues by exposing abandon spikes within an hour.",
+  "value": "The Asterisk `queue_log` is the canonical source for ENTERQUEUE, ABANDON, and CONNECT events. Timely UC-21.8.13 alerting on 'Asterisk Queue Log Abandon Rate and Service Level Breach' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Monitor `/var/log/asterisk/queue_log` with correct line breaking (each line is one event). Extract `event`, `qname`/`queue`, and hold time fields if present on ABANDON. Tune thresholds: retail often tolerates higher abandons than emergency services. Join with workforce management schedules via lookup on `q`.",
   "visualization": "Line chart (abandon_rate, sla_met), Bar chart (worst queues), Heatmap (hour × queue).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Asterisk Queue Log Abandon Rate and Service Level Breach'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `voip` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `voip`** — Planned work for 'Asterisk Queue Log Abandon Rate and Service Level Breach' shifts `sum` over `span=1h` while `_time` remains in-scope for UC-21.8.13. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `asterisk:queue_log`** — Scheduled automation elevates `host` without crossing `enters` > 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `asterisk:queue_log`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "asterisk"
   ],

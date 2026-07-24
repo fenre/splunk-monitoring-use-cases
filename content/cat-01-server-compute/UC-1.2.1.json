@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'CPU Utilization Trending (Windows)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_cpu_utilization_trending_windows` (UC-1.2.1), SOC dashboard panel \"Linux — CPU Utilization Trending (Windows)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=perfmon` sourcetype='Perfmon:CPU' that satisfy the UC-1.2.1 SPL filters for 'CPU Utilization Trending (Windows)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `perfmon` / `Perfmon:CPU` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.1."
+    "positiveScenario": "Ingest synthetic events into `index=perfmon` sourcetype='Perfmon:CPU' where `host` satisfies `avg_cpu` > 90 for UC-1.2.1 ('CPU Utilization Trending (Windows)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `perfmon` / `Perfmon:CPU` events where `host` stays below `avg_cpu` > 90, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.1."
   },
   "dataSources": "`sourcetype=Perfmon:CPU` (Perfmon input: `Processor`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=perfmon sourcetype=\"Perfmon:CPU\" counter=\"% Processor Time\" instance=\"_Total\"\n| timechart span=1h avg(Value) as avg_cpu by host\n| where avg_cpu > 90",
   "description": "Sustained high CPU causes application timeouts and service degradation. Trending enables capacity planning and helps identify runaway processes.",
-  "value": "Capacity owners use this to plan scale, find hot processes, and fix overload before response times and SLAs take a hit.",
+  "value": "Sustained high CPU causes application timeouts and service degradation. Timely UC-1.2.1 alerting on 'CPU Utilization Trending (Windows)' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Configure Perfmon inputs in `inputs.conf` on the UF: `[perfmon://CPU]`, object=Processor, counters=% Processor Time, instances=_Total, interval=60. Alert on sustained >90% for 15+ minutes.",
   "visualization": "Line chart (timechart), Single value (current), Heatmap across hosts.",
   "cimModels": [
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'CPU Utilization Trending (Windows)'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `perfmon` `Perfmon:CPU`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `perfmon`** — Package managers spike `host` metrics for 'CPU Utilization Trending (Windows)'. Correlate with apt/yum logs in the same `Perfmon:CPU` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `Perfmon:CPU`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `avg_cpu` > 90.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

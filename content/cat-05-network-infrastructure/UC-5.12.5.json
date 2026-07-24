@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'VoIP MOS Score Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_voip_mos_score_monitoring` (UC-5.12.5), SOC dashboard panel \"Operations — VoIP MOS Score Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=voip` sourcetype='qos:rtcp' that satisfy the UC-5.12.5 SPL filters for 'VoIP MOS Score Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `voip` / `qos:rtcp` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.12.5."
+    "positiveScenario": "Ingest synthetic events into `index=voip` sourcetype='qos:rtcp' where `codec` satisfies `avg_mos` < 3.8 for UC-5.12.5 ('VoIP MOS Score Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `voip` / `qos:rtcp` events where `codec` stays below `avg_mos` < 3.8, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.12.5."
   },
   "dataSources": "`sourcetype=\"qos:rtcp\"`, `sourcetype=\"cdr:voip\"` with `mos` field — context: `cisco:ucm:cdr`, `asterisk:cdr`, `stream:sip` (Stream), `ims:cscf` (IMS) as deployed Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "SBC QoE records, Poly/Vendor QoS feeds — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=voip (sourcetype=\"qos:rtcp\" OR sourcetype=\"cdr:voip\")\n| where isnotnull(mos)\n| timechart span=5m avg(mos) as avg_mos perc5(mos) as worst_mos by codec\n| where avg_mos < 3.8 OR worst_mos < 3.0",
-  "description": "Mean Opinion Score (or derived R-factor) from RTCP XR or vendor QoE reports — user-perceived VoLTE/VoIP quality.",
-  "value": "Voice quality teams detect MOS degradation before user complaints, correlate quality issues to specific network impairments (loss, jitter, latency), and segment by codec for targeted remediation.",
+  "description": "Mean Opinion Score (or derived R-factor) from RTCP XR or vendor QoE reports — user-perceived VoLTE/VoIP quality. Searches `index=voip` with sourcetype `qos:rtcp` for UC-5.12.5, aggregating `avg` by `codec` over `5m`. Alerts when grouped results cross `avg_mos` < 3.8 in the saved search. Gives Operations operators a repeatable signal for 'VoIP MOS Score Monitoring' without manual log review.",
+  "value": "Mean Opinion Score (or derived R-factor) from RTCP XR or vendor QoE reports — user-perceived VoLTE/VoIP qua.... Timely UC-5.12.5 alerting on 'VoIP MOS Score Monitoring' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "ITU-T G.107 E-model targets; correlate with jitter/loss from same leg_id; segment by radio access (VoLTE) vs. Wi-Fi.",
   "visualization": "Line chart (MOS trend), Scatter (loss vs. MOS), Table (worst calls).",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'VoIP MOS Score Monitoring'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `voip` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `voip`** — Planned work for 'VoIP MOS Score Monitoring' shifts `avg` over `span=5m` while `codec` remains in-scope for UC-5.12.5. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `qos:rtcp`** — Scheduled automation elevates `src` without crossing `avg_mos` < 3.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `codec`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `qos:rtcp`** — First 48h baseline for `codec` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `codec`, `exception_reason`, `valid_until`.",
   "equipment": [
     "asterisk",
     "cisco"

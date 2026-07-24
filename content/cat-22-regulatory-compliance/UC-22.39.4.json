@@ -71,16 +71,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Two submissions for incident_id=INC-123 report 1,000 and 10,000 affected subjects respectively; the UC fires.",
-    "negativeScenario": "Submissions with aligned subject counts do not fire.",
-    "fixtureRef": "",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=notifications` sourcetype='regulator:submission' where `incident_id` satisfies `subjects_uniques` > 1 for UC-22.39.4 ('Cross-regulator consistency — divergent material facts across submissions'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `notifications` / `regulator:submission` events where `incident_id` stays below `subjects_uniques` > 1, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.39.4."
   },
   "dataSources": "regulator:submission sourcetype records with normalised material-fact fields (affected_subjects, data_classes, root_cause).",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=notifications sourcetype=regulator:submission earliest=-30d\n| stats values(affected_subjects) as subjects_set values(data_classes) as data_set dc(affected_subjects) as subjects_uniques dc(data_classes) as data_uniques by incident_id\n| where subjects_uniques>1 OR data_uniques>1\n| table incident_id subjects_set data_set",
   "description": "Reads the structured material-fact fields of every regulator submission for an incident and alerts when the same incident has been described with divergent numbers or data classes. A diverging narrative across regulators is a pattern that escalates enforcement severity.",
-  "value": "Prevents the 'regulator cross-reference' problem that has escalated several prominent supervisory cases from technical fines to broader corporate sanction.",
+  "value": "Reads the structured material-fact fields of every regulator submission for an incident and alerts when the.... Timely UC-22.39.4 alerting on 'Cross-regulator consistency — divergent material facts across submissions' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Normalise submission events to carry canonical material-fact fields; (2) run 24h after any new submission for the incident_id; (3) alert DPO + legal if divergence found. Indexes required: `index=notifications`; Sourcetypes: `sourcetype=regulator:submission`.",
   "visualization": "Table of divergent incidents, bar chart of divergence magnitude, single-value 'incidents with consistent submissions'. Key fields: `data_set`, `data_uniques`, `incident_id`, `subjects_set`, `subjects_uniques`.",
   "cimModels": [],
@@ -105,7 +103,7 @@
       "title": "EDPB — Guidelines & Recommendations"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised GDPR control testing** — Internal audit exercises 'Cross-regulator consistency — divergent material facts across submissions' (UC-22.39.4) on `incident_id` during scheduled clause Art.33(3) sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=notifications` `regulator:submission` without crossing `subjects_uniques` > 1. Cross-check engagement letter in `gdpr_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `notifications` for `incident_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `incident_id` during normal service delivery.\n\n**Suppression mechanism:** `gdpr_exception_register.csv` keyed on `incident_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "audit",
   "requiredFields": [

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Anchoring Window by Tide State' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_anchoring_window_by_tide_state` (UC-25.43.28), SOC dashboard panel \"Personal — Anchoring Window by Tide State\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tide:table' that satisfy the UC-25.43.28 SPL filters for 'Anchoring Window by Tide State'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tide:table` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.43.28."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tide:table' where `tide_state` satisfies detection threshold for UC-25.43.28 ('Anchoring Window by Tide State'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `tide:table` events where `tide_state` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.43.28."
   },
   "dataSources": "Battery telemetry (`marine:battery`), AIS traffic (`marine:ais`), shore power (`marina:power`), tide forecasts (`tide:table`), export syncs (`marine:export`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Boating and marine telemetry — Victron BMV battery exports, AIS transponder logs, shore-power meter readings, and NOAA tide tables — streamed to Splunk HEC via NMEA exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tide:table tide_state=* anchor_window_min=*\n| stats avg(anchor_window_min) as avg_anchor_window_min, count as events by tide_state\n| sort - avg_anchor_window_min",
   "description": "Shows average anchor window minutes by tide state for anchoring opportunities. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Average anchor window minutes by tide state helps compare anchoring opportunities across the factors that matter most.",
+  "value": "Shows average anchor window minutes by tide state for anchoring opportunities. Timely UC-25.43.28 alerting on 'Anchoring Window by Tide State' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture `anchor_window_min` on `tide:table` events and normalize `tide_state` so Splunk can summarize performance by tide state.",
   "visualization": "Bar chart of average anchor window minutes by tide state.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Anchoring Window by Tide State'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tide:table`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Anchoring Window by Tide State' stops polling `tide:table`; stale `tide_state` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tide:table`. Dedup with `stats latest(*) by tide_state`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

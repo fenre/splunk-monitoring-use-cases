@@ -13,13 +13,13 @@
   "exclusions": "Covers the detection logic documented for 'Batch Process Deviation Alerting' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_batch_process_deviation_alerting` (UC-14.2.26), SOC dashboard panel \"Operations — Batch Process Deviation Alerting\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='batch:phase' that satisfy the UC-14.2.26 SPL filters for 'Batch Process Deviation Alerting'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `batch:phase` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.26."
+    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='batch:phase' where `reactor_id` satisfies detection threshold for UC-14.2.26 ('Batch Process Deviation Alerting'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ot` / `batch:phase` events where `reactor_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.26."
   },
   "dataSources": "`sourcetype=\"batch:phase\"`, `sourcetype=\"historian:sample\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Batch executive (S88), historian — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"batch:phase\" batch_id=*\n| lookup recipe_limits recipe phase OUTPUT min_temp max_temp max_duration_sec\n| where temp_c < min_temp OR temp_c > max_temp OR phase_duration_sec > max_duration_sec\n| stats latest(batch_id) as batch, values(phase) as phases by reactor_id\n| sort -_time",
-  "description": "Recipe phase duration, temperature, or agitator speed outside limits risks scrap or unsafe reactions.",
+  "description": "Recipe phase duration, temperature, or agitator speed outside limits risks scrap or unsafe reactions. Searches `index=ot` with sourcetype `batch:phase` for UC-14.2.26, aggregating `values` by `reactor_id` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Batch Process Deviation Alerting' without manual log review.",
   "value": "Early 'Batch Process Deviation Alerting' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Integrate with quality hold workflow; electronic signatures for parameter overrides.",
   "visualization": "Table (deviations), Control chart (temp), Timeline (phases).",
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Batch Process Deviation Alerting'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `ot` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'Batch Process Deviation Alerting' shifts `values` over `span=1h` while `reactor_id` remains in-scope for UC-14.2.26. Cross-check CMDB CHG.\n\n2. **Batch `values` on `batch:phase`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `reactor_id`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `batch:phase`** — First 48h baseline for `reactor_id` is unstable; join `recipe_limits` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `reactor_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

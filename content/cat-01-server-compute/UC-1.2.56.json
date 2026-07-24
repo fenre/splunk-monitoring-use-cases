@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Sysmon Network Connection Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_sysmon_network_connection_monitoring` (UC-1.2.56), SOC dashboard panel \"Linux — Sysmon Network Connection Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Microsoft-Windows-Sysmon/Operational' EventCode=3 that satisfy the UC-1.2.56 SPL filters for 'Sysmon Network Connection Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Microsoft-Windows-Sysmon/Operational` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.56."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Microsoft-Windows-Sysmon/Operational' EventCode=3 where `Image` satisfies `unique_ips` > 50 for UC-1.2.56 ('Sysmon Network Connection Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Microsoft-Windows-Sysmon/Operational` events where `Image` stays below `unique_ips` > 50, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.56."
   },
   "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 3) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows`, Sysmon required — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-Sysmon/Operational\" EventCode=3\n  Initiated=\"true\"\n| where NOT cidrmatch(\"10.0.0.0/8\", DestinationIp) AND NOT cidrmatch(\"172.16.0.0/12\", DestinationIp) AND NOT cidrmatch(\"192.168.0.0/16\", DestinationIp)\n| stats count dc(DestinationIp) as unique_ips by Image, host, User\n| where unique_ips > 50 OR count > 500\n| sort -unique_ips",
   "description": "Sysmon EventCode 3 logs every outbound TCP/UDP connection with the originating process. Reveals C2 callbacks, data exfiltration, and unauthorized network access.",
-  "value": "Network is half of endpoint TTP—if all you have is a process tree with no *where* it talked, you are missing the easy lateral map.",
+  "value": "Sysmon EventCode 3 logs every outbound TCP/UDP connection with the originating process. Timely UC-1.2.56 alerting on 'Sysmon Network Connection Monitoring' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Deploy Sysmon with network connection logging (EventCode 3, Initiated=true for outbound). Filter RFC1918 addresses to focus on external connections. High unique destination IPs from a single process suggest scanning or C2 beaconing. Alert on processes making external connections that normally shouldn't (e.g., winword.exe, excel.exe connecting outbound). Combine with DNS logs for full picture.",
   "visualization": "Table (outbound connections by process), Network graph, Timechart (connection rate).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Sysmon Network Connection Monitoring'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `WinEventLog:Microsoft-Windows-Sysmon/Operational`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `Image` metrics for 'Sysmon Network Connection Monitoring'. Correlate with apt/yum logs in the same `WinEventLog:Microsoft-Windows-Sysmon/Operational` window.\n\n2. **Nightly backup I/O on `Image`** — Predictable `dc` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Microsoft-Windows-Sysmon/Operational`** — Nagios/Zabbix polls `Image` and mimics sustained load without crossing `unique_ips` > 50.\n\n4. **New host onboarding** — `Image` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `Image`, `valid_until`.",
   "equipment": [
     "windows"
   ],

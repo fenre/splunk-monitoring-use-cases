@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Beehive Temperature and Colony Health' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_beehive_temperature_and_colony_health` (UC-25.24.2), SOC dashboard panel \"Personal — Beehive Temperature and Colony Health\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='beehive:reading' that satisfy the UC-25.24.2 SPL filters for 'Beehive Temperature and Colony Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `beehive:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.24.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='beehive:reading' where `entity` satisfies `brood` < 33 for UC-25.24.2 ('Beehive Temperature and Colony Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `beehive:reading` events where `entity` stays below `brood` < 33, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.24.2."
   },
   "dataSources": "Beehive telemetry (`beehive:reading`), coop door (`chickencoop:door`), egg counts (`egg:count`), livestock tags (`livestock:tag`), feed level (`feed:level`), pasture sensors (`pasture:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Homestead sensors — connected beehive scale/temperature/sound, automatic chicken-coop door, egg counter, livestock GPS/health tags, feed-silo level, and pasture soil sensors — streamed to Splunk HEC via MQTT and LoRaWAN gateways. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=beehive:reading\n| timechart span=30m avg(brood_temp_c) as brood\n| eval unhealthy=if(brood<33 OR brood>36,1,0)",
   "description": "Trends the brood-nest temperature bees work hard to keep steady, where a drift signals a struggling or queenless colony.",
-  "value": "A healthy colony holds brood temperature in a tight band; a persistent drift is an early, non-invasive sign something is wrong.",
+  "value": "Trends the brood-nest temperature bees work hard to keep steady, where a drift signals a struggling or quee.... Timely UC-25.24.2 alerting on 'Beehive Temperature and Colony Health' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest brood-nest temperature into `index=personal`; alert when it drifts outside the healthy band.",
   "visualization": "Time chart of brood temperature with a healthy band.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Beehive Temperature and Colony Health'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `beehive:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Beehive Temperature and Colony Health' stops polling `beehive:reading`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `30m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `beehive:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `30m` bins on UTC vs local schedule skew `brood` < 33. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hardware_bmc",
     "mqtt"

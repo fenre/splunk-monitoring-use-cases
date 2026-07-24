@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Readwise Highlight Tag Coverage' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_readwise_highlight_tag_coverage` (UC-25.47.25), SOC dashboard panel \"Personal — Readwise Highlight Tag Coverage\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reading:highlight' that satisfy the UC-25.47.25 SPL filters for 'Readwise Highlight Tag Coverage'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `reading:highlight` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.47.25."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reading:highlight' where `source_app` satisfies detection threshold for UC-25.47.25 ('Readwise Highlight Tag Coverage'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `reading:highlight` events where `source_app` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.47.25."
   },
   "dataSources": "Highlights (`reading:highlight`), book activity (`reading:book`), reviews (`reading:review`), paper libraries (`research:paper`), sync states (`reading:sync`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Reading and second-brain telemetry — Readwise review exports, Kindle highlights, Goodreads shelves, and Zotero research libraries — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=reading:highlight source_app=\"readwise\" tag_applied=*\n| stats count as total, sum(eval(if(tag_applied=\"yes\",1,0))) as matched by source_app\n| eval a_tag_pct=round(100*matched/total,1)\n| sort - a_tag_pct",
-  "description": "Measures the percentage of Readwise highlights that end with a tag by source app.",
-  "value": "Completion and exception percentages make it easier to spot which source app are helping or hurting Readwise highlights.",
+  "description": "Measures the percentage of Readwise highlights that end with a tag by source app. Searches `index=personal` with sourcetype `reading:highlight` for UC-25.47.25, aggregating `sum` by `source_app` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Readwise Highlight Tag Coverage' without manual log review.",
+  "value": "Measures the percentage of Readwise highlights that end with a tag by source app. Timely UC-25.47.25 alerting on 'Readwise Highlight Tag Coverage' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store a normalized flag for `a tag` on `reading:highlight` events and summarize the hit rate by `source_app`.",
   "visualization": "Table of source app with percentage of Readwise highlights ending with a tag.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Readwise Highlight Tag Coverage'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reading:highlight`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Readwise Highlight Tag Coverage' stops polling `reading:highlight`; stale `source_app` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reading:highlight`. Dedup with `stats latest(*) by source_app`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

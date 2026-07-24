@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Synthetic ESCI incident with 90min-old awareness. UC-22.57.10 MUST flag.",
-    "negativeScenario": "Submit within 2h. UC-22.57.10 MUST record on_time."
+    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:sn_si_incident' where `entity` satisfies `hours_to_initial` <= 2 for UC-22.57.10 ('SG Cyber Act (2024) Entities of Special Cybersecurity Interest (ESCI) — 2-hour reporting + cooperation tracker'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `itsm` / `snow:sn_si_incident` events where `entity` stays below `hours_to_initial` <= 2, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.57.10."
   },
   "dataSources": "ServiceNow SIR with `csa_esci_in_scope`, `esci_designation_id`. KV Store `csa_esci_designation_lookup`. SOAR `csa_esci_submission`.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928).",
   "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" csa_esci_in_scope=true esci_reportable_category=*\n| eval awareness_time = coalesce(csa_awareness_time, opened_at)\n| eval csa_initial_at = strptime(csa_initial_at, \"%Y-%m-%dT%H:%M:%S\")\n| eval hours_to_initial = case(\n    isnotnull(csa_initial_at), round((csa_initial_at - awareness_time)/3600, 2),\n    1=1, round((now() - awareness_time)/3600, 2))\n| eval initial_status = case(\n    isnotnull(csa_initial_at) AND hours_to_initial <= 2, \"on_time\",\n    isnotnull(csa_initial_at) AND hours_to_initial > 2, \"late\",\n    isnull(csa_initial_at) AND hours_to_initial > 1.5, \"clock_burning\",\n    isnull(csa_initial_at) AND hours_to_initial > 2, \"missed\",\n    1=1, \"in_window\")\n| where initial_status IN (\"clock_burning\",\"missed\",\"late\")\n| table incident_id esci_designation_id awareness_time csa_initial_at hours_to_initial initial_status",
   "description": "Mirror of UC-22.57.2 for ESCI scope. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "ESCI obligations are new under the 2024 amendment; pre-positioning reporting pipeline reduces compliance lag.",
+  "value": "Mirror of UC-22. Timely UC-22.57.10 alerting on 'SG Cyber Act (2024) Entities of Special Cybersecurity Interest (ESCI) — 2-hour reporting + cooperation tracker' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "Same as UC-22.57.2 with ESCI scoping.",
   "visualization": "(Panel 1) ESCI clock-burn. (Panel 2) Submission performance. (Panel 3) Designation register.",
   "cimModels": [
@@ -70,7 +70,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit or GRC exercises 'SG Cyber Act (2024) Entities of Special Cybersecurity Interest (ESCI) — 2-hour reporting + cooperation tracker' during scheduled clause SG-CSA-COC-esci evidence collection. Match compliance programme calendar and accounts tagged `compliance_ops=true`.\n\n2. **External assessor sampling** — QSA or regulator sampling temporarily spikes `index=itsm` `snow:sn_si_incident` volume. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB-approved change pauses or reshapes ingestion to `itsm`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected cross-boundary events during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
+  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit exercises 'SG Cyber Act (2024) Entities of Special Cybersecurity Interest (ESCI) — 2-hour reporting + cooperation tracker' (UC-22.57.10) on `entity` during scheduled clause SG-CSA-COC-esci sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=itsm` `snow:sn_si_incident` without crossing `hours_to_initial` <= 2. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `itsm` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (regulatory reporting)"
   ],

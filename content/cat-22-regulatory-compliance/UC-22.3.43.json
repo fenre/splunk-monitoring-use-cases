@@ -68,17 +68,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Creating a test finding with CVSS=8 on a host tagged criticality_tier=critical causes the UC to fire within 15m naming the CVE and ict_service.",
-    "negativeScenario": "A CVSS=5 or non-critical host finding does NOT fire.",
-    "fixtureRef": "",
-    "attackTechnique": "T1190",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=vm` sourcetype='target_sourcetype' where `ict_service` satisfies `cvss` >= 7 for UC-22.3.43 ('DORA Art.8 — ICT risk identification: newly discovered high-severity exposure on critical financial services'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `vm` / `target_sourcetype` events where `ict_service` stays below `cvss` >= 7, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.3.43."
   },
   "dataSources": "`index=vm` sourcetype=tenable:sc:vuln OR sourcetype=qualys:host; `index=cmdb` sourcetype=cmdb:ci_ict_service; DORA critical-service lookup `dora_critical_services.csv`. (Splunkbase 1621 — Splunk CIM Add-on)",
   "app": "Splunk Enterprise Security, Splunk Add-on for Tenable, Splunk Add-on for Qualys",
   "spl": "index=vm sourcetype IN (tenable:sc:vuln,qualys:host) cvss>=7 earliest=-15m\n| rename dest AS hostname\n| lookup dora_critical_services.csv hostname OUTPUT ict_service criticality_tier\n| where criticality_tier=\"critical\"\n| eval registration_sla_met=if(relative_time(now(),\"-24h\")<=_time,1,0)\n| stats count BY ict_service cvss cve hostname registration_sla_met",
   "description": "Identifies newly-discovered CVSS>=7 exposures on hosts supporting a DORA-critical financial service. Measures whether the finding is registered in the ICT risk register within the 24h target implied by Art.8 'continuous identification'.",
-  "value": "Produces per-finding evidence that critical-service exposure is identified and logged within the DORA-aligned window, rather than relying on monthly scanner review meetings.",
+  "value": "Identifies newly-discovered CVSS>=7 exposures on hosts supporting a DORA-critical financial service. Timely UC-22.3.43 alerting on 'DORA Art.8 — ICT risk identification: newly discovered high-severity exposure on critical financial services' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Onboard scanner output; (2) tag hosts with ict_service + criticality_tier nightly; (3) schedule UC every 15m; (4) each hit opens a risk-register entry (ServiceNow) within 24h; (5) weekly report to ICT risk committee; (6) breach of 24h SLA escalates to the Head of IR and Board/Audit Committee. Indexes required: `index=cmdb`, `index=vm`; Sourcetypes: `sourcetype=cmdb:ci_ict_service;`, `sourcetype=qualys:host`, `sourcetype=qualys:host;`, `sourcetype=tenable:sc:vuln`; Lookups: ``dora_critical_services.csv`, `dora_critical_services`, `dora_critical_services.csv`.",
   "visualization": "Timechart of new criticals per ICT service, table of unresolved findings, single value 'findings past 24h SLA'. Key fields: `cve`, `cvss`, `hostname`, `ict_service`, `registration_sla_met`.",
   "cimModels": [
@@ -100,7 +97,7 @@
       "url": "https://splunkbase.splunk.com/app/263"
     }
   ],
-  "knownFalsePositives": "1. **Vulnerability scanner update cycles** — Brief periods between vulnerability database updates where new CVEs are published but not yet in scan signatures create detection gaps.\n\n2. **Risk-rated patching timelines** — High-risk vulnerabilities within their allowed remediation window (e.g., 14 days for critical) are being addressed per policy.\n\n3. **False positive confirmation pending** — Vulnerabilities flagged by scanners awaiting manual confirmation may not be actual exposures.\n\n4. **Compensating controls in lieu of patching** — Systems where patches cannot be applied (legacy, stability) with documented compensating controls are managed risk.\n\n5. **Third-party component vulnerability reporting** — Vulnerabilities in vendor-managed components awaiting vendor remediation are tracked separately from internally-managed assets.",
+  "knownFalsePositives": "1. **Authorised DORA control testing** — Internal audit exercises 'DORA Art.8 — ICT risk identification: newly discovered high-severity exposure on critical financial services' (UC-22.3.43) on `ict_service` during scheduled clause Art.8 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=vm` `configured sourcetype` without crossing `cvss` >= 7. Cross-check engagement letter in `dora_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `vm` for `ict_service`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `ict_service` during normal service delivery.\n\n**Suppression mechanism:** `dora_exception_register.csv` keyed on `ict_service`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1190"
   ],

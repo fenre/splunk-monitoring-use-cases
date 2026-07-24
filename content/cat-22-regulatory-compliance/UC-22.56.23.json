@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Pause AIS feed; UC-22.56.23 MUST flag `ais_feed=stale` within 1 hour.",
-    "negativeScenario": "Resume feed; UC-22.56.23 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=threat_intel` sourcetype='target_sourcetype' where `entity` satisfies `hours_since_event` > 4 for UC-22.56.23 ('TSA-SD multi-modal threat-intelligence sharing through CISA AIS / E-ISAC / ST-ISAC + DHS bidirectional flow'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `threat_intel` / `target_sourcetype` events where `entity` stays below `hours_since_event` > 4, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.56.23."
   },
   "dataSources": "CISA AIS via TAXII (`stix:taxii`). E-ISAC / ST-ISAC / A-ISAC indicator feeds. Splunk ES threat-intel framework (`threat_activity` index).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for TAXII (community), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| metadata type=sources index=threat_intel\n| eval source_normalized = case(\n    match(source, \"(?i)cisa\"), \"CISA_AIS\",\n    match(source, \"(?i)e-?isac\"), \"E_ISAC\",\n    match(source, \"(?i)st-?isac\"), \"ST_ISAC\",\n    match(source, \"(?i)a-?isac\"), \"A_ISAC\",\n    1=1, \"other\")\n| eval hours_since_event = round((now() - lastTime) / 3600, 1)\n| eval feed_status = case(\n    isnull(lastTime), \"never_seen\",\n    hours_since_event > 4 AND source_normalized!=\"other\", \"stale\",\n    1=1, \"healthy\")\n| where feed_status IN (\"never_seen\",\"stale\")\n| table source_normalized hours_since_event feed_status",
   "description": "Surveys threat-intel feed freshness; flags stale AIS / ISAC subscriptions. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Active threat-intel feeds are an enforcement-evidenceable element of TSA SDs; stale feeds undermine the SOC and the inspector evidence narrative.",
+  "value": "Surveys threat-intel feed freshness; flags stale AIS / ISAC subscriptions. Timely UC-22.56.23 alerting on 'TSA-SD multi-modal threat-intelligence sharing through CISA AIS / E-ISAC / ST-ISAC + DHS bidirectional flow' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Subscribe to CISA AIS + relevant ISACs. (2) Wire indicators into `threat_intel` index. (3) Schedule UC-22.56.23 hourly. (4) Build the `TSA Threat-Intel Health` dashboard.",
   "visualization": "(Panel 1) Per-feed freshness. (Panel 2) Indicator-volume trend. (Panel 3) Operationalised vs raw indicators. (Panel 4) ISAC engagement log.",
   "cimModels": [
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Burst-feed cadence**: A-ISAC may publish in bursts; tune `expected_silence_hours`.\n2. **Closed-circuit feeds**: TLP:RED indicators may go to non-Splunk storage; track in side-channel.\n\n**Suppression mechanism**: KV Store `tsa_threat_intel_exception_lookup`.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD multi-modal threat-intelligence sharing through CISA AIS / E-ISAC / ST-ISAC + DHS bidirectional flow' (UC-22.56.23) on `entity` during scheduled clause TSA-SCAS-threat-intel sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=threat_intel` `configured sourcetype` without crossing `hours_since_event` > 4. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `threat_intel` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (threat-intel hygiene)"
   ],

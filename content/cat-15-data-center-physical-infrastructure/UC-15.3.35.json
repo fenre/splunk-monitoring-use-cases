@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'After-Hours Wireless Presence Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_after_hours_wireless_presence_detection` (UC-15.3.35), SOC dashboard panel \"Operations — After-Hours Wireless Presence Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cisco_spaces` sourcetype='cisco:spaces:presence' that satisfy the UC-15.3.35 SPL filters for 'After-Hours Wireless Presence Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cisco_spaces` / `cisco:spaces:presence` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.3.35."
+    "positiveScenario": "Ingest synthetic events into `index=cisco_spaces` sourcetype='cisco:spaces:presence' where `macAddress` satisfies `hour` < 6 for UC-15.3.35 ('After-Hours Wireless Presence Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cisco_spaces` / `cisco:spaces:presence` events where `macAddress` stays below `hour` < 6, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.3.35."
   },
   "dataSources": "Cisco Spaces Firehose API (DEVICE_PRESENCE events — entry/exit with timestamps) Indexes: cisco_spaces. Sourcetypes: cisco:spaces:presence. Key fields: authorized_afterhours, building, day, department, floor, hour, macAddress, owner. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces Firehose API",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'After-Hours Wireless Presence Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `cisco_spaces` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `cisco_spaces`** — Planned work for 'After-Hours Wireless Presence Detection' shifts `count` over `span=1h` while `macAddress` remains in-scope for UC-15.3.35. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:spaces:presence`** — Scheduled automation elevates `owner` without crossing `hour` < 6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `macAddress`** — Health checks in `cisco_spaces` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:spaces:presence`** — First 48h baseline for `macAddress` is unstable; join `known_devices.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `macAddress`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Immich External Library Scan Duration' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_immich_external_library_scan_duration` (UC-25.8.28), SOC dashboard panel \"Personal — Immich External Library Scan Duration\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='immich:job' that satisfy the UC-25.8.28 SPL filters for 'Immich External Library Scan Duration'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `immich:job` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.28."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='immich:job' where `library` satisfies `avg_duration_min` > 30 for UC-25.8.28 ('Immich External Library Scan Duration'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `immich:job` events where `library` stays below `avg_duration_min` > 30, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.28."
   },
   "dataSources": "Homelab services (`kubernetes:pod`, `proxmox:metric`, `vaultwarden:event`, `paperless:document`, `immich:job`, `adguard:query`, `docker:stats`, `truenas:pool`, `nut:ups`, `uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Kubernetes homelab clusters, Proxmox, Vaultwarden, Paperless-ngx, Immich, AdGuard Home, Docker, TrueNAS, and NUT metrics via APIs, logs, Telegraf, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=immich:job job_type=library_scan\n| stats avg(duration_min) as avg_duration_min, max(duration_min) as max_duration_min by library\n| where avg_duration_min>30 OR max_duration_min>60\n| sort - avg_duration_min",
-  "description": "Uses Immich library scans telemetry to monitor how long external-library scans are taking in index=personal.",
-  "value": "Splunk turns the feed into an operational check for libraries that have become slow to index, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses Immich library scans telemetry to monitor how long external-library scans are taking in index=personal. Searches `index=personal` with sourcetype `immich:job` for UC-25.8.28, aggregating `avg` by `library` over `the scheduled window`. Alerts when grouped results cross `avg_duration_min` > 30 in the saved search. Gives Personal operators a repeatable signal for 'Immich External Library Scan Duration' without manual log review.",
+  "value": "Uses Immich library scans telemetry to monitor how long external-library scans are taking in index=personal. Timely UC-25.8.28 alerting on 'Immich External Library Scan Duration' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Immich library scans data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Library table of average and maximum scan duration.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Immich External Library Scan Duration'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `immich:job`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Immich External Library Scan Duration' stops polling `immich:job`; stale `library` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `immich:job`. Dedup with `stats latest(*) by library`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_duration_min` > 30. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "hashicorp",

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Irrigation Forecast vs Actual Water Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_irrigation_forecast_vs_actual_water_gap` (UC-25.19.28), SOC dashboard panel \"Personal — Irrigation Forecast vs Actual Water Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='irrigation:zone' that satisfy the UC-25.19.28 SPL filters for 'Irrigation Forecast vs Actual Water Gap'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `irrigation:zone` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.19.28."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='irrigation:zone' where `zone` satisfies `gap_mm` > 10 for UC-25.19.28 ('Irrigation Forecast vs Actual Water Gap'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `irrigation:zone` events where `zone` stays below `gap_mm` > 10, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.19.28."
   },
   "dataSources": "Water telemetry (`watermeter:flow`, `flo:event`, `rachio:zone`, `maytronics:robot`, `watersoftener:status`, `pool:chemistry`, `irrigation:zone`, `waterpressure:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Flo by Moen, Rachio, Flume, Maytronics Dolphin, pool sensors, water softener sensors, and irrigation controllers via vendor APIs, MQTT, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=irrigation:zone\n| bin _time span=1w\n| stats sum(planned_mm) as planned_mm, sum(applied_mm) as applied_mm by zone _time\n| eval gap_mm=round(planned_mm-applied_mm,1)\n| where gap_mm>10\n| sort - gap_mm",
   "description": "Uses Irrigation controller exports telemetry to monitor how far applied watering lagged the planned amount in index=personal.",
-  "value": "Splunk turns the feed into an operational check for zones that are falling short of schedule, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Irrigation controller exports telemetry to monitor how far applied watering lagged the planned amount.... Timely UC-25.19.28 alerting on 'Irrigation Forecast vs Actual Water Gap' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Irrigation controller exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Weekly zone chart of planned versus applied water.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Irrigation Forecast vs Actual Water Gap'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `irrigation:zone`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Irrigation Forecast vs Actual Water Gap' stops polling `irrigation:zone`; stale `zone` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `irrigation:zone`. Dedup with `stats latest(*) by zone`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `gap_mm` > 10. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

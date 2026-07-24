@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Home Assistant Automation Failures' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_home_assistant_automation_failures` (UC-25.4.1), SOC dashboard panel \"Personal — Home Assistant Automation Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='homeassistant:event' that satisfy the UC-25.4.1 SPL filters for 'Home Assistant Automation Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `homeassistant:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.4.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='homeassistant:event' where `automation` satisfies `failures` > 0 for UC-25.4.1 ('Home Assistant Automation Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `homeassistant:event` events where `automation` stays below `failures` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.4.1."
   },
   "dataSources": "Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Node-RED flow events (`nodered:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=homeassistant:event event_type=automation_triggered\n| stats count as runs, sum(eval(result=\"failed\" OR level=\"ERROR\")) as failures by automation\n| eval fail_rate=round(100*failures/runs,1)\n| where failures>0\n| sort - fail_rate",
   "description": "Counts how often each Home Assistant automation runs and how often it errors, so a broken automation surfaces instead of just silently not happening.",
-  "value": "A failed automation is invisible by design — the lights just do not turn on; tracking failure rate makes these silent failures actionable.",
+  "value": "Counts how often each Home Assistant automation runs and how often it errors, so a broken automation surfac.... Timely UC-25.4.1 alerting on 'Home Assistant Automation Failures' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward Home Assistant logbook/automation events to HEC; schedule hourly and alert when a key automation starts failing.",
   "visualization": "Table of automations by failure rate with a trend line.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Home Assistant Automation Failures'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homeassistant:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Home Assistant Automation Failures' stops polling `homeassistant:event`; stale `automation` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homeassistant:event`. Dedup with `stats latest(*) by automation`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `failures` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

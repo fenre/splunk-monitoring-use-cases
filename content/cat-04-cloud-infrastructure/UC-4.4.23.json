@@ -12,8 +12,8 @@
   "exclusions": "Covers the detection logic documented for 'Multi-Cloud DNS Resolution Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_multi_cloud_dns_resolution_health` (UC-4.4.23), SOC dashboard panel \"Operations — Multi-Cloud DNS Resolution Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cloud` sourcetype='dns:health' that satisfy the UC-4.4.23 SPL filters for 'Multi-Cloud DNS Resolution Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cloud` / `dns:health` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.4.23."
+    "positiveScenario": "Ingest synthetic events into `index=cloud` sourcetype='dns:health' where `provider` satisfies `avg_ms` > 500 for UC-4.4.23 ('Multi-Cloud DNS Resolution Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cloud` / `dns:health` events where `provider` stays below `avg_ms` > 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.4.23."
   },
   "dataSources": "`sourcetype=dns:health`, `sourcetype=aws:route53resolverquerylog`, `sourcetype=mscs:azure:diagnostics` (DNS if enabled) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom (synthetic probes, Route 53 Resolver / Azure DNS / Cloud DNS logs) — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Multi-Cloud DNS Resolution Health'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `cloud` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `cloud`** — Planned work for 'Multi-Cloud DNS Resolution Health' shifts `avg` over `span=1h` while `provider` remains in-scope for UC-4.4.23. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `dns:health`** — Scheduled automation elevates `resolver_vantage` without crossing `avg_ms` > 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `provider`** — Health checks in `cloud` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dns:health`** — First 48h baseline for `provider` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `provider`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1580"
   ],

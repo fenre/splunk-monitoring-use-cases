@@ -68,17 +68,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "A Workday termination not followed by an IAM deactivate event within 24h returns sla_met=0.",
-    "negativeScenario": "A termination with a matching deactivate event within 2h is absent.",
-    "fixtureRef": "",
-    "attackTechnique": "T1078",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=hr` sourcetype='workday:termination' where `user` satisfies `elapsed_hours` <= 24 for UC-22.12.37 ('SOX-ITGC AccessMgmt.Termination — Deprovisioning SLA after HR termination event'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `hr` / `workday:termination` events where `user` stays below `elapsed_hours` <= 24, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.12.37."
   },
   "dataSources": "`index=hr` sourcetype=workday:termination; `index=iam` sourcetype=okta:system_log (user.lifecycle.deactivate + group.user_membership.remove).",
   "app": "Splunk Add-on for Okta, Splunk Add-on for Workday (Splunkbase)",
   "spl": "index=hr sourcetype=workday:termination earliest=-7d\n| stats latest(_time) AS term_date BY user\n| join user type=outer\n  [search index=iam (eventType=user.lifecycle.deactivate OR eventType=group.user_membership.remove) earliest=-7d\n   | stats max(_time) AS last_access_revoked BY user]\n| eval elapsed_hours=round((last_access_revoked-term_date)/3600,1)\n| eval sla_met=if(elapsed_hours<=24 AND isnotnull(last_access_revoked),1,0)\n| where sla_met=0\n| table user term_date last_access_revoked elapsed_hours sla_met",
   "description": "Joins HR termination events against IAM deactivation/removal events to measure whether access was revoked within the 24h SLA implied by SOX-ITGC AccessMgmt.Termination.",
-  "value": "The most common SOX finding — ex-employees retaining access — becomes measurable hour-by-hour.",
+  "value": "Joins HR termination events against IAM deactivation/removal events to measure whether access was revoked w.... Timely UC-22.12.37 alerting on 'SOX-ITGC AccessMgmt.Termination — Deprovisioning SLA after HR termination event' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Route Workday terminations to Splunk; (2) route Okta lifecycle events; (3) schedule UC hourly; (4) sla_met=0 pages the IAM team; (5) monthly CFO report. Indexes required: `index=hr`, `index=iam`; Sourcetypes: `sourcetype=okta:system_log`, `sourcetype=workday:termination`, `sourcetype=workday:termination;`.",
   "visualization": "Timechart of SLA adherence %, table of breaches, single value 'open SLA breaches'. Key fields: `elapsed_hours`, `last_access_revoked`, `sla_met`, `term_date`, `user`, `user]`.",
   "cimModels": [
@@ -113,7 +110,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised SOX ITGC control testing** — Internal audit exercises 'SOX-ITGC AccessMgmt.Termination — Deprovisioning SLA after HR termination event' (UC-22.12.37) on `user` during scheduled clause ITGC.AccessMgmt.Termination sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=hr` `workday:termination` without crossing `elapsed_hours` <= 24. Cross-check engagement letter in `sox_itgc_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `hr` for `user`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `user` during normal service delivery.\n\n**Suppression mechanism:** `sox_itgc_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1078"
   ],

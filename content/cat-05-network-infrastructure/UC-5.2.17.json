@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Firewall Rule Hit Count Analysis' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_firewall_rule_hit_count_analysis` (UC-5.2.17), SOC dashboard panel \"Operations — Firewall Rule Hit Count Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='pan:traffic' that satisfy the UC-5.2.17 SPL filters for 'Firewall Rule Hit Count Analysis'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `pan:traffic` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.2.17."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='pan:traffic' where `rule` satisfies `hit_count` < 10 for UC-5.2.17 ('Firewall Rule Hit Count Analysis'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `pan:traffic` events where `rule` stays below `hit_count` < 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.2.17."
   },
   "dataSources": "`sourcetype=pan:traffic`, `sourcetype=fgt_traffic` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"pan:traffic\"\n| stats count as hit_count dc(src) as unique_sources dc(dest) as unique_dests by rule\n| sort hit_count\n| eval status=if(hit_count=0,\"UNUSED\",if(hit_count<10,\"RARELY_USED\",\"ACTIVE\"))",
   "description": "Unused firewall rules increase attack surface and complexity. Identifying zero-hit rules enables rule base cleanup and reduces risk.",
-  "value": "Security teams analyze firewall rule hit counts to identify unused rules for cleanup, overly permissive catchall rules, and shadow rules that never match traffic.",
+  "value": "Unused firewall rules increase attack surface and complexity. Timely UC-5.2.17 alerting on 'Firewall Rule Hit Count Analysis' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Collect traffic logs with rule names. Run weekly reports to identify unused rules. Review rules with zero hits over 90 days for removal. Document cleanup actions.",
   "visualization": "Table (rule, hit count, status), Bar chart (hit count distribution), Single value (unused rule count).",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Firewall Rule Hit Count Analysis'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Firewall Rule Hit Count Analysis' shifts `dc` over `span=1h` while `rule` remains in-scope for UC-5.2.17. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `pan:traffic`** — Scheduled automation elevates `status` without crossing `hit_count` < 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `rule`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pan:traffic`** — First 48h baseline for `rule` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `rule`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "fortinet",

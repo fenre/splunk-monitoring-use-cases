@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Go-Bag Inventory Items Present Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_go_bag_inventory_items_present_leaderboard` (UC-25.97.9), SOC dashboard panel \"Personal — Go-Bag Inventory Items Present Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='gobag:inventory' that satisfy the UC-25.97.9 SPL filters for 'Go-Bag Inventory Items Present Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `gobag:inventory` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.97.9."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='gobag:inventory' where `bag_name` satisfies detection threshold for UC-25.97.9 ('Go-Bag Inventory Items Present Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `gobag:inventory` events where `bag_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.97.9."
   },
   "dataSources": "Go-bag inventories (`gobag:inventory`), prep drills (`prep:drill`), water rotation logs (`water:rotation`), battery expiration checks (`battery:expiration`), and radio tests (`radio:test`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Go-bag inventory audits, household prep drill logs, water rotation schedules, battery expiration trackers, and emergency radio test results streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=gobag:inventory items_present=*\n| stats sum(items_present) as total_value, avg(items_present) as avg_value by bag_name\n| sort - total_value",
-  "description": "Ranks go bag values by total and average items present across go-bag inventory events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks go bag values by total and average items present across go-bag inventory events. Searches `index=personal` with sourcetype `gobag:inventory` for UC-25.97.9, aggregating `sum` by `bag_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Go-Bag Inventory Items Present Leaderboard' without manual log review.",
+  "value": "Ranks go bag values by total and average items present across go-bag inventory events. Timely UC-25.97.9 alerting on 'Go-Bag Inventory Items Present Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `items_present` values for each go-bag inventory event and review total and average items present by go bag.",
   "visualization": "Table of entities ranked by total items present.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Go-Bag Inventory Items Present Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `gobag:inventory`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Go-Bag Inventory Items Present Leaderboard' stops polling `gobag:inventory`; stale `bag_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `gobag:inventory`. Dedup with `stats latest(*) by bag_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

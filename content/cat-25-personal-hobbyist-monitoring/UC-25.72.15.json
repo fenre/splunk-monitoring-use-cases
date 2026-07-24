@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Simply Piano Practice Accuracy Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_simply_piano_practice_accuracy_leaderboard` (UC-25.72.15), SOC dashboard panel \"Personal — Simply Piano Practice Accuracy Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='simplypiano:session' that satisfy the UC-25.72.15 SPL filters for 'Simply Piano Practice Accuracy Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `simplypiano:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.72.15."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='simplypiano:session' where `song_name` satisfies detection threshold for UC-25.72.15 ('Simply Piano Practice Accuracy Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `simplypiano:session` events where `song_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.72.15."
   },
   "dataSources": "Yousician lessons (`yousician:lesson`), Simply Piano practice (`simplypiano:session`), TonalEnergy tuning (`tonalenergy:tuning`), Pro Metronome sessions (`prometronome:session`), and forScore practice (`forscore:practice`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Yousician lessons, Simply Piano practice, TonalEnergy tuning logs, Pro Metronome sessions, and forScore sheet-music practice exports ingested into Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=simplypiano:session accuracy_pct=*\n| stats sum(accuracy_pct) as total_value, avg(accuracy_pct) as avg_value by song_name\n| sort - total_value",
-  "description": "Ranks song name values by total and average accuracy across Simply Piano practice events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks song name values by total and average accuracy across Simply Piano practice events. Searches `index=personal` with sourcetype `simplypiano:session` for UC-25.72.15, aggregating `sum` by `song_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Simply Piano Practice Accuracy Leaderboard' without manual log review.",
+  "value": "Ranks song name values by total and average accuracy across Simply Piano practice events. Timely UC-25.72.15 alerting on 'Simply Piano Practice Accuracy Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `accuracy_pct` values for each Simply Piano practice event and review total and average accuracy by song name.",
   "visualization": "Table of entities ranked by total accuracy.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Simply Piano Practice Accuracy Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `simplypiano:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Simply Piano Practice Accuracy Leaderboard' stops polling `simplypiano:session`; stale `song_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `simplypiano:session`. Dedup with `stats latest(*) by song_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

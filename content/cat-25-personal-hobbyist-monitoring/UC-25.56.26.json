@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Fast Break-Time Variance' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_fast_break_time_variance` (UC-25.56.26), SOC dashboard panel \"Personal — Fast Break-Time Variance\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='faith:fast' that satisfy the UC-25.56.26 SPL filters for 'Fast Break-Time Variance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `faith:fast` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.56.26."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='faith:fast' where `fast_type` satisfies detection threshold for UC-25.56.26 ('Fast Break-Time Variance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `faith:fast` events where `fast_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.56.26."
   },
   "dataSources": "Prayer sessions (`faith:rosary`), retreat events (`faith:retreat`), attendance logs (`faith:attendance`), fasting journals (`faith:fast`), practice reviews (`faith:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Spiritual-practice telemetry — rosary counters, meditation-retreat schedules, church-attendance logs, and fasting journals — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=faith:fast fast_type=* break_time_variance_min=*\n| stats avg(break_time_variance_min) as avg_break_time_variance_min, count as events by fast_type\n| sort - avg_break_time_variance_min",
-  "description": "Shows average break-time variance minutes by fast type for fast completion timing.",
-  "value": "Average break-time variance minutes by fast type helps compare fast completion timing across the factors that matter most.",
+  "description": "Shows average break-time variance minutes by fast type for fast completion timing. Searches `index=personal` with sourcetype `faith:fast` for UC-25.56.26, aggregating `avg` by `fast_type` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Fast Break-Time Variance' without manual log review.",
+  "value": "Shows average break-time variance minutes by fast type for fast completion timing. Timely UC-25.56.26 alerting on 'Fast Break-Time Variance' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture `break_time_variance_min` on `faith:fast` events and normalize `fast_type` so Splunk can summarize performance by fast type.",
   "visualization": "Bar chart of average break-time variance minutes by fast type.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Fast Break-Time Variance'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `faith:fast`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Fast Break-Time Variance' stops polling `faith:fast`; stale `fast_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `faith:fast`. Dedup with `stats latest(*) by fast_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'Hybrid Identity Synchronization Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_hybrid_identity_synchronization_health` (UC-4.4.28), SOC dashboard panel \"Operations — Hybrid Identity Synchronization Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=azure` sourcetype='mscs:azure:audit' that satisfy the UC-4.4.28 SPL filters for 'Hybrid Identity Synchronization Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `azure` / `mscs:azure:audit` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.4.28."
+    "positiveScenario": "Ingest synthetic events into `index=azure` sourcetype='mscs:azure:audit' where `sourcetype` satisfies detection threshold for UC-4.4.28 ('Hybrid Identity Synchronization Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `azure` / `mscs:azure:audit` events where `sourcetype` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.4.28."
   },
   "dataSources": "`sourcetype=mscs:azure:audit` / AD Connect health, `sourcetype=WinEventLog:Security` (on-prem), `sourcetype=google:gcp:pubsub:message` (identity sync) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_microsoft-cloudservices`, Windows/Entra diagnostics, GCP Identity logs — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "(index=azure sourcetype=\"mscs:azure:audit\" (operationName.value=\"*AADConnect*\" OR activityDisplayName=\"*sync*\") activityStatus!=\"Success\")\n OR (index=identity sourcetype=\"adconnect:health\" status!=\"success\")\n| eval connector_name=coalesce(connector_name, resourceGroupName, \"aadconnect\")\n| bin _time span=1h\n| stats count by sourcetype, connector_name, _time",
-  "description": "AD Connect, Cloud Identity, and similar sync failures leave cloud groups stale, breaking access and compliance.",
+  "description": "AD Connect, Cloud Identity, and similar sync failures leave cloud groups stale, breaking access and compliance. Searches `index=azure` with sourcetype `mscs:azure:audit` for UC-4.4.28, aggregating `count` by `sourcetype` over `1h`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Hybrid Identity Synchronization Health' without manual log review.",
   "value": "Early 'Hybrid Identity Synchronization Health' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ingest connector health JSON or Event Hub stream. Correlate with password hash sync errors and object export failures. Alert on any failed sync window or rising error count.",
   "visualization": "Timeline (sync status), Table (connector, error), Single value (last successful sync age in minutes).",
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Hybrid Identity Synchronization Health'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `azure` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `azure`** — Planned work for 'Hybrid Identity Synchronization Health' shifts `count` over `span=1h` while `sourcetype` remains in-scope for UC-4.4.28. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mscs:azure:audit`** — Scheduled automation elevates `connector_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sourcetype`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:audit`** — First 48h baseline for `sourcetype` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sourcetype`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078.004",
     "T1098"

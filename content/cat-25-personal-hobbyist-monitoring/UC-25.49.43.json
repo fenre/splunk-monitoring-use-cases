@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Outfit Metric1 Rolling 7-Day Value Average' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_outfit_metric1_rolling_7_day_value_average` (UC-25.49.43), SOC dashboard panel \"Personal — Outfit Metric1 Rolling 7-Day Value Average\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='outfit:metric1' that satisfy the UC-25.49.43 SPL filters for 'Outfit Metric1 Rolling 7-Day Value Average'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `outfit:metric1` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.49.43."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='outfit:metric1' where `_time` satisfies detection threshold for UC-25.49.43 ('Outfit Metric1 Rolling 7-Day Value Average'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `outfit:metric1` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.49.43."
   },
   "dataSources": "Wardrobe items (`wardrobe:item`), outfit wears (`outfit:wear`), skincare routines (`skincare:routine`), laundry cycles (`laundry:cycle`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Wardrobe and grooming logs — closet apps (Whering, Stylebook), cost-per-wear trackers, skincare-routine logs, and smart-laundry cycles — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=outfit:metric1 value=*\n| bin _time span=1d\n| stats avg(value) as daily_avg by _time\n| streamstats window=7 avg(daily_avg) as rolling_7d\n| sort _time",
   "description": "Tracks a seven-day rolling average of daily value for outfit metric1 (1) data. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Rolling averages highlight gradual drift without overreacting to one-off days. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Tracks a seven-day rolling average of daily value for outfit metric1 (1) data. Timely UC-25.49.43 alerting on 'Outfit Metric1 Rolling 7-Day Value Average' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Compute daily average `value` then a seven-day rolling mean for outfit metric1 (1) events.",
   "visualization": "Line chart of daily and rolling average value.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Outfit Metric1 Rolling 7-Day Value Average'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `outfit:metric1`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Outfit Metric1 Rolling 7-Day Value Average' stops polling `outfit:metric1`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `outfit:metric1`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

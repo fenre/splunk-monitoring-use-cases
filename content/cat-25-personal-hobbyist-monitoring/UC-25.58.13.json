@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Trip Album Completion Lag' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_trip_album_completion_lag` (UC-25.58.13), SOC dashboard panel \"Personal — Trip Album Completion Lag\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='photo:capture' that satisfy the UC-25.58.13 SPL filters for 'Trip Album Completion Lag'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `photo:capture` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.58.13."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='photo:capture' where `trip_name` satisfies detection threshold for UC-25.58.13 ('Trip Album Completion Lag'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `photo:capture` events where `trip_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.58.13."
   },
   "dataSources": "Photos (`photo:capture`), places visited (`location:visit`), voice memos (`voicememo:note`), logged moments (`lifelog:moment`), timeline events (`timeline:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Life-logging and memory telemetry — photo libraries (Google Photos, Immich), location history, voice memos, and daily-moment journals — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=photo:capture trip_name=* album_published_epoch=*\n| stats max(_time) as last_photo, max(album_published_epoch) as album_published_epoch by trip_name\n| eval lag_days=round((album_published_epoch-last_photo)/86400,1)\n| sort - lag_days",
-  "description": "Measures how long after a trip ends it takes for the album or shared memory package to be published.",
-  "value": "Trips are more memorable when processed while the context is still fresh; lag highlights where curation drifts.",
+  "description": "Measures how long after a trip ends it takes for the album or shared memory package to be published. Searches `index=personal` with sourcetype `photo:capture` for UC-25.58.13, aggregating `max` by `trip_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Trip Album Completion Lag' without manual log review.",
+  "value": "Measures how long after a trip ends it takes for the album or shared memory package to be published. Timely UC-25.58.13 alerting on 'Trip Album Completion Lag' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture album publish timestamps on trip photos and compare them with the trip's last photo time.",
   "visualization": "Table of trips with album completion lag in days.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Trip Album Completion Lag'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `photo:capture`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Trip Album Completion Lag' stops polling `photo:capture`; stale `trip_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `photo:capture`. Dedup with `stats latest(*) by trip_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

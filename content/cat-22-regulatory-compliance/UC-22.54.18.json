@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "File a CIRCIA submission with `entity_sector=transportation` and expect a relay to TSA. Block egress to TSA relay endpoint; UC-22.54.18 MUST flag `coordination_status=\"relay_missing\"` within 30 minutes.",
-    "negativeScenario": "Successful submission with `srma_relay_at` and `srma_acknowledged_at` populated; UC-22.54.18 MUST record `coordination_status=\"acknowledged\"`."
+    "positiveScenario": "Ingest synthetic events into `index=audit_evidence` sourcetype='hec:circia:submission' where `submission_id` satisfies detection threshold for UC-22.54.18 ('CIRCIA Sector-SRMA Coordination Trail — evidence each CISA submission was relayed to / from the Sector Risk Management Agency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `audit_evidence` / `hec:circia:submission` events where `submission_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.54.18."
   },
   "dataSources": "KV Store `circia_srma_lookup` (sector → SRMA party mapping). HEC `hec:srma:relay` for SRMA-relay events from CISA. HEC `hec:srma:ack` for SRMA acknowledgement events. Cross-reference to `circia_entity_register_lookup` (UC-22.54.1) for entity sector.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "index=audit_evidence sourcetype=\"hec:circia:submission\"\n| eval submission_filed_at = _time\n| lookup circia_entity_register_lookup entity_id OUTPUT entity_sector\n| lookup circia_srma_lookup entity_sector OUTPUT srma_party srma_relay_endpoint\n| join type=left submission_id [\n    search index=audit_evidence (sourcetype=\"hec:srma:relay\" OR sourcetype=\"hec:srma:ack\") earliest=-7d@d\n    | stats first(_time) AS srma_relay_at last(_time) AS srma_acknowledged_at values(srma_case_id) AS srma_case_id by submission_id\n]\n| eval coordination_status = case(\n    isnull(srma_party), \"no_srma_mapped\",\n    isnull(srma_relay_at), \"relay_missing\",\n    isnotnull(srma_relay_at) AND isnull(srma_acknowledged_at), \"relay_no_ack\",\n    isnotnull(srma_acknowledged_at), \"acknowledged\",\n    1=1, \"unknown\")\n| where coordination_status != \"acknowledged\"\n| table submission_id submission_filed_at entity_sector srma_party srma_relay_at srma_acknowledged_at srma_case_id coordination_status",
   "description": "Joins CIRCIA submissions to the SRMA mapping and to SRMA-relay/ack events. Surfaces submissions for which the SRMA-coordination chain is incomplete.",
-  "value": "A CIRCIA submission that is not coordinated with the SRMA can create dual-reporting confusion and exposes the entity to redundant reporting demands. This UC ensures the coordination trail is documented.",
+  "value": "Joins CIRCIA submissions to the SRMA mapping and to SRMA-relay/ack events. Timely UC-22.54.18 alerting on 'CIRCIA Sector-SRMA Coordination Trail — evidence each CISA submission was relayed to / from the Sector Risk Management Agency' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `circia_srma_lookup` with sector → SRMA party + endpoint mappings. (2) Configure HEC subscriptions for SRMA-relay and acknowledgement events. (3) Schedule UC-22.54.18 every 30 minutes; route non-`acknowledged` to General Counsel notable.",
   "visualization": "(Panel 1) Submission → SRMA coordination table. (Panel 2) Coordination-latency histogram. (Panel 3) Sector coverage heatmap.",
   "cimModels": [
@@ -77,7 +77,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SRMA without portal integration** — some SRMAs (e.g. small sectoral agencies) may not yet have portal integration. Suppression: tag those rows `coordination_status_override=manual_offline`.\n\n2. **SRMA backlog** — acknowledgement may take days. Suppression: only flag `relay_no_ack` after 5 business days.\n\n**Suppression mechanism**: KV Store `circia_22_54_18_exceptions`.",
+  "knownFalsePositives": "1. **Authorised CIRCIA control testing** — Internal audit exercises 'CIRCIA Sector-SRMA Coordination Trail — evidence each CISA submission was relayed to / from the Sector Risk Management Agency' (UC-22.54.18) on `submission_id` during scheduled clause CIRCIA-CISA-coordination-with-sector-srma sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `hec:circia:submission` without crossing evidence threshold. Cross-check engagement letter in `circia_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `submission_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `submission_id` during normal service delivery.\n\n**Suppression mechanism:** `circia_exception_register.csv` keyed on `submission_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (inter-agency-coordination workflow)"
   ],

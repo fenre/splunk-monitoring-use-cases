@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Emfit QS Sleep HRV RMSSD Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_emfit_qs_sleep_hrv_rmssd_leaderboard` (UC-25.2.90), SOC dashboard panel \"Personal — Emfit QS Sleep HRV RMSSD Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='emfit:sleep' that satisfy the UC-25.2.90 SPL filters for 'Emfit QS Sleep HRV RMSSD Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `emfit:sleep` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.90."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='emfit:sleep' where `bed_id` satisfies detection threshold for UC-25.2.90 ('Emfit QS Sleep HRV RMSSD Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `emfit:sleep` events where `bed_id` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.90."
   },
   "dataSources": "Apple Health metrics (`apple:health`), Oura Ring daily readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings body/blood-pressure (`withings:measure`), Dexcom CGM glucose (`dexcom:egv`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Apple Health / Apple Watch exports (Health Auto Export, Shortcuts) via HEC; Oura, Whoop, Withings, Dexcom APIs via scripted REST inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=emfit:sleep hrv_rmssd=*\n| stats sum(hrv_rmssd) as total_value, avg(hrv_rmssd) as avg_value by bed_id\n| sort - total_value",
   "description": "Ranks bed values by total and average hrv rmssd across Emfit QS sleep events. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "value": "Ranks bed values by total and average hrv rmssd across Emfit QS sleep events. Timely UC-25.2.90 alerting on 'Emfit QS Sleep HRV RMSSD Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `hrv_rmssd` values for each Emfit QS sleep event and review total and average hrv rmssd by bed.",
   "visualization": "Table of entities ranked by total hrv rmssd.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Emfit QS Sleep HRV RMSSD Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `emfit:sleep`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Emfit QS Sleep HRV RMSSD Leaderboard' stops polling `emfit:sleep`; stale `bed_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `emfit:sleep`. Dedup with `stats latest(*) by bed_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

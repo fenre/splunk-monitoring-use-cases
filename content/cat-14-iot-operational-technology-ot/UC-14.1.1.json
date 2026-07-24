@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'HVAC Performance Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_hvac_performance_monitoring` (UC-14.1.1), SOC dashboard panel \"Operations — HVAC Performance Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bms` sourcetype='modbus:hvac' that satisfy the UC-14.1.1 SPL filters for 'HVAC Performance Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bms` / `modbus:hvac` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.1.1."
+    "positiveScenario": "Ingest synthetic events into `index=bms` sourcetype='modbus:hvac' where `entity` satisfies `deviation` > 3 for UC-14.1.1 ('HVAC Performance Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bms` / `modbus:hvac` events where `entity` stays below `deviation` > 3, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.1.1."
   },
   "dataSources": "BACnet/Modbus sensors (temperature setpoint, actual, supply/return air) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Modbus TA, MQTT input, BMS API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bms sourcetype=\"modbus:hvac\"\n| eval deviation=abs(actual_temp-setpoint_temp)\n| where deviation > 3\n| table _time, zone, setpoint_temp, actual_temp, deviation",
-  "description": "HVAC issues in data centers risk equipment damage; in buildings they affect occupant comfort and energy costs.",
+  "description": "HVAC issues in data centers risk equipment damage; in buildings they affect occupant comfort and energy costs. Searches `index=bms` with sourcetype `modbus:hvac` for UC-14.1.1, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `deviation` > 3 in the saved search. Gives Operations operators a repeatable signal for 'HVAC Performance Monitoring' without manual log review.",
   "value": "Early 'HVAC Performance Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Connect BMS to Splunk via MQTT broker or Modbus gateway. Ingest setpoints and actuals per zone. Alert when deviation exceeds 3°F/2°C for sustained period. Track energy consumption per HVAC unit.",
   "visualization": "Line chart (setpoint vs actual per zone), Heatmap (zone × temperature), Single value (zones out of spec).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'HVAC Performance Monitoring'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bms` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bms`** — Planned work for 'HVAC Performance Monitoring' shifts `count` over `span=1h` while `host` remains in-scope for UC-14.1.1. Cross-check CMDB CHG.\n\n2. **Batch `count` on `modbus:hvac`** — Scheduled automation elevates `deviation` without crossing `deviation` > 3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `bms` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `modbus:hvac`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "modbus",
     "mqtt"

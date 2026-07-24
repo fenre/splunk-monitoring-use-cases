@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Cloud SQL Storage Auto-Grow Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cloud_sql_storage_auto_grow_events` (UC-7.3.13), SOC dashboard panel \"Operations — Cloud SQL Storage Auto-Grow Events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='gcp:audit' that satisfy the UC-7.3.13 SPL filters for 'Cloud SQL Storage Auto-Grow Events'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `gcp` / `gcp:audit` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.3.13."
+    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='gcp:audit' where `entity` satisfies detection threshold for UC-7.3.13 ('Cloud SQL Storage Auto-Grow Events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `gcp` / `gcp:audit` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.3.13."
   },
   "dataSources": "`storageResize`, disk size change operations Collected via Splunk Add-on for Google Cloud Platform (Splunkbase 3084) modular input or scripted poll into the index named in the SPL.",
   "app": "GCP audit logs, Cloud SQL Admin API events — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
   "spl": "index=gcp sourcetype=\"gcp:audit\" protoPayload.methodName=\"*.sql.instances.patch\"\n| spath output=new_disk_gb protoPayload.request.settings.dataDiskSizeGb\n| where isnotnull(new_disk_gb)\n| table _time, resourceName, new_disk_gb, protoPayload.authenticationInfo.principalEmail",
-  "description": "Automatic storage increases for GCP Cloud SQL (and similar) signal rapid data growth and cost impact.",
+  "description": "Automatic storage increases for GCP Cloud SQL (and similar) signal rapid data growth and cost impact. Searches `index=gcp` with sourcetype `gcp:audit` for UC-7.3.13, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Cloud SQL Storage Auto-Grow Events' without manual log review.",
   "value": "Early 'Cloud SQL Storage Auto-Grow Events' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Parse patch operations that change disk size. Alert when more than one resize per week per instance. Forecast disk from `disk_utilization` metrics.",
   "visualization": "Timeline (resize events), Table (instance, new size GB), Line chart (disk size over time).",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cloud SQL Storage Auto-Grow Events'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `gcp` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `gcp`** — Planned work for 'Cloud SQL Storage Auto-Grow Events' shifts `count` over `span=1h` while `host` remains in-scope for UC-7.3.13. Cross-check CMDB CHG.\n\n2. **Batch `count` on `gcp:audit`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gcp:audit`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "gcp"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Market-Value Volatility Watchlist' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_market_value_volatility_watchlist` (UC-25.30.14), SOC dashboard panel \"Personal — Market-Value Volatility Watchlist\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='collection:price' that satisfy the UC-25.30.14 SPL filters for 'Market-Value Volatility Watchlist'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `collection:price` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.30.14."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='collection:price' where `item_id` satisfies `abs_change_pct` >= 10 for UC-25.30.14 ('Market-Value Volatility Watchlist'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `collection:price` events where `item_id` stays below `abs_change_pct` >= 10, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.30.14."
   },
   "dataSources": "Collection items (`collection:item`), intake scans (`collection:scan`), market prices (`collection:price`), item photos (`collection:photo`), authentication records (`collection:auth`), loans (`collection:loan`), and condition audits (`collection:condition`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Collection telemetry from personal catalogues, NFC scans, pricing feeds, authentication records, loan logs, shelf measurements, and item-condition audits streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=collection:price\n| stats earliest(price_usd) as start_price_usd latest(price_usd) as current_price_usd by item_id title\n| eval change_pct=round(100*(current_price_usd-start_price_usd)/start_price_usd,1)\n| eval abs_change_pct=abs(change_pct)\n| where abs_change_pct>=10\n| sort - abs_change_pct",
   "description": "Builds a watchlist of items whose tracked market value has swung significantly. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Some collections are stable and others are volatile, so this helps you see where repricing, insurance review, or selling decisions deserve attention.",
+  "value": "Builds a watchlist of items whose tracked market value has swung significantly. Timely UC-25.30.14 alerting on 'Market-Value Volatility Watchlist' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Poll one or more pricing feeds on a regular cadence and store the values against your item identifiers.",
   "visualization": "Table of items with large positive or negative value swings.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Market-Value Volatility Watchlist'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `collection:price`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Market-Value Volatility Watchlist' stops polling `collection:price`; stale `item_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `collection:price`. Dedup with `stats latest(*) by item_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `abs_change_pct` >= 10. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

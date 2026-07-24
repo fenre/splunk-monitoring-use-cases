@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Code Scanning Alert Trends' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_code_scanning_alert_trends` (UC-12.1.20), SOC dashboard panel \"Operations — Code Scanning Alert Trends\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='github:code_scanning' that satisfy the UC-12.1.20 SPL filters for 'Code Scanning Alert Trends'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `devops` / `github:code_scanning` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.1.20."
+    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='github:code_scanning' where `rule_severity` satisfies detection threshold for UC-12.1.20 ('Code Scanning Alert Trends'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `devops` / `github:code_scanning` events where `rule_severity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.1.20."
   },
   "dataSources": "`alert` created, fixed, reopened events Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "GitHub `code_scanning_alert` webhooks, API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"github:code_scanning\"\n| timechart span=1w sum(eval(action=\"created\")) as opened, sum(eval(action=\"fixed\")) as fixed by rule_severity\n| eval net_debt=opened-fixed",
-  "description": "GitHub Advanced Security CodeQL/code scanning alert open/close rates show remediation velocity and new debt.",
+  "description": "GitHub Advanced Security CodeQL/code scanning alert open/close rates show remediation velocity and new debt. Searches `index=devops` with sourcetype `github:code_scanning` for UC-12.1.20, aggregating `sum` by `rule_severity` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Code Scanning Alert Trends' without manual log review.",
   "value": "Early 'Code Scanning Alert Trends' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ingest SARIF-related alert events. Track MTTR for Critical. Executive dashboard: net debt per language.",
   "visualization": "Line chart (opened vs fixed), Bar chart (by severity), Single value (open Critical alerts).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Code Scanning Alert Trends'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `devops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `devops`** — Planned work for 'Code Scanning Alert Trends' shifts `sum` over `span=1w` while `rule_severity` remains in-scope for UC-12.1.20. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `github:code_scanning`** — Scheduled automation elevates `net_debt` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `rule_severity`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `github:code_scanning`** — First 48h baseline for `rule_severity` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `rule_severity`, `exception_reason`, `valid_until`.",
   "equipment": [
     "github"
   ],

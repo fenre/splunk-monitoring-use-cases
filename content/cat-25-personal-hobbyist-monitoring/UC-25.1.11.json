@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Weekly Active Minutes vs Recommendation' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_weekly_active_minutes_vs_recommendation` (UC-25.1.11), SOC dashboard panel \"Personal — Weekly Active Minutes vs Recommendation\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='fitbit:activity' that satisfy the UC-25.1.11 SPL filters for 'Weekly Active Minutes vs Recommendation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `fitbit:activity` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.11."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='fitbit:activity' where `_time` satisfies detection threshold for UC-25.1.11 ('Weekly Active Minutes vs Recommendation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `fitbit:activity` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.11."
   },
   "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as file inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=fitbit:activity\n| bin _time span=1w\n| stats sum(active_minutes) as active_min by _time\n| eval recommended=150, pct=round(100*active_min/recommended)\n| sort - _time",
-  "description": "Sums your weekly moderate-to-vigorous active minutes and compares them to the widely recommended 150-minute guideline.",
-  "value": "Framing your week against the official activity guideline turns exercise into a simple pass/fail health target anyone can understand.",
+  "description": "Sums your weekly moderate-to-vigorous active minutes and compares them to the widely recommended 150-minute guideline. Searches `index=personal` with sourcetype `fitbit:activity` for UC-25.1.11, aggregating `sum` by `_time` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Weekly Active Minutes vs Recommendation' without manual log review.",
+  "value": "Sums your weekly moderate-to-vigorous active minutes and compares them to the widely recommended 150-minute.... Timely UC-25.1.11 alerting on 'Weekly Active Minutes vs Recommendation' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Fitbit or Apple active-minutes data; schedule weekly and alert when you fall short of the guideline.",
   "visualization": "Gauge or column chart of active minutes against the 150-minute line.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Weekly Active Minutes vs Recommendation'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `fitbit:activity`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Weekly Active Minutes vs Recommendation' stops polling `fitbit:activity`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `fitbit:activity`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

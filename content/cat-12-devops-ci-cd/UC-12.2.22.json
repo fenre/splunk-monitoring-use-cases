@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Mean Time to Recovery (MTTR)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mean_time_to_recovery_mttr` (UC-12.2.22), SOC dashboard panel \"Operations — Mean Time to Recovery (MTTR)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='pagerduty:incident' that satisfy the UC-12.2.22 SPL filters for 'Mean Time to Recovery (MTTR)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `pagerduty:incident` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.22."
+    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='pagerduty:incident' where `service` satisfies `avg_mttr` > 60 for UC-12.2.22 ('Mean Time to Recovery (MTTR)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `itsm` / `pagerduty:incident` events where `service` stays below `avg_mttr` > 60, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.22."
   },
   "dataSources": "Incident `created_at`, `resolved_at`; rollback `deploy_time` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "PagerDuty/Opsgenie, deployment events — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"pagerduty:incident\"\n| eval mttr_min=(resolved_epoch-ack_epoch)/60\n| stats avg(mttr_min) as avg_mttr, p95(mttr_min) as p95_mttr by service\n| where avg_mttr > 60\n| sort -avg_mttr",
-  "description": "Time from incident detection or deploy failure to successful restore—core DORA metric.",
+  "description": "Time from incident detection or deploy failure to successful restore—core DORA metric. Searches `index=itsm` with sourcetype `pagerduty:incident` for UC-12.2.22, aggregating `avg` by `service` over `the scheduled window`. Alerts when grouped results cross `avg_mttr` > 60 in the saved search. Gives Operations operators a repeatable signal for 'Mean Time to Recovery (MTTR)' without manual log review.",
   "value": "Early 'Mean Time to Recovery (MTTR)' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Correlate PD incidents with service. For deploy failures, measure time to healthy deploy. Executive review monthly.",
   "visualization": "Table (MTTR by service), Line chart (avg MTTR trend), Gauge (vs SLA).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Mean Time to Recovery (MTTR)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `itsm` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Mean Time to Recovery (MTTR)' shifts `avg` over `span=1h` while `service` remains in-scope for UC-12.2.22. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `pagerduty:incident`** — Scheduled automation elevates `mttr_min` without crossing `avg_mttr` > 60. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `service`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pagerduty:incident`** — First 48h baseline for `service` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `service`, `exception_reason`, `valid_until`.",
   "equipment": [
     "pagerduty"
   ],

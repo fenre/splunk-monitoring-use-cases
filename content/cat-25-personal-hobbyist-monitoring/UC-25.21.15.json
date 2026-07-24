@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'rtl_433 Sensor Decode Health' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_rtl_433_sensor_decode_health` (UC-25.21.15), SOC dashboard panel \"Personal — rtl_433 Sensor Decode Health\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rtl433:sensor' that satisfy the UC-25.21.15 SPL filters for 'rtl_433 Sensor Decode Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `rtl433:sensor` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.21.15."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rtl433:sensor' where `protocol` satisfies detection threshold for UC-25.21.15 ('rtl_433 Sensor Decode Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `rtl433:sensor` events where `protocol` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.21.15."
   },
   "dataSources": "Aircraft messages (`adsb:message`), APRS packets (`aprs:packet`), AIS vessel messages (`ais:message`), rtl_433 decodes (`rtl433:sensor`), RF occupancy summaries (`sdr:spectrum`), satellite observations (`satnogs:observation`), and repeater use (`repeater:activity`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Radio and SDR telemetry from WSPR, APRS, ADS-B, AIS, rtl_433, SatNOGS, and local receiver health feeds streamed to Splunk HEC via APIs, MQTT, and log shippers. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=rtl433:sensor\n| stats count as decodes dc(device_id) as devices by protocol\n| sort - decodes",
-  "description": "Summarises how many sensor decodes arrive per protocol so weak reception or a failing 433 MHz sensor becomes obvious.",
-  "value": "Decode volume is a practical health metric for an SDR sensor fleet because missing decodes usually show up before total silence.",
+  "description": "Summarises how many sensor decodes arrive per protocol so weak reception or a failing 433 MHz sensor becomes obvious. Searches `index=personal` with sourcetype `rtl433:sensor` for UC-25.21.15, aggregating `dc` by `protocol` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'rtl_433 Sensor Decode Health' without manual log review.",
+  "value": "Summarises how many sensor decodes arrive per protocol so weak reception or a failing 433 MHz sensor become.... Timely UC-25.21.15 alerting on 'rtl_433 Sensor Decode Health' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Collect rtl_433 output from your SDR host and group it by protocol and device identifier.",
   "visualization": "Bar chart of decode counts and devices by protocol.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'rtl_433 Sensor Decode Health'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rtl433:sensor`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'rtl_433 Sensor Decode Health' stops polling `rtl433:sensor`; stale `protocol` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `dc` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rtl433:sensor`. Dedup with `stats latest(*) by protocol`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

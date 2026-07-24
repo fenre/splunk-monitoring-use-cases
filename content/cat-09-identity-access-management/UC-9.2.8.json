@@ -13,8 +13,8 @@
   "exclusions": "Covers the detection logic documented for 'Active Directory Schema Modification Audit' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_active_directory_schema_modification_audit` (UC-9.2.8), SOC dashboard panel \"IAM — Active Directory Schema Modification Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=5136 that satisfy the UC-9.2.8 SPL filters for 'Active Directory Schema Modification Audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events outside the detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.2.8."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=5136 where `entity` satisfies detection threshold for UC-9.2.8 ('Active Directory Schema Modification Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.2.8."
   },
   "dataSources": "Security Event Log (5136 — directory service object modified under `CN=Schema,CN=Configuration`) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Application misconfigured bind DN** — Deploy sends wrong `bind_dn` after release. Correlate spike with `index=wineventlog` deploy timestamp in `index=changes`.\n\n2. **Directory maintenance restart** — Short bind failure burst while 389/636 restarts. Match maintenance window in change calendar.\n\n3. **Brute-force against LDAP** — External `src` hammering `bind_dn` with err=49. Compare with firewall deny logs for same `src`.\n\n4. **Expired service credential** — Single application account stale password. One `bind_dn` dominates stats; fix in vault rotation.\n\n**Suppression mechanism:** `ldap_exception_register.csv` with `bind_dn`, `src`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `wineventlog`** — Planned work for 'Active Directory Schema Modification Audit' shifts `count` over `span=1h` while `host` remains in-scope for UC-9.2.8. Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Security` (EventCode=5136)** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1484"
   ],

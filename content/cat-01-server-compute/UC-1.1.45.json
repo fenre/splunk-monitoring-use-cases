@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Swap Thrashing Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_swap_thrashing_detection` (UC-1.1.45), SOC dashboard panel \"Linux — Swap Thrashing Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='vmstat' that satisfy the UC-1.1.45 SPL filters for 'Swap Thrashing Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `vmstat` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.45."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='vmstat' where `host` satisfies `si` > 100 for UC-1.1.45 ('Swap Thrashing Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `vmstat` events where `host` stays below `si` > 100, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.45."
   },
   "dataSources": "`sourcetype=vmstat` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=vmstat host=*\n| where si > 100 AND so > 100\n| stats count by host\n| eval swap_thrash=\"YES\"\n| where count > 10",
-  "description": "Swap thrashing causes severe performance degradation and can make systems unresponsive.",
+  "description": "Swap thrashing causes severe performance degradation and can make systems unresponsive. Searches `index=os` with sourcetype `vmstat` for UC-1.1.45, aggregating `count` by `host` over `the scheduled window`. Alerts when grouped results cross `si` > 100 in the saved search. Gives Linux operators a repeatable signal for 'Swap Thrashing Detection' without manual log review.",
   "value": "Early 'Swap Thrashing Detection' detection reduces capacity incidents, patch regressions, and service outages by giving Linux operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Monitor vmstat si (swap in) and so (swap out) rates. Alert when both exceed 100 pages/sec simultaneously for 10+ consecutive samples. Include memory pressure metrics and process identification in alert context.",
   "visualization": "Alert, Timechart",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Swap Thrashing Detection'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `vmstat`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Swap Thrashing Detection'. Correlate with apt/yum logs in the same `vmstat` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmstat`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `si` > 100.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],

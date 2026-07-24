@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Grant a test user elevated access to a controlled system without a corresponding approval record in the access management system; verify the monitoring search detects the unapproved privilege within 1 hour and generates an alert with user, system, and missing approval details.",
-    "negativeScenario": "Grant a test user access following the full approval workflow with manager sign-off, risk assessment, and time-limited duration recorded; verify no access violation alert fires and the access appears as properly authorised in the dashboard."
+    "positiveScenario": "Ingest synthetic events into `index=_audit` sourcetype='target_sourcetype' where `user` satisfies `changes` > 25 for UC-22.6.8 ('ISO 27001 Segregation of Duties — Privileged Splunk Knowledge Object Changes'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `_audit` / `target_sourcetype` events where `user` stays below `changes` > 25, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.6.8."
   },
   "dataSources": "`index=_audit` (object_type, action, user, object, info) (Splunkbase 1621 — Splunk CIM Add-on)",
   "app": "Splunk Enterprise core auditing (`_audit` index)",
   "spl": "index=_audit object_type IN (\"savedsearch\",\"alert_actions\",\"transforms\",\"props\",\"authorize\") action IN (\"create\",\"update\",\"delete\") earliest=-30d\n| eval object_name=coalesce(object, info)\n| stats count as changes, values(action) as actions, dc(object_type) as object_types by user\n| lookup splunk_privileged_users.csv user OUTPUT is_breakglass\n| where is_breakglass=\"true\" OR changes>25\n| sort - changes",
   "description": "Conflicting duties must be separated to reduce fraud and error. Auditing edits to high-risk Splunk objects by the same accounts that can execute destructive searches evidences compensating detective controls where native SoD is limited.",
-  "value": "Gives the responsible team auditor-ready evidence for ISO 27001 compliance by automating regulatory compliance evidence using indexes _audit. Replaces manual evidence gathering with a continuous Splunk search that produces structured, time-stamped artefacts suitable for regulatory examination and internal audit review.",
+  "value": "Conflicting duties must be separated to reduce fraud and error. Timely UC-22.6.8 alerting on 'ISO 27001 Segregation of Duties — Privileged Splunk Knowledge Object Changes' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Maintain `splunk_privileged_users.csv` for admin and break-glass IDs; (2) forward `_audit` from all search heads in the cluster; (3) alert on deletes to `authorize` or `props`; (4) pair with change tickets via `user`→`snow_sys_id` lookup; (5) include in role recertification for A.5.3 (segregation of duties). Indexes required: `index=_audit`.",
   "visualization": "Table (user, changes, actions), Timeline (edits by object_type), Single value (delete actions count).",
   "cimModels": [],
@@ -52,7 +52,7 @@
       "url": "https://docs.splunk.com/Documentation/ES/latest/User/Overview"
     }
   ],
-  "knownFalsePositives": "1. **Emergency admin operations** — Privileged operations performed during declared incidents using break-glass procedures are documented in incident records.\n\n2. **Knowledge object migration activities** — Bulk knowledge object changes during app migrations or upgrades are pre-approved through the change advisory board.\n\n3. **Automated CI/CD deployments** — Deployment pipelines that modify knowledge objects as part of approved release processes operate under service account segregation.\n\n4. **Shared admin role during staff transitions** — Brief periods where admin duties overlap during personnel changes are within the documented transition plan.\n\n5. **Development environment exceptions** — Non-production Splunk instances where segregation of duties requirements are relaxed per the risk acceptance framework.",
+  "knownFalsePositives": "1. **Authorised ISO 27001 control testing** — Internal audit exercises 'ISO 27001 Segregation of Duties — Privileged Splunk Knowledge Object Changes' (UC-22.6.8) on `user` during scheduled clause A.5.3 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=_audit` `configured sourcetype` without crossing `changes` > 25. Cross-check engagement letter in `iso_27001_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `_audit` for `user`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `user` during normal service delivery.\n\n**Suppression mechanism:** `iso_27001_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1098",
     "T1078"

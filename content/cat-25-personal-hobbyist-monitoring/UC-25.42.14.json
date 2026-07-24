@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Hobbs vs Airborne Time Divergence' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_hobbs_vs_airborne_time_divergence` (UC-25.42.14), SOC dashboard panel \"Personal — Hobbs vs Airborne Time Divergence\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flightlog:entry' that satisfy the UC-25.42.14 SPL filters for 'Hobbs vs Airborne Time Divergence'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `flightlog:entry` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.14."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flightlog:entry' where `aircraft_type` satisfies detection threshold for UC-25.42.14 ('Hobbs vs Airborne Time Divergence'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `flightlog:entry` events where `aircraft_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.14."
   },
   "dataSources": "Pilot logbook (`flightlog:entry`), avionics telemetry (`avionics:telemetry`), flight-sim sessions (`flightsim:session`), pre-flight checklists (`preflight:check`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Pilot and flight-sim telemetry — electronic logbooks (ForeFlight, LogTen Pro), Stratux / GDL90 avionics receivers, and Microsoft Flight Simulator / X-Plane SimConnect sessions — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=flightlog:entry\n| eval ground_overhead=round(hobbs_hours-airborne_hours,2)\n| stats avg(ground_overhead) as avg_ground_overhead, avg(airborne_hours) as avg_airborne by aircraft_type\n| sort - avg_ground_overhead",
-  "description": "Compares how much time is being spent on the ground relative to airborne time by aircraft type.",
-  "value": "Ground overhead is not bad, but it is useful to know when it starts to dominate training efficiency or rental cost.",
+  "description": "Compares how much time is being spent on the ground relative to airborne time by aircraft type. Searches `index=personal` with sourcetype `flightlog:entry` for UC-25.42.14, aggregating `avg` by `aircraft_type` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Hobbs vs Airborne Time Divergence' without manual log review.",
+  "value": "Compares how much time is being spent on the ground relative to airborne time by aircraft type. Timely UC-25.42.14 alerting on 'Hobbs vs Airborne Time Divergence' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log Hobbs and airborne time in `index=personal`; compare average ground-overhead gap by aircraft type.",
   "visualization": "Aircraft table of average ground overhead and airborne hours.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Hobbs vs Airborne Time Divergence'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flightlog:entry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Hobbs vs Airborne Time Divergence' stops polling `flightlog:entry`; stale `aircraft_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flightlog:entry`. Dedup with `stats latest(*) by aircraft_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hardware_bmc"
   ],

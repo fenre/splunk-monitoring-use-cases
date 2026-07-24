@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Practice-Location Effect on Consistency' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_practice_location_effect_on_consistency` (UC-25.56.17), SOC dashboard panel \"Personal — Practice-Location Effect on Consistency\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='prayer:session' that satisfy the UC-25.56.17 SPL filters for 'Practice-Location Effect on Consistency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `prayer:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.56.17."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='prayer:session' where `location` satisfies detection threshold for UC-25.56.17 ('Practice-Location Effect on Consistency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `prayer:session` events where `location` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.56.17."
   },
   "dataSources": "Prayer sessions (`prayer:session`), scripture readings (`scripture:reading`), fasting logs (`fasting:log`), gratitude entries (`gratitude:entry`), retreats (`retreat:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Spiritual-practice and mindfulness logs — prayer / meditation timers, scripture-reading plans (YouVersion), fasting and gratitude journals, and retreat calendars — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=prayer:session\n| stats sum(eval(if(completed=\"yes\",1,0))) as completed, count as planned by location\n| eval completion_pct=round(100*completed/planned,1)\n| sort - completion_pct",
-  "description": "Shows whether certain locations make spiritual practices easier to complete consistently.",
-  "value": "Environment matters; identifying supportive places can improve consistency without requiring more willpower.",
+  "description": "Shows whether certain locations make spiritual practices easier to complete consistently. Searches `index=personal` with sourcetype `prayer:session` for UC-25.56.17, aggregating `sum` by `location` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Practice-Location Effect on Consistency' without manual log review.",
+  "value": "Shows whether certain locations make spiritual practices easier to complete consistently. Timely UC-25.56.17 alerting on 'Practice-Location Effect on Consistency' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture planned and completed sessions with location labels and compute completion percentage by location.",
   "visualization": "Table of practice locations by completion percentage.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Practice-Location Effect on Consistency'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `prayer:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Practice-Location Effect on Consistency' stops polling `prayer:session`; stale `location` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `prayer:session`. Dedup with `stats latest(*) by location`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

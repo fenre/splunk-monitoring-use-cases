@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Todoist Recurring Task Completion Drop' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_todoist_recurring_task_completion_drop` (UC-25.13.24), SOC dashboard panel \"Personal — Todoist Recurring Task Completion Drop\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='todoist:task' that satisfy the UC-25.13.24 SPL filters for 'Todoist Recurring Task Completion Drop'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `todoist:task` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.13.24."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='todoist:task' where `label` satisfies `total_tasks` >= 5 for UC-25.13.24 ('Todoist Recurring Task Completion Drop'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `todoist:task` events where `label` stays below `total_tasks` >= 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.13.24."
   },
   "dataSources": "Personal productivity telemetry (`obsidian:sync`, `obsidian:note`, `todoist:task`, `toggl:timeentry`, `calendar:freebusy`, `calendar:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Obsidian Sync, Todoist, Toggl Track, Google Calendar / iCloud calendar exports, and task metadata ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=todoist:task\n| bin _time span=1w\n| stats count(eval(completed=\"true\")) as completed_tasks, count as total_tasks by label _time\n| eval completion_pct=round(100*completed_tasks/total_tasks,1)\n| where total_tasks>=5 AND completion_pct<70\n| sort completion_pct",
-  "description": "Uses Todoist recurring tasks telemetry to monitor weekly completion rate for recurring work in index=personal.",
-  "value": "Splunk turns the feed into an operational check for habits or routines that are slipping, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses Todoist recurring tasks telemetry to monitor weekly completion rate for recurring work in index=personal. Searches `index=personal` with sourcetype `todoist:task` for UC-25.13.24, aggregating `count` by `label` over `1w`. Alerts when grouped results cross `total_tasks` >= 5 in the saved search. Gives Personal operators a repeatable signal for 'Todoist Recurring Task Completion Drop' without manual log review.",
+  "value": "Uses Todoist recurring tasks telemetry to monitor weekly completion rate for recurring work in index=personal. Timely UC-25.13.24 alerting on 'Todoist Recurring Task Completion Drop' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Todoist recurring tasks data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Weekly completion-percentage chart by label.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Todoist Recurring Task Completion Drop'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `todoist:task`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Todoist Recurring Task Completion Drop' stops polling `todoist:task`; stale `label` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `todoist:task`. Dedup with `stats latest(*) by label`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `total_tasks` >= 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

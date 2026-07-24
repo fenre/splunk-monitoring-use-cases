@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Session Note Export Backlog' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_session_note_export_backlog` (UC-25.31.29), SOC dashboard panel \"Personal — Session Note Export Backlog\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='therapy:homework' that satisfy the UC-25.31.29 SPL filters for 'Session Note Export Backlog'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `therapy:homework` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.31.29."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='therapy:homework' where `provider_name` satisfies detection threshold for UC-25.31.29 ('Session Note Export Backlog'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `therapy:homework` events where `provider_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.31.29."
   },
   "dataSources": "Mood entries (`daylio:entry`), CBT thought records (`cbt:record`), breathwork sessions (`breathwork:session`), and therapy homework items (`therapy:homework`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Wellbeing journaling telemetry from Daylio exports, CBT thought records, breathwork apps, and therapy homework trackers sent to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=therapy:homework\n| search event_type=\"session_note_export\"\n| stats latest(_time) as last_seen count as events by provider_name\n| eval days_since=round((now()-last_seen)/86400,1)\n| sort - days_since",
   "description": "Shows which providerss have gone quiet for session note exports. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "An export backlog means useful context is staying trapped in one tool instead of feeding your review habit.",
+  "value": "Shows which providerss have gone quiet for session note exports. Timely UC-25.31.29 alerting on 'Session Note Export Backlog' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send session note exports events to `index=personal` and alert when the gap since the last event grows beyond the expected cadence.",
   "visualization": "Table of providerss with time since last event.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Session Note Export Backlog'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `therapy:homework`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Session Note Export Backlog' stops polling `therapy:homework`; stale `provider_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `therapy:homework`. Dedup with `stats latest(*) by provider_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,8 +12,8 @@
   "exclusions": "Covers the detection logic documented for 'Pexip Alarm and Service Health Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_pexip_alarm_and_service_health_monitoring` (UC-11.3.55), SOC dashboard panel \"Operations — Pexip Alarm and Service Health Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=pexip` sourcetype='pexip:event_sink' that satisfy the UC-11.3.55 SPL filters for 'Pexip Alarm and Service Health Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `pexip` / `pexip:event_sink` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.3.55."
+    "positiveScenario": "Ingest synthetic events into `index=pexip` sourcetype='pexip:event_sink' where `alarm_category` satisfies `severity` <= 3 for UC-11.3.55 ('Pexip Alarm and Service Health Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `pexip` / `pexip:event_sink` events where `alarm_category` stays below `severity` <= 3, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.3.55."
   },
   "dataSources": "`sourcetype=pexip:event_sink` (alarm events), `sourcetype=pexip:syslog` (facility local0, local2) Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom Pexip TA (Event Sink API via HEC), `Splunk Connect for Syslog` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Pexip Alarm and Service Health Monitoring'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `pexip` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `pexip`** — Planned work for 'Pexip Alarm and Service Health Monitoring' shifts `values` over `span=1h` while `alarm_category` remains in-scope for UC-11.3.55. Cross-check CMDB CHG.\n\n2. **Batch `values` on `pexip:event_sink`** — Scheduled automation elevates `alarm_id` without crossing `severity` <= 3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `alarm_category`** — Health checks in `pexip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pexip:event_sink`** — First 48h baseline for `alarm_category` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `alarm_category`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365",
     "syslog"

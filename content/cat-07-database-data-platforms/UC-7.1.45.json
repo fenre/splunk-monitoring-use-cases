@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Redis Rejected Connections Near Client Limit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_redis_rejected_connections_near_client_limit` (UC-7.1.45), SOC dashboard panel \"Operations — Redis Rejected Connections Near Client Limit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=middleware` sourcetype='redis:info' that satisfy the UC-7.1.45 SPL filters for 'Redis Rejected Connections Near Client Limit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `middleware` / `redis:info` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.45."
+    "positiveScenario": "Ingest synthetic events into `index=middleware` sourcetype='redis:info' where `host` satisfies `maxclients` > 0 for UC-7.1.45 ('Redis Rejected Connections Near Client Limit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `middleware` / `redis:info` events where `host` stays below `maxclients` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.45."
   },
   "dataSources": "Redis INFO: `rejected_connections`, `connected_clients`, `maxclients` (sourcetype `redis:info`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (`redis-cli INFO`), or metrics exporter forwarded to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=middleware sourcetype=\"redis:info\"\n| eval client_util_pct=if(maxclients>0, round(connected_clients/maxclients*100,2), null())\n| where rejected_connections > 0 OR client_util_pct > 85\n| timechart span=5m max(rejected_connections) as rejected, max(client_util_pct) as util_pct by host",
   "description": "The rejected_connections counter increments when Redis hits maxclients. This is a production-critical signal of connection storms, pool leaks, or undersized limits.",
-  "value": "Stops silent application failures where clients cannot connect during traffic spikes or after misconfigured pools.",
+  "value": "The rejected_connections counter increments when Redis hits maxclients. Timely UC-7.1.45 alerting on 'Redis Rejected Connections Near Client Limit' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest INFO snapshots every minute. Use delta or per-poll rejected_connections if you emit counters cumulatively. Alert on any rejection or sustained client_util_pct above policy. Map host to cluster and application owners.",
   "visualization": "Single value (rejected_connections), Line chart (connected_clients vs maxclients), Table (clusters at risk).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Redis Rejected Connections Near Client Limit'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `middleware` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `middleware`** — Planned work for 'Redis Rejected Connections Near Client Limit' shifts `max` over `span=5m` while `host` remains in-scope for UC-7.1.45. Cross-check CMDB CHG.\n\n2. **Batch `max` on `redis:info`** — Scheduled automation elevates `client_util_pct` without crossing `maxclients` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `middleware` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `redis:info`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "redis"
   ],

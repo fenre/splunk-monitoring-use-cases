@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'UPS Transfer-to-Battery Frequency' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_ups_transfer_to_battery_frequency` (UC-25.8.13), SOC dashboard panel \"Personal — UPS Transfer-to-Battery Frequency\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='nut:ups' that satisfy the UC-25.8.13 SPL filters for 'UPS Transfer-to-Battery Frequency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `nut:ups` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.13."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='nut:ups' where `ups_name` satisfies `battery_events` > 3 for UC-25.8.13 ('UPS Transfer-to-Battery Frequency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `nut:ups` events where `ups_name` stays below `battery_events` > 3, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.13."
   },
   "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`), uptime probes (`uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=nut:ups\n| bin _time span=1w\n| stats count(eval(status!=\"OL\")) as battery_events by ups_name _time\n| where battery_events>3\n| sort - battery_events",
   "description": "Counts how often the UPS had to leave normal line power, which helps distinguish a stable utility feed from a quietly flaky one.",
-  "value": "Frequent battery transfers eat into UPS life and explain weird host behaviour; knowing the pattern helps decide whether the real problem is the power feed, not the server.",
+  "value": "Counts how often the UPS had to leave normal line power, which helps distinguish a stable utility feed from.... Timely UC-25.8.13 alerting on 'UPS Transfer-to-Battery Frequency' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward NUT status changes into Splunk; review weekly transfer counts and correlate spikes with storms or local wiring issues.",
   "visualization": "Weekly chart of UPS battery-transfer events.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'UPS Transfer-to-Battery Frequency'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nut:ups`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'UPS Transfer-to-Battery Frequency' stops polling `nut:ups`; stale `ups_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nut:ups`. Dedup with `stats latest(*) by ups_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `battery_events` > 3. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "proxmox",

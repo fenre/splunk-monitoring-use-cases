@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Roll20 API Error Burst Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_roll20_api_error_burst_watch` (UC-25.46.32), SOC dashboard panel \"Personal — Roll20 API Error Burst Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rpg:session' that satisfy the UC-25.46.32 SPL filters for 'Roll20 API Error Burst Watch'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `rpg:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.46.32."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rpg:session' where `campaign` satisfies detection threshold for UC-25.46.32 ('Roll20 API Error Burst Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `rpg:session` events where `campaign` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.46.32."
   },
   "dataSources": "Character sheets (`rpg:character`), VTT sessions (`rpg:session`), initiative rounds (`rpg:initiative`), encounters (`rpg:combat`), campaign ops (`rpg:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tabletop campaign telemetry — D&D Beyond character exports, Roll20 session logs, initiative trackers, and campaign asset checklists — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=rpg:session campaign=* api_error_burst=*\n| stats count as total, sum(eval(if(api_error_burst=\"yes\",1,0))) as matched by campaign\n| eval an_api_error_burst_pct=round(100*matched/total,1)\n| sort - an_api_error_burst_pct",
-  "description": "Measures the percentage of Roll20 sessions that end with an API error burst by campaign.",
-  "value": "Completion and exception percentages make it easier to spot which campaign are helping or hurting Roll20 sessions.",
+  "description": "Measures the percentage of Roll20 sessions that end with an API error burst by campaign. Searches `index=personal` with sourcetype `rpg:session` for UC-25.46.32, aggregating `sum` by `campaign` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Roll20 API Error Burst Watch' without manual log review.",
+  "value": "Measures the percentage of Roll20 sessions that end with an API error burst by campaign. Timely UC-25.46.32 alerting on 'Roll20 API Error Burst Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store a normalized flag for `an API error burst` on `rpg:session` events and summarize the hit rate by `campaign`.",
   "visualization": "Table of campaign with percentage of Roll20 sessions ending with an API error burst.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Roll20 API Error Burst Watch'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rpg:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Roll20 API Error Burst Watch' stops polling `rpg:session`; stale `campaign` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rpg:session`. Dedup with `stats latest(*) by campaign`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

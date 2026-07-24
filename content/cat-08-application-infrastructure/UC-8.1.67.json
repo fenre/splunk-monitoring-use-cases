@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Memcached Slab Class Memory Imbalance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_memcached_slab_class_memory_imbalance` (UC-8.1.67), SOC dashboard panel \"Operations — Memcached Slab Class Memory Imbalance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=infrastructure` sourcetype='memcached:stats_slabs' that satisfy the UC-8.1.67 SPL filters for 'Memcached Slab Class Memory Imbalance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `infrastructure` / `memcached:stats_slabs` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.67."
+    "positiveScenario": "Ingest synthetic events into `index=infrastructure` sourcetype='memcached:stats_slabs' where `host` satisfies `pages` > 100 for UC-8.1.67 ('Memcached Slab Class Memory Imbalance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `infrastructure` / `memcached:stats_slabs` events where `host` stays below `pages` > 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.67."
   },
   "dataSources": "`stats slabs` chunk stats ingested as `memcached:stats_slabs` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scripted `stats slabs` parser (per slab `chunk_size`, `total_pages`, `used_chunks`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=infrastructure sourcetype=\"memcached:stats_slabs\"\n| eval pages=tonumber(total_pages)\n| eval used=tonumber(used_chunks)\n| eval free=tonumber(free_chunks)\n| eval waste=if((used+free)>0, round(100*free/(used+free),1), null())\n| where pages > 100 AND waste > 60\n| stats max(waste) as max_waste by host, slab_id\n| sort -max_waste",
   "description": "When many chunks in a slab class sit free while others are exhausted, memory is stranded in the wrong slab size—evictions rise without increasing effective capacity. `stats slabs` exposes that imbalance early.",
-  "value": "Guides tuning of slab growth, item sizes, or multi-tenant cache splits before ops teams buy RAM unnecessarily.",
+  "value": "When many chunks in a slab class sit free while others are exhausted, memory is stranded in the wrong slab.... Timely UC-8.1.67 alerting on 'Memcached Slab Class Memory Imbalance' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Normalize slab IDs from `stats slabs` output. Poll during low traffic to reduce cost. Combine with application object-size histogram. Restarting memcached clears slabs—use only as last resort; prefer separate pools for different object sizes.",
   "visualization": "Heatmap (host × slab_id waste%), Table (top waste slabs).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Memcached Slab Class Memory Imbalance'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `infrastructure` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `infrastructure`** — Planned work for 'Memcached Slab Class Memory Imbalance' shifts `max` over `span=1h` while `host` remains in-scope for UC-8.1.67. Cross-check CMDB CHG.\n\n2. **Batch `max` on `memcached:stats_slabs`** — Scheduled automation elevates `slab_id` without crossing `pages` > 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `infrastructure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `memcached:stats_slabs`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "memcached"
   ],

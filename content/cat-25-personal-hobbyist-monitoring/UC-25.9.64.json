@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'WireGuard Peer Status Bytes Received Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_wireguard_peer_status_bytes_received_leaderboard` (UC-25.9.64), SOC dashboard panel \"Personal — WireGuard Peer Status Bytes Received Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='wireguard:peer' that satisfy the UC-25.9.64 SPL filters for 'WireGuard Peer Status Bytes Received Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `wireguard:peer` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.64."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='wireguard:peer' where `peer_name` satisfies detection threshold for UC-25.9.64 ('WireGuard Peer Status Bytes Received Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `wireguard:peer` events where `peer_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.64."
   },
   "dataSources": "UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog, ISP uptime probes. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=wireguard:peer rx_bytes=*\n| stats sum(rx_bytes) as total_value, avg(rx_bytes) as avg_value by peer_name\n| sort - total_value",
-  "description": "Ranks peer values by total and average bytes received across WireGuard peer status events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks peer values by total and average bytes received across WireGuard peer status events. Searches `index=personal` with sourcetype `wireguard:peer` for UC-25.9.64, aggregating `sum` by `peer_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'WireGuard Peer Status Bytes Received Leaderboard' without manual log review.",
+  "value": "Ranks peer values by total and average bytes received across WireGuard peer status events. Timely UC-25.9.64 alerting on 'WireGuard Peer Status Bytes Received Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `rx_bytes` values for each WireGuard peer status event and review total and average bytes received by peer.",
   "visualization": "Table of entities ranked by total bytes received.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'WireGuard Peer Status Bytes Received Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `wireguard:peer`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'WireGuard Peer Status Bytes Received Leaderboard' stops polling `wireguard:peer`; stale `peer_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `wireguard:peer`. Dedup with `stats latest(*) by peer_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "syslog"
   ],

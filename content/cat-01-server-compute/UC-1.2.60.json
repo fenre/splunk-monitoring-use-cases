@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Code Integrity / Driver Signing Violations' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_code_integrity_driver_signing_violations` (UC-1.2.60), SOC dashboard panel \"Linux — Code Integrity / Driver Signing Violations\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=3001 that satisfy the UC-1.2.60 SPL filters for 'Code Integrity / Driver Signing Violations'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.60."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=3001 where `entity` satisfies detection threshold for UC-1.2.60 ('Code Integrity / Driver Signing Violations'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.60."
   },
   "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-CodeIntegrity/Operational` (EventCode 3001, 3002, 3003, 3004, 3033) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-CodeIntegrity/Operational\"\n  EventCode IN (3001, 3002, 3003, 3004, 3033)\n| eval issue=case(EventCode=3001,\"Unsigned driver blocked\",EventCode=3002,\"Unable to verify\",EventCode=3003,\"Unsigned policy\",EventCode=3004,\"File hash not found\",EventCode=3033,\"Unsigned image loaded\")\n| table _time, host, issue, FileNameBuffer, ProcessNameBuffer\n| sort -_time",
   "description": "Unsigned or tampered drivers loading into the kernel are a rootkit indicator. Code Integrity violations detect bypass attempts and driver-level threats.",
-  "value": "CI failures are a supply-chain and boot integrity signal—treat with patch and software deployment teams, not as a one-line ignore.",
+  "value": "Unsigned or tampered drivers loading into the kernel are a rootkit indicator. Timely UC-1.2.60 alerting on 'Code Integrity / Driver Signing Violations' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Code Integrity events log automatically on systems with Secure Boot, HVCI, or WDAC. EventCode 3033=unsigned image loaded (audit mode), 3001=unsigned driver blocked (enforcement). Alert on all blocked events in enforcement mode. In audit mode, use data to build a driver whitelist before enabling enforcement. Cross-reference drivers with known-good hashes from Microsoft catalog.",
   "visualization": "Table (integrity violations), Timeline, Bar chart (top unsigned files), Single value (blocked loads).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Code Integrity / Driver Signing Violations'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `configured sourcetype`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Code Integrity / Driver Signing Violations'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

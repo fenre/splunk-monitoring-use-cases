@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Classify a change as material; do NOT trigger fresh assessment within 30 days. UC-22.55.22 MUST flag `refresh_status=\"refresh_overdue\"`.",
-    "negativeScenario": "Trigger and sign fresh assessment within SLA; UC-22.55.22 MUST record `refresh_status=\"current\"`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies `days_since_material` > 14 for UC-22.55.22 ('CLC/TS 50701 Continuous Risk-Assessment Refresh — every material change triggers fresh assessment'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `days_since_material` > 14, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.55.22."
   },
   "dataSources": "KV Store `rail_risk_refresh_lookup`. Material-change events from CMDB and engineering pipelines.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_risk_refresh_lookup\n| where change_status=\"material\"\n| eval now_ts = now()\n| eval days_since_material = if(isnotnull(change_classified_material_at), round((now_ts - change_classified_material_at) / 86400, 0), null())\n| eval refresh_status = case(\n    isnull(fresh_assessment_triggered_at) AND days_since_material > 14, \"refresh_not_triggered\",\n    isnull(fresh_assessment_signed_at) AND days_since_material > 30, \"refresh_overdue\",\n    isnotnull(fresh_assessment_signed_at), \"current\",\n    1=1, \"in_progress\")\n| where refresh_status != \"current\" AND refresh_status != \"in_progress\"\n| table change_id zone_id change_classified_material_at fresh_assessment_triggered_at fresh_assessment_signed_at days_since_material refresh_status",
   "description": "Tracks material changes against fresh-risk-assessment SLAs. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Without refresh, the risk register decays into irrelevance. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Tracks material changes against fresh-risk-assessment SLAs. Timely UC-22.55.22 alerting on 'CLC/TS 50701 Continuous Risk-Assessment Refresh — every material change triggers fresh assessment' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Define material-change classification criteria in `rail_risk_refresh_lookup`. (2) SOAR `rail-material-change-detect` triggers on CMDB changes. (3) Schedule UC-22.55.22 weekly Monday 08:30.",
   "visualization": "(Panel 1) Refresh status. (Panel 2) Overdue queue. (Panel 3) Refresh-trigger sources.",
   "cimModels": [
@@ -71,7 +71,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Multi-zone material change** — one change may need refresh in multiple zones. Suppression: tracked separately per zone.\n\n**Suppression mechanism**: KV Store `clc_22_55_22_exceptions` with documented Risk Manager approval and 14-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Continuous Risk-Assessment Refresh — every material change triggers fresh assessment' (UC-22.55.22) on `entity` during scheduled clause CLC-TS-50701-c11-3 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `days_since_material` > 14. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (risk-refresh governance)"
   ],

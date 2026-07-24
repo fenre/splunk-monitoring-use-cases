@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Dry-Clean Pickup Delay' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_dry_clean_pickup_delay` (UC-25.49.21), SOC dashboard panel \"Personal — Dry-Clean Pickup Delay\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='style:cleaning' that satisfy the UC-25.49.21 SPL filters for 'Dry-Clean Pickup Delay'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `style:cleaning` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.49.21."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='style:cleaning' where `cleaner_name` satisfies detection threshold for UC-25.49.21 ('Dry-Clean Pickup Delay'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `style:cleaning` events where `cleaner_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.49.21."
   },
   "dataSources": "Closet activity (`style:wardrobe`), cleaning tasks (`style:cleaning`), shoe wears (`style:shoes`), beauty inventory (`beauty:product`), audits (`style:audit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Wardrobe and beauty telemetry — Stylebook closet exports, dry-cleaning reminders, shoe-rotation logs, and makeup inventory audits — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=style:cleaning cleaner_name=* ready_epoch=* picked_up_epoch=*\n| eval lag_days=round((picked_up_epoch-ready_epoch)/86400,1)\n| stats avg(lag_days) as avg_lag_days, max(lag_days) as worst_lag_days by cleaner_name\n| sort - avg_lag_days",
   "description": "Measures dry-clean pickup delay by cleaner for dry-cleaning pickups. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Lag tracking shows which cleaner create the slowest handoffs, syncs, or review loops inside dry-cleaning pickups.",
+  "value": "Measures dry-clean pickup delay by cleaner for dry-cleaning pickups. Timely UC-25.49.21 alerting on 'Dry-Clean Pickup Delay' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture the timestamps needed to compute `dry-clean pickup delay` on `style:cleaning` events and aggregate them by `cleaner_name`.",
   "visualization": "Table of cleaner with average and worst dry-clean pickup delay.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Dry-Clean Pickup Delay'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `style:cleaning`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Dry-Clean Pickup Delay' stops polling `style:cleaning`; stale `cleaner_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `style:cleaning`. Dedup with `stats latest(*) by cleaner_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

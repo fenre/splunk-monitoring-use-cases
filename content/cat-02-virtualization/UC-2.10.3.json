@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'VxRail Manager Support Bundle Collection and Upload Status' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_vxrail_manager_support_bundle_collection_and_upl` (UC-2.10.3), SOC dashboard panel \"Linux — VxRail Manager Support Bundle Collection and Upload Status\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vxrail` sourcetype='vxrail:support_gateway' that satisfy the UC-2.10.3 SPL filters for 'VxRail Manager Support Bundle Collection and Upload Status'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vxrail` / `vxrail:support_gateway` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.10.3."
+    "positiveScenario": "Ingest synthetic events into `index=vxrail` sourcetype='vxrail:support_gateway' where `bundle_id` satisfies `pct` < 100 for UC-2.10.3 ('VxRail Manager Support Bundle Collection and Upload Status'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `vxrail` / `vxrail:support_gateway` events where `bundle_id` stays below `pct` < 100, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.10.3."
   },
   "dataSources": "`index=vxrail` `sourcetype=\"vxrail:support_gateway\"` — `bundle_id`, `cluster_id`, `phase` (collect|upload), `percent_complete`, `destination` (SRS|local), `error` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "REST poller on VxRail Manager support workflows — Universal Forwarder (Splunkbase 617)",
   "spl": "index=vxrail sourcetype=\"vxrail:support_gateway\" earliest=-7d\n| eval pct=tonumber(percent_complete)\n| eval ph=lower(phase)\n| where pct<100 AND now()-_time>7200 OR match(lower(coalesce(error, _raw)), \"(?i)fail|timeout\")\n| stats latest(pct) as progress, latest(error) as err by bundle_id, cluster_id",
   "description": "Stalled support bundles delay Dell/GSS engagement during sev-1s. Tracking upload phases ensures diagnostics arrive before bridge calls stall.",
-  "value": "Shortens vendor-assisted recovery timelines and improves audit evidence for escalations.",
+  "value": "Stalled support bundles delay Dell/GSS engagement during sev-1s. Timely UC-2.10.3 alerting on 'VxRail Manager Support Bundle Collection and Upload Status' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Ingest bundle job JSON. Alert if collection stuck >2 hours. Retry automation with least-privilege service account.",
   "visualization": "Progress bars per bundle; table errors; cluster facet.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'VxRail Manager Support Bundle Collection and Upload Status'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `vxrail` `vxrail:support_gateway`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `vxrail`** — Package managers spike `bundle_id` metrics for 'VxRail Manager Support Bundle Collection and Upload Status'. Correlate with apt/yum logs in the same `vxrail:support_gateway` window.\n\n2. **Nightly backup I/O on `bundle_id`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vxrail:support_gateway`** — Nagios/Zabbix polls `bundle_id` and mimics sustained load without crossing `pct` < 100.\n\n4. **New host onboarding** — `bundle_id` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `bundle_id`, `valid_until`.",
   "equipment": [
     "vxrail"
   ],

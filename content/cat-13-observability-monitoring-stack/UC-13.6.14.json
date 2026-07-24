@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Grafana Provisioned Dashboard and Data Source Config Drift' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_grafana_provisioned_dashboard_and_data_source_co` (UC-13.6.14), SOC dashboard panel \"Operations — Grafana Provisioned Dashboard and Data Source Config Drift\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=observability` sourcetype='grafana:log' that satisfy the UC-13.6.14 SPL filters for 'Grafana Provisioned Dashboard and Data Source Config Drift'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `observability` / `grafana:log` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.6.14."
+    "positiveScenario": "Ingest synthetic events into `index=observability` sourcetype='grafana:log' where `provisioner` satisfies `count` >= 1 for UC-13.6.14 ('Grafana Provisioned Dashboard and Data Source Config Drift'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `observability` / `grafana:log` events where `provisioner` stays below `count` >= 1, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.6.14."
   },
   "dataSources": "`index=observability` `sourcetype=grafana:log` provisioning success/fail, `sourcetype=grafana:datasource` live UID snapshot Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "GitOps exporter comparing disk YAML to API `/api/dashboards/uid` hash — Universal Forwarder (Splunkbase 617)",
   "spl": "index=observability sourcetype=\"grafana:log\" component=provisioning\n| search \"provisioned dashboard\" OR \"provisioned datasource\" OR \"provisioning\"\n| search failed OR error OR \"cannot delete\" OR mismatch OR \"already exists\" OR \"invalid\"\n| stats count, values(path) as paths, values(name) as objects, latest(_raw) as sample by provisioner, host\n| where count >= 1\n| sort -count",
   "description": "As-code provisioning should be the source of truth; manual UI edits to provisioned objects create drift that the next sync overwrites unexpectedly. Combining provisioning logs with datasource content hashes exposes shadow changes.",
-  "value": "Prevents surprise dashboard loss during deploys and keeps staging/prod aligned. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "As-code provisioning should be the source of truth; manual UI edits to provisioned objects create drift tha.... Timely UC-13.6.14 alerting on 'Grafana Provisioned Dashboard and Data Source Config Drift' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Prefer emitting `json_sha256` from CI for expected state and join in Splunk. Simplify the `append` subsearch if only logs are available: alert on provisioning error lines alone.",
   "visualization": "Diff table, timeline of provisioning errors, single-value (drift count).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Grafana Provisioned Dashboard and Data Source Config Drift'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `observability` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `observability`** — Planned work for 'Grafana Provisioned Dashboard and Data Source Config Drift' shifts `values` over `span=1h` while `provisioner` remains in-scope for UC-13.6.14. Cross-check CMDB CHG.\n\n2. **Batch `values` on `grafana:log`** — Scheduled automation elevates `host` without crossing `count` >= 1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `provisioner`** — Health checks in `observability` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `grafana:log`** — First 48h baseline for `provisioner` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `provisioner`, `exception_reason`, `valid_until`.",
   "equipment": [
     "grafana"
   ],

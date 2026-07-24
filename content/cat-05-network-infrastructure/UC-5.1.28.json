@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'STP Topology Change Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_stp_topology_change_rate` (UC-5.1.28), SOC dashboard panel \"Operations — STP Topology Change Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:ios' that satisfy the UC-5.1.28 SPL filters for 'STP Topology Change Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `cisco:ios` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.28."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:ios' where `host` satisfies `topo_changes` > 3 for UC-5.1.28 ('STP Topology Change Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `cisco:ios` events where `host` stays below `topo_changes` > 3, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.28."
   },
   "dataSources": "BRIDGE-MIB (dot1dStpTopChanges), syslog STP events Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=snmp:stp OR sourcetype=\"cisco:ios\") (\"dot1dStpTopChanges\" OR \"%SPANTREE-5-TOPOTCHANGE\" OR \"%SPANTREE-2-ROOTCHANGE\")\n| eval stp_event=if(match(_raw,\"TOPOTCHANGE|ROOTCHANGE|dot1dStpTopChanges\"),1,0)\n| bin _time span=10m\n| stats sum(stp_event) as topo_changes by host, _time\n| where topo_changes > 3\n| sort -topo_changes",
   "description": "Frequent topology changes indicating Layer 2 instability. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Network engineers analyze STP topology change rates to distinguish normal port transitions from TC storms indicating network loops or severe link flapping.",
+  "value": "Network engineers analyze STP topology change rates to distinguish normal port transitions from TC storms indicating network loops or severe link flapping reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Poll BRIDGE-MIB dot1dStpTopChanges every 300s; ingest syslog for SPANTREE events. Alert when topology changes exceed 3 in 10 minutes. Correlate with root bridge changes for critical alerts.",
   "visualization": "Line chart (topology changes per host), Table (host, count), Timeline.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'STP Topology Change Rate'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'STP Topology Change Rate' shifts `sum` over `span=10m` while `host` remains in-scope for UC-5.1.28. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cisco:ios`** — Scheduled automation elevates `_time` without crossing `topo_changes` > 3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp",

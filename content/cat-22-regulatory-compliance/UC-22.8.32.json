@@ -68,17 +68,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "An outbound flow from the payments service to an ASN not in approved_egress.csv is surfaced within 15m.",
-    "negativeScenario": "A flow to an approved ASN+country tuple is absent.",
-    "fixtureRef": "",
-    "attackTechnique": "T1041",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=netfw` sourcetype='pan:traffic' where `src_service` satisfies detection threshold for UC-22.8.32 ('SOC 2 CC6.7 — System boundary & data-transmission control: unapproved egress destinations'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `netfw` / `pan:traffic` events where `src_service` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.8.32."
   },
   "dataSources": "`index=netfw` sourcetype=pan:traffic; ASN/country enrichment via `asn_country.csv`; approved-egress registry `approved_egress.csv`.",
   "app": "Splunk Add-on for Palo Alto Networks (2757) (Splunkbase)",
   "spl": "index=netfw sourcetype=pan:traffic action=allow direction=outbound earliest=-15m\n| rename src AS src_ip dest AS dest_ip\n| lookup service_by_src.csv src_ip OUTPUT src_service\n| lookup asn_country.csv ip=dest_ip OUTPUT asn AS dest_asn country AS dest_country\n| lookup approved_egress.csv src_service dest_asn OUTPUT approved\n| where isnull(approved) OR approved!=\"yes\"\n| stats count sum(bytes_out) AS bytes BY src_service dest_ip dest_asn dest_country",
   "description": "Evaluates outbound flows against the per-service approved-egress registry. A flow to an unapproved ASN or country is a direct CC6.7 boundary violation.",
-  "value": "Provides the evidence SOC 2 auditors want: proof that outbound flows are governed and deviations are captured. Supports reduction of shadow SaaS risk.",
+  "value": "Evaluates outbound flows against the per-service approved-egress registry. Timely UC-22.8.32 alerting on 'SOC 2 CC6.7 — System boundary & data-transmission control: unapproved egress destinations' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Enrich Palo Alto traffic with service/ASN/country; (2) maintain approved_egress.csv; (3) schedule UC every 15m; (4) hit opens a ticket to service owner; (5) 48h SLA; (6) weekly review by Platform team. Indexes required: `index=netfw`; Sourcetypes: `sourcetype=pan:traffic`, `sourcetype=pan:traffic;`.",
   "visualization": "Geo map of unapproved destinations, bar chart by service, single value 'unapproved egress flows (1h)'. Key fields: `bytes`, `dest_asn`, `dest_country`, `dest_ip`, `src_ip`, `src_service`.",
   "cimModels": [
@@ -113,7 +110,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised SOC 2 control testing** — Internal audit exercises 'SOC 2 CC6.7 — System boundary & data-transmission control: unapproved egress destinations' (UC-22.8.32) on `src_service` during scheduled clause CC6.7 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=netfw` `pan:traffic` without crossing evidence threshold. Cross-check engagement letter in `soc_2_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `netfw` for `src_service`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `src_service` during normal service delivery.\n\n**Suppression mechanism:** `soc_2_exception_register.csv` keyed on `src_service`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1041"
   ],

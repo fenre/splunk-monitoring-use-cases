@@ -57,15 +57,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When a disposal job is started but does not reach completed status within 48 hours, the UC fires.",
-    "negativeScenario": "Disposal jobs that complete within 48 hours do NOT fire.",
-    "fixtureRef": "sample-data/uc-22.49.2-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=datastore` sourcetype='disposal:job' where `job_id` satisfies detection threshold for UC-22.49.2 ('Disposal workflow completion — failed disposals requiring manual review'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `datastore` / `disposal:job` events where `job_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.49.2."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=datastore sourcetype=disposal:job earliest=-7d\n| stats values(status) as states min(_time) as started max(_time) as last_update by job_id\n| where NOT match(states, \"completed\") AND (now()-started)>172800\n| table job_id started last_update states",
   "description": "Monitors disposal jobs across systems and raises findings for jobs that stall. Stalled disposals leak regulated data beyond its lawful window.",
-  "value": "Ensures the disposal pipeline is as observable as the ingest pipeline. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Monitors disposal jobs across systems and raises findings for jobs that stall. Timely UC-22.49.2 alerting on 'Disposal workflow completion — failed disposals requiring manual review' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Instrument disposal tooling to emit lifecycle events; (2) run daily; (3) on stall, notify the data owner. Indexes required: `index=datastore`; Sourcetypes: `sourcetype=disposal:job`.",
   "visualization": "Funnel started → in-progress → completed, table of stalled jobs, single-value '% of disposals completed within 48h'.",
   "cimModels": [],
@@ -89,7 +88,7 @@
       "title": "ICO — GDPR Guidance"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised GDPR control testing** — Internal audit exercises 'Disposal workflow completion — failed disposals requiring manual review' (UC-22.49.2) on `job_id` during scheduled clause Art.5 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=datastore` `disposal:job` without crossing evidence threshold. Cross-check engagement letter in `gdpr_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `datastore` for `job_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `job_id` during normal service delivery.\n\n**Suppression mechanism:** `gdpr_exception_register.csv` keyed on `job_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "audit",
   "requiredFields": [

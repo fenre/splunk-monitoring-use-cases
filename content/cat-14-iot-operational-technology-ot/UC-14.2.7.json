@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Modbus TCP Anomaly Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_modbus_tcp_anomaly_detection` (UC-14.2.7), SOC dashboard panel \"Operations — Modbus TCP Anomaly Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='modbus:traffic' that satisfy the UC-14.2.7 SPL filters for 'Modbus TCP Anomaly Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `modbus:traffic` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.7."
+    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='modbus:traffic' where `_time` satisfies `count` > 100 for UC-14.2.7 ('Modbus TCP Anomaly Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ot` / `modbus:traffic` events where `_time` stays below `count` > 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.7."
   },
   "dataSources": "`sourcetype=\"modbus:traffic\"` or `modbus:gateway` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk OT Intelligence, Modbus TA — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"modbus:traffic\"\n| bin _time span=5m\n| stats count by _time, unit_id, function_code, src\n| eventstats median(count) as med by unit_id, function_code\n| where count > med * 5 AND count > 100",
-  "description": "Unusual read/write rates or register ranges can indicate process upset or malicious manipulation.",
+  "description": "Unusual read/write rates or register ranges can indicate process upset or malicious manipulation. Searches `index=ot` with sourcetype `modbus:traffic` for UC-14.2.7, aggregating `median` by `_time` over `5m`. Alerts when grouped results cross `count` > 100 in the saved search. Gives Operations operators a repeatable signal for 'Modbus TCP Anomaly Detection' without manual log review.",
   "value": "Early 'Modbus TCP Anomaly Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Baseline requests per 5m per unit and function code. Use MLTK or `eventstats` for median. Alert on spikes without corresponding maintenance window.",
   "visualization": "Line chart (Modbus req rate), Table (anomalous unit × function), Heatmap (time × unit).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Modbus TCP Anomaly Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `ot` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'Modbus TCP Anomaly Detection' shifts `median` over `span=5m` while `_time` remains in-scope for UC-14.2.7. Cross-check CMDB CHG.\n\n2. **Batch `median` on `modbus:traffic`** — Scheduled automation elevates `unit_id` without crossing `count` > 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `modbus:traffic`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "modbus"
   ],

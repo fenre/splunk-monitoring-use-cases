@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'APC UPS SNMP Output Load Approaching Rated Capacity' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_apc_ups_snmp_output_load_approaching_rated_capac` (UC-15.4.3), SOC dashboard panel \"Operations — APC UPS SNMP Output Load Approaching Rated Capacity\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=power` sourcetype='snmp:apc:ups' that satisfy the UC-15.4.3 SPL filters for 'APC UPS SNMP Output Load Approaching Rated Capacity'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `power` / `snmp:apc:ups` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.4.3."
+    "positiveScenario": "Ingest synthetic events into `index=power` sourcetype='snmp:apc:ups' where `ups_name` satisfies `load_pct` > 80 for UC-15.4.3 ('APC UPS SNMP Output Load Approaching Rated Capacity'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `power` / `snmp:apc:ups` events where `ups_name` stays below `load_pct` > 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.4.3."
   },
   "dataSources": "`index=power|cooling|environment` · `sourcetype=\"snmp:apc:ups\"` (APC PowerNet / AirIR / ATS / NetBotz OIDs per deployment) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions — Universal Forwarder (Splunkbase 617)",
   "spl": "index=power sourcetype=\"snmp:apc:ups\" earliest=-4h\n| eval load_pct=tonumber(coalesce(upsAdvOutputLoad, upsOutputPercentLoad, \"\"))\n| where load_pct>80\n| stats latest(load_pct) as load_pct latest(_time) as seen by ups_name",
-  "description": "Running UPS near nameplate kVA shortens battery runtime nonlinearly and risks overload alarms during transfer.",
-  "value": "Drives rack power rebalancing before refresh cycles. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Running UPS near nameplate kVA shortens battery runtime nonlinearly and risks overload alarms during transfer. Searches `index=power` with sourcetype `snmp:apc:ups` for UC-15.4.3, aggregating `count` by `ups_name` over `the scheduled window`. Alerts when grouped results cross `load_pct` > 80 in the saved search. Gives Operations operators a repeatable signal for 'APC UPS SNMP Output Load Approaching Rated Capacity' without manual log review.",
+  "value": "Running UPS near nameplate kVA shortens battery runtime nonlinearly and risks overload alarms during transfer. Timely UC-15.4.3 alerting on 'APC UPS SNMP Output Load Approaching Rated Capacity' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "(1) Set warning 80%, critical 90%. (2) Join to PDU data for attribution.",
   "visualization": "Gauge load; top-N UPS table.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'APC UPS SNMP Output Load Approaching Rated Capacity'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `power` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `power`** — Planned work for 'APC UPS SNMP Output Load Approaching Rated Capacity' shifts `count` over `span=1h` while `ups_name` remains in-scope for UC-15.4.3. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:apc:ups`** — Scheduled automation elevates `load_pct` without crossing `load_pct` > 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ups_name`** — Health checks in `power` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:apc:ups`** — First 48h baseline for `ups_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ups_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apc_dc",
     "snmp"

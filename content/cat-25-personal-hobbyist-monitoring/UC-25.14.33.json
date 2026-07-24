@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Travel Document Expiry Runway' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_travel_document_expiry_runway` (UC-25.14.33), SOC dashboard panel \"Personal — Travel Document Expiry Runway\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='travel:document' that satisfy the UC-25.14.33 SPL filters for 'Travel Document Expiry Runway'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `travel:document` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.33."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='travel:document' where `document_type` satisfies `days_until_expiry` >= 0 for UC-25.14.33 ('Travel Document Expiry Runway'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `travel:document` events where `document_type` stays below `days_until_expiry` >= 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.33."
   },
   "dataSources": "Travel telemetry (`adsb:aircraft`, `flightaware:flight`, `marinetraffic:vessel`, `tolltag:trip`, `abrp:trip`, `evcharger:session`, `travel:document`, `commute:trip`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "FlightAware, OpenSky, MarineTraffic, ADS-B receivers, ABRP trip plans, toll-tag exports, and EV charging receipts forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=travel:document\n| stats latest(days_until_expiry) as days_until_expiry by document_type person\n| where days_until_expiry>=0 AND days_until_expiry<90\n| sort days_until_expiry",
   "description": "Uses Travel document trackers telemetry to monitor how much runway remains before travel documents expire in index=personal.",
-  "value": "Splunk turns the feed into an operational check for passports or permits that need attention before they block a trip, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Travel document trackers telemetry to monitor how much runway remains before travel documents expire i.... Timely UC-25.14.33 alerting on 'Travel Document Expiry Runway' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Travel document trackers data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Document table of days until expiry.",
   "cimModels": [],
@@ -60,7 +60,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Travel Document Expiry Runway'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `travel:document`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Travel Document Expiry Runway' stops polling `travel:document`; stale `document_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `travel:document`. Dedup with `stats latest(*) by document_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_until_expiry` >= 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

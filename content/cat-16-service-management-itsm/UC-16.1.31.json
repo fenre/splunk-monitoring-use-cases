@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Control-M Forecast vs Actual End Time Variance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_control_m_forecast_vs_actual_end_time_variance` (UC-16.1.31), SOC dashboard panel \"Operations — Control-M Forecast vs Actual End Time Variance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='controlm:job' that satisfy the UC-16.1.31 SPL filters for 'Control-M Forecast vs Actual End Time Variance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cicd` / `controlm:job` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.1.31."
+    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='controlm:job' where `job_name` satisfies detection threshold for UC-16.1.31 ('Control-M Forecast vs Actual End Time Variance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cicd` / `controlm:job` events where `job_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.1.31."
   },
   "dataSources": "`controlm:job` with `forecast_end` and actual `end_time` epoch fields Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Control-M Forecast SLA attributes mapped into Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cicd sourcetype=\"controlm:job\"\n| where isnotnull(forecast_end) AND isnotnull(end_time)\n| eval variance_min=round((end_time-forecast_end)/60,1)\n| where abs(variance_min) > 30\n| stats avg(variance_min) as avg_var, p95(variance_min) as p95_var by job_name\n| sort -p95_var",
-  "description": "Systematic variance between forecast and actual drives SLA gaming or bad baselines.",
-  "value": "Improves forecast tuning for financial and supply-chain batches. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Systematic variance between forecast and actual drives SLA gaming or bad baselines. Searches `index=cicd` with sourcetype `controlm:job` for UC-16.1.31, aggregating `avg` by `job_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Control-M Forecast vs Actual End Time Variance' without manual log review.",
+  "value": "Systematic variance between forecast and actual drives SLA gaming or bad baselines. Timely UC-16.1.31 alerting on 'Control-M Forecast vs Actual End Time Variance' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Backfill baselines monthly; exclude one-off manual reruns via `run_as` filter.",
   "visualization": "Box plot (variance), Table (top drifting jobs).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Control-M Forecast vs Actual End Time Variance'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `cicd` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `cicd`** — Planned work for 'Control-M Forecast vs Actual End Time Variance' shifts `avg` over `span=1h` while `job_name` remains in-scope for UC-16.1.31. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `controlm:job`** — Scheduled automation elevates `variance_min` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job_name`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `controlm:job`** — First 48h baseline for `job_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "controlm"
   ],

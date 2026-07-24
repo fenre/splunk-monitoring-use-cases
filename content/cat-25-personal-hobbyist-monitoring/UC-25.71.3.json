@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Teen Screen-Time Curfew Breach' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_teen_screen_time_curfew_breach` (UC-25.71.3), SOC dashboard panel \"Personal — Teen Screen-Time Curfew Breach\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='familylink:usage' that satisfy the UC-25.71.3 SPL filters for 'Teen Screen-Time Curfew Breach'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `familylink:usage` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.71.3."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='familylink:usage' where `child_name` satisfies `date_hour` >= 22 for UC-25.71.3 ('Teen Screen-Time Curfew Breach'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `familylink:usage` events where `child_name` stays below `date_hour` >= 22, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.71.3."
   },
   "dataSources": "Canvas assignments (`canvas:assignment`), Khan Academy SAT practice (`khan:sat`), Family Link usage (`familylink:usage`), and OurHome chores (`ourhome:chore`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Canvas LMS exports, Khan Academy SAT practice, Google Family Link screen-time data, and OurHome chore tracking streamed to Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=familylink:usage session_minutes=*\n| eval curfew_breach=if(date_hour>=22 AND session_minutes>0,1,0)\n| stats sum(curfew_breach) as curfew_breaches, sum(session_minutes) as total_minutes by child_name app_name\n| where curfew_breaches>0\n| sort - curfew_breaches",
   "description": "Counts screen-time sessions that spill past the agreed evening cutoff. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Curfew enforcement works better as a transparent trend conversation than as a vague argument about one late night.",
+  "value": "Counts screen-time sessions that spill past the agreed evening cutoff. Timely UC-25.71.3 alerting on 'Teen Screen-Time Curfew Breach' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Use Family Link or exported screen-time events, define the household cutoff, and trend breaches by child and app.",
   "visualization": "Table of apps and children with curfew breach count.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Teen Screen-Time Curfew Breach'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `familylink:usage`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Teen Screen-Time Curfew Breach' stops polling `familylink:usage`; stale `child_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `familylink:usage`. Dedup with `stats latest(*) by child_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `date_hour` >= 22. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

@@ -68,16 +68,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Stopping the heartbeat agent on a test CI for 31 minutes sets coverage_status='stale'.",
-    "negativeScenario": "A CI heartbeating within 30m and with alerts_24h<5 reports healthy.",
-    "fixtureRef": "",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=monitoring` sourcetype='heartbeat:agent' where `ci_id]` satisfies detection threshold for UC-22.8.33 ('SOC 2 CC7.1 — System-operations monitoring: uptime attestation and alert-noise governance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `monitoring` / `heartbeat:agent` events where `ci_id]` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.8.33."
   },
   "dataSources": "`index=monitoring` sourcetype=heartbeat:agent; `index=alerts` sourcetype=opsgenie:alert; CMDB lookup `cmdb_ci_list.csv`.",
   "app": "Splunk IT Service Intelligence (Splunkbase)",
   "spl": "| inputlookup cmdb_ci_list.csv\n| join type=outer ci_id\n  [search index=monitoring sourcetype=heartbeat:agent earliest=-1d\n   | stats latest(_time) AS heartbeat_last_seen BY ci_id]\n| join type=outer ci_id\n  [search index=alerts sourcetype=opsgenie:alert earliest=-1d\n   | stats count AS alerts_24h BY ci_id]\n| eval coverage_status=case(isnull(heartbeat_last_seen),\"no-heartbeat\",heartbeat_last_seen<now()-1800,\"stale\",true(),\"healthy\")\n| table ci_id heartbeat_last_seen alerts_24h coverage_status",
   "description": "Pivots the CMDB CI list against live heartbeat and alert telemetry to measure which systems are monitored and how noisy they are. CC7.1 requires the entity to 'detect the occurrence of anomalies'; unheartbeated systems cannot be monitored.",
-  "value": "Lets the Head of IT Operations present the Audit Committee with coverage % (target 100% for production) and alert-noise % (target <5/day/CI). The same query replaces three spreadsheets.",
+  "value": "Pivots the CMDB CI list against live heartbeat and alert telemetry to measure which systems are monitored a.... Timely UC-22.8.33 alerting on 'SOC 2 CC7.1 — System-operations monitoring: uptime attestation and alert-noise governance' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Nightly CMDB sync; (2) heartbeat agent installed on every CI; (3) schedule UC daily; (4) no-heartbeat CIs open a task to IT Ops; (5) quarterly Audit Committee report. Indexes required: `index=alerts`, `index=monitoring`; Sourcetypes: `sourcetype=heartbeat:agent`, `sourcetype=heartbeat:agent;`, `sourcetype=opsgenie:alert`, `sourcetype=opsgenie:alert;`; Lookups: ``cmdb_ci_list.csv`, `cmdb_ci_list`, `cmdb_ci_list.csv`.",
   "visualization": "Donut of coverage_status, top-10 noisiest CIs, single value 'coverage %'.",
   "cimModels": [
@@ -106,7 +104,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised SOC 2 control testing** — Internal audit exercises 'SOC 2 CC7.1 — System-operations monitoring: uptime attestation and alert-noise governance' (UC-22.8.33) on `ci_id]` during scheduled clause CC7.1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=monitoring` `heartbeat:agent` without crossing evidence threshold. Cross-check engagement letter in `soc_2_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `monitoring` for `ci_id]`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `ci_id]` during normal service delivery.\n\n**Suppression mechanism:** `soc_2_exception_register.csv` keyed on `ci_id]`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Baseline",
   "securityDomain": "audit",
   "requiredFields": [

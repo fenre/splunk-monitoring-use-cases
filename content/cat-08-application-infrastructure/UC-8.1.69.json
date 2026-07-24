@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Memcached Items Stored Count Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_memcached_items_stored_count_trending` (UC-8.1.69), SOC dashboard panel \"Operations — Memcached Items Stored Count Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=infrastructure` sourcetype='memcached:stats_items' that satisfy the UC-8.1.69 SPL filters for 'Memcached Items Stored Count Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `infrastructure` / `memcached:stats_items` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.69."
+    "positiveScenario": "Ingest synthetic events into `index=infrastructure` sourcetype='memcached:stats_items' where `host` satisfies `total_items` > 5000000 for UC-8.1.69 ('Memcached Items Stored Count Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `infrastructure` / `memcached:stats_items` events where `host` stays below `total_items` > 5000000, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.69."
   },
   "dataSources": "`stats items` per-slab `number` field on `memcached:stats_items`, cross-checked with `curr_items` from `memcached:stats` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scripted `stats items` parser to HEC (slab_id, number, age); optional join with Telegraf `memcached` global stats — Universal Forwarder (Splunkbase 617)",
   "spl": "index=infrastructure sourcetype=\"memcached:stats_items\"\n| eval n=tonumber(number)\n| bin _time span=1h\n| stats sum(n) as items_per_slab by host, slab_id, _time\n| eventstats sum(items_per_slab) as total_items by host, _time\n| streamstats window=168 global=f median(total_items) as med_total by host\n| where total_items > med_total*2 OR total_items > 5000000",
   "description": "Anomalously high `curr_items` can mean TTLs were removed, cache poisoning, or unbounded key cardinality—each increases CPU for hash walks and risks eviction storms.",
-  "value": "Catches buggy releases that stamp unbounded distinct keys before they exhaust memory metadata structures.",
+  "value": "Anomalously high `curr_items` can mean TTLs were removed, cache poisoning, or unbounded key cardinality—eac.... Timely UC-8.1.69 alerting on 'Memcached Items Stored Count Trending' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Parse `stats items` lines into `slab_id`, `number`, `age`, `evicted`, `evicted_nonzero` as your memcached version exposes. Sum `number` across slabs for total item estimate. Correlate spikes with `memcached:stats` `curr_items` on the same poll timestamp.",
   "visualization": "Line chart (total_items vs median), Table (host, top slab_id).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Memcached Items Stored Count Trending'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `infrastructure` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `infrastructure`** — Planned work for 'Memcached Items Stored Count Trending' shifts `sum` over `span=1h` while `host` remains in-scope for UC-8.1.69. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `memcached:stats_items`** — Scheduled automation elevates `slab_id` without crossing `total_items` > 5000000. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `infrastructure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `memcached:stats_items`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "memcached"
   ],

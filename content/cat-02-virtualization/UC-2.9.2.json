@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'OpenStack Neutron Agent Liveness and RPC Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_openstack_neutron_agent_liveness_and_rpc_failure` (UC-2.9.2), SOC dashboard panel \"Linux — OpenStack Neutron Agent Liveness and RPC Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=openstack` sourcetype='openstack:neutron' that satisfy the UC-2.9.2 SPL filters for 'OpenStack Neutron Agent Liveness and RPC Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `openstack` / `openstack:neutron` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.9.2."
+    "positiveScenario": "Ingest synthetic events into `index=openstack` sourcetype='openstack:neutron' where `agent_type` satisfies `hb_age` > 120 for UC-2.9.2 ('OpenStack Neutron Agent Liveness and RPC Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `openstack` / `openstack:neutron` events where `agent_type` stays below `hb_age` > 120, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.9.2."
   },
   "dataSources": "`index=openstack` `sourcetype=\"openstack:neutron\"` — `agent_type`, `host`, `binary`, `heartbeat`, `rpc_timeout` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "UF on network nodes with Neutron logs; `openstack:neutron` parsing — Universal Forwarder (Splunkbase 617)",
   "spl": "index=openstack sourcetype=\"openstack:neutron\" earliest=-2h\n| eval hb_age=now()-tonumber(coalesce(last_heartbeat_epoch, heartbeat_ts))\n| where hb_age>120 OR match(lower(_raw), \"(?i)rpc.?timeout|amqp|unavailable|agent.*down\")\n| stats latest(hb_age) as stale_sec by agent_type, host, binary",
   "description": "Down L3/DHCP/metadata agents break tenant connectivity even when Nova looks healthy. Early RPC and heartbeat anomalies predict partial network partitions.",
-  "value": "Avoids tenant-visible outages and shortens bridge between cloud and network teams.",
+  "value": "Down L3/DHCP/metadata agents break tenant connectivity even when Nova looks healthy. Timely UC-2.9.2 alerting on 'OpenStack Neutron Agent Liveness and RPC Failures' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Normalize agent heartbeats to epoch. Page when stale beyond SLA. Join with RabbitMQ queue depth if available.",
   "visualization": "Timeline agent health; table worst hosts; overlay AMQP errors.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'OpenStack Neutron Agent Liveness and RPC Failures'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `openstack` `openstack:neutron`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `openstack`** — Package managers spike `agent_type` metrics for 'OpenStack Neutron Agent Liveness and RPC Failures'. Correlate with apt/yum logs in the same `openstack:neutron` window.\n\n2. **Nightly backup I/O on `agent_type`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `openstack:neutron`** — Nagios/Zabbix polls `agent_type` and mimics sustained load without crossing `hb_age` > 120.\n\n4. **New host onboarding** — `agent_type` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `agent_type`, `valid_until`.",
   "equipment": [
     "openstack",
     "rabbitmq"

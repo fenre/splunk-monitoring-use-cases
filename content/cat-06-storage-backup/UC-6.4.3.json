@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'DFS Replication Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dfs_replication_health` (UC-6.4.3), SOC dashboard panel \"Operations — DFS Replication Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:DFS Replication' EventCode=4302 that satisfy the UC-6.4.3 SPL filters for 'DFS Replication Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:DFS Replication` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.4.3."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:DFS Replication' EventCode=4302 where `EventCode` satisfies detection threshold for UC-6.4.3 ('DFS Replication Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:DFS Replication` events where `EventCode` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.4.3."
   },
   "dataSources": "DFS Replication event log (Event IDs 4012, 4302, 4304, 5002, 5008) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` (DFS-R event logs) — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:DFS Replication\"\n| search EventCode=4302 OR EventCode=4304 OR EventCode=5002\n| stats count by EventCode, ComputerName, ReplicationGroupName\n| sort -count",
-  "description": "DFS-R backlog and conflicts indicate replication failures that can lead to data inconsistency and user complaints.",
+  "description": "DFS-R backlog and conflicts indicate replication failures that can lead to data inconsistency and user complaints. Searches `index=wineventlog` with sourcetype `WinEventLog:DFS Replication` for UC-6.4.3, aggregating `count` by `EventCode` over `the scheduled window`. Filters Windows EventCode=4302 before thresholding on configured threshold. Gives Operations operators a repeatable signal for 'DFS Replication Health' without manual log review.",
   "value": "Early 'DFS Replication Health' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Forward DFS Replication event logs from all DFS servers. Monitor backlog size via `dfsrdiag backlog` scripted input. Alert on replication conflicts and high backlog counts. Track resolution time.",
   "visualization": "Table (replication groups with backlog), Line chart (backlog trend), Single value (total conflicts today).",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'DFS Replication Health'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `wineventlog` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `wineventlog`** — Planned work for 'DFS Replication Health' shifts `count` over `span=1h` while `EventCode` remains in-scope for UC-6.4.3. Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:DFS Replication` (EventCode=4302)** — Scheduled automation elevates `ComputerName` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `EventCode`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:DFS Replication`** — First 48h baseline for `EventCode` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `EventCode`, `exception_reason`, `valid_until`.",
   "equipment": [
     "windows"
   ],

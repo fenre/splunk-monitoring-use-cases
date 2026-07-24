@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Bambu Lab AMS Feed Failure Count' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_bambu_lab_ams_feed_failure_count` (UC-25.17.19), SOC dashboard panel \"Personal — Bambu Lab AMS Feed Failure Count\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='bambulab:job' that satisfy the UC-25.17.19 SPL filters for 'Bambu Lab AMS Feed Failure Count'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `bambulab:job` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.17.19."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='bambulab:job' where `printer` satisfies `ams_feed_failures` > 0 for UC-25.17.19 ('Bambu Lab AMS Feed Failure Count'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `bambulab:job` events where `printer` stays below `ams_feed_failures` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.17.19."
   },
   "dataSources": "Maker telemetry (`bambulab:job`, `prusaconnect:printer`, `octoprint:job`, `klipper:telemetry`, `laserweb:job`, `cnc:job`, `cnc:coolant`, `filament:spool`, `workshop:air`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Bambu Lab printers, Prusa Connect, OctoPrint, Moonraker, LaserWeb, CNC.js, drybox sensors, and workshop telemetry via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=bambulab:job\n| stats count(eval(event=\"ams_feed_fail\")) as ams_feed_failures by printer\n| where ams_feed_failures>0\n| sort - ams_feed_failures",
-  "description": "Uses Bambu Lab print jobs telemetry to monitor automatic-material-system feed failures by printer in index=personal.",
-  "value": "Splunk turns the feed into an operational check for AMS paths that need cleanup or parts before a larger job fails, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses Bambu Lab print jobs telemetry to monitor automatic-material-system feed failures by printer in index=personal. Searches `index=personal` with sourcetype `bambulab:job` for UC-25.17.19, aggregating `count` by `printer` over `the scheduled window`. Alerts when grouped results cross `ams_feed_failures` > 0 in the saved search. Gives Personal operators a repeatable signal for 'Bambu Lab AMS Feed Failure Count' without manual log review.",
+  "value": "Uses Bambu Lab print jobs telemetry to monitor automatic-material-system feed failures by printer in index=.... Timely UC-25.17.19 alerting on 'Bambu Lab AMS Feed Failure Count' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Bambu Lab print jobs data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Printer table of AMS feed failures.",
   "cimModels": [],
@@ -60,7 +60,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Bambu Lab AMS Feed Failure Count'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `bambulab:job`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Bambu Lab AMS Feed Failure Count' stops polling `bambulab:job`; stale `printer` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `bambulab:job`. Dedup with `stats latest(*) by printer`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `ams_feed_failures` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

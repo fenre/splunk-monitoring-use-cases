@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Toll Tag Statement Upload Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_toll_tag_statement_upload_gap` (UC-25.14.21), SOC dashboard panel \"Personal — Toll Tag Statement Upload Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tolltag:trip' that satisfy the UC-25.14.21 SPL filters for 'Toll Tag Statement Upload Gap'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tolltag:trip` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.21."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tolltag:trip' where `transponder_id` satisfies `days_since` > 30 for UC-25.14.21 ('Toll Tag Statement Upload Gap'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `tolltag:trip` events where `transponder_id` stays below `days_since` > 30, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.21."
   },
   "dataSources": "Travel telemetry (`adsb:aircraft`, `flightaware:flight`, `marinetraffic:vessel`, `tolltag:trip`, `abrp:trip`, `evcharger:session`, `travel:document`, `commute:trip`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "FlightAware, OpenSky, MarineTraffic, ADS-B receivers, ABRP trip plans, toll-tag exports, and EV charging receipts forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tolltag:trip\n| stats max(_time) as last_trip by transponder_id\n| eval days_since=round((now()-last_trip)/86400,1)\n| where days_since>30\n| sort - days_since",
   "description": "Uses Toll-tag trip exports telemetry to monitor time since each transponder last produced a trip record in index=personal.",
-  "value": "Splunk turns the feed into an operational check for missing statement uploads or dead tags, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Toll-tag trip exports telemetry to monitor time since each transponder last produced a trip record in.... Timely UC-25.14.21 alerting on 'Toll Tag Statement Upload Gap' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Toll-tag trip exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Transponder table of days since last trip.",
   "cimModels": [],
@@ -60,7 +60,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Toll Tag Statement Upload Gap'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tolltag:trip`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Toll Tag Statement Upload Gap' stops polling `tolltag:trip`; stale `transponder_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tolltag:trip`. Dedup with `stats latest(*) by transponder_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_since` > 30. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'PR Review Bypass Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_pr_review_bypass_detection` (UC-12.1.13), SOC dashboard panel \"Operations — PR Review Bypass Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='github:pull_request' that satisfy the UC-12.1.13 SPL filters for 'PR Review Bypass Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `devops` / `github:pull_request` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.1.13."
+    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='github:pull_request' where `entity` satisfies detection threshold for UC-12.1.13 ('PR Review Bypass Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `devops` / `github:pull_request` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.1.13."
   },
   "dataSources": "`pull_request` `closed` merged=true with `review_count`, `merge_method` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "GitHub GraphQL / pull_request webhook — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"github:pull_request\" action=\"closed\" merged=\"true\"\n| where review_count=0 OR (review_count=1 AND merger=author)\n| search base_ref IN (\"main\",\"master\",\"production\")\n| table _time, repository, author, merger, review_count, base_ref",
-  "description": "Merges with zero approvals or with only self-approval violate four-eyes policies.",
+  "description": "Merges with zero approvals or with only self-approval violate four-eyes policies. Searches `index=devops` with sourcetype `github:pull_request` for UC-12.1.13, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'PR Review Bypass Detection' without manual log review.",
   "value": "Early 'PR Review Bypass Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ingest PR merged payload with review tally from API enrichment. Exclude bots via label. Alert in Splunk as backstop to branch protection.",
   "visualization": "Table (bypass merges), Bar chart (by author), Timeline.",
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'PR Review Bypass Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `devops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `devops`** — Planned work for 'PR Review Bypass Detection' shifts `count` over `span=1h` while `host` remains in-scope for UC-12.1.13. Cross-check CMDB CHG.\n\n2. **Batch `count` on `github:pull_request`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `github:pull_request`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "github"
   ],

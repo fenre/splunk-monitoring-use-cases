@@ -69,15 +69,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When a record in a scoped store is older than its retention_period_days and lacks a litigation-hold flag, the UC fires with store, record_id, age_days.",
-    "negativeScenario": "Records within retention OR under litigation hold do NOT fire.",
-    "fixtureRef": "sample-data/uc-22.49.1-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=datastore` sourcetype='retention:inventory' where `entity` satisfies detection threshold for UC-22.49.1 ('Retention execution evidence — records past retention still present'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `datastore` / `retention:inventory` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.49.1."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=datastore sourcetype=retention:inventory earliest=-1d\n| lookup retention_policy.csv data_domain OUTPUT retention_period_days\n| eval age_days=round((now()-strptime(created_at,\"%Y-%m-%dT%H:%M:%SZ\"))/86400,0)\n| where age_days>retention_period_days AND litigation_hold!=\"true\"\n| table store record_id data_domain age_days retention_period_days",
-  "description": "Cross-references data-store inventory with the retention policy and produces evidence of lapsed retention.",
-  "value": "Retention failures quickly become GDPR enforcement actions — continuous monitoring is the only real defence.",
+  "description": "Cross-references data-store inventory with the retention policy and produces evidence of lapsed retention. Searches `index=datastore` with sourcetype `retention:inventory` for UC-22.49.1, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'Retention execution evidence — records past retention still present' without manual log review.",
+  "value": "Cross-references data-store inventory with the retention policy and produces evidence of lapsed retention. Timely UC-22.49.1 alerting on 'Retention execution evidence — records past retention still present' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Maintain retention_policy.csv per data_domain; (2) ingest store inventory with created_at / litigation_hold flags; (3) run daily. Indexes required: `index=datastore`; Sourcetypes: `sourcetype=retention:inventory`.",
   "visualization": "Heatmap of store × age buckets, table of overdue records, single-value '% of records within retention'.",
   "cimModels": [],
@@ -102,7 +101,7 @@
       "title": "EDPB — Guidelines & Recommendations"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised GDPR control testing** — Internal audit exercises 'Retention execution evidence — records past retention still present' (UC-22.49.1) on `entity` during scheduled clause Art.5 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=datastore` `retention:inventory` without crossing evidence threshold. Cross-check engagement letter in `gdpr_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `datastore` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `gdpr_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "audit",
   "requiredFields": [

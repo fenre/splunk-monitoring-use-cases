@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Make a synthetic privileged change on a TSA-regulated asset without a change ticket. UC-22.56.25 MUST flag within 4 hours.",
-    "negativeScenario": "Pin the change to an approved ticket. UC-22.56.25 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='snow:change_request' where `host` satisfies detection threshold for UC-22.56.25 ('TSA-SD multi-modal change-control + privileged-change audit trail across SCADA / OT / NOTAM-relevant systems'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `snow:change_request` events where `host` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.56.25."
   },
   "dataSources": "Windows + Linux audit logs (`wineventlog:security`, `linux:audit`). SCADA HMI/EWS audit (`scada:audit`). Network device config-change (`cisco:nxos:audit`). ServiceNow Change Management (`snow:change_request`). TSA asset register (KV Store `tsa_change_asset_lookup`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "(sourcetype=wineventlog:security EventCode IN (4672,4720,4724,4738,4756) OR sourcetype=cisco:nxos:audit cmd=*)\n| lookup tsa_change_asset_lookup host AS host OUTPUT facility_id modality tsa_in_scope\n| where tsa_in_scope=true\n| eval change_window = strftime(_time, \"%Y-%m-%dT%H\")\n| join type=left host change_window [search sourcetype=\"snow:change_request\" state IN (\"scheduled\",\"in_progress\",\"closed_complete\") | eval change_window=strftime(start_date, \"%Y-%m-%dT%H\") | stats values(number) as change_ticket by host change_window]\n| eval change_status = case(\n    isnotnull(change_ticket), \"approved\",\n    1=1, \"unapproved\")\n| where change_status=\"unapproved\"\n| stats count as events by facility_id modality host user EventCode change_status\n| table facility_id modality host user EventCode events change_status",
-  "description": "Joins privileged change events on TSA-regulated assets with ServiceNow change-control to surface unapproved changes.",
-  "value": "Unapproved changes on TSA-regulated systems are enforcement findings AND leading indicators of intrusion.",
+  "description": "Joins privileged change events on TSA-regulated assets with ServiceNow change-control to surface unapproved changes. Searches `index=target_index` with sourcetype `snow:change_request` for UC-22.56.25, aggregating `values` by `host` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'TSA-SD multi-modal change-control + privileged-change audit trail across SCADA / OT / NOTAM-relevant systems' without manual log review.",
+  "value": "Joins privileged change events on TSA-regulated assets with ServiceNow change-control to surface unapproved.... Timely UC-22.56.25 alerting on 'TSA-SD multi-modal change-control + privileged-change audit trail across SCADA / OT / NOTAM-relevant systems' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `tsa_change_asset_lookup`. (2) Schedule UC-22.56.25 every 4 hours. (3) Build the `TSA Change Control Audit` dashboard.",
   "visualization": "(Panel 1) Unapproved-change counts by modality. (Panel 2) Top-10 users. (Panel 3) Asset coverage. (Panel 4) 30-day trend.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Emergency change**: tagged retroactively; pin via `change_status_retroactive`.\n2. **Vendor maintenance under PAM**: PAM logs prove vendor-session boundary.\n\n**Suppression mechanism**: KV Store `tsa_change_exception_lookup`.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD multi-modal change-control + privileged-change audit trail across SCADA / OT / NOTAM-relevant systems' (UC-22.56.25) on `host` during scheduled clause TSA-SCAS-change-control sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `snow:change_request` without crossing evidence threshold. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `host`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `host` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1078",
     "T1543",

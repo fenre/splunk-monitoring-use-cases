@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Gate and Fence Breach Sequence Correlation' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_gate_and_fence_breach_sequence_correlation` (UC-25.18.14), SOC dashboard panel \"Personal — Gate and Fence Breach Sequence Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='gate:event' that satisfy the UC-25.18.14 SPL filters for 'Gate and Fence Breach Sequence Correlation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `gate:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.14."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='gate:event' where `zone` satisfies `prev_time` <= 120 for UC-25.18.14 ('Gate and Fence Breach Sequence Correlation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `gate:event` events where `zone` stays below `prev_time` <= 120, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.14."
   },
   "dataSources": "Object detections (`frigate:event`), camera health (`camera:health`), alarm state changes (`alarm:event`), smart-lock access (`lock:access`), plate and gate events (`gate:event`), and doorbell delivery telemetry (`doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home-security telemetry from Frigate and Blue Iris detections, camera health feeds, smart locks, alarm panels, doorbells, and gate sensors streamed to Splunk HEC via MQTT and Home Assistant integrations. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=gate:event\n| sort 0 _time\n| streamstats window=1 current=f last(sensor) as prev_sensor last(_time) as prev_time by zone\n| eval correlated=if(prev_sensor=\"fence\" AND sensor=\"gate\" AND _time-prev_time<=120,1,0)\n| stats sum(correlated) as breach_sequences by zone",
   "description": "Correlates fence-trigger and gate-trigger events that happen close together to identify likely perimeter entries rather than isolated noise.",
-  "value": "Multi-sensor sequences reduce false alarms and give you a clearer view of when something actually crossed the perimeter.",
+  "value": "Correlates fence-trigger and gate-trigger events that happen close together to identify likely perimeter en.... Timely UC-25.18.14 alerting on 'Gate and Fence Breach Sequence Correlation' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Normalize gate magnetic contacts and fence sensors to a shared zone name, then look for short event chains.",
   "visualization": "Table of likely breach sequences by perimeter zone.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Gate and Fence Breach Sequence Correlation'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `gate:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Gate and Fence Breach Sequence Correlation' stops polling `gate:event`; stale `zone` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `gate:event`. Dedup with `stats latest(*) by zone`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `prev_time` <= 120. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

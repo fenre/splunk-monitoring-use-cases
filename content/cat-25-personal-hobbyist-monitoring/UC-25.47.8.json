@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'To-Be-Read Pile and Book Cost-Per-Read' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_to_be_read_pile_and_book_cost_per_read` (UC-25.47.8), SOC dashboard panel \"Personal — To-Be-Read Pile and Book Cost-Per-Read\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reading:progress' that satisfy the UC-25.47.8 SPL filters for 'To-Be-Read Pile and Book Cost-Per-Read'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `reading:progress` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.47.8."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reading:progress' where `entity` satisfies detection threshold for UC-25.47.8 ('To-Be-Read Pile and Book Cost-Per-Read'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `reading:progress` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.47.8."
   },
   "dataSources": "Reading progress (`reading:progress`), highlights (`highlight:capture`), note links (`note:link`), books finished (`book:finished`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Reading and knowledge-management telemetry — Goodreads / StoryGraph libraries, Kindle highlights (Readwise), and note-graph exports (Obsidian, Notion) — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=reading:progress event=inventory\n| stats sum(eval(if(status=\"unread\",1,0))) as unread, sum(eval(if(status=\"unread\",price,0))) as unread_value\n| eval note=\"the pile of shame\"",
-  "description": "Totals your unread books and what they cost — the affectionately named pile of shame.",
-  "value": "Quantifying the unread pile curbs buying more before finishing what you own, saving money and shelf space.",
+  "description": "Totals your unread books and what they cost — the affectionately named pile of shame. Searches `index=personal` with sourcetype `reading:progress` for UC-25.47.8, aggregating `sum` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'To-Be-Read Pile and Book Cost-Per-Read' without manual log review.",
+  "value": "Totals your unread books and what they cost — the affectionately named pile of shame. Timely UC-25.47.8 alerting on 'To-Be-Read Pile and Book Cost-Per-Read' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest book inventory into `index=personal`; total unread count and value.",
   "visualization": "Single-value tiles of unread books and their value.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'To-Be-Read Pile and Book Cost-Per-Read'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reading:progress`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'To-Be-Read Pile and Book Cost-Per-Read' stops polling `reading:progress`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reading:progress`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'StockX Ask Below Purchase Price' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_stockx_ask_below_purchase_price` (UC-25.98.2), SOC dashboard panel \"Personal — StockX Ask Below Purchase Price\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='stockx:price' that satisfy the UC-25.98.2 SPL filters for 'StockX Ask Below Purchase Price'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `stockx:price` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.98.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='stockx:price' where `sku]` satisfies `loss_usd` > 0 for UC-25.98.2 ('StockX Ask Below Purchase Price'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `stockx:price` events where `sku]` stays below `loss_usd` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.98.2."
   },
   "dataSources": "StockX market prices (`stockx:price`), GOAT listings (`goat:listing`), Alias sales (`alias:sale`), sneaker rotation logs (`sneaker:rotation`), and deadstock age checks (`deadstock:age`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "StockX price alerts, GOAT listing exports, Alias seller settlement logs, sneaker rotation wear trackers, and deadstock age audits ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=stockx:price sku=* lowest_ask_usd=*\n| join type=inner sku [search index=personal sourcetype=alias:sale OR sourcetype=goat:listing | stats latest(purchase_price_usd) as cost by sku]\n| eval loss_usd=round(cost-lowest_ask_usd,2)\n| where loss_usd>0\n| sort - loss_usd\n| table sku cost lowest_ask_usd loss_usd",
   "description": "Finds SKUs where the current StockX lowest ask is below recorded purchase cost. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Holding losers ties up capital; knowing market-versus-cost helps decide hold, drop, or wear.",
+  "value": "Finds SKUs where the current StockX lowest ask is below recorded purchase cost. Timely UC-25.98.2 alerting on 'StockX Ask Below Purchase Price' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Maintain `purchase_price_usd` per SKU and compare nightly against StockX `lowest_ask_usd`.",
   "visualization": "Table of underwater SKUs with loss amount.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'StockX Ask Below Purchase Price'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `stockx:price`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'StockX Ask Below Purchase Price' stops polling `stockx:price`; stale `sku]` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `stockx:price`. Dedup with `stats latest(*) by sku]`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `loss_usd` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

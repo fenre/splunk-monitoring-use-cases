@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Victron BMV Charge Recovery After Shore Power' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_victron_bmv_charge_recovery_after_shore_power` (UC-25.43.20), SOC dashboard panel \"Personal — Victron BMV Charge Recovery After Shore Power\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='marine:battery' that satisfy the UC-25.43.20 SPL filters for 'Victron BMV Charge Recovery After Shore Power'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `marine:battery` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.43.20."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='marine:battery' where `shore_power_cycle` satisfies detection threshold for UC-25.43.20 ('Victron BMV Charge Recovery After Shore Power'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `marine:battery` events where `shore_power_cycle` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.43.20."
   },
   "dataSources": "Battery telemetry (`marine:battery`), AIS traffic (`marine:ais`), shore power (`marina:power`), tide forecasts (`tide:table`), export syncs (`marine:export`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Boating and marine telemetry — Victron BMV battery exports, AIS transponder logs, shore-power meter readings, and NOAA tide tables — streamed to Splunk HEC via NMEA exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=marine:battery shore_power_cycle=* recovered_ah=*\n| stats avg(recovered_ah) as avg_recovered_ah, count as events by shore_power_cycle\n| sort - avg_recovered_ah",
-  "description": "Shows average recovered amp-hours by shore-power cycle for battery recharge sessions.",
-  "value": "Average recovered amp-hours by shore-power cycle helps compare battery recharge sessions across the factors that matter most.",
+  "description": "Shows average recovered amp-hours by shore-power cycle for battery recharge sessions. Searches `index=personal` with sourcetype `marine:battery` for UC-25.43.20, aggregating `avg` by `shore_power_cycle` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Victron BMV Charge Recovery After Shore Power' without manual log review.",
+  "value": "Shows average recovered amp-hours by shore-power cycle for battery recharge sessions. Timely UC-25.43.20 alerting on 'Victron BMV Charge Recovery After Shore Power' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture `recovered_ah` on `marine:battery` events and normalize `shore_power_cycle` so Splunk can summarize performance by shore-power cycle.",
   "visualization": "Bar chart of average recovered amp-hours by shore-power cycle.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Victron BMV Charge Recovery After Shore Power'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `marine:battery`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Victron BMV Charge Recovery After Shore Power' stops polling `marine:battery`; stale `shore_power_cycle` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `marine:battery`. Dedup with `stats latest(*) by shore_power_cycle`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Argo CD ApplicationSet Generator Matrix Empty or Error' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_argo_cd_applicationset_generator_matrix_empty_or` (UC-12.2.30), SOC dashboard panel \"Operations — Argo CD ApplicationSet Generator Matrix Empty or Error\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='argocd:applicationset' that satisfy the UC-12.2.30 SPL filters for 'Argo CD ApplicationSet Generator Matrix Empty or Error'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `devops` / `argocd:applicationset` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.30."
+    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='argocd:applicationset' where `name` satisfies detection threshold for UC-12.2.30 ('Argo CD ApplicationSet Generator Matrix Empty or Error'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `devops` / `argocd:applicationset` events where `name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.30."
   },
   "dataSources": "ApplicationSet controller logs as `argocd:applicationset` or filtered `argocd:server` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Argo CD ApplicationSet controller → Splunk via Kubernetes log pipeline — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"argocd:applicationset\" OR (sourcetype=\"argocd:server\" ApplicationSet*)\n| search \"ApplicationSet\" AND (\"error\" OR \"failed\" OR \"generator\")\n| stats latest(_time) as t, count by name, namespace\n| sort -count",
   "description": "Broken generators stop multi-cluster rollouts silently. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Catches ApplicationSet failures that would orphan clusters from GitOps updates. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Broken generators stop multi-cluster rollouts silently. Timely UC-12.2.30 alerting on 'Argo CD ApplicationSet Generator Matrix Empty or Error' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Tag controller logs with cluster label; correlate with SCM API rate limits.",
   "visualization": "Table (ApplicationSet × error count), Single value (open failures).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Argo CD ApplicationSet Generator Matrix Empty or Error'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `devops` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `devops`** — Planned work for 'Argo CD ApplicationSet Generator Matrix Empty or Error' shifts `count` over `span=1h` while `name` remains in-scope for UC-12.2.30. Cross-check CMDB CHG.\n\n2. **Batch `count` on `argocd:applicationset`** — Scheduled automation elevates `namespace` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `name`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `argocd:applicationset`** — First 48h baseline for `name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "argocd",
     "kubernetes"

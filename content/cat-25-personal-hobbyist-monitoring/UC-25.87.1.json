@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Daylio Mood Lift After Therapy Week' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_daylio_mood_lift_after_therapy_week` (UC-25.87.1), SOC dashboard panel \"Personal — Daylio Mood Lift After Therapy Week\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='daylio:mood' that satisfy the UC-25.87.1 SPL filters for 'Daylio Mood Lift After Therapy Week'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `daylio:mood` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.87.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='daylio:mood' where `_time` satisfies `therapy_sessions` > 0 for UC-25.87.1 ('Daylio Mood Lift After Therapy Week'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `daylio:mood` events where `_time` stays below `therapy_sessions` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.87.1."
   },
   "dataSources": "SimplePractice therapy sessions (`simplepractice:session`), Headway appointments (`headway:appointment`), BetterHelp sessions (`betterhelp:session`), CBT homework logs (`cbt:homework`), and Daylio mood entries (`daylio:mood`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "SimplePractice session notes, Headway appointment confirmations, BetterHelp messaging sessions, CBT homework trackers, and Daylio mood exports ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=daylio:mood mood_rating=*\n| bin _time span=1w\n| stats avg(mood_rating) as avg_mood, count as entries by _time\n| join type=left _time [search index=personal sourcetype=simplepractice:session | bin _time span=1w | stats count as therapy_sessions by _time]\n| eval therapy_week=if(therapy_sessions>0,1,0)\n| stats avg(avg_mood) as avg_mood by therapy_week",
-  "description": "Compares average Daylio mood ratings on weeks with at least one logged therapy session versus weeks without.",
-  "value": "Seeing whether therapy weeks correlate with better mood helps you judge consistency, not just attendance.",
+  "description": "Compares average Daylio mood ratings on weeks with at least one logged therapy session versus weeks without. Searches `index=personal` with sourcetype `daylio:mood` for UC-25.87.1, aggregating `avg` by `_time` over `1w`. Alerts when grouped results cross `therapy_sessions` > 0 in the saved search. Gives Personal operators a repeatable signal for 'Daylio Mood Lift After Therapy Week' without manual log review.",
+  "value": "Compares average Daylio mood ratings on weeks with at least one logged therapy session versus weeks without. Timely UC-25.87.1 alerting on 'Daylio Mood Lift After Therapy Week' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Export Daylio entries with numeric `mood_rating` and align weekly bins with SimplePractice session counts.",
   "visualization": "Side-by-side bar chart of average mood by therapy week flag.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Daylio Mood Lift After Therapy Week'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `daylio:mood`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Daylio Mood Lift After Therapy Week' stops polling `daylio:mood`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `daylio:mood`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `therapy_sessions` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

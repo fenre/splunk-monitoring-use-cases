@@ -51,16 +51,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "An admin has no specialist training record in the last 365 days; the UC fires the next week.",
-    "negativeScenario": "All admins have a current specialist training record; no alert.",
-    "fixtureRef": "",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=lms` sourcetype='completion' where `user]` satisfies detection threshold for UC-22.46.3 ('Privileged-role specialist training — admins lacking annual deep-training'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `lms` / `completion` events where `user]` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.46.3."
   },
   "dataSources": "LMS specialist-course completions, PAM vault inventory with owner mapping. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "| rest /services/pam/vault-inventory splunk_server=*\n| fields user account_type\n| where account_type=\"privileged\"\n| join user [search index=lms sourcetype=completion course_id=priv_security_training earliest=-365d | stats max(_time) as last_completion by user]\n| where (now()-last_completion)>31536000 OR isnull(last_completion)\n| table user account_type last_completion",
   "description": "Provides a named list of privileged-role owners whose specialist training is overdue — a recurring theme in internal audits of ITGC.",
-  "value": "Makes the 'role-based training' requirement evidence-backed rather than policy-on-paper.",
+  "value": "Provides a named list of privileged-role owners whose specialist training is overdue — a recurring theme in.... Timely UC-22.46.3 alerting on 'Privileged-role specialist training — admins lacking annual deep-training' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Tag PAM vault entries with the owner; (2) map course completions to users in the LMS; (3) run weekly; (4) auto-enrol overdue owners. Indexes required: `index=lms`; Sourcetypes: `sourcetype=completion`.",
   "visualization": "Table of overdue admins, bar chart of departments, single-value 'admins with current specialist training'. Key fields: `account_type`, `last_completion`, `user`, `user]`.",
   "cimModels": [],
@@ -85,7 +83,7 @@
       "title": "NIST Cybersecurity Framework"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised HIPAA SECURITY control testing** — Internal audit exercises 'Privileged-role specialist training — admins lacking annual deep-training' (UC-22.46.3) on `user]` during scheduled clause §164.308(a)(5)(ii)(A) sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=lms` `completion` without crossing evidence threshold. Cross-check engagement letter in `hipaa_security_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `lms` for `user]`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `user]` during normal service delivery.\n\n**Suppression mechanism:** `hipaa_security_exception_register.csv` keyed on `user]`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Anomaly",
   "securityDomain": "access",
   "requiredFields": [

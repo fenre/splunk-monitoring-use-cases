@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set `last_exercise_date` to 400 days ago for a TSA-regulated facility. Within 24 hours UC-22.56.7 MUST flag `exercise_status=overdue` and notify the IR Commander.",
-    "negativeScenario": "Set `last_exercise_date` within the last 365 days with a valid `after_action_doc_url` and `ca_open_count <= ca_overdue_count`. UC-22.56.7 MUST record `exercise_status=current`."
+    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:ir_ca' where `tsa_pipeline_facility_id` satisfies `days_since_exercise` > 365 for UC-22.56.7 ('TSA-SD-Pipeline CIRP Annual Exercise — exercise scheduling, after-action evidence, and corrective-action ledger'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `itsm` / `snow:ir_ca` events where `tsa_pipeline_facility_id` stays below `days_since_exercise` > 365, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.56.7."
   },
   "dataSources": "KV Store `tsa_pipeline_cirp_exercise_lookup` (facility_id, last_exercise_date, exercise_type, after_action_doc_url, exercise_lead). ServiceNow corrective-action records (`snow:ir_ca`). SharePoint after-action document audit (`o365:management`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup tsa_pipeline_cirp_exercise_lookup\n| eval days_since_exercise = round((now() - last_exercise_date) / 86400, 0)\n| join type=left facility_id [search index=itsm sourcetype=\"snow:ir_ca\" tsa_pipeline_facility_id=* | stats count as ca_open_count count(eval(ca_due_date < now() AND state=\"open\")) as ca_overdue_count by tsa_pipeline_facility_id | rename tsa_pipeline_facility_id as facility_id]\n| eval exercise_status = case(\n    days_since_exercise > 365, \"overdue\",\n    days_since_exercise > 335, \"due_soon\",\n    isnull(after_action_doc_url), \"after_action_missing\",\n    ca_overdue_count > 0, \"corrective_actions_overdue\",\n    1=1, \"current\")\n| table facility_id last_exercise_date days_since_exercise exercise_type after_action_doc_url ca_open_count ca_overdue_count exercise_status",
   "description": "Tracks CIRP exercise currency, after-action evidence presence, and corrective-action closure across all TSA-regulated facilities.",
-  "value": "TSA inspectors will look for the after-action documents and corrective-action ledger. Missing exercises or open-overdue corrective actions are enforcement findings.",
+  "value": "Tracks CIRP exercise currency, after-action evidence presence, and corrective-action closure across all TSA.... Timely UC-22.56.7 alerting on 'TSA-SD-Pipeline CIRP Annual Exercise — exercise scheduling, after-action evidence, and corrective-action ledger' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Populate `tsa_pipeline_cirp_exercise_lookup` after each exercise. (2) Track corrective actions in ServiceNow Security Incident Response. (3) Schedule UC-22.56.7 daily; route `overdue` severity=critical. (4) Build the `TSA-SD CIRP Exercise Ledger` dashboard.",
   "visualization": "(Panel 1) Exercise status by facility. (Panel 2) Days-since-exercise heat-map. (Panel 3) Open corrective actions by facility. (Panel 4) Exercise-type breakdown (tabletop, functional, full-scale). (Panel 5) 5-year exercise history timeline.",
   "cimModels": [
@@ -67,7 +67,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Cross-facility exercise** — an enterprise-level exercise may cover multiple facilities; the row should list all in-scope facilities. Suppression: ensure `tsa_pipeline_cirp_exercise_lookup` rows are facility-keyed.\n\n2. **CA in pending-vendor-fix state** — open corrective actions may legitimately be in pending-vendor state. Suppression: tag CA with `pending_vendor_until` and exclude.\n\n**Suppression mechanism**: KV Store `tsa_22_56_7_exceptions` with documented IR Commander approval.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD-Pipeline CIRP Annual Exercise — exercise scheduling, after-action evidence, and corrective-action ledger' (UC-22.56.7) on `tsa_pipeline_facility_id` during scheduled clause TSA-SD-P-2021-02C-s4 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=itsm` `snow:ir_ca` without crossing `days_since_exercise` > 365. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `itsm` for `tsa_pipeline_facility_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `tsa_pipeline_facility_id` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `tsa_pipeline_facility_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (exercise governance)"
   ],

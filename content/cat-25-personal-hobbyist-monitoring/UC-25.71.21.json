@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Google Family Link Usage Screen Time Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_google_family_link_usage_screen_time_leaderboard` (UC-25.71.21), SOC dashboard panel \"Personal — Google Family Link Usage Screen Time Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='familylink:usage' that satisfy the UC-25.71.21 SPL filters for 'Google Family Link Usage Screen Time Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `familylink:usage` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.71.21."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='familylink:usage' where `app_name` satisfies detection threshold for UC-25.71.21 ('Google Family Link Usage Screen Time Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `familylink:usage` events where `app_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.71.21."
   },
   "dataSources": "Canvas assignments (`canvas:assignment`), Khan Academy SAT practice (`khan:sat`), Family Link usage (`familylink:usage`), and OurHome chores (`ourhome:chore`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Canvas LMS exports, Khan Academy SAT practice, Google Family Link screen-time data, and OurHome chore tracking streamed to Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=familylink:usage screen_minutes=*\n| stats sum(screen_minutes) as total_value, avg(screen_minutes) as avg_value by app_name\n| sort - total_value",
-  "description": "Ranks app name values by total and average screen time across Google Family Link usage events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks app name values by total and average screen time across Google Family Link usage events. Searches `index=personal` with sourcetype `familylink:usage` for UC-25.71.21, aggregating `sum` by `app_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Google Family Link Usage Screen Time Leaderboard' without manual log review.",
+  "value": "Ranks app name values by total and average screen time across Google Family Link usage events. Timely UC-25.71.21 alerting on 'Google Family Link Usage Screen Time Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `screen_minutes` values for each Google Family Link usage event and review total and average screen time by app name.",
   "visualization": "Table of entities ranked by total screen time.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Google Family Link Usage Screen Time Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `familylink:usage`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Google Family Link Usage Screen Time Leaderboard' stops polling `familylink:usage`; stale `app_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `familylink:usage`. Dedup with `stats latest(*) by app_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

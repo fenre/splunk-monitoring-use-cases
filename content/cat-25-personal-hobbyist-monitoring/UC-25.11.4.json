@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Litter Box Usage Health Signal' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_litter_box_usage_health_signal` (UC-25.11.4), SOC dashboard panel \"Personal — Litter Box Usage Health Signal\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='litterrobot:cycle' that satisfy the UC-25.11.4 SPL filters for 'Litter Box Usage Health Signal'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `litterrobot:cycle` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.11.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='litterrobot:cycle' where `_time` satisfies detection threshold for UC-25.11.4 ('Litter Box Usage Health Signal'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `litterrobot:cycle` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.11.4."
   },
   "dataSources": "Pet tracker location/activity (`tractive:position`, `whistle:activity`), smart feeder events (`petfeeder:event`), litter-box usage (`litterrobot:cycle`), bird-feeder detections. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Pet GPS/activity trackers (Tractive/Fi/Whistle), smart feeders and litter boxes, bird feeders/cams, and plant sensors via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=litterrobot:cycle\n| bin _time span=1d\n| stats count as visits by _time\n| eventstats avg(visits) as avg_visits, stdev(visits) as sd_visits\n| eval anomaly=if(abs(visits-avg_visits)>2*sd_visits,1,0)\n| where anomaly=1",
   "description": "Trends how often the litter box is used and flags sudden changes, which for cats can be an early sign of a urinary or kidney problem.",
-  "value": "Cats hide illness well, but litter-box frequency does not; an anomaly alert can prompt a vet visit before a problem becomes serious.",
+  "value": "Trends how often the litter box is used and flags sudden changes, which for cats can be an early sign of a.... Timely UC-25.11.4 alerting on 'Litter Box Usage Health Signal' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward litter-box cycle events; schedule daily and alert on a significant change in usage frequency.",
   "visualization": "Chart of daily litter-box visits with anomaly markers.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Litter Box Usage Health Signal'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `litterrobot:cycle`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Litter Box Usage Health Signal' stops polling `litterrobot:cycle`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `litterrobot:cycle`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

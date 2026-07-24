@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Proofpoint Spam and Content Filter False-Positive Rate Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_proofpoint_spam_and_content_filter_false_positiv` (UC-11.6.4), SOC dashboard panel \"Operations — Proofpoint Spam and Content Filter False-Positive Rate Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=email` sourcetype='proofpoint:filter' that satisfy the UC-11.6.4 SPL filters for 'Proofpoint Spam and Content Filter False-Positive Rate Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `email` / `proofpoint:filter` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.6.4."
+    "positiveScenario": "Ingest synthetic events into `index=email` sourcetype='proofpoint:filter' where `entity` satisfies detection threshold for UC-11.6.4 ('Proofpoint Spam and Content Filter False-Positive Rate Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `email` / `proofpoint:filter` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.6.4."
   },
   "dataSources": "`sourcetype=proofpoint:filter` spam and content filter verdict events including quarantine or bulk scores Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Proofpoint On-Demand Add-on for Splunk (`Splunk_TA_ProofpointOD`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=email sourcetype=\"proofpoint:filter\" earliest=-30d@d\n| eval verdict=coalesce(verdict, Verdict, disposition, Disposition, \"\")\n| eval fp_flag=coalesce(false_positive, user_release, admin_override, \"\")\n| bin _time span=1d\n| stats count(eval(match(lower(verdict),\"(?i)spam|bulk|block\"))) as filtered count(eval(match(lower(fp_flag),\"(?i)yes|true|released|override\"))) as fp_signals count as total by _time\n| eval fp_rate_pct=round(100*fp_signals/total,3)\n| timechart span=1d avg(fp_rate_pct) as avg_fp_rate",
   "description": "Aggressive anti-spam settings reduce malware but starve the business of legitimate mail. Trending false-positive or release overrides from filter logs quantifies user pain and guides policy easing before executives miss critical messages.",
-  "value": "Balances deliverability with security, reduces help-desk volume, and documents messaging quality for customer-facing teams.",
+  "value": "Aggressive anti-spam settings reduce malware but starve the business of legitimate mail. Timely UC-11.6.4 alerting on 'Proofpoint Spam and Content Filter False-Positive Rate Trending' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "(1) Ingest filter verdict and release telemetry; field names vary by POD—validate extractions. (2) Join to service-desk tickets tagged email for ground truth. (3) Alert when FP rate exceeds baseline. (4) Segment bulk vs strict spam. (5) Coordinate changes with messaging admins.",
   "visualization": "Line chart (false-positive rate over time), bar chart (releases by rule), table of top affected recipients.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Proofpoint Spam and Content Filter False-Positive Rate Trending'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `email` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `email`** — Planned work for 'Proofpoint Spam and Content Filter False-Positive Rate Trending' shifts `count` over `span=1d` while `host` remains in-scope for UC-11.6.4. Cross-check CMDB CHG.\n\n2. **Batch `count` on `proofpoint:filter`** — Scheduled automation elevates `verdict` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `email` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `proofpoint:filter`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "securityDomain": "soc_operations",
   "equipment": [
     "proofpoint"

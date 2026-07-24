@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'DNS Recursive Query Volume' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dns_recursive_query_volume` (UC-8.6.17), SOC dashboard panel \"Operations — DNS Recursive Query Volume\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dns` sourcetype='bind:query' that satisfy the UC-8.6.17 SPL filters for 'DNS Recursive Query Volume'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dns` / `bind:query` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.6.17."
+    "positiveScenario": "Ingest synthetic events into `index=dns` sourcetype='bind:query' where `client_ip` satisfies `qps` > 1000 for UC-8.6.17 ('DNS Recursive Query Volume'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dns` / `bind:query` events where `client_ip` stays below `qps` > 1000, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.6.17."
   },
   "dataSources": "`dns:query` recursive flag, `client` IP, `qname` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "BIND `named` logs, Infoblox DNS, CoreDNS logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dns sourcetype=\"bind:query\" OR sourcetype=\"dns:query\"\n| where recursive=1\n| bucket _time span=1m\n| stats count as qps by client_ip, _time\n| eventstats avg(qps) as avg_q by client_ip\n| where qps > avg_q*10 AND qps > 1000",
-  "description": "Sudden spike in recursive queries on internal resolvers may indicate DDoS, malware, or misconfigured application loops.",
+  "description": "Sudden spike in recursive queries on internal resolvers may indicate DDoS, malware, or misconfigured application loops. Searches `index=dns` with sourcetype `bind:query` for UC-8.6.17, aggregating `avg` by `client_ip` over `1m`. Alerts when grouped results cross `qps` > 1000 in the saved search. Gives Operations operators a repeatable signal for 'DNS Recursive Query Volume' without manual log review.",
   "value": "Early 'DNS Recursive Query Volume' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Baseline QPS per client subnet. Alert on 10× baseline or absolute flood. Top `qname` for tunneling investigation.",
   "visualization": "Line chart (recursive QPS), Table (top clients), Bar chart (query types).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'DNS Recursive Query Volume'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `dns` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `dns`** — Planned work for 'DNS Recursive Query Volume' shifts `avg` over `span=1m` while `client_ip` remains in-scope for UC-8.6.17. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `bind:query`** — Scheduled automation elevates `_time` without crossing `qps` > 1000. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `client_ip`** — Health checks in `dns` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bind:query`** — First 48h baseline for `client_ip` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `client_ip`, `exception_reason`, `valid_until`.",
   "equipment": [
     "infoblox"
   ],

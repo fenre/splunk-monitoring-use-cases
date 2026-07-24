@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Overnight Blood-Oxygen Dip Detection' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_overnight_blood_oxygen_dip_detection` (UC-25.25.2), SOC dashboard panel \"Personal — Overnight Blood-Oxygen Dip Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='spo2:reading' that satisfy the UC-25.25.2 SPL filters for 'Overnight Blood-Oxygen Dip Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `spo2:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.25.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='spo2:reading' where `_time` satisfies `spo2` < 90 for UC-25.25.2 ('Overnight Blood-Oxygen Dip Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `spo2:reading` events where `_time` stays below `spo2` < 90, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.25.2."
   },
   "dataSources": "HRV (`hrv:reading`), blood oxygen (`spo2:reading`), lab panels (`bloodpanel:result`), supplements (`supplement:intake`), continuous glucose (`cgm:glucose`), sleep-apnea events (`apnea:event`), body composition (`bodycomp:measure`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Biohacking and advanced-health data — HRV chest straps, pulse oximeters, blood-pressure cuffs, continuous glucose monitors, body-composition scales, lab-result exports, and supplement logs — ingested to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=spo2:reading\n| bin _time span=1d\n| stats min(spo2) as lowest, sum(eval(if(spo2<90,1,0))) as dips by _time\n| where dips>5\n| sort - _time",
   "description": "Counts overnight drops in blood oxygen that can point to disrupted breathing during sleep, a signal worth discussing with a doctor.",
-  "value": "Frequent nightly oxygen dips are a hallmark of sleep-disordered breathing; surfacing them can prompt a proper medical evaluation.",
+  "value": "Counts overnight drops in blood oxygen that can point to disrupted breathing during sleep, a signal worth d.... Timely UC-25.25.2 alerting on 'Overnight Blood-Oxygen Dip Detection' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest overnight pulse-oximeter data into `index=personal`; schedule each morning and flag nights with many dips.",
   "visualization": "Time chart of overnight oxygen with dip counts per night.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Overnight Blood-Oxygen Dip Detection'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `spo2:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Overnight Blood-Oxygen Dip Detection' stops polling `spo2:reading`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `min` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `spo2:reading`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `spo2` < 90. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

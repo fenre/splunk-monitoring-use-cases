@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Vinyl Play-Count and Turntable Wear' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_vinyl_play_count_and_turntable_wear` (UC-25.30.3), SOC dashboard panel \"Personal — Vinyl Play-Count and Turntable Wear\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='vinyl:play' that satisfy the UC-25.30.3 SPL filters for 'Vinyl Play-Count and Turntable Wear'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `vinyl:play` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.30.3."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='vinyl:play' where `album` satisfies detection threshold for UC-25.30.3 ('Vinyl Play-Count and Turntable Wear'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `vinyl:play` events where `album` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.30.3."
   },
   "dataSources": "Collection items (`collection:item`), vinyl plays (`vinyl:play`), LEGO sets (`lego:set`), trading-card prices (`tradingcard:price`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Collection catalogues and price APIs — Discogs (vinyl), BrickLink (LEGO), trading-card and coin/stamp price feeds, and personal inventory databases with NFC-tagged scans — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=vinyl:play\n| stats count as plays by album\n| eventstats sum(plays) as total_plays\n| eval stylus_hours=round(total_plays*0.35,1)\n| sort - plays",
-  "description": "Counts how often each record is played and estimates total stylus hours, hinting when the needle needs replacing.",
-  "value": "Tracking plays both surfaces your true favourites and protects your records by timing stylus changes before they wear grooves.",
+  "description": "Counts how often each record is played and estimates total stylus hours, hinting when the needle needs replacing. Searches `index=personal` with sourcetype `vinyl:play` for UC-25.30.3, aggregating `sum` by `album` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Vinyl Play-Count and Turntable Wear' without manual log review.",
+  "value": "Counts how often each record is played and estimates total stylus hours, hinting when the needle needs repl.... Timely UC-25.30.3 alerting on 'Vinyl Play-Count and Turntable Wear' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Log plays (NFC tap or app) into `index=personal`; review play counts and cumulative stylus hours.",
   "visualization": "Bar chart of play count by album with a stylus-hours total.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Vinyl Play-Count and Turntable Wear'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vinyl:play`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Vinyl Play-Count and Turntable Wear' stops polling `vinyl:play`; stale `album` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vinyl:play`. Dedup with `stats latest(*) by album`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Netskope CASB Inline Policy Enforcement' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_netskope_casb_inline_policy_enforcement` (UC-17.3.37), SOC dashboard panel \"Network — Netskope CASB Inline Policy Enforcement\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=casb` sourcetype='netskope:events' that satisfy the UC-17.3.37 SPL filters for 'Netskope CASB Inline Policy Enforcement'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `casb` / `netskope:events` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.37."
+    "positiveScenario": "Ingest synthetic events into `index=casb` sourcetype='netskope:events' where `app_name` satisfies detection threshold for UC-17.3.37 ('Netskope CASB Inline Policy Enforcement'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `casb` / `netskope:events` events where `app_name` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.37."
   },
   "dataSources": "`sourcetype=netskope:events` (cloud app activity) Indexes: casb. Sourcetypes: netskope:events. Key fields: action, activity, app_name, policy_name. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Netskope Add-on for Splunk (Splunkbase 3808)",
   "spl": "index=casb sourcetype=\"netskope:events\" earliest=-7d\n| where action IN (\"block\", \"quarantine\", \"restrict\", \"coach\")\n| stats count by app_name, activity, action, policy_name\n| sort -count",
   "description": "Netskope CASB enforces activity-level policies on sanctioned SaaS apps (block upload, read-only, quarantine). Monitoring enforcement actions validates that cloud governance policies are working and identifies gaps.",
-  "value": "Cloud security teams monitor Netskope CASB inline policy enforcement on sanctioned SaaS applications, tracking which activity-level controls (download blocking, upload quarantine, sharing restrictions) are active and identifying policies causing excessive user friction.",
+  "value": "Cloud security teams monitor Netskope CASB inline policy enforcement on sanctioned SaaS applications, tracking which activity-level controls (download blocking, upload quarantine, sharing restrictions) are active and identifying policies causing excessive user friction reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Map `activity` (upload, download, share, edit, delete) to your DLP/governance controls. Alert on new apps triggering policies. Report on enforcement effectiveness: block vs coach ratio.",
   "visualization": "Stacked bar (actions by app), Table (policy triggers), Pie chart (activity types blocked), Line chart (enforcement trend).",
   "cimModels": [],
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Netskope CASB Inline Policy Enforcement'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `casb`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `netskope:events` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `casb`** — Planned work for 'Netskope CASB Inline Policy Enforcement' shifts `count` over `span=1h` while `app_name` remains in-scope for UC-17.3.37. Cross-check CMDB CHG.\n\n2. **Batch `count` on `netskope:events`** — Scheduled automation elevates `activity` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `app_name`** — Health checks in `casb` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netskope:events`** — First 48h baseline for `app_name` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `app_name`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1048",
     "T1041"

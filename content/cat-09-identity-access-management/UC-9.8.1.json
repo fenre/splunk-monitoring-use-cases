@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'BeyondTrust Privileged Session Recording and Playback Audit' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_beyondtrust_privileged_session_recording_and_pla` (UC-9.8.1), SOC dashboard panel \"IAM — BeyondTrust Privileged Session Recording and Playback Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=pam` sourcetype='beyondtrust:session' that satisfy the UC-9.8.1 SPL filters for 'BeyondTrust Privileged Session Recording and Playback Audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `pam` / `beyondtrust:session` events outside the detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.8.1."
+    "positiveScenario": "Ingest synthetic events into `index=pam` sourcetype='beyondtrust:session' where `user` satisfies detection threshold for UC-9.8.1 ('BeyondTrust Privileged Session Recording and Playback Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `pam` / `beyondtrust:session` events where `user` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.8.1."
   },
   "dataSources": "`sourcetype=beyondtrust:session` Privileged Remote Access / PRA session start-stop events with recording identifiers Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Add-on for BeyondTrust (Password Safe / PRA) or vendor JSON mapped to `beyondtrust:session` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pam sourcetype=\"beyondtrust:session\" earliest=-7d\n| eval rec=coalesce(recording_id, RecordingId, session_recording, \"\")\n| eval user=coalesce(user, UserName, admin_user, \"\")\n| eval target=coalesce(target_host, TargetHost, dest, \"\")\n| eval outcome=coalesce(session_status, outcome, \"\")\n| where isnull(rec) OR rec=\"\" OR match(lower(outcome), \"(?i)no.record|recording.failed|missing\")\n| stats count values(outcome) as status_samples by user target\n| sort -count",
   "description": "Regulators and insurers increasingly expect replayable evidence for privileged access. Sessions without a recording artifact break the chain of custody for investigations and SOX-style ITGC reviews.",
-  "value": "Ensures BeyondTrust deployments actually capture sessions that should be recorded and triggers rapid correction of misconfiguration or agent faults.",
+  "value": "Regulators and insurers increasingly expect replayable evidence for privileged access. Timely UC-9.8.1 alerting on 'BeyondTrust Privileged Session Recording and Playback Audit' reduces account takeover risk, help-desk load, and audit findings before manual triage or audit channels escalate.",
   "implementation": "(1) Confirm recording IDs populate for all PRA session types in scope. (2) Allow-list break-glass jump boxes via lookup if policy permits no recording. (3) Alert SecOps on missing recordings within 15 minutes of session end. (4) Correlate with storage quotas on recording servers.",
   "visualization": "Table (user, target, missing count), pie (sessions with vs without recording), timeline.",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled IAM maintenance** — Planned directory or IdP change generates expected deviations for 'BeyondTrust Privileged Session Recording and Playback Audit'. Cross-check change records.\n\n2. **Onboarding burst** — New accounts or apps produce atypical `pam` volume.\n\n3. **Monitoring synthetic bind checks** — Health probes from known scanner hosts.\n\n4. **Stale application credential** — Single entity dominates `beyondtrust:session` failures.\n\n**Suppression mechanism:** `iam_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `pam`** — Planned work for 'BeyondTrust Privileged Session Recording and Playback Audit' shifts `values` over `span=1h` while `user` remains in-scope for UC-9.8.1. Cross-check CMDB CHG.\n\n2. **Batch `values` on `beyondtrust:session`** — Scheduled automation elevates `target` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`** — Health checks in `pam` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `beyondtrust:session`** — First 48h baseline for `user` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "securityDomain": "access",
   "equipment": [
     "beyondtrust"

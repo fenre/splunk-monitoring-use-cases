@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Ceph slow OSD requests and op queue latency spikes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ceph_slow_osd_requests_and_op_queue_latency_spik` (UC-6.2.23), SOC dashboard panel \"Operations — Ceph slow OSD requests and op queue latency spikes\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='ceph:log' that satisfy the UC-6.2.23 SPL filters for 'Ceph slow OSD requests and op queue latency spikes'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `ceph:log` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.23."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='ceph:log' where `host` satisfies `slow_ops` > 20 for UC-6.2.23 ('Ceph slow OSD requests and op queue latency spikes'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `ceph:log` events where `host` stays below `slow_ops` > 20, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.23."
   },
   "dataSources": "OSD daemon logs indexed as `ceph:log` with slow op warnings Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Universal Forwarder `monitor://` on `/var/log/ceph/ceph-osd*.log` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=\"ceph:log\" earliest=-4h\n| search \"slow request\" OR \"blocked op\" OR \"op_queue\"\n| rex field=_raw max_match=1 \"(?i)osd\\.(?<osd_id>\\d+)\"\n| stats count as slow_ops latest(_time) as last_seen by host, osd_id\n| where slow_ops > 20\n| sort - slow_ops",
   "description": "Slow requests indicate disk, network, or BlueStore contention on specific OSDs. Aggregating by OSD surfaces hotspots that cluster-wide latency hides.",
-  "value": "Prevents prolonged tail latency for RBD volumes backing databases and VMs. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Slow requests indicate disk, network, or BlueStore contention on specific OSDs. Timely UC-6.2.23 alerting on 'Ceph slow OSD requests and op queue latency spikes' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Tune threshold to cluster size; use percentile summaries for large fleets. Join with `ceph:osd` utilization to separate disk-bound from network-bound cases.",
   "visualization": "Bar chart (slow_ops by OSD), timeline.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Ceph slow OSD requests and op queue latency spikes'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `os` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `os`** — Planned work for 'Ceph slow OSD requests and op queue latency spikes' shifts `count` over `span=1h` while `host` remains in-scope for UC-6.2.23. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ceph:log`** — Scheduled automation elevates `osd_id` without crossing `slow_ops` > 20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:log`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ceph"
   ],

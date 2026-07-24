@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Configuration Reload Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_configuration_reload_tracking` (UC-8.1.10), SOC dashboard panel \"Operations — Configuration Reload Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='nginx:error' that satisfy the UC-8.1.10 SPL filters for 'Configuration Reload Tracking'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `nginx:error` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.10."
+    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='nginx:error' where `entity` satisfies detection threshold for UC-8.1.10 ('Configuration Reload Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `web` / `nginx:error` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.10."
   },
   "dataSources": "Web server error/event logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_apache`, `TA-nginx`, process monitoring — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"nginx:error\" OR sourcetype=\"apache:error\"\n| search \"signal\" OR \"reload\" OR \"restarting\" OR \"resuming normal operations\"\n| table _time, host, message",
-  "description": "Configuration changes are a common cause of outages. Tracking reloads enables rapid correlation with incidents.",
+  "description": "Configuration changes are a common cause of outages. Tracking reloads enables rapid correlation with incidents. Searches `index=web` with sourcetype `nginx:error` for UC-8.1.10, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Configuration Reload Tracking' without manual log review.",
   "value": "Early 'Configuration Reload Tracking' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Forward error/event logs from web servers. Parse reload/restart messages. Correlate with deployment events and change management tickets. Alert on unexpected restarts outside maintenance windows.",
   "visualization": "Timeline (reload events), Table (reload history with correlation), Single value (reloads this week).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Configuration Reload Tracking'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `web` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'Configuration Reload Tracking' shifts `count` over `span=1h` while `host` remains in-scope for UC-8.1.10. Cross-check CMDB CHG.\n\n2. **Batch `count` on `nginx:error`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nginx:error`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "nginx"

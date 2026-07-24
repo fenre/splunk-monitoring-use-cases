@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Pure Storage FlashArray host multipath path imbalance detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_pure_storage_flasharray_host_multipath_path_imba` (UC-6.1.66), SOC dashboard panel \"Operations — Pure Storage FlashArray host multipath path imbalance detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='purestorage:host' that satisfy the UC-6.1.66 SPL filters for 'Pure Storage FlashArray host multipath path imbalance detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `purestorage:host` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.66."
+    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='purestorage:host' where `h` satisfies `paths` < 2 for UC-6.1.66 ('Pure Storage FlashArray host multipath path imbalance detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `storage` / `purestorage:host` events where `h` stays below `paths` < 2, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.66."
   },
   "dataSources": "Host connectivity records in `purestorage:host` joined to `purestorage:volume` path metadata when available Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Pure Storage Unified Add-on for Splunk (5513) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"purestorage:host\"\n| eval paths=coalesce(path_count, active_paths, multipath_paths)\n| eval h=coalesce(host_name, hostname, name)\n| where isnotnull(h)\n| stats latest(paths) as paths values(array_name) as arrays by h\n| where paths < 2 OR isnull(paths)\n| sort h",
   "description": "Hosts with fewer than two active paths to FlashArray volumes run hot on a single fabric and fail open during HBA or switch maintenance. This is a common misconfiguration after zoning changes.",
-  "value": "Prevents asymmetric multipathing outages and throughput collapse during planned SAN work.",
+  "value": "Hosts with fewer than two active paths to FlashArray volumes run hot on a single fabric and fail open durin.... Timely UC-6.1.66 alerting on 'Pure Storage FlashArray host multipath path imbalance detection' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ensure host inventory REST feed is enabled. If `path_count` is absent, compute from multivalue `target_wwn` or `volume` connection lists via `mvcount` in a scheduled search. Alert integration with CMDB owner field.",
   "visualization": "Table (host, paths, arrays), pie chart (compliant vs non-compliant).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Pure Storage FlashArray host multipath path imbalance detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `storage` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'Pure Storage FlashArray host multipath path imbalance detection' shifts `values` over `span=1h` while `h` remains in-scope for UC-6.1.66. Cross-check CMDB CHG.\n\n2. **Batch `values` on `purestorage:host`** — Scheduled automation elevates `paths` without crossing `paths` < 2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `h`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `purestorage:host`** — First 48h baseline for `h` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `h`, `exception_reason`, `valid_until`.",
   "equipment": [
     "pure_storage"
   ],

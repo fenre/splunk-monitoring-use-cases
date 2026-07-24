@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'ActiveMQ Durable Subscriber Offline Backlog Growth' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_activemq_durable_subscriber_offline_backlog_grow` (UC-8.5.37), SOC dashboard panel \"Operations — ActiveMQ Durable Subscriber Offline Backlog Growth\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='activemq:broker' that satisfy the UC-8.5.37 SPL filters for 'ActiveMQ Durable Subscriber Offline Backlog Growth'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `messaging` / `activemq:broker` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.5.37."
+    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='activemq:broker' where `dest` satisfies `inactive` > 0 for UC-8.5.37 ('ActiveMQ Durable Subscriber Offline Backlog Growth'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `messaging` / `activemq:broker` events where `dest` stays below `inactive` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.5.37."
   },
   "dataSources": "`index=messaging` `sourcetype=activemq:broker` topic and durable subscription statistics (`QueueSize` on the internal queue backing an offline durable, `SubscriberCount`, `InactiveDurableSubscribers`, destination names for `clientId` patterns)",
   "app": "Splunk Add-on for JMX (Splunkbase 2647) polling subscription-related MBeans",
   "spl": "index=messaging sourcetype=\"activemq:broker\" earliest=-24h\n| eval dest=coalesce(DestinationName, destination_name)\n| eval qsize=coalesce(QueueSize, queue_size)\n| eval inactive=coalesce(InactiveDurableSubscribers, inactive_durable_subscribers, 0)\n| eval durable_name=coalesce(subscription_name, client_id, durable_name)\n| where match(dest, \"(?i)dur|sub|consumer\") OR inactive>0 OR isnotnull(durable_name)\n| where qsize > 1000 OR inactive>0\n| timechart span=1h max(qsize) as durable_backlog max(inactive) as inactive_durables by dest, broker_name limit=15",
   "description": "When a durable subscriber is offline, the broker retains messages in a dedicated backlog; rapid `QueueSize` growth on those internal destinations risks exhausting store limits and slowing all clients on the broker. Tracking inactive durable counts highlights forgotten test clients and zombie subscriptions.",
-  "value": "Prevents silent store exhaustion from abandoned durable subscriptions and quantifies catch-up work before reconnect storms after maintenance.",
+  "value": "When a durable subscriber is offline, the broker retains messages in a dedicated backlog; rapid `QueueSize`.... Timely UC-8.5.37 alerting on 'ActiveMQ Durable Subscriber Offline Backlog Growth' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Tune name filters to your `clientId`/`subscriptionName` conventions. Exclude known batch consumers via lookup. Alert on week-over-week growth, not just absolute depth, for seasonal workloads.",
   "visualization": "Line chart (durable backlog), table (broker, destination, inactive count), single value (worst backlog).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'ActiveMQ Durable Subscriber Offline Backlog Growth'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `messaging` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging`** — Planned work for 'ActiveMQ Durable Subscriber Offline Backlog Growth' shifts `max` over `span=1h` while `dest` remains in-scope for UC-8.5.37. Cross-check CMDB CHG.\n\n2. **Batch `max` on `activemq:broker`** — Scheduled automation elevates `broker_name` without crossing `inactive` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dest`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `activemq:broker`** — First 48h baseline for `dest` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dest`, `exception_reason`, `valid_until`.",
   "equipment": [
     "activemq"
   ],

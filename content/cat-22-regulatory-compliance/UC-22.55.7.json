@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set `sl_t_AC` to null for a high-risk zone (e.g., RBC zone). UC-22.55.7 MUST flag `sl_t_status=\"slt_incomplete\"`.",
-    "negativeScenario": "Set all 7 SL-T fields (AC, UC, DI, TRE, RDF, RA, TRE) to defined values 1-4 with justification documents. UC-22.55.7 MUST record `sl_t_status=\"current\"`."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies `slt_age_months` > 24 for UC-22.55.7 ('CLC/TS 50701 Target Security Levels (SL-T) Coverage — every zone has an SL-T justified against threat scenarios'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `slt_age_months` > 24, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.55.7."
   },
   "dataSources": "KV Store `rail_sl_register_lookup`. ServiceNow GRC SL-T determination documents. Cross-reference to `rail_zoneconduit_lookup` (UC-22.55.4).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_sl_register_lookup\n| where zone_status=\"active\"\n| eval now_ts = now()\n| eval slt_age_months = if(isnotnull(sl_t_set_at), round((now_ts - sl_t_set_at) / 86400 / 30, 1), null())\n| eval slt_completeness = if(isnotnull(sl_t_AC) AND isnotnull(sl_t_UC) AND isnotnull(sl_t_DI) AND isnotnull(sl_t_TRE) AND isnotnull(sl_t_RDF) AND isnotnull(sl_t_RA) AND isnotnull(sl_t_TRC), 1, 0)\n| eval sl_t_status = case(\n    isnull(sl_t_set_at), \"slt_missing\",\n    slt_completeness=0, \"slt_incomplete\",\n    slt_age_months > 24, \"slt_stale\",\n    isnull(sl_t_justification) OR sl_t_justification=\"\", \"justification_missing\",\n    1=1, \"current\")\n| where sl_t_status != \"current\"\n| table zone_id sl_t_AC sl_t_UC sl_t_DI sl_t_TRE sl_t_RDF sl_t_RA sl_t_TRC sl_t_set_at slt_age_months sl_t_status",
-  "description": "Verifies every zone has all 7 IEC 62443-3-3 FR SL-T values set with current justification.",
-  "value": "SL-T is the contract between risk assessment and downstream SR/CR work. An incomplete SL-T register cascades into mis-aligned controls. This UC ensures completeness.",
+  "description": "Verifies every zone has all 7 IEC 62443-3-3 FR SL-T values set with current justification. Searches `index=target_index` with sourcetype `configured sourcetype` for UC-22.55.7, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `slt_age_months` > 24 in the saved search. Gives Compliance operators a repeatable signal for 'CLC/TS 50701 Target Security Levels (SL-T) Coverage — every zone has an SL-T justified against threat scenarios' without manual log review.",
+  "value": "Verifies every zone has all 7 IEC 62443-3-3 FR SL-T values set with current justification. Timely UC-22.55.7 alerting on 'CLC/TS 50701 Target Security Levels (SL-T) Coverage — every zone has an SL-T justified against threat scenarios' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Maintain `rail_sl_register_lookup`. (2) Risk Manager + Signal Engineering Lead jointly set SL-T per zone with documented justification. (3) Schedule UC-22.55.7 weekly Monday 04:30.",
   "visualization": "(Panel 1) SL-T heatmap (zone vs FR). (Panel 2) Justification-coverage. (Panel 3) Stale-zone queue.",
   "cimModels": [
@@ -66,7 +66,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Newly-defined zone** — 90-day commissioning grace.\n\n2. **Single-FR omission accepted** — in rare cases a specific FR may be NA for a zone; documented as `sl_t_FR=NA` with justification.\n\n**Suppression mechanism**: KV Store `clc_22_55_7_exceptions` with documented Risk Manager approval and 60-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Target Security Levels (SL-T) Coverage — every zone has an SL-T justified against threat scenarios' (UC-22.55.7) on `entity` during scheduled clause CLC-TS-50701-c7-1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `slt_age_months` > 24. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (security-target-level governance)"
   ],

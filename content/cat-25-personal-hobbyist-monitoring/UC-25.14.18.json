@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Fare Price Volatility by Route' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_fare_price_volatility_by_route` (UC-25.14.18), SOC dashboard panel \"Personal — Fare Price Volatility by Route\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='airprice:quote' that satisfy the UC-25.14.18 SPL filters for 'Fare Price Volatility by Route'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `airprice:quote` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.18."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='airprice:quote' where `route` satisfies `swing_pct` > 15 for UC-25.14.18 ('Fare Price Volatility by Route'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `airprice:quote` events where `route` stays below `swing_pct` > 15, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.18."
   },
   "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home ADS-B receiver (dump1090 / readsb / tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=airprice:quote\n| bin _time span=1d\n| stats min(price_usd) as low, max(price_usd) as high by route _time\n| eval swing_pct=round(100*(high-low)/low,1)\n| where swing_pct>15\n| sort - swing_pct",
   "description": "Measures how much a route's quoted price swings within the day so you can tell whether it is worth watching closely or simply booking when convenient.",
-  "value": "Some routes are stable and some are chaotic; a volatility metric helps you spend attention where it might actually save money.",
+  "value": "Measures how much a route's quoted price swings within the day so you can tell whether it is worth watching.... Timely UC-25.14.18 alerting on 'Fare Price Volatility by Route' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward tracked airfare quotes into Splunk; review daily swing percentage by route before setting notification thresholds or booking timing rules.",
   "visualization": "Daily route table of lowest price, highest price, and swing percentage.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Fare Price Volatility by Route'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `airprice:quote`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Fare Price Volatility by Route' stops polling `airprice:quote`; stale `route` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `min` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `airprice:quote`. Dedup with `stats latest(*) by route`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `swing_pct` > 15. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

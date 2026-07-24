@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Anki Leech Queue Age' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_anki_leech_queue_age` (UC-25.48.27), SOC dashboard panel \"Personal — Anki Leech Queue Age\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='language:review' that satisfy the UC-25.48.27 SPL filters for 'Anki Leech Queue Age'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `language:review` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.48.27."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='language:review' where `deck` satisfies `backlog` > 0 for UC-25.48.27 ('Anki Leech Queue Age'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `language:review` events where `deck` stays below `backlog` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.48.27."
   },
   "dataSources": "Reviews (`language:review`), lessons (`language:lesson`), immersion sessions (`language:immersion`), tutor sessions (`language:tutor`), sync states (`language:sync`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Language-learning telemetry — Anki review logs, Duolingo lessons, Babbel course exports, immersion-hour trackers, and tutor-session notes — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=language:review deck=* leech_state=*\n| stats sum(eval(if(leech_state=\"open\",1,0))) as backlog, count as total by deck\n| where backlog>0\n| sort - backlog",
   "description": "Lists pending leech cards backlog by deck for deck maintenance. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Backlog counts expose where small unfinished tasks accumulate and create hidden drag inside deck maintenance.",
+  "value": "Lists pending leech cards backlog by deck for deck maintenance. Timely UC-25.48.27 alerting on 'Anki Leech Queue Age' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Mark each `language:review` record with a pending-state flag and summarize backlog totals by `deck`.",
   "visualization": "Table of deck with pending leech cards counts.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Anki Leech Queue Age'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `language:review`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Anki Leech Queue Age' stops polling `language:review`; stale `deck` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `language:review`. Dedup with `stats latest(*) by deck`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `backlog` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

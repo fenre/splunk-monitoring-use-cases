@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'LeakSmart Sensor Repeated Moisture Alerts' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_leaksmart_sensor_repeated_moisture_alerts` (UC-25.19.36), SOC dashboard panel \"Personal — LeakSmart Sensor Repeated Moisture Alerts\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='leaksmart:sensor' that satisfy the UC-25.19.36 SPL filters for 'LeakSmart Sensor Repeated Moisture Alerts'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `leaksmart:sensor` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.19.36."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='leaksmart:sensor' where `sensor_name` satisfies `moisture_pct` > 80 for UC-25.19.36 ('LeakSmart Sensor Repeated Moisture Alerts'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `leaksmart:sensor` events where `sensor_name` stays below `moisture_pct` > 80, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.19.36."
   },
   "dataSources": "Whole-home water flow (`watermeter:flow`), sump pump (`sumppump:event`), well pump (`wellpump:event`), pool/spa chemistry (`pool:chemistry`), water softener (`watersoftener:status`), irrigation zones (`irrigation:zone`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Smart water meters (Flume/Flo/HomeWizard), sump- and well-pump sensors, pool/spa controllers, water-softener and irrigation controllers via vendor APIs, MQTT, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=leaksmart:sensor moisture_pct>80\n| stats count as alerts by sensor_name\n| where alerts>3",
   "description": "Finds LeakSmart sensors triggering repeated moisture alerts. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Surfacing leaksmart sensor repeated moisture alerts helps you act before small issues become habits.",
+  "value": "Surfacing leaksmart sensor repeated moisture alerts helps you act before small issues become habits reduces missed training goals, stale hobby data, and connector failures by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Ingest the relevant water, plumbing & utilities export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'LeakSmart Sensor Repeated Moisture Alerts'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `leaksmart:sensor`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'LeakSmart Sensor Repeated Moisture Alerts' stops polling `leaksmart:sensor`; stale `sensor_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `leaksmart:sensor`. Dedup with `stats latest(*) by sensor_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `moisture_pct` > 80. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

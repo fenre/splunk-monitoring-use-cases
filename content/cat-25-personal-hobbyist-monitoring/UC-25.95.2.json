@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Holiday Card Mailing Progress' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_holiday_card_mailing_progress` (UC-25.95.2), SOC dashboard panel \"Personal — Holiday Card Mailing Progress\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='holiday:card' that satisfy the UC-25.95.2 SPL filters for 'Holiday Card Mailing Progress'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `holiday:card` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.95.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='holiday:card' where `season_year` satisfies detection threshold for UC-25.95.2 ('Holiday Card Mailing Progress'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `holiday:card` events where `season_year` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.95.2."
   },
   "dataSources": "Gift registries (`gift:registry`), Amazon wishlists (`amazon:wishlist`), holiday card sends (`holiday:card`), birthday budgets (`birthday:budget`), and thank-you notes (`thankyou:note`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Gift registry exports, Amazon wishlist snapshots, holiday card mail logs, birthday budget trackers, and thank-you note reminders ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=holiday:card season_year=* cards_sent=* cards_planned=*\n| stats sum(cards_sent) as sent, max(cards_planned) as planned by season_year card_type\n| eval pct_complete=round(100*sent/planned,1)\n| sort season_year",
-  "description": "Tracks holiday card mailing progress as sent versus planned counts by season and card type.",
-  "value": "Card season stress drops when you can see exactly how far behind or ahead the mailing list is.",
+  "description": "Tracks holiday card mailing progress as sent versus planned counts by season and card type. Searches `index=personal` with sourcetype `holiday:card` for UC-25.95.2, aggregating `sum` by `season_year` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Holiday Card Mailing Progress' without manual log review.",
+  "value": "Tracks holiday card mailing progress as sent versus planned counts by season and card type. Timely UC-25.95.2 alerting on 'Holiday Card Mailing Progress' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Include `cards_sent` and `cards_planned` on each mailing session export and update through December.",
   "visualization": "Progress bar or gauge of percent complete by card type.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Holiday Card Mailing Progress'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `holiday:card`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Holiday Card Mailing Progress' stops polling `holiday:card`; stale `season_year` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `holiday:card`. Dedup with `stats latest(*) by season_year`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

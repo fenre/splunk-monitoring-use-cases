@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'OpenStack Cinder Snapshot Creation Backlog and Slow Jobs' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_openstack_cinder_snapshot_creation_backlog_and_s` (UC-2.9.10), SOC dashboard panel \"Linux — OpenStack Cinder Snapshot Creation Backlog and Slow Jobs\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=openstack` sourcetype='openstack:cinder' that satisfy the UC-2.9.10 SPL filters for 'OpenStack Cinder Snapshot Creation Backlog and Slow Jobs'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `openstack` / `openstack:cinder` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.9.10."
+    "positiveScenario": "Ingest synthetic events into `index=openstack` sourcetype='openstack:cinder' where `backend` satisfies `prog` < 100 for UC-2.9.10 ('OpenStack Cinder Snapshot Creation Backlog and Slow Jobs'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `openstack` / `openstack:cinder` events where `backend` stays below `prog` < 100, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.9.10."
   },
   "dataSources": "`index=openstack` `sourcetype=\"openstack:cinder\"` — `snapshot_id`, `volume_id`, `status`, `progress_pct`, `queued_sec` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Cinder volume logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=openstack sourcetype=\"openstack:cinder\" earliest=-24h\n| eval prog=tonumber(progress_pct)\n| eval q=tonumber(queued_sec)\n| where prog<100 AND q>1800\n| stats count as backlog by backend, host",
   "description": "Snapshot backlogs delay backup windows and complicate restore testing. Queue time exposes slow arrays or overloaded cinder-volume workers.",
-  "value": "Keeps backup RPO realistic and prevents overlapping snapshot storms. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Snapshot backlogs delay backup windows and complicate restore testing. Timely UC-2.9.10 alerting on 'OpenStack Cinder Snapshot Creation Backlog and Slow Jobs' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Track queue duration. Alert when many snapshots exceed 30 minutes queued. Correlate with array replication load.",
   "visualization": "Area chart backlog; table volumes; worker host breakdown.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'OpenStack Cinder Snapshot Creation Backlog and Slow Jobs'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `openstack` `openstack:cinder`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `openstack`** — Package managers spike `backend` metrics for 'OpenStack Cinder Snapshot Creation Backlog and Slow Jobs'. Correlate with apt/yum logs in the same `openstack:cinder` window.\n\n2. **Nightly backup I/O on `backend`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `openstack:cinder`** — Nagios/Zabbix polls `backend` and mimics sustained load without crossing `prog` < 100.\n\n4. **New host onboarding** — `backend` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `backend`, `valid_until`.",
   "equipment": [
     "openstack"
   ],

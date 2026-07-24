@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'CNC Coolant Low-Level Warning' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_cnc_coolant_low_level_warning` (UC-25.17.22), SOC dashboard panel \"Personal — CNC Coolant Low-Level Warning\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='cnc:coolant' that satisfy the UC-25.17.22 SPL filters for 'CNC Coolant Low-Level Warning'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `cnc:coolant` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.17.22."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='cnc:coolant' where `machine` satisfies `level_pct` < 20 for UC-25.17.22 ('CNC Coolant Low-Level Warning'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `cnc:coolant` events where `machine` stays below `level_pct` < 20, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.17.22."
   },
   "dataSources": "Maker telemetry (`bambulab:job`, `prusaconnect:printer`, `octoprint:job`, `klipper:telemetry`, `laserweb:job`, `cnc:job`, `cnc:coolant`, `filament:spool`, `workshop:air`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Bambu Lab printers, Prusa Connect, OctoPrint, Moonraker, LaserWeb, CNC.js, drybox sensors, and workshop telemetry via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=cnc:coolant\n| stats latest(level_pct) as level_pct by machine\n| where level_pct<20\n| sort level_pct",
-  "description": "Uses CNC coolant telemetry telemetry to monitor remaining coolant level on each machine in index=personal.",
-  "value": "Splunk turns the feed into an operational check for machines that may soon run too hot or dirty, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses CNC coolant telemetry telemetry to monitor remaining coolant level on each machine in index=personal. Searches `index=personal` with sourcetype `cnc:coolant` for UC-25.17.22, aggregating `count` by `machine` over `the scheduled window`. Alerts when grouped results cross `level_pct` < 20 in the saved search. Gives Personal operators a repeatable signal for 'CNC Coolant Low-Level Warning' without manual log review.",
+  "value": "Uses CNC coolant telemetry telemetry to monitor remaining coolant level on each machine in index=personal. Timely UC-25.17.22 alerting on 'CNC Coolant Low-Level Warning' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest CNC coolant telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Machine table of coolant percentage.",
   "cimModels": [],
@@ -60,7 +60,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'CNC Coolant Low-Level Warning'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `cnc:coolant`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'CNC Coolant Low-Level Warning' stops polling `cnc:coolant`; stale `machine` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `cnc:coolant`. Dedup with `stats latest(*) by machine`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `level_pct` < 20. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

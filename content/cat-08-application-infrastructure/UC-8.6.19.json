@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'SNMP Community String Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_snmp_community_string_audit` (UC-8.6.19), SOC dashboard panel \"Operations — SNMP Community String Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='snmp:audit' that satisfy the UC-8.6.19 SPL filters for 'SNMP Community String Audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `snmp:audit` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.6.19."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='snmp:audit' where `src` satisfies `count` > 10 for UC-8.6.19 ('SNMP Community String Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `snmp:audit` events where `src` stays below `count` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.6.19."
   },
   "dataSources": "`snmpd` auth failures, `community` in trap receiver logs Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "Device syslog, SNMP proxy audit — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=network sourcetype=\"snmp:audit\" OR (sourcetype=syslog process=snmpd)\n| search \"Authentication failed\" OR community=\"public\" OR community=\"private\"\n| stats count by src, device, community\n| where count > 10",
-  "description": "Detects use of default `public`/`private` or unauthorized SNMP GETs to network devices for SNMPv2c exposure auditing.",
+  "description": "Detects use of default `public`/`private` or unauthorized SNMP GETs to network devices for SNMPv2c exposure auditing. Searches `index=network` with sourcetype `snmp:audit` for UC-8.6.19, aggregating `count` by `src` over `the scheduled window`. Alerts when grouped results cross `count` > 10 in the saved search. Gives Operations operators a repeatable signal for 'SNMP Community String Audit' without manual log review.",
   "value": "Early 'SNMP Community String Audit' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Forward snmpd auth failures. Alert on default community strings in use or brute-force patterns. Migrate devices to SNMPv3.",
   "visualization": "Table (src, device, community), Bar chart (failures by device), Line chart (auth failure rate).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'SNMP Community String Audit'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'SNMP Community String Audit' shifts `count` over `span=1h` while `src` remains in-scope for UC-8.6.19. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:audit`** — Scheduled automation elevates `device` without crossing `count` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:audit`** — First 48h baseline for `src` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "dell_emc",
     "snmp",

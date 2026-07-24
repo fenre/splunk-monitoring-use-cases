@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'TrueNAS iSCSI target session disconnect and login failure events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_truenas_iscsi_target_session_disconnect_and_logi` (UC-6.2.45), SOC dashboard panel \"Operations — TrueNAS iSCSI target session disconnect and login failure events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='truenas:alert' that satisfy the UC-6.2.45 SPL filters for 'TrueNAS iSCSI target session disconnect and login failure events'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `truenas:alert` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.45."
+    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='truenas:alert' where `hostname` satisfies detection threshold for UC-6.2.45 ('TrueNAS iSCSI target session disconnect and login failure events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `storage` / `truenas:alert` events where `hostname` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.45."
   },
   "dataSources": "SCSI target logs as `truenas:alert` or syslog with `ctl` / `iscsi` keywords Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Connect for Syslog or UF on TrueNAS SCALE — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=storage sourcetype=\"truenas:alert\" earliest=-4h\n| search iscsi OR iSCSI OR ctl OR \"target offline\" OR \"session terminate\"\n| eval tgt=coalesce(target_name, iscsi_target)\n| stats count as disc latest(_time) as last_seen by hostname, tgt, initiator\n| sort - disc",
   "description": "Session drops for iSCSI VMs and databases cause filesystem corruption risk and multipath storms. Rapid counts isolate problematic initiators or network paths.",
-  "value": "Protects virtualization clusters using TrueNAS as block storage. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Session drops for iSCSI VMs and databases cause filesystem corruption risk and multipath storms. Timely UC-6.2.45 alerting on 'TrueNAS iSCSI target session disconnect and login failure events' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Map TrueNAS alert severities to Splunk severity. If logs lack initiator IQN, augment with switch port counters in a correlated search.",
   "visualization": "Timeline, table (target, initiator, count).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'TrueNAS iSCSI target session disconnect and login failure events'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `storage` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'TrueNAS iSCSI target session disconnect and login failure events' shifts `count` over `span=1h` while `hostname` remains in-scope for UC-6.2.45. Cross-check CMDB CHG.\n\n2. **Batch `count` on `truenas:alert`** — Scheduled automation elevates `tgt` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `hostname`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:alert`** — First 48h baseline for `hostname` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `hostname`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog",
     "truenas"

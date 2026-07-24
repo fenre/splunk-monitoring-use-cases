@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Steam Weekend vs Weekday Gaming Split' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_steam_weekend_vs_weekday_gaming_split` (UC-25.7.13), SOC dashboard panel \"Personal — Steam Weekend vs Weekday Gaming Split\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='steam:player' that satisfy the UC-25.7.13 SPL filters for 'Steam Weekend vs Weekday Gaming Split'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `steam:player` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.7.13."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='steam:player' where `bucket` satisfies `weekday` > 5 for UC-25.7.13 ('Steam Weekend vs Weekday Gaming Split'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `steam:player` events where `bucket` stays below `weekday` > 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.7.13."
   },
   "dataSources": "Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player and achievements (`steam:player`), Sonarr events (`sonarr:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and the *arr stack (Sonarr/Radarr) APIs and webhooks via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=steam:player\n| eval weekday=strftime(_time,\"%u\")\n| eval bucket=if(weekday>5,\"weekend\",\"weekday\")\n| stats sum(minutes_played) as minutes by bucket game_name\n| sort - minutes",
   "description": "Separates your game time into weekday and weekend buckets, revealing which titles are light decompression and which ones swallow whole Saturdays.",
-  "value": "Time allocation is easier to improve when you know what owns your weekends versus your evenings; this is backlog management through telemetry.",
+  "value": "Separates your game time into weekday and weekend buckets, revealing which titles are light decompression a.... Timely UC-25.7.13 alerting on 'Steam Weekend vs Weekday Gaming Split' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward per-session or per-day Steam play minutes; refresh weekly and compare your actual game mix across the two day types.",
   "visualization": "Stacked bar chart of minutes played by game for weekdays versus weekends.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Steam Weekend vs Weekday Gaming Split'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `steam:player`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Steam Weekend vs Weekday Gaming Split' stops polling `steam:player`; stale `bucket` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `steam:player`. Dedup with `stats latest(*) by bucket`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `weekday` > 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

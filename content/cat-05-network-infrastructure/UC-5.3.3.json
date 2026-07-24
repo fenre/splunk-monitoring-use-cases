@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Connection and Throughput Trending (F5 BIG-IP)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_connection_and_throughput_trending_f5_big_ip` (UC-5.3.3), SOC dashboard panel \"Operations — Connection and Throughput Trending (F5 BIG-IP)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='snmp:f5' that satisfy the UC-5.3.3 SPL filters for 'Connection and Throughput Trending (F5 BIG-IP)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `snmp:f5` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.3.3."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='snmp:f5' where `virtual_server` satisfies detection threshold for UC-5.3.3 ('Connection and Throughput Trending (F5 BIG-IP)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `snmp:f5` events where `virtual_server` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.3.3."
   },
   "dataSources": "SNMP F5-BIGIP-LTM-MIB Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_f5-bigip`, SNMP — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"snmp:f5\"\n| timechart span=5m sum(clientside_curConns) as connections by virtual_server",
-  "description": "Reveals application demand patterns. Useful for capacity planning and DDoS detection.",
-  "value": "Application delivery teams trend F5 BIG-IP virtual server connections and throughput against capacity limits, detecting connection saturation and traffic anomalies before they impact application availability.",
+  "description": "Reveals application demand patterns. Useful for capacity planning and DDoS detection. Searches `index=network` with sourcetype `snmp:f5` for UC-5.3.3, aggregating `sum` by `virtual_server` over `5m`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Connection and Throughput Trending (F5 BIG-IP)' without manual log review.",
+  "value": "Reveals application demand patterns. Timely UC-5.3.3 alerting on 'Connection and Throughput Trending (F5 BIG-IP)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll F5 via SNMP or iControl REST for VIP statistics. Baseline patterns and alert on anomalies.",
   "visualization": "Line chart per VIP, Area chart (throughput), Table.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Connection and Throughput Trending (F5 BIG-IP)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Connection and Throughput Trending (F5 BIG-IP)' shifts `sum` over `span=5m` while `virtual_server` remains in-scope for UC-5.3.3. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snmp:f5`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `virtual_server`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:f5`** — First 48h baseline for `virtual_server` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `virtual_server`, `exception_reason`, `valid_until`.",
   "equipment": [
     "f5",
     "snmp"

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'WAF Policy Violations (F5 BIG-IP ASM)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_waf_policy_violations_f5_big_ip_asm` (UC-5.3.8), SOC dashboard panel \"Operations — WAF Policy Violations (F5 BIG-IP ASM)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='f5:bigip:asm:syslog' that satisfy the UC-5.3.8 SPL filters for 'WAF Policy Violations (F5 BIG-IP ASM)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `f5:bigip:asm:syslog` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.3.8."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='f5:bigip:asm:syslog' where `violation_name` satisfies detection threshold for UC-5.3.8 ('WAF Policy Violations (F5 BIG-IP ASM)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `f5:bigip:asm:syslog` events where `violation_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.3.8."
   },
   "dataSources": "`sourcetype=f5:bigip:asm:syslog` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_f5-bigip` (ASM) — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=network sourcetype=\"f5:bigip:asm:syslog\"\n| stats count by violation_name, src, request_uri, severity | sort -count",
-  "description": "WAF violations indicate attacks — SQL injection, XSS, command injection. Trending reveals campaigns.",
-  "value": "Security teams analyze F5 BIG-IP ASM/Advanced WAF policy violations by attack type, severity, and enforcement action, identifying unblocked critical attacks and top threat sources for policy tuning.",
+  "description": "WAF violations indicate attacks — SQL injection, XSS, command injection. Trending reveals campaigns. Searches `index=network` with sourcetype `f5:bigip:asm:syslog` for UC-5.3.8, aggregating `count` by `violation_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'WAF Policy Violations (F5 BIG-IP ASM)' without manual log review.",
+  "value": "WAF violations indicate attacks — SQL injection, XSS, command injection. Timely UC-5.3.8 alerting on 'WAF Policy Violations (F5 BIG-IP ASM)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Enable F5 ASM logging. Dashboard showing top violations, attack sources, and targeted URIs.",
   "visualization": "Table, Bar chart by violation, Map (source IPs), Timeline.",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'WAF Policy Violations (F5 BIG-IP ASM)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `network` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'WAF Policy Violations (F5 BIG-IP ASM)' shifts `count` over `span=1h` while `violation_name` remains in-scope for UC-5.3.8. Cross-check CMDB CHG.\n\n2. **Batch `count` on `f5:bigip:asm:syslog`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `violation_name`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `f5:bigip:asm:syslog`** — First 48h baseline for `violation_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `violation_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "f5",
     "syslog"

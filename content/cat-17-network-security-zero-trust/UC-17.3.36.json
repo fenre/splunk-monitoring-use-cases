@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Netskope Private Access (NPA) Health' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_netskope_private_access_npa_health` (UC-17.3.36), SOC dashboard panel \"Network — Netskope Private Access (NPA) Health\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=casb` sourcetype='netskope:connection' that satisfy the UC-17.3.36 SPL filters for 'Netskope Private Access (NPA) Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `casb` / `netskope:connection` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.36."
+    "positiveScenario": "Ingest synthetic events into `index=casb` sourcetype='netskope:connection' where `publisher_name` satisfies `latency_ms` < 1000 for UC-17.3.36 ('Netskope Private Access (NPA) Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `casb` / `netskope:connection` events where `publisher_name` stays below `latency_ms` < 1000, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.36."
   },
   "dataSources": "`sourcetype=netskope:connection` or `netskope:network` (NPA connection events) Indexes: casb. Sourcetypes: netskope:connection. Key fields: error_pct, healthy, latency_ms, private_app, publisher_name. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Netskope Add-on for Splunk (Splunkbase 3808)",
   "spl": "index=casb sourcetype=\"netskope:connection\" earliest=-24h\n| eval healthy=if(match(lower(status),\"(?i)success|established|active\") AND latency_ms<1000,1,0)\n| stats count sum(healthy) as ok by publisher_name, private_app\n| eval error_pct=round(100*(count-ok)/count,1)\n| where error_pct > 5\n| sort -error_pct",
   "description": "Netskope Private Access (NPA) is the ZTNA component — replacing VPN for private application access. Publisher (connector) health, error rates, and latency determine whether users can reach internal apps.",
-  "value": "ZTNA operations teams monitor Netskope Private Access Publisher health and application access success rates, ensuring NPA connectors remain available and identifying private applications with connection failures that leave users without secure access to internal resources.",
+  "value": "Netskope Private Access (NPA) is the ZTNA component — replacing VPN for private application access. Timely UC-17.3.36 alerting on 'Netskope Private Access (NPA) Health' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Map `publisher_name` to datacenter/region. Alert when any publisher shows >10% error rate or latency p95 exceeds 2s. Report on NPA adoption vs legacy VPN.",
   "visualization": "Table (unhealthy publishers), Single value (publishers in error), Line chart (error rate trend), Bar chart (latency by app).",
   "cimModels": [],
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Netskope Private Access (NPA) Health'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `casb`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `netskope:connection` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `casb`** — Planned work for 'Netskope Private Access (NPA) Health' shifts `sum` over `span=1h` while `publisher_name` remains in-scope for UC-17.3.36. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `netskope:connection`** — Scheduled automation elevates `private_app` without crossing `latency_ms` < 1000. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `publisher_name`** — Health checks in `casb` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netskope:connection`** — First 48h baseline for `publisher_name` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `publisher_name`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1133"
   ],

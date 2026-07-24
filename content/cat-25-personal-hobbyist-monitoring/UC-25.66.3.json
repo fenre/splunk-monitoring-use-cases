@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Bridge Slam Contract Accuracy' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_bridge_slam_contract_accuracy` (UC-25.66.3), SOC dashboard panel \"Personal — Bridge Slam Contract Accuracy\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='bridgebase:board' that satisfy the UC-25.66.3 SPL filters for 'Bridge Slam Contract Accuracy'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `bridgebase:board` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.66.3."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='bridgebase:board' where `partnership_name` satisfies `contract_level` >= 6 for UC-25.66.3 ('Bridge Slam Contract Accuracy'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `bridgebase:board` events where `partnership_name` stays below `contract_level` >= 6, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.66.3."
   },
   "dataSources": "BoardGameGeek plays (`bgg:play`), Poker Now sessions (`pokernow:session`), Bridge Base Online boards (`bridgebase:board`), and Lichess tournament rounds (`lichess:tournament`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "BoardGameGeek play logs, Poker Now session exports, Bridge Base Online boards, and Lichess tournament data ingested into Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=bridgebase:board contract_level>=6\n| eval made_contract=if(result_points>=0,1,0)\n| stats sum(made_contract) as made, count as slam_bids by partnership_name\n| eval made_pct=round(100*made/slam_bids,1)\n| sort - made_pct",
-  "description": "Measures how often slam-level bridge contracts are actually made by each partnership.",
-  "value": "Slam judgment is high-leverage and memorable, which makes it useful as a focused improvement lens.",
+  "description": "Measures how often slam-level bridge contracts are actually made by each partnership. Searches `index=personal` with sourcetype `bridgebase:board` for UC-25.66.3, aggregating `sum` by `partnership_name` over `the scheduled window`. Alerts when grouped results cross `contract_level` >= 6 in the saved search. Gives Personal operators a repeatable signal for 'Bridge Slam Contract Accuracy' without manual log review.",
+  "value": "Measures how often slam-level bridge contracts are actually made by each partnership. Timely UC-25.66.3 alerting on 'Bridge Slam Contract Accuracy' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Parse BBO board records for contract level and result, then track slam make percentage by partnership.",
   "visualization": "Table of partnerships with slam bid count and make percentage.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Bridge Slam Contract Accuracy'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `bridgebase:board`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Bridge Slam Contract Accuracy' stops polling `bridgebase:board`; stale `partnership_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `bridgebase:board`. Dedup with `stats latest(*) by partnership_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `contract_level` >= 6. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Kubernetes Node NotReady Minutes' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_kubernetes_node_notready_minutes` (UC-25.8.25), SOC dashboard panel \"Personal — Kubernetes Node NotReady Minutes\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='kubernetes:pod' that satisfy the UC-25.8.25 SPL filters for 'Kubernetes Node NotReady Minutes'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `kubernetes:pod` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.25."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='kubernetes:pod' where `node` satisfies `notready_samples` > 0 for UC-25.8.25 ('Kubernetes Node NotReady Minutes'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `kubernetes:pod` events where `node` stays below `notready_samples` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.25."
   },
   "dataSources": "Homelab services (`kubernetes:pod`, `proxmox:metric`, `vaultwarden:event`, `paperless:document`, `immich:job`, `adguard:query`, `docker:stats`, `truenas:pool`, `nut:ups`, `uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Kubernetes homelab clusters, Proxmox, Vaultwarden, Paperless-ngx, Immich, AdGuard Home, Docker, TrueNAS, and NUT metrics via APIs, logs, Telegraf, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=kubernetes:pod metric=node\n| bin _time span=1d\n| stats sum(eval(status=\"NotReady\")) as notready_samples by node _time\n| where notready_samples>0\n| sort - notready_samples",
-  "description": "Uses Kubernetes node status telemetry to monitor how often nodes fell into NotReady state in index=personal.",
-  "value": "Splunk turns the feed into an operational check for node health problems before workloads migrate unexpectedly, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses Kubernetes node status telemetry to monitor how often nodes fell into NotReady state in index=personal. Searches `index=personal` with sourcetype `kubernetes:pod` for UC-25.8.25, aggregating `sum` by `node` over `1d`. Alerts when grouped results cross `notready_samples` > 0 in the saved search. Gives Personal operators a repeatable signal for 'Kubernetes Node NotReady Minutes' without manual log review.",
+  "value": "Uses Kubernetes node status telemetry to monitor how often nodes fell into NotReady state in index=personal. Timely UC-25.8.25 alerting on 'Kubernetes Node NotReady Minutes' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Kubernetes node status data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Daily node table of NotReady samples.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Kubernetes Node NotReady Minutes'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `kubernetes:pod`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Kubernetes Node NotReady Minutes' stops polling `kubernetes:pod`; stale `node` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `kubernetes:pod`. Dedup with `stats latest(*) by node`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `notready_samples` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "hashicorp",

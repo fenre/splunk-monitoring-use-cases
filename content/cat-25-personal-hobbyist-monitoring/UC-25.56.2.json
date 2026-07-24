@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Scripture Reading-Plan Progress' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_scripture_reading_plan_progress` (UC-25.56.2), SOC dashboard panel \"Personal — Scripture Reading-Plan Progress\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='scripture:reading' that satisfy the UC-25.56.2 SPL filters for 'Scripture Reading-Plan Progress'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `scripture:reading` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.56.2."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='scripture:reading' where `entity` satisfies detection threshold for UC-25.56.2 ('Scripture Reading-Plan Progress'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `scripture:reading` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.56.2."
   },
   "dataSources": "Prayer sessions (`prayer:session`), scripture readings (`scripture:reading`), fasting logs (`fasting:log`), gratitude entries (`gratitude:entry`), retreats (`retreat:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Spiritual-practice and mindfulness logs — prayer / meditation timers, scripture-reading plans (YouVersion), fasting and gratitude journals, and retreat calendars — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=scripture:reading\n| stats dc(passage) as passages_read, max(plan_total) as plan_total\n| eval progress_pct=round(100*passages_read/plan_total,1), remaining=plan_total-passages_read",
-  "description": "Shows how far through a reading plan you are and how much remains to finish on schedule.",
-  "value": "A clear progress bar keeps a long reading plan achievable and encourages you to catch up when behind.",
+  "description": "Shows how far through a reading plan you are and how much remains to finish on schedule. Searches `index=personal` with sourcetype `scripture:reading` for UC-25.56.2, aggregating `dc` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Scripture Reading-Plan Progress' without manual log review.",
+  "value": "Shows how far through a reading plan you are and how much remains to finish on schedule. Timely UC-25.56.2 alerting on 'Scripture Reading-Plan Progress' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest reading-plan entries into `index=personal`; compute progress against the plan total.",
   "visualization": "Progress bar of reading-plan completion.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Scripture Reading-Plan Progress'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `scripture:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Scripture Reading-Plan Progress' stops polling `scripture:reading`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `dc` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `scripture:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

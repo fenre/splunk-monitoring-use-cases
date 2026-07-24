@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Daily Activity Baseline and Deviation' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_daily_activity_baseline_and_deviation` (UC-25.52.1), SOC dashboard panel \"Personal — Daily Activity Baseline and Deviation\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='eldercare:activity' that satisfy the UC-25.52.1 SPL filters for 'Daily Activity Baseline and Deviation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `eldercare:activity` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.52.1."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='eldercare:activity' where `_time` satisfies detection threshold for UC-25.52.1 ('Daily Activity Baseline and Deviation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `eldercare:activity` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.52.1."
   },
   "dataSources": "Daily activity (`eldercare:activity`), fall alerts (`fall:alert`), medication reminders (`medreminder:event`), check-in calls (`checkin:call`), wandering alerts (`wandering:alert`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Elder-care and accessibility telemetry — activity and fall sensors (Apple Watch fall detection, motion mats), medication dispensers, and check-in / video-call logs — streamed to Splunk HEC via APIs and smart-home hubs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=eldercare:activity\n| bin _time span=1d\n| stats sum(motion_events) as motion by _time\n| eventstats avg(motion) as baseline, stdev(motion) as sd\n| eval low=if(motion<baseline-2*sd,1,0)\n| where low=1",
   "description": "Learns a loved one's normal daily movement around the home and flags days that fall well below it, which can signal illness or a problem.",
-  "value": "A quiet house is often the first sign something is wrong for someone living alone; catching it early can prevent harm.",
+  "value": "Learns a loved one's normal daily movement around the home and flags days that fall well below it, which ca.... Timely UC-25.52.1 alerting on 'Daily Activity Baseline and Deviation' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest motion-sensor counts into `index=personal`; compare each day to a rolling baseline and alert on big drops.",
   "visualization": "Line chart of daily motion with a baseline band and flagged low days.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Daily Activity Baseline and Deviation'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `eldercare:activity`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Daily Activity Baseline and Deviation' stops polling `eldercare:activity`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `eldercare:activity`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'OT Protocol Port Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ot_protocol_port_monitoring` (UC-14.2.20), SOC dashboard panel \"Operations — OT Protocol Port Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='zeek:conn' that satisfy the UC-14.2.20 SPL filters for 'OT Protocol Port Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `zeek:conn` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.20."
+    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='zeek:conn' where `src` satisfies detection threshold for UC-14.2.20 ('OT Protocol Port Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ot` / `zeek:conn` events where `src` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.20."
   },
   "dataSources": "`sourcetype=\"zeek:conn\"` with OT VLANs, `sourcetype=\"ics:protocol\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "SPAN / Zeek OT, industrial firewall — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot (sourcetype=\"zeek:conn\" OR sourcetype=\"ics:protocol\")\n| where dest_port IN (502,20000,44818,2404) OR service IN (\"modbus\",\"dnp3\",\"enip\")\n| lookup ot_authorized_peers src dest OUTPUT approved\n| where approved!=\"true\"\n| stats count by src, dest, dest_port, service\n| sort -count",
-  "description": "Unexpected Modbus, DNP3, or EtherNet/IP ports on non-asset IPs reveal rogue devices or scanning.",
+  "description": "Unexpected Modbus, DNP3, or EtherNet/IP ports on non-asset IPs reveal rogue devices or scanning. Searches `index=ot` with sourcetype `zeek:conn` for UC-14.2.20, aggregating `count` by `src` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'OT Protocol Port Monitoring' without manual log review.",
   "value": "Early 'OT Protocol Port Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Pair with asset inventory; tune for engineering laptops in maintenance windows.",
   "visualization": "Table (unexpected sessions), Bar chart (port mix), Timeline.",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'OT Protocol Port Monitoring'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `ot` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'OT Protocol Port Monitoring' shifts `count` over `span=1h` while `src` remains in-scope for UC-14.2.20. Cross-check CMDB CHG.\n\n2. **Batch `count` on `zeek:conn`** — Scheduled automation elevates `dest` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zeek:conn`** — First 48h baseline for `src` is unstable; join `ot_authorized_peers` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "modbus"
   ],

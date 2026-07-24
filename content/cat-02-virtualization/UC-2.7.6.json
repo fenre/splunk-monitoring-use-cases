@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Proxmox VE Hypervisor Firewall Deny Hotspots by Guest and Rule' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_proxmox_ve_hypervisor_firewall_deny_hotspots_by_` (UC-2.7.6), SOC dashboard panel \"Linux — Proxmox VE Hypervisor Firewall Deny Hotspots by Guest and Rule\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=pve` sourcetype='proxmox:firewall' that satisfy the UC-2.7.6 SPL filters for 'Proxmox VE Hypervisor Firewall Deny Hotspots by Guest and Rule'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `pve` / `proxmox:firewall` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.7.6."
+    "positiveScenario": "Ingest synthetic events into `index=pve` sourcetype='proxmox:firewall' where `vmid` satisfies detection threshold for UC-2.7.6 ('Proxmox VE Hypervisor Firewall Deny Hotspots by Guest and Rule'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `pve` / `proxmox:firewall` events where `vmid` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.7.6."
   },
   "dataSources": "`index=pve` `sourcetype=\"proxmox:firewall\"` — `chain`, `action`, `proto`, `dport`, `src`, `dst`, `vmid`, `log_prefix` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "UF with `nft`/`iptables` LOG rules or consolidated `pve-firewall` log sink; rate-limit high-volume rules — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pve sourcetype=\"proxmox:firewall\" earliest=-24h\n| eval ac=lower(coalesce(action, verdict))\n| where ac=\"drop\" OR ac=\"reject\"\n| eval rk=coalesce(chain, rule, ruleid, log_prefix)\n| stats count as hits, dc(src) as uniq_src, values(dport) as ports by vmid, rk, dst\n| sort -hits\n| head 50",
   "description": "Hypervisor-level denies show east-west segmentation issues, compromised guests, or misapplied templates. Aggregating denies by guest and rule focuses policy fixes and incident triage without drowning in single-flow noise.",
-  "value": "Improves zero-trust posture inside the virtualization tier and reduces mean time to containment.",
+  "value": "Hypervisor-level denies show east-west segmentation issues, compromised guests, or misapplied templates. Timely UC-2.7.6 alerting on 'Proxmox VE Hypervisor Firewall Deny Hotspots by Guest and Rule' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Log selected deny chains with prefixes. Roll up hourly. Maintain a lookup of approved scanners. Alert when new vmid/rule combinations spike above a 30-day baseline.",
   "visualization": "Bar chart top deny rules; pie by vmid; drilldown raw events.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Proxmox VE Hypervisor Firewall Deny Hotspots by Guest and Rule'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `pve` `proxmox:firewall`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `pve`** — Package managers spike `vmid` metrics for 'Proxmox VE Hypervisor Firewall Deny Hotspots by Guest and Rule'. Correlate with apt/yum logs in the same `proxmox:firewall` window.\n\n2. **Nightly backup I/O on `vmid`** — Predictable `dc` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `proxmox:firewall`** — Nagios/Zabbix polls `vmid` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `vmid` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `vmid`, `valid_until`.",
   "equipment": [
     "hyperv",
     "proxmox"

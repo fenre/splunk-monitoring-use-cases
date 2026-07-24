@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Strava Segment PR Near-Miss Tracker' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_strava_segment_pr_near_miss_tracker` (UC-25.1.16), SOC dashboard panel \"Personal — Strava Segment PR Near-Miss Tracker\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='strava:activity' that satisfy the UC-25.1.16 SPL filters for 'Strava Segment PR Near-Miss Tracker'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `strava:activity` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.16."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='strava:activity' where `segment_name` satisfies `closest_gap` > 0 for UC-25.1.16 ('Strava Segment PR Near-Miss Tracker'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `strava:activity` events where `segment_name` stays below `closest_gap` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.16."
   },
   "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift ride exports (`zwift:activity`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as file inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=strava:activity has_segments=true\n| stats min(pr_gap_seconds) as closest_gap, count as attempts by segment_name\n| where closest_gap>0 AND closest_gap<=10\n| sort closest_gap",
   "description": "Finds the segments where you are repeatedly a few seconds short of a personal record, so you know exactly which efforts are one good day away from a breakthrough.",
-  "value": "Near misses are motivating because they show fitness is already there; this list turns vague 'I think I'm close' feelings into specific targets.",
+  "value": "Finds the segments where you are repeatedly a few seconds short of a personal record, so you know exactly w.... Timely UC-25.1.16 alerting on 'Strava Segment PR Near-Miss Tracker' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward per-segment performance data from Strava; review the tightest near misses before your next hard session.",
   "visualization": "Leaderboard of segments with the smallest PR gaps.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Strava Segment PR Near-Miss Tracker'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `strava:activity`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Strava Segment PR Near-Miss Tracker' stops polling `strava:activity`; stale `segment_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `min` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `strava:activity`. Dedup with `stats latest(*) by segment_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `closest_gap` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

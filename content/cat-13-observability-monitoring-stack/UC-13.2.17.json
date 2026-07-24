@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Notable Event Suppression Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_notable_event_suppression_audit` (UC-13.2.17), SOC dashboard panel \"Operations — Notable Event Suppression Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsi_notable` sourcetype='itsi:notable_audit' that satisfy the UC-13.2.17 SPL filters for 'Notable Event Suppression Audit'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsi_notable` / `itsi:notable_audit` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.2.17."
+    "positiveScenario": "Ingest synthetic events into `index=itsi_notable` sourcetype='itsi:notable_audit' where `user` satisfies detection threshold for UC-13.2.17 ('Notable Event Suppression Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `itsi_notable` / `itsi:notable_audit` events where `user` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-13.2.17."
   },
   "dataSources": "`index=itsi_notable:audit` / notable audit logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk ITSI, ES correlation (if linked) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsi_notable:audit OR index=notable sourcetype=\"itsi:notable_audit\"\n| search action IN (\"suppress\",\"close\",\"suppress_episode\")\n| stats count by user, rule_id, reason\n| sort -count",
-  "description": "Over-suppression hides incidents; audit ensures suppress rules and analyst actions are justified.",
+  "description": "Over-suppression hides incidents; audit ensures suppress rules and analyst actions are justified. Searches `index=itsi_notable` with sourcetype `itsi:notable_audit` for UC-13.2.17, aggregating `count` by `user` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Notable Event Suppression Audit' without manual log review.",
   "value": "Early 'Notable Event Suppression Audit' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ingest notable audit events with user, rule, and reason. Alert on high-volume suppression by single user or new rule. Review monthly for policy compliance.",
   "visualization": "Table (top suppressors), Bar chart (suppressions by rule), Timeline (suppression events).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Notable Event Suppression Audit'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `itsi_notable` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `itsi_notable`** — Planned work for 'Notable Event Suppression Audit' shifts `count` over `span=1h` while `user` remains in-scope for UC-13.2.17. Cross-check CMDB CHG.\n\n2. **Batch `count` on `itsi:notable_audit`** — Scheduled automation elevates `rule_id` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`** — Health checks in `itsi_notable` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `itsi:notable_audit`** — First 48h baseline for `user` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "equipment": [
     "itsi"
   ],

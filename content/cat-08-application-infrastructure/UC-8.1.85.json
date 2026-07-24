@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'WildFly Undertow Worker Thread Saturation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_wildfly_undertow_worker_thread_saturation` (UC-8.1.85), SOC dashboard panel \"Operations — WildFly Undertow Worker Thread Saturation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='jboss:server' that satisfy the UC-8.1.85 SPL filters for 'WildFly Undertow Worker Thread Saturation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `jboss:server` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.85."
+    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='jboss:server' where `entity` satisfies `worker_max` > 0 for UC-8.1.85 ('WildFly Undertow Worker Thread Saturation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `web` / `jboss:server` events where `entity` stays below `worker_max` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.85."
   },
   "dataSources": "`index=web` `sourcetype=jboss:server` (`server.log`) Undertow/XNIO worker thread summaries; optional JMX `jmx:jboss` for `undertow` worker metrics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder; Splunk Add-on for JMX (`Splunk_TA_jmx`); file monitoring for `jboss:server`, structured audit for `wildfly:audit` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"jboss:server\"\n| regex _raw=\"(?i)XNIO.*worker\"\n| rex field=_raw \"IO-threads=(?<io_threads>\\d+).*worker-threads=(?<worker_current>\\d+)/(?<worker_max>\\d+)\"\n| eval w_util=if(worker_max>0, round(100*tonumber(worker_current)/tonumber(worker_max),1), null())\n| where w_util >= 90",
   "description": "Undertow uses XNIO worker threads for blocking servlet work. When workers are exhausted, latency climbs while CPU may look healthy. Log-derived utilization complements JMX for quick alerting.",
-  "value": "Protects user-facing latency on WildFly-hosted APIs and portals. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Undertow uses XNIO worker threads for blocking servlet work. Timely UC-8.1.85 alerting on 'WildFly Undertow Worker Thread Saturation' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Forward `$JBOSS_HOME/standalone/log/server.log` via UF. For precision, add `Splunk_TA_jmx` MBeans `undertow` worker. Alert on worker utilization ≥90%.",
   "visualization": "Time series for pool/queue metrics, top stats for failures, event timeline for deploys.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'WildFly Undertow Worker Thread Saturation'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `web` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'WildFly Undertow Worker Thread Saturation' shifts `count` over `span=1h` while `host` remains in-scope for UC-8.1.85. Cross-check CMDB CHG.\n\n2. **Batch `count` on `jboss:server`** — Scheduled automation elevates `w_util` without crossing `worker_max` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jboss:server`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "jboss"
   ],

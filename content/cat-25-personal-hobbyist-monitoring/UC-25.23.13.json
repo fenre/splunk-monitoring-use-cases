@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Nap-Transition Readiness by Wake Window' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_nap_transition_readiness_by_wake_window` (UC-25.23.13), SOC dashboard panel \"Personal — Nap-Transition Readiness by Wake Window\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='baby:sleep' that satisfy the UC-25.23.13 SPL filters for 'Nap-Transition Readiness by Wake Window'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `baby:sleep` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.23.13."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='baby:sleep' where `child` satisfies detection threshold for UC-25.23.13 ('Nap-Transition Readiness by Wake Window'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `baby:sleep` events where `child` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.23.13."
   },
   "dataSources": "Baby feedings (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), school departures (`school:departure`), stroller activity (`stroller:walk`), household chores (`chore:event`), and family geofence events (`family:location`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Family and baby telemetry from baby-tracking apps, school and geofence automations, stroller logs, chore trackers, and shared-home events streamed to Splunk HEC via APIs and Home Assistant. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=baby:sleep event=\"nap_start\"\n| stats avg(wake_window_min) as avg_wake_window_min avg(sleep_minutes) as avg_nap_minutes by child nap_number\n| sort child nap_number",
-  "description": "Compares wake-window length with the quality of the following nap to show when the nap schedule is ready to shift.",
-  "value": "Nap transitions are easier when you can see the wake windows that still produce good sleep instead of relying on vague intuition.",
+  "description": "Compares wake-window length with the quality of the following nap to show when the nap schedule is ready to shift. Searches `index=personal` with sourcetype `baby:sleep` for UC-25.23.13, aggregating `avg` by `child` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Nap-Transition Readiness by Wake Window' without manual log review.",
+  "value": "Compares wake-window length with the quality of the following nap to show when the nap schedule is ready to.... Timely UC-25.23.13 alerting on 'Nap-Transition Readiness by Wake Window' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture nap starts with the preceding wake-window duration from your baby-tracking app.",
   "visualization": "Line chart of average wake window and nap duration by nap number.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Nap-Transition Readiness by Wake Window'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `baby:sleep`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Nap-Transition Readiness by Wake Window' stops polling `baby:sleep`; stale `child` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `baby:sleep`. Dedup with `stats latest(*) by child`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

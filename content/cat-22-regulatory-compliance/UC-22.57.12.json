@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Pause AISP feed. UC-22.57.12 MUST flag within 1h.",
-    "negativeScenario": "Resume feed. UC-22.57.12 MUST NOT escalate."
+    "positiveScenario": "Ingest synthetic events into `index=threat_intel` sourcetype='target_sourcetype' where `entity` satisfies `hours_since_event` > 4 for UC-22.57.12 ('SG Cyber Act CII Threat-Sharing Programme (CTSP) + AISP integration health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `threat_intel` / `target_sourcetype` events where `entity` stays below `hours_since_event` > 4, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.57.12."
   },
   "dataSources": "CSA AISP via TAXII. CSA CTSP indicator drops via STIX. Splunk ES threat_intel framework.",
   "app": "Splunk Enterprise Security (Splunkbase 263).",
   "spl": "| metadata type=sources index=threat_intel\n| eval source_normalized = case(\n    match(source, \"(?i)csa.+aisp\"), \"CSA_AISP\",\n    match(source, \"(?i)csa.+ctsp\"), \"CSA_CTSP\",\n    1=1, \"other\")\n| where source_normalized!=\"other\"\n| eval hours_since_event = round((now() - lastTime)/3600, 1)\n| eval feed_status = case(\n    isnull(lastTime), \"never_seen\",\n    hours_since_event > 4, \"stale\",\n    1=1, \"healthy\")\n| where feed_status IN (\"never_seen\",\"stale\")\n| table source_normalized hours_since_event feed_status",
   "description": "Surveys CSA CTSP / AISP feed freshness. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Active CTSP/AISP participation demonstrates CCoP cooperation and feeds the SOC. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "value": "Surveys CSA CTSP / AISP feed freshness. Timely UC-22.57.12 alerting on 'SG Cyber Act CII Threat-Sharing Programme (CTSP) + AISP integration health' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Subscribe to CSA AISP + CTSP. (2) Wire into `threat_intel`. (3) Schedule UC-22.57.12 hourly. (4) Build dashboard.",
   "visualization": "(Panel 1) Per-feed freshness. (Panel 2) Indicator-volume trend. (Panel 3) Operationalised vs raw. (Panel 4) CTSP-engagement log.",
   "cimModels": [
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit or GRC exercises 'SG Cyber Act CII Threat-Sharing Programme (CTSP) + AISP integration health' during scheduled clause SG-CSA-COC-ctsp evidence collection. Match compliance programme calendar and accounts tagged `compliance_ops=true`.\n\n2. **External assessor sampling** — QSA or regulator sampling temporarily spikes `index=threat_intel` `configured sourcetype` volume. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB-approved change pauses or reshapes ingestion to `threat_intel`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected cross-boundary events during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
+  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit exercises 'SG Cyber Act CII Threat-Sharing Programme (CTSP) + AISP integration health' (UC-22.57.12) on `entity` during scheduled clause SG-CSA-COC-ctsp sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=threat_intel` `configured sourcetype` without crossing `hours_since_event` > 4. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `threat_intel` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (threat-intel hygiene)"
   ],

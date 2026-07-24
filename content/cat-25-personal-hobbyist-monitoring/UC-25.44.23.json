@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'iNaturalist Foraging Identification Lag' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_inaturalist_foraging_identification_lag` (UC-25.44.23), SOC dashboard panel \"Personal — iNaturalist Foraging Identification Lag\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='forage:observation' that satisfy the UC-25.44.23 SPL filters for 'iNaturalist Foraging Identification Lag'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `forage:observation` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.44.23."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='forage:observation' where `species_group` satisfies detection threshold for UC-25.44.23 ('iNaturalist Foraging Identification Lag'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `forage:observation` events where `species_group` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.44.23."
   },
   "dataSources": "Catch trips (`outdoor:trip`), hunt map activity (`hunt:map`), foraging observations (`forage:observation`), smoker sessions (`cook:smoker`), harvest queues (`outdoor:queue`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Fishing, hunting, foraging, and outdoor-cooking telemetry — Fishbrain catch logs, onX Hunt map exports, iNaturalist observations, and ThermoWorks smoker probes — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=forage:observation species_group=* observed_epoch=* identified_epoch=*\n| eval lag_hours=round((identified_epoch-observed_epoch)/3600,1)\n| stats avg(lag_hours) as avg_lag_hours, max(lag_hours) as worst_lag_hours by species_group\n| sort - avg_lag_hours",
   "description": "Measures identification lag by species group for foraging observations. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Lag tracking shows which species group create the slowest handoffs, syncs, or review loops inside foraging observations.",
+  "value": "Measures identification lag by species group for foraging observations. Timely UC-25.44.23 alerting on 'iNaturalist Foraging Identification Lag' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture the timestamps needed to compute `identification lag` on `forage:observation` events and aggregate them by `species_group`.",
   "visualization": "Table of species group with average and worst identification lag.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'iNaturalist Foraging Identification Lag'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `forage:observation`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'iNaturalist Foraging Identification Lag' stops polling `forage:observation`; stale `species_group` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `forage:observation`. Dedup with `stats latest(*) by species_group`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

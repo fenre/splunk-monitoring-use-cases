@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Aqara Leak Sensor Check-In Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_aqara_leak_sensor_check_in_gap` (UC-25.5.19), SOC dashboard panel \"Personal — Aqara Leak Sensor Check-In Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='aqara:device' that satisfy the UC-25.5.19 SPL filters for 'Aqara Leak Sensor Check-In Gap'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `aqara:device` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.19."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='aqara:device' where `device` satisfies `hours_since` > 24 for UC-25.5.19 ('Aqara Leak Sensor Check-In Gap'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `aqara:device` events where `device` stays below `hours_since` > 24, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.19."
   },
   "dataSources": "Device-state telemetry (`zigbee2mqtt:device`, `aqara:device`, `tradfri:device`, `lifx:state`, `nanoleaf:scene`, `blindmotor:state`, `shelly:status`, `ecobee:thermostat`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Aqara, IKEA Tradfri, LIFX, Nanoleaf, Shelly, Zigbee2MQTT, Ecobee, and smart blind motors via vendor clouds, LAN APIs, MQTT bridges, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=aqara:device device_class=leak\n| stats max(_time) as last_seen by device\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>24\n| sort - hours_since",
-  "description": "Uses Aqara leak-sensor telemetry telemetry to monitor time since each leak sensor last checked in in index=personal.",
-  "value": "Splunk turns the feed into an operational check for silent water sensors before they matter, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses Aqara leak-sensor telemetry telemetry to monitor time since each leak sensor last checked in in index=personal. Searches `index=personal` with sourcetype `aqara:device` for UC-25.5.19, aggregating `max` by `device` over `the scheduled window`. Alerts when grouped results cross `hours_since` > 24 in the saved search. Gives Personal operators a repeatable signal for 'Aqara Leak Sensor Check-In Gap' without manual log review.",
+  "value": "Uses Aqara leak-sensor telemetry telemetry to monitor time since each leak sensor last checked in in index=.... Timely UC-25.5.19 alerting on 'Aqara Leak Sensor Check-In Gap' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Aqara leak-sensor telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Leak-sensor table ranked by hours since last update.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Aqara Leak Sensor Check-In Gap'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `aqara:device`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Aqara Leak Sensor Check-In Gap' stops polling `aqara:device`; stale `device` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `aqara:device`. Dedup with `stats latest(*) by device`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 24. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Breathwork vs Sleep Quality Lift' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_breathwork_vs_sleep_quality_lift` (UC-25.31.28), SOC dashboard panel \"Personal — Breathwork vs Sleep Quality Lift\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='breathwork:session' that satisfy the UC-25.31.28 SPL filters for 'Breathwork vs Sleep Quality Lift'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `breathwork:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.31.28."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='breathwork:session' where `_time` satisfies detection threshold for UC-25.31.28 ('Breathwork vs Sleep Quality Lift'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `breathwork:session` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.31.28."
   },
   "dataSources": "Mood entries (`daylio:entry`), CBT thought records (`cbt:record`), breathwork sessions (`breathwork:session`), and therapy homework items (`therapy:homework`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Wellbeing journaling telemetry from Daylio exports, CBT thought records, breathwork apps, and therapy homework trackers sent to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=breathwork:session\n| search next_sleep_score_delta=*\n| bin _time span=1w\n| stats avg(next_sleep_score_delta) as avg_next_sleep_score_delta by _time session_done\n| sort - _time",
-  "description": "Tracks sleep lift after breathwork days over time and breaks it out by breathwork flag.",
-  "value": "Sleep lift after breathwork helps you decide whether the routine belongs in the evening, not just the app.",
+  "description": "Tracks sleep lift after breathwork days over time and breaks it out by breathwork flag. Searches `index=personal` with sourcetype `breathwork:session` for UC-25.31.28, aggregating `avg` by `_time` over `1w`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Breathwork vs Sleep Quality Lift' without manual log review.",
+  "value": "Tracks sleep lift after breathwork days over time and breaks it out by breathwork flag. Timely UC-25.31.28 alerting on 'Breathwork vs Sleep Quality Lift' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send sleep lift after breathwork days events to `index=personal` with the fields used in the breakdown and review the resulting trend at 1w granularity.",
   "visualization": "Stacked time chart of sleep lift after breathwork days by breathwork flag.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Breathwork vs Sleep Quality Lift'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `breathwork:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Breathwork vs Sleep Quality Lift' stops polling `breathwork:session`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `breathwork:session`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

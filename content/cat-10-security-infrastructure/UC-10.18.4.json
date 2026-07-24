@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Broadcom Symantec SEP Application and Device Control Policy Violations' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_broadcom_symantec_sep_application_and_device_con` (UC-10.18.4), SOC dashboard panel \"Security Infra — Broadcom Symantec SEP Application and Device Control Policy Violations\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=endpoint` sourcetype='symantec:ep:security:file' that satisfy the UC-10.18.4 SPL filters for 'Broadcom Symantec SEP Application and Device Control Policy Violations'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `endpoint` / `symantec:ep:security:file` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.18.4."
+    "positiveScenario": "Ingest synthetic events into `index=endpoint` sourcetype='symantec:ep:security:file' where `host` satisfies detection threshold for UC-10.18.4 ('Broadcom Symantec SEP Application and Device Control Policy Violations'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `endpoint` / `symantec:ep:security:file` events where `host` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.18.4."
   },
   "dataSources": "`sourcetype=symantec:ep:security:file` events for Application Control and Device Control (USB, peripheral) policy breaches",
   "app": "Splunk Add-on for Symantec Endpoint Protection (Splunkbase 2772)",
   "spl": "index=endpoint sourcetype=\"symantec:ep:security:file\" earliest=-7d\n| eval host=coalesce(Computer_Name, computer_name, host)\n| eval desc=coalesce(Event_Description, event_description, _raw)\n| where match(lower(desc), \"(?i)application control|device control|usb|removable|blocked by policy|peripheral\")\n| eval policy=coalesce(Policy_Name, policy_name, \"unknown\")\n| stats count by host policy desc\n| sort -count",
   "description": "Application and Device Control policies stop unapproved software and removable media from exfiltrating data or running untrusted binaries. Aggregating policy violations reveals users or systems routinely fighting controls and highlights policy gaps.",
-  "value": "Strengthens data-loss prevention at the endpoint and gives auditors evidence that technical enforcement of software and USB restrictions is operating.",
+  "value": "Application and Device Control policies stop unapproved software and removable media from exfiltrating data.... Timely UC-10.18.4 alerting on 'Broadcom Symantec SEP Application and Device Control Policy Violations' reduces missed threat campaigns, control regressions, and SOC SLA breaches before manual triage or audit channels escalate.",
   "implementation": "(1) Ensure SEPM logs Application and Device Control events. (2) Normalize `Policy_Name` and descriptions. (3) Group by business unit via CMDB. (4) Separate expected test machines with a lookup. (5) Weekly review with desktop engineering for top violating hosts.",
   "visualization": "Bar chart (violations by policy), table (host × policy × count), pie (block vs audit-only if action field exists).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Broadcom Symantec SEP Application and Device Control Policy Violations'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=endpoint` `symantec:ep:security:file`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `endpoint`** — Planned work for 'Broadcom Symantec SEP Application and Device Control Policy Violations' shifts `count` over `span=1h` while `host` remains in-scope for UC-10.18.4. Cross-check CMDB CHG.\n\n2. **Batch `count` on `symantec:ep:security:file`** — Scheduled automation elevates `policy` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `endpoint` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `symantec:ep:security:file`** — First 48h baseline for `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "securityDomain": "endpoint",
   "equipment": [
     "broadcom_symantec"

@@ -59,16 +59,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Bumping the privacy notice to v4 when a subject's consent is at v3 returns needs_refresh=1.",
-    "negativeScenario": "A subject whose consent matches the current notice is absent.",
-    "fixtureRef": "",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=consent` sourcetype='onetrust:consent' where `subject_id` satisfies detection threshold for UC-22.8.39 ('SOC 2 P1.1 — Privacy notice: consent-record freshness for privacy-notice version changes'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `consent` / `onetrust:consent` events where `subject_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.8.39."
   },
   "dataSources": "`index=consent` sourcetype=onetrust:consent; privacy-notice version lookup `privacy_notice_versions.csv`.",
   "app": "Splunk Enterprise Security (Splunkbase)",
   "spl": "index=consent sourcetype=onetrust:consent earliest=-14d\n| stats latest(consent_version) AS consent_version latest(_time) AS consent_time BY subject_id\n| lookup privacy_notice_versions.csv AS latest OUTPUT current_version\n| eval days_stale=round((now()-consent_time)/86400,0)\n| eval needs_refresh=if(consent_version!=current_version,1,0)\n| where needs_refresh=1\n| table subject_id consent_version current_version days_stale needs_refresh",
   "description": "When the privacy notice changes version, subjects whose consent was against the old version must be re-prompted. This UC measures the backlog.",
-  "value": "Prevents P1.1 findings: 'consent records reference a superseded notice'. Satisfies the '<v-current>' regulator question asked at every annual audit.",
+  "value": "When the privacy notice changes version, subjects whose consent was against the old version must be re-prom.... Timely UC-22.8.39 alerting on 'SOC 2 P1.1 — Privacy notice: consent-record freshness for privacy-notice version changes' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Push consent changes to index=consent; (2) maintain privacy_notice_versions.csv; (3) schedule UC daily; (4) batch subjects needing refresh by cohort; (5) DPO owns the refresh campaign. Sourcetypes: `sourcetype=onetrust:consent`, `sourcetype=onetrust:consent;`.",
   "visualization": "Timechart of stale consent backlog, table of cohorts, single value 'subjects needing refresh'. Key fields: `consent_time`, `consent_version`, `current_version`, `days_stale`, `needs_refresh`, `subject_id`.",
   "cimModels": [],
@@ -92,7 +90,7 @@
       "title": "ISO/IEC 27001 Information Security"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised SOC 2 control testing** — Internal audit exercises 'SOC 2 P1.1 — Privacy notice: consent-record freshness for privacy-notice version changes' (UC-22.8.39) on `subject_id` during scheduled clause P1.1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=consent` `onetrust:consent` without crossing evidence threshold. Cross-check engagement letter in `soc_2_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `consent` for `subject_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `subject_id` during normal service delivery.\n\n**Suppression mechanism:** `soc_2_exception_register.csv` keyed on `subject_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Baseline",
   "securityDomain": "audit",
   "requiredFields": [

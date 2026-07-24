@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Lightning Sensor False-Strike Ratio' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_lightning_sensor_false_strike_ratio` (UC-25.20.26), SOC dashboard panel \"Personal — Lightning Sensor False-Strike Ratio\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lightning:strike' that satisfy the UC-25.20.26 SPL filters for 'Lightning Sensor False-Strike Ratio'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `lightning:strike` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.20.26."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lightning:strike' where `sensor` satisfies `total_strikes` > 0 for UC-25.20.26 ('Lightning Sensor False-Strike Ratio'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `lightning:strike` events where `sensor` stays below `total_strikes` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.20.26."
   },
   "dataSources": "Citizen-science telemetry (`seismo:reading`, `geiger:cpm`, `lightning:strike`, `airgradient:sensor`, `radon:reading`, `allsky:capture`, `magnetometer:reading`, `weatherstation:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Raspberry Shake, Safecast, Blitzortung-compatible lightning sensors, AirGradient CO2 sensors, radon monitors, allsky cameras, and magnetometers streamed to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=lightning:strike\n| stats count as total_strikes, count(eval(validated=\"false\")) as false_strikes by sensor\n| eval false_pct=round(100*false_strikes/total_strikes,1)\n| where total_strikes>0 AND false_pct>20\n| sort - false_pct",
-  "description": "Uses Lightning strike telemetry telemetry to monitor how many hits the sensor later marked as false in index=personal.",
-  "value": "Splunk turns the feed into an operational check for detectors that need placement or filtering changes, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses Lightning strike telemetry telemetry to monitor how many hits the sensor later marked as false in index=personal. Searches `index=personal` with sourcetype `lightning:strike` for UC-25.20.26, aggregating `count` by `sensor` over `the scheduled window`. Alerts when grouped results cross `total_strikes` > 0 in the saved search. Gives Personal operators a repeatable signal for 'Lightning Sensor False-Strike Ratio' without manual log review.",
+  "value": "Uses Lightning strike telemetry telemetry to monitor how many hits the sensor later marked as false in inde.... Timely UC-25.20.26 alerting on 'Lightning Sensor False-Strike Ratio' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Lightning strike telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Sensor table of false-strike percentage.",
   "cimModels": [],
@@ -60,7 +60,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Lightning Sensor False-Strike Ratio'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lightning:strike`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Lightning Sensor False-Strike Ratio' stops polling `lightning:strike`; stale `sensor` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lightning:strike`. Dedup with `stats latest(*) by sensor`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `total_strikes` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

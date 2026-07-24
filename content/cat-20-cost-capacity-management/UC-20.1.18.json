@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'Orphaned Cloud Resource Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_orphaned_cloud_resource_detection` (UC-20.1.18), SOC dashboard panel \"Operations — Orphaned Cloud Resource Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cloud_inventory` sourcetype='aws:config:inventory' that satisfy the UC-20.1.18 SPL filters for 'Orphaned Cloud Resource Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cloud_inventory` / `aws:config:inventory` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-20.1.18."
+    "positiveScenario": "Ingest synthetic events into `index=cloud_inventory` sourcetype='aws:config:inventory' where `account_id` satisfies detection threshold for UC-20.1.18 ('Orphaned Cloud Resource Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cloud_inventory` / `aws:config:inventory` events where `account_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-20.1.18."
   },
   "dataSources": "`aws:config:inventory`, cost Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "AWS Config snapshot, resource inventory — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Orphaned Cloud Resource Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `cloud_inventory` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `cloud_inventory`** — Planned work for 'Orphaned Cloud Resource Detection' shifts `sum` over `span=1h` while `account_id` remains in-scope for UC-20.1.18. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:config:inventory`** — Scheduled automation elevates `region` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `account_id`** — Health checks in `cloud_inventory` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:config:inventory`** — First 48h baseline for `account_id` is unstable; join `monthly_storage_rate` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `account_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

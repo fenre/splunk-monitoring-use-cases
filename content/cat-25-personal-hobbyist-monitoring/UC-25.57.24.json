@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Mutual Aid Response Lag by Need Type' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_mutual_aid_response_lag_by_need_type` (UC-25.57.24), SOC dashboard panel \"Personal — Mutual Aid Response Lag by Need Type\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='community:mutualaid' that satisfy the UC-25.57.24 SPL filters for 'Mutual Aid Response Lag by Need Type'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `community:mutualaid` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.57.24."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='community:mutualaid' where `need_type` satisfies detection threshold for UC-25.57.24 ('Mutual Aid Response Lag by Need Type'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `community:mutualaid` events where `need_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.57.24."
   },
   "dataSources": "Volunteer shifts (`community:shift`), donations (`community:donation`), mutual-aid requests (`community:mutualaid`), service ops (`community:impact`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Community-service telemetry — food-bank shift logs, blood-donation records, and mutual-aid request maps — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=community:mutualaid need_type=* requested_epoch=* first_response_epoch=*\n| eval lag_hours=round((first_response_epoch-requested_epoch)/3600,1)\n| stats avg(lag_hours) as avg_lag_hours, max(lag_hours) as worst_lag_hours by need_type\n| sort - avg_lag_hours",
   "description": "Measures response lag by need type for mutual-aid requests. Runs scheduled SPL against `index=personal` to surface **Mutual Aid Response Lag by Need Type** so you can spot drift before it becomes a habit.",
-  "value": "Lag tracking shows which need type create the slowest handoffs, syncs, or review loops inside mutual-aid requests.",
+  "value": "Measures response lag by need type for mutual-aid requests. Timely UC-25.57.24 alerting on 'Mutual Aid Response Lag by Need Type' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture the timestamps needed to compute `response lag` on `community:mutualaid` events and aggregate them by `need_type`.",
   "visualization": "Table of need type with average and worst response lag.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Mutual Aid Response Lag by Need Type'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `community:mutualaid`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Mutual Aid Response Lag by Need Type' stops polling `community:mutualaid`; stale `need_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `community:mutualaid`. Dedup with `stats latest(*) by need_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "dell_emc"
   ],

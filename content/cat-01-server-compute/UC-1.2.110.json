@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'PowerShell Constrained Language Mode Bypass' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_powershell_constrained_language_mode_bypass` (UC-1.2.110), SOC dashboard panel \"Linux — PowerShell Constrained Language Mode Bypass\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=4104 that satisfy the UC-1.2.110 SPL filters for 'PowerShell Constrained Language Mode Bypass'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.110."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=4104 where `entity` satisfies detection threshold for UC-1.2.110 ('PowerShell Constrained Language Mode Bypass'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.110."
   },
   "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-PowerShell/Operational` (EventCode 4104), `sourcetype=WinEventLog:Windows PowerShell` Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog EventCode=4104\n| where match(ScriptBlockText, \"(?i)(FullLanguage|LanguageMode|Add-Type.*DllImport|System\\.Management\\.Automation\\.LanguageMode)\")\n| table _time, host, UserName, ScriptBlockText, Path\n| sort -_time",
   "description": "Constrained Language Mode limits PowerShell attack surface. Detecting bypasses reveals attackers escalating from restricted to full-language mode for malware execution.",
-  "value": "Constrained language mode is a control; bypasses put full PowerShell back on the table. Detecting bypass patterns supports defense-in-depth next to execution policy alone.",
+  "value": "Constrained Language Mode limits PowerShell attack surface. Timely UC-1.2.110 alerting on 'PowerShell Constrained Language Mode Bypass' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Enable PowerShell Script Block Logging (EventCode 4104) and Module Logging. Search for scripts that attempt to change LanguageMode, use reflection to bypass CLM, or reference FullLanguage mode. Alert on Add-Type with DllImport (P/Invoke) in constrained environments — this is a common CLM bypass. Correlate with AppLocker and WDAC logs for defense-in-depth monitoring.",
   "visualization": "Table (bypass attempts), Alert on detection, Single value (count).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'PowerShell Constrained Language Mode Bypass'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `configured sourcetype`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'PowerShell Constrained Language Mode Bypass'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

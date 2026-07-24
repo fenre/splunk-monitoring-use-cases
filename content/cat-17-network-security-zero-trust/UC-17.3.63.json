@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Netskope Malware and Threat Detected in Cloud and Web Sessions' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_netskope_malware_and_threat_detected_in_cloud_an` (UC-17.3.63), SOC dashboard panel \"Network — Netskope Malware and Threat Detected in Cloud and Web Sessions\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=casb` sourcetype='netskope:events' that satisfy the UC-17.3.63 SPL filters for 'Netskope Malware and Threat Detected in Cloud and Web Sessions'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `casb` / `netskope:events` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.63."
+    "positiveScenario": "Ingest synthetic events into `index=casb` sourcetype='netskope:events' where `user` satisfies detection threshold for UC-17.3.63 ('Netskope Malware and Threat Detected in Cloud and Web Sessions'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `casb` / `netskope:events` events where `user` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.63."
   },
   "dataSources": "Netskope event stream, `sourcetype=netskope:events` Indexes: casb. Sourcetypes: netskope:events. Key fields: action, app_name, policy_name, threat, user. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Netskope Add-on for Splunk (Splunkbase 3808)",
   "spl": "index=casb sourcetype=\"netskope:events\" earliest=-24h\n| eval threat=coalesce(malware_name, threat_name, verdict, threat_category)\n| where isnotnull(threat) AND threat!=\"\" AND threat!=\"clean\" AND threat!=\"none\"\n| stats count by user, app_name, threat, action, policy_name\n| sort -count\n| head 50",
   "description": "Netskope inspects SaaS and web traffic for known malware families, sandbox verdicts, and composite threat scores. Aggregating detections by user and application shows active infections, risky file sharing, and policy effectiveness.",
-  "value": "SOC teams analyze Netskope threat detections across cloud and web sessions, distinguishing blocked threats from detected-but-allowed gaps, tracking ransomware detections for immediate endpoint isolation, and identifying shared malicious files spreading through cloud applications.",
+  "value": "Netskope inspects SaaS and web traffic for known malware families, sandbox verdicts, and composite threat s.... Timely UC-17.3.63 alerting on 'Netskope Malware and Threat Detected in Cloud and Web Sessions' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Enable full Netskope event logging including threat fields. Install Splunkbase 3808 on search heads. Map `action` values (allow, block, quarantine) to SOC severity. Correlate with endpoint containment status before closing tickets.",
   "visualization": "Table (user, app, threat), Timeline (detection burst), Pie chart (action mix).",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Netskope Malware and Threat Detected in Cloud and Web Sessions'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `casb`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `netskope:events` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `casb`** — Planned work for 'Netskope Malware and Threat Detected in Cloud and Web Sessions' shifts `count` over `span=1h` while `user` remains in-scope for UC-17.3.63. Cross-check CMDB CHG.\n\n2. **Batch `count` on `netskope:events`** — Scheduled automation elevates `app_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`** — Health checks in `casb` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netskope:events`** — First 48h baseline for `user` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "securityDomain": "threat",
   "equipment": [
     "netskope"

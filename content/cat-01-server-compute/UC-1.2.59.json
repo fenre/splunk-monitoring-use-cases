@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'DCOM / COM+ Application Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_dcom_com_application_errors` (UC-1.2.59), SOC dashboard panel \"Linux — DCOM / COM+ Application Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:System' that satisfy the UC-1.2.59 SPL filters for 'DCOM / COM+ Application Errors'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:System` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.59."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:System' where `host` satisfies `count` > 10 for UC-1.2.59 ('DCOM / COM+ Application Errors'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:System` events where `host` stays below `count` > 10, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.59."
   },
   "dataSources": "`sourcetype=WinEventLog:System` (EventCode 10016, 10028, 10010) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:System\" Source=\"DCOM\" EventCode IN (10016, 10028, 10010)\n| stats count by host, EventCode, param1, param2\n| where count > 10\n| sort -count",
   "description": "DCOM errors affect distributed applications, WMI remote management, and MMC snap-ins. Persistent errors indicate permission issues or component registration corruption.",
-  "value": "When DCOM is really broken, random enterprise apps that depend on in-proc calls fail in odd ways—trend, don’t one-off every 10016.",
+  "value": "DCOM errors affect distributed applications, WMI remote management, and MMC snap-ins. Timely UC-1.2.59 alerting on 'DCOM / COM+ Application Errors' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "EventCode 10016=permission error (most common — often benign for built-in COM objects), 10028=DCOM connection timed out, 10010=server did not register within timeout. Filter known benign 10016 errors (Windows built-in CLSIDs). Alert on 10028/10010 as these indicate application-impacting failures. Persistent 10010 errors for specific CLSIDs indicate broken COM registrations.",
   "visualization": "Table (DCOM errors by CLSID), Bar chart (error types), Timechart (error frequency).",
   "cimModels": [
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'DCOM / COM+ Application Errors'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `WinEventLog:System`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'DCOM / COM+ Application Errors'. Correlate with apt/yum logs in the same `WinEventLog:System` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:System`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 10.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

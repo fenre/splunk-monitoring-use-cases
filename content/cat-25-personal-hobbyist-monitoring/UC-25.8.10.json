@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'TLS Certificate Expiry Watch for Self-Hosted Services' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_tls_certificate_expiry_watch_for_self_hosted_ser` (UC-25.8.10), SOC dashboard panel \"Personal — TLS Certificate Expiry Watch for Self-Hosted Services\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='uptime:probe' that satisfy the UC-25.8.10 SPL filters for 'TLS Certificate Expiry Watch for Self-Hosted Services'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `uptime:probe` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.10."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='uptime:probe' where `service` satisfies `days_left` >= 0 for UC-25.8.10 ('TLS Certificate Expiry Watch for Self-Hosted Services'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `uptime:probe` events where `service` stays below `days_left` >= 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.10."
   },
   "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`), uptime probes (`uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=uptime:probe\n| stats latest(tls_days_left) as days_left, latest(status) as status by service\n| where days_left>=0 AND days_left<21\n| sort days_left",
   "description": "Lists self-hosted services whose TLS certificates are close to expiry before browser warnings, webhooks, and mobile apps start breaking.",
-  "value": "Certificate expiry is a classic homelab own goal; a short runway report is much nicer than discovering it from a dead dashboard.",
+  "value": "Lists self-hosted services whose TLS certificates are close to expiry before browser warnings, webhooks, an.... Timely UC-25.8.10 alerting on 'TLS Certificate Expiry Watch for Self-Hosted Services' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward probe results with remaining TLS lifetime; alert inside your preferred renewal window and verify that automation is truly working.",
   "visualization": "Table of services by remaining TLS days.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'TLS Certificate Expiry Watch for Self-Hosted Services'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `uptime:probe`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'TLS Certificate Expiry Watch for Self-Hosted Services' stops polling `uptime:probe`; stale `service` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `uptime:probe`. Dedup with `stats latest(*) by service`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_left` >= 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "proxmox",

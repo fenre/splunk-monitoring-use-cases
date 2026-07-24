@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Google Cloud Composer Dag Freshness SLA' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_google_cloud_composer_dag_freshness_sla` (UC-24.7.61), SOC dashboard panel \"Operations — Google Cloud Composer Dag Freshness SLA\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='gcp:composer' that satisfy the UC-24.7.61 SPL filters for 'Google Cloud Composer Dag Freshness SLA'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `gcp:composer` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.61."
+    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='gcp:composer' where `dag_id` satisfies `hours_stale` > 12 for UC-24.7.61 ('Google Cloud Composer Dag Freshness SLA'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `bi` / `gcp:composer` events where `dag_id` stays below `hours_stale` > 12, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.61."
   },
   "dataSources": "Cloud Composer Airflow logs (`gcp:composer`). Collected via Splunk Add-on for Google Cloud Platform (Splunkbase 3084) modular input or scripted poll into the index named in the SPL.",
   "app": "Cloud Composer (managed Airflow) logs and metrics via the Google Cloud Add-on / Pub-Sub to HEC. — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
   "spl": "index=bi sourcetype=gcp:composer state=\"success\"\n| stats latest(_time) as last_success by dag_id\n| eval hours_stale=round((now()-last_success)/3600,1)\n| where hours_stale>12\n| sort - hours_stale",
   "description": "Tracks the last successful update of each Google Cloud Composer DAG and flags those that have not refreshed within their freshness window, catching stale data even when no job reports a failure.",
-  "value": "A DAG can go stale without any error (a paused schedule, a missed trigger); freshness-SLA monitoring closes that blind spot for Google Cloud Composer.",
+  "value": "Tracks the last successful update of each Google Cloud Composer DAG and flags those that have not refreshed.... Timely UC-24.7.61 alerting on 'Google Cloud Composer Dag Freshness SLA' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest Google Cloud Composer success events; schedule hourly and alert when a critical DAG exceeds its freshness window.",
   "visualization": "Table of DAG by hours stale, freshness heat map.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Google Cloud Composer Dag Freshness SLA'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `bi` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Google Cloud Composer Dag Freshness SLA' shifts `count` over `span=1h` while `dag_id` remains in-scope for UC-24.7.61. Cross-check CMDB CHG.\n\n2. **Batch `count` on `gcp:composer`** — Scheduled automation elevates `hours_stale` without crossing `hours_stale` > 12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dag_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gcp:composer`** — First 48h baseline for `dag_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dag_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "gcp"
   ],

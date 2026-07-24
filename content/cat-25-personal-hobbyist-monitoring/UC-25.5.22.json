@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Nanoleaf Scene Activation Latency' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_nanoleaf_scene_activation_latency` (UC-25.5.22), SOC dashboard panel \"Personal — Nanoleaf Scene Activation Latency\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='nanoleaf:scene' that satisfy the UC-25.5.22 SPL filters for 'Nanoleaf Scene Activation Latency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `nanoleaf:scene` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.22."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='nanoleaf:scene' where `scene` satisfies `avg_apply_ms` > 1500 for UC-25.5.22 ('Nanoleaf Scene Activation Latency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `nanoleaf:scene` events where `scene` stays below `avg_apply_ms` > 1500, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.22."
   },
   "dataSources": "Device-state telemetry (`zigbee2mqtt:device`, `aqara:device`, `tradfri:device`, `lifx:state`, `nanoleaf:scene`, `blindmotor:state`, `shelly:status`, `ecobee:thermostat`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Aqara, IKEA Tradfri, LIFX, Nanoleaf, Shelly, Zigbee2MQTT, Ecobee, and smart blind motors via vendor clouds, LAN APIs, MQTT bridges, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=nanoleaf:scene\n| stats avg(apply_ms) as avg_apply_ms, max(apply_ms) as max_apply_ms by scene\n| where avg_apply_ms>1500 OR max_apply_ms>4000\n| sort - avg_apply_ms",
-  "description": "Uses Nanoleaf scene events telemetry to monitor how long scenes take to apply after activation in index=personal.",
-  "value": "Splunk turns the feed into an operational check for visual routines that feel sluggish, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Uses Nanoleaf scene events telemetry to monitor how long scenes take to apply after activation in index=personal. Searches `index=personal` with sourcetype `nanoleaf:scene` for UC-25.5.22, aggregating `avg` by `scene` over `the scheduled window`. Alerts when grouped results cross `avg_apply_ms` > 1500 in the saved search. Gives Personal operators a repeatable signal for 'Nanoleaf Scene Activation Latency' without manual log review.",
+  "value": "Uses Nanoleaf scene events telemetry to monitor how long scenes take to apply after activation in index=per.... Timely UC-25.5.22 alerting on 'Nanoleaf Scene Activation Latency' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Nanoleaf scene events data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Scene table of average and maximum apply latency.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Nanoleaf Scene Activation Latency'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nanoleaf:scene`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Nanoleaf Scene Activation Latency' stops polling `nanoleaf:scene`; stale `scene` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nanoleaf:scene`. Dedup with `stats latest(*) by scene`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_apply_ms` > 1500. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

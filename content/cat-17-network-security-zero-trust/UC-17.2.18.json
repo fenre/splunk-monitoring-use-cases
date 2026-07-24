@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Site-to-Site Tunnel Flapping' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_site_to_site_tunnel_flapping` (UC-17.2.18), SOC dashboard panel \"Network — Site-to-Site Tunnel Flapping\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vpn` sourcetype='cisco:asa' that satisfy the UC-17.2.18 SPL filters for 'Site-to-Site Tunnel Flapping'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vpn` / `cisco:asa` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.2.18."
+    "positiveScenario": "Ingest synthetic events into `index=vpn` sourcetype='cisco:asa' where `peer` satisfies `count` > 10 for UC-17.2.18 ('Site-to-Site Tunnel Flapping'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `vpn` / `cisco:asa` events where `peer` stays below `count` > 10, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.2.18."
   },
   "dataSources": "VPN syslog tunnel events Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, `Splunk_TA_juniper` — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=vpn sourcetype=\"cisco:asa\" earliest=-24h\n| search \"Tunnel is UP\" OR \"Tunnel is DOWN\" OR \"IPSEC.*DOWN\"\n| eval peer=coalesce(peer_ip, tunnel_group)\n| stats count by peer\n| where count>10\n| sort -count",
   "description": "Counts IKE/IPsec up/down events per peer for unstable WAN or crypto issues. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Network operations teams detect site-to-site IPSec tunnel instability, identify flapping patterns that correlate with circuit quality issues, and prioritize remediation based on site criticality to maintain branch office connectivity.",
+  "value": "Counts IKE/IPsec up/down events per peer for unstable WAN or crypto issues. Timely UC-17.2.18 alerting on 'Site-to-Site Tunnel Flapping' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Vendor message strings vary — maintain `rex` extractions in props. Alert when transitions >N per hour per peer.",
   "visualization": "Line chart (transitions over time), Table (worst peers), Single value (flapping peers).",
   "cimModels": [],
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Vulnerability scanner signature matches** — Qualys/Tenable traffic triggers IPS/threat signatures for 'Site-to-Site Tunnel Flapping'. Compare `src` against `scanner_ips` lookup.\n\n2. **Policy push during change window** — New deny rule generates expected blocks. Match firewall commit timestamp in change calendar.\n\n3. **Encrypted traffic inspection gap** — TLS-heavy apps bypass deep inspection; volume drop is operational, not a sensor failure.\n\n4. **Red-team C2 simulation** — Approved exercise from `pen_test_hosts.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src`, `signature_id`, `valid_until`.",
+  "knownFalsePositives": "1. **Remote workforce login storm** — Morning VPN/ZTNA session spike for 'Site-to-Site Tunnel Flapping'. Compare with historical same-hour baseline.\n\n2. **IdP or SAML metadata refresh** — Brief auth failures during federation cert rotation.\n\n3. **Split-tunnel policy change** — New route advertisements shift traffic patterns.\n\n4. **Synthetic ZTNA health checks** — Monitoring probes from known appliance IPs.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `src`, `valid_until`.",
   "mitreAttack": [
     "T1133"
   ],

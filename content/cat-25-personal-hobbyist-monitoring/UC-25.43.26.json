@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Tide Height vs Departure Delay' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_tide_height_vs_departure_delay` (UC-25.43.26), SOC dashboard panel \"Personal — Tide Height vs Departure Delay\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tide:table' that satisfy the UC-25.43.26 SPL filters for 'Tide Height vs Departure Delay'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tide:table` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.43.26."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tide:table' where `harbor` satisfies detection threshold for UC-25.43.26 ('Tide Height vs Departure Delay'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `tide:table` events where `harbor` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.43.26."
   },
   "dataSources": "Battery telemetry (`marine:battery`), AIS traffic (`marine:ais`), shore power (`marina:power`), tide forecasts (`tide:table`), export syncs (`marine:export`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Boating and marine telemetry — Victron BMV battery exports, AIS transponder logs, shore-power meter readings, and NOAA tide tables — streamed to Splunk HEC via NMEA exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tide:table harbor=* departure_delay_min=*\n| stats avg(departure_delay_min) as avg_departure_delay_min, count as events by harbor\n| sort - avg_departure_delay_min",
   "description": "Shows average departure delay minutes by harbor for tide-aware departures. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Average departure delay minutes by harbor helps compare tide-aware departures across the factors that matter most.",
+  "value": "Shows average departure delay minutes by harbor for tide-aware departures. Timely UC-25.43.26 alerting on 'Tide Height vs Departure Delay' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Capture `departure_delay_min` on `tide:table` events and normalize `harbor` so Splunk can summarize performance by harbor.",
   "visualization": "Bar chart of average departure delay minutes by harbor.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Tide Height vs Departure Delay'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tide:table`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Tide Height vs Departure Delay' stops polling `tide:table`; stale `harbor` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tide:table`. Dedup with `stats latest(*) by harbor`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

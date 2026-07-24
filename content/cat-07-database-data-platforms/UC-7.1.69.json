@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Cassandra Tombstone Warnings on Read Path' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cassandra_tombstone_warnings_on_read_path` (UC-7.1.69), SOC dashboard panel \"Operations — Cassandra Tombstone Warnings on Read Path\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='cassandra:system' that satisfy the UC-7.1.69 SPL filters for 'Cassandra Tombstone Warnings on Read Path'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `cassandra:system` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.69."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='cassandra:system' where `keyspace` satisfies `warn_events` >= 5 for UC-7.1.69 ('Cassandra Tombstone Warnings on Read Path'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `cassandra:system` events where `keyspace` stays below `warn_events` >= 5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.69."
   },
   "dataSources": "Cassandra `system.log` lines for tombstone thresholds, sourcetype `cassandra:system` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Universal Forwarder on Cassandra nodes with `monitor://` on `cassandra/logs/system.log` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"cassandra:system\"\n| search \"tombstone\" AND (\"WARN\" OR \"ERROR\" OR \"ReadCommand\")\n| rex field=_raw \"Read (?<read_type>\\w+) query.* scanned (?<scanned>\\d+) tombstones.* limit (?<limit>\\d+)\"\n| eval over_limit=if(scanned>limit,1,0)\n| stats count as warn_events max(scanned) as max_tombstones by keyspace, table, host\n| where warn_events >= 5 OR max_tombstones > 10000",
   "description": "Reads that cross large numbers of tombstones slow every replica and can trigger GC storms; log warnings are the fastest signal that TTL, delete patterns, or compaction are misaligned with access paths.",
-  "value": "Avoids surprise latency incidents during batch deletes or TTL changes and guides data modeling fixes before timeouts dominate.",
+  "value": "Reads that cross large numbers of tombstones slow every replica and can trigger GC storms; log warnings are.... Timely UC-7.1.69 alerting on 'Cassandra Tombstone Warnings on Read Path' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Set `props.conf` `LINE_BREAKER` for multiline stack traces; extract `keyspace` and `table` via `EXTRACT-cassandra_table`. Tune `tombstone_warn_threshold` awareness—alerts should fire below catastrophic defaults. Pair with `cassandra:nodetool_cfstats` `Droppable tombstone` metrics.",
   "visualization": "Timeline (warn_events), Table (keyspace, table, max_tombstones).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Cassandra Tombstone Warnings on Read Path'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Cassandra Tombstone Warnings on Read Path' shifts `max` over `span=1h` while `keyspace` remains in-scope for UC-7.1.69. Cross-check CMDB CHG.\n\n2. **Batch `max` on `cassandra:system`** — Scheduled automation elevates `table` without crossing `warn_events` >= 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `keyspace`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cassandra:system`** — First 48h baseline for `keyspace` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `keyspace`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cassandra"
   ],

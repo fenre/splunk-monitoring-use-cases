@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'LEGO Set Completeness and Missing Parts' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_lego_set_completeness_and_missing_parts` (UC-25.30.4), SOC dashboard panel \"Personal — LEGO Set Completeness and Missing Parts\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lego:set' that satisfy the UC-25.30.4 SPL filters for 'LEGO Set Completeness and Missing Parts'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `lego:set` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.30.4."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lego:set' where `set` satisfies `missing` > 0 for UC-25.30.4 ('LEGO Set Completeness and Missing Parts'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `lego:set` events where `set` stays below `missing` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.30.4."
   },
   "dataSources": "Collection items (`collection:item`), vinyl plays (`vinyl:play`), LEGO sets (`lego:set`), trading-card prices (`tradingcard:price`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Collection catalogues and price APIs — Discogs (vinyl), BrickLink (LEGO), trading-card and coin/stamp price feeds, and personal inventory databases with NFC-tagged scans — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=lego:set\n| stats latest(owned_parts) as owned, latest(total_parts) as total by set\n| eval complete_pct=round(100*owned/total,1), missing=total-owned\n| where missing>0\n| sort - missing",
-  "description": "Tracks how complete each LEGO set is and how many parts are missing, guiding your BrickLink replacement orders.",
-  "value": "A completeness view turns a bin of mixed bricks into a clear list of exactly which parts to reorder to finish a set.",
+  "description": "Tracks how complete each LEGO set is and how many parts are missing, guiding your BrickLink replacement orders. Searches `index=personal` with sourcetype `lego:set` for UC-25.30.4, aggregating `count` by `set` over `the scheduled window`. Alerts when grouped results cross `missing` > 0 in the saved search. Gives Personal operators a repeatable signal for 'LEGO Set Completeness and Missing Parts' without manual log review.",
+  "value": "Tracks how complete each LEGO set is and how many parts are missing, guiding your BrickLink replacement orders. Timely UC-25.30.4 alerting on 'LEGO Set Completeness and Missing Parts' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest owned-versus-total part counts into `index=personal`; surface sets with missing parts.",
   "visualization": "Table of LEGO sets by completeness and missing-part count.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'LEGO Set Completeness and Missing Parts'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lego:set`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'LEGO Set Completeness and Missing Parts' stops polling `lego:set`; stale `set` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lego:set`. Dedup with `stats latest(*) by set`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `missing` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

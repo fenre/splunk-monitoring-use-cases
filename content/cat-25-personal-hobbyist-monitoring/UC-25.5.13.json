@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Unexpected Overnight Smart Plug Load' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_unexpected_overnight_smart_plug_load` (UC-25.5.13), SOC dashboard panel \"Personal — Unexpected Overnight Smart Plug Load\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='shelly:status' that satisfy the UC-25.5.13 SPL filters for 'Unexpected Overnight Smart Plug Load'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `shelly:status` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.13."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='shelly:status' where `device` satisfies `hour` >= 0 for UC-25.5.13 ('Unexpected Overnight Smart Plug Load'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `shelly:status` events where `device` stays below `hour` >= 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.13."
   },
   "dataSources": "Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue bridge events (`hue:event`), Nest/Ecobee thermostat (`ecobee:thermostat`), door/leak/motion sensors. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=shelly:status\n| eval hour=strftime(_time,\"%H\")\n| where hour>=0 AND hour<5\n| stats avg(power_w) as avg_power by device\n| where avg_power>50\n| sort - avg_power",
   "description": "Flags plugs that are drawing meaningful power while the house should be asleep, catching the forgotten heater, game console, or dehumidifier left running overnight.",
-  "value": "Nighttime baseload is where sneaky energy waste hides; this query turns it into a simple ranked list you can actually act on.",
+  "value": "Flags plugs that are drawing meaningful power while the house should be asleep, catching the forgotten heat.... Timely UC-25.5.13 alerting on 'Unexpected Overnight Smart Plug Load' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Send Shelly power telemetry to Splunk; review overnight averages weekly and inspect the surprise devices at the top.",
   "visualization": "Leaderboard of overnight average power by smart plug.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Unexpected Overnight Smart Plug Load'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `shelly:status`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Unexpected Overnight Smart Plug Load' stops polling `shelly:status`; stale `device` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `shelly:status`. Dedup with `stats latest(*) by device`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hour` >= 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "f5",
     "mqtt"

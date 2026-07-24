@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Frost Window After Rain' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_frost_window_after_rain` (UC-25.10.17), SOC dashboard panel \"Personal — Frost Window After Rain\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='weatherflow:obs' that satisfy the UC-25.10.17 SPL filters for 'Frost Window After Rain'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `weatherflow:obs` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.17."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='weatherflow:obs' where `_time` satisfies `hour` >= 0 for UC-25.10.17 ('Frost Window After Rain'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `weatherflow:obs` events where `_time` stays below `hour` >= 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.17."
   },
   "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture and greenhouse sensors (`plant:sensor`), aquarium controllers (`aquarium:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=weatherflow:obs\n| eval hour=strftime(_time,\"%H\")\n| where hour>=0 AND hour<7\n| bin _time span=1d\n| stats min(temp_c) as min_temp, sum(rain_mm) as rain_mm by _time\n| where rain_mm>5 AND min_temp<1\n| sort min_temp",
-  "description": "Flags those tricky wet-then-cold nights where frost risk lands on already soaked plants, vehicles, or outdoor projects.",
-  "value": "Rain followed by a cold overnight low can be more damaging than a dry freeze; this query catches the combination, not just the temperature.",
+  "description": "Flags those tricky wet-then-cold nights where frost risk lands on already soaked plants, vehicles, or outdoor projects. Searches `index=personal` with sourcetype `weatherflow:obs` for UC-25.10.17, aggregating `min` by `_time` over `1d`. Alerts when grouped results cross `hour` >= 0 in the saved search. Gives Personal operators a repeatable signal for 'Frost Window After Rain' without manual log review.",
+  "value": "Flags those tricky wet-then-cold nights where frost risk lands on already soaked plants, vehicles, or outdo.... Timely UC-25.10.17 alerting on 'Frost Window After Rain' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Forward weather observations with rainfall and temperature; review the next morning or alert before dawn when the combo appears.",
   "visualization": "Daily list of wet days followed by sub-1C overnight lows.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Frost Window After Rain'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `weatherflow:obs`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Frost Window After Rain' stops polling `weatherflow:obs`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `min` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `weatherflow:obs`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `hour` >= 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

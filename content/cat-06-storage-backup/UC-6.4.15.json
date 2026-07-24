@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'File Server Capacity Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_file_server_capacity_trending` (UC-6.4.15), SOC dashboard panel \"Operations — File Server Capacity Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='Perfmon:LogicalDisk' that satisfy the UC-6.4.15 SPL filters for 'File Server Capacity Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `Perfmon:LogicalDisk` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.4.15."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='Perfmon:LogicalDisk' where `host` satisfies `free_pct` < 15 for UC-6.4.15 ('File Server Capacity Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `Perfmon:LogicalDisk` events where `host` stays below `free_pct` < 15, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.4.15."
   },
   "dataSources": "Logical disk free MB/%, WMI volume metrics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` (PerfDisk), scripted `Get-Volume` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=\"Perfmon:LogicalDisk\" counter=\"% Free Space\"\n| timechart span=1h latest(InstanceValue) as free_pct by host, instance\n| where free_pct < 15",
-  "description": "Volume-level free space trending on Windows file servers prevents user and application outages from full disks.",
+  "description": "Volume-level free space trending on Windows file servers prevents user and application outages from full disks. Searches `index=os` with sourcetype `Perfmon:LogicalDisk` for UC-6.4.15, aggregating `count` by `host` over `1h`. Alerts when grouped results cross `free_pct` < 15 in the saved search. Gives Operations operators a repeatable signal for 'File Server Capacity Trending' without manual log review.",
   "value": "Early 'File Server Capacity Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Collect % Free Space every 5–15m. Alert at 15% (warning) and 10% (critical). Use `predict` on large shares for procurement lead time.",
   "visualization": "Line chart (free % trend), Gauge (current free %), Table (volumes below threshold).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'File Server Capacity Trending'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `os` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `os`** — Planned work for 'File Server Capacity Trending' shifts `count` over `span=1h` while `host` remains in-scope for UC-6.4.15. Cross-check CMDB CHG.\n\n2. **Batch `count` on `Perfmon:LogicalDisk`** — Scheduled automation elevates `instance` without crossing `free_pct` < 15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `Perfmon:LogicalDisk`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "windows"
   ],

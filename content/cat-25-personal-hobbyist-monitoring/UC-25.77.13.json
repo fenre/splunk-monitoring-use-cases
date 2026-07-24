@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'UDisc Round Rating Import Freshness Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_udisc_round_rating_import_freshness_gap` (UC-25.77.13), SOC dashboard panel \"Personal — UDisc Round Rating Import Freshness Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='udisc:round' that satisfy the UC-25.77.13 SPL filters for 'UDisc Round Rating Import Freshness Gap'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `udisc:round` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.77.13."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='udisc:round' where `player` satisfies `hours_since` > 72 for UC-25.77.13 ('UDisc Round Rating Import Freshness Gap'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `udisc:round` events where `player` stays below `hours_since` > 72, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.77.13."
   },
   "dataSources": "Golf rounds (`golf:round`), Garmin golf telemetry (`garmin:golf`), UDisc rounds (`udisc:round`), launch-monitor shots (`launchmonitor:shot`), handicap-index updates (`handicap:index`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Arccos and Garmin S62 round telemetry, UDisc round exports, launch-monitor CSVs, and handicap-index updates streamed to Splunk HEC via APIs and scripted imports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=udisc:round\n| stats max(_time) as last_seen by player\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>72\n| sort - hours_since",
   "description": "Detects athletes, devices, or exports that have stopped sending udisc round rating data within the expected freshness window.",
-  "value": "Stale performance data hides missed sessions and broken syncs, so a freshness alert protects the trend lines you rely on.",
+  "value": "Detects athletes, devices, or exports that have stopped sending udisc round rating data within the expected.... Timely UC-25.77.13 alerting on 'UDisc Round Rating Import Freshness Gap' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Review this at least daily and tune the freshness threshold to the normal cadence of the underlying app or export job.",
   "visualization": "Table of player values by hours since the last udisc round rating event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'UDisc Round Rating Import Freshness Gap'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `udisc:round`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'UDisc Round Rating Import Freshness Gap' stops polling `udisc:round`; stale `player` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `udisc:round`. Dedup with `stats latest(*) by player`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 72. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

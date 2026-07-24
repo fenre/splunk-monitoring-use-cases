@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'HAProxy HTTP Compression Ratio Effectiveness' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_haproxy_http_compression_ratio_effectiveness` (UC-5.14.6), SOC dashboard panel \"Operations — HAProxy HTTP Compression Ratio Effectiveness\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='haproxy:http' that satisfy the UC-5.14.6 SPL filters for 'HAProxy HTTP Compression Ratio Effectiveness'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `proxy` / `haproxy:http` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.6."
+    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='haproxy:http' where `frontend` satisfies `cin` > 0 for UC-5.14.6 ('HAProxy HTTP Compression Ratio Effectiveness'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `proxy` / `haproxy:http` events where `frontend` stays below `cin` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.6."
   },
   "dataSources": "`index=proxy` `sourcetype=haproxy:http` with `comp_in`/`comp_out` from custom `log-format` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"haproxy:http\"\n| eval cin=tonumber(comp_in), cout=tonumber(comp_out)\n| eval ratio=if(cin>0, round(100*cout/cin,1), null())\n| timechart span=1h avg(ratio) by frontend",
-  "description": "Compression reduces egress cost until misconfiguration disables it for large JSON.",
-  "value": "Operations teams detect HAProxy connection pool exhaustion and server queue buildup, identifying backends where maxconn limits are reached and requests are queuing.",
+  "description": "Compression reduces egress cost until misconfiguration disables it for large JSON. Searches `index=proxy` with sourcetype `haproxy:http` for UC-5.14.6, aggregating `avg` by `frontend` over `1h`. Alerts when grouped results cross `cin` > 0 in the saved search. Gives Operations operators a repeatable signal for 'HAProxy HTTP Compression Ratio Effectiveness' without manual log review.",
+  "value": "Compression reduces egress cost until misconfiguration disables it for large JSON. Timely UC-5.14.6 alerting on 'HAProxy HTTP Compression Ratio Effectiveness' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Add compression byte fields per HAProxy docs; document field order for parsers.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'HAProxy HTTP Compression Ratio Effectiveness'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `proxy` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy`** — Planned work for 'HAProxy HTTP Compression Ratio Effectiveness' shifts `avg` over `span=1h` while `frontend` remains in-scope for UC-5.14.6. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `haproxy:http`** — Scheduled automation elevates `cin` without crossing `cin` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `frontend`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `haproxy:http`** — First 48h baseline for `frontend` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `frontend`, `exception_reason`, `valid_until`.",
   "equipment": [
     "haproxy",
     "syslog"

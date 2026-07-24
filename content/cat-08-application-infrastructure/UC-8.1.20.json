@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'PHP-FPM Slow Request Counter Increases' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_php_fpm_slow_request_counter_increases` (UC-8.1.20), SOC dashboard panel \"Operations — PHP-FPM Slow Request Counter Increases\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=php` sourcetype='phpfpm:status' that satisfy the UC-8.1.20 SPL filters for 'PHP-FPM Slow Request Counter Increases'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `php` / `phpfpm:status` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.20."
+    "positiveScenario": "Ingest synthetic events into `index=php` sourcetype='phpfpm:status' where `entity` satisfies `slow_delta` > 10 for UC-8.1.20 ('PHP-FPM Slow Request Counter Increases'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `php` / `phpfpm:status` events where `entity` stays below `slow_delta` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.20."
   },
   "dataSources": "`index=php` `sourcetype=phpfpm:status` JSON from `pm.status_path` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input or HEC (PHP-FPM `pm.status_path` JSON) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=php sourcetype=\"phpfpm:status\"\n| sort 0 _time\n| delta slow_requests as slow_delta\n| where slow_delta > 10\n| table _time, host, pool, slow_requests, slow_delta",
   "description": "The `slow_requests` counter increments when requests exceed `request_slowlog_timeout`. Sustained increases pinpoint slow PHP code, database calls, or external APIs.",
-  "value": "Surfaces PHP endpoints that breach slow thresholds so you can tune code or pool settings before queues explode.",
+  "value": "The `slow_requests` counter increments when requests exceed `request_slowlog_timeout`. Timely UC-8.1.20 alerting on 'PHP-FPM Slow Request Counter Increases' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Expose `pm.status_path` over loopback, poll JSON every minute, and parse `slow_requests`, `active processes`, and `idle processes`. Alert on delta spikes, not one-off counter values.",
   "visualization": "Line chart (`slow_requests` counter), bar chart (slow_delta per pool), correlation with upstream database latency.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'PHP-FPM Slow Request Counter Increases'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `php` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `php`** — Planned work for 'PHP-FPM Slow Request Counter Increases' shifts `count` over `span=1h` while `host` remains in-scope for UC-8.1.20. Cross-check CMDB CHG.\n\n2. **Batch `count` on `phpfpm:status`** — Scheduled automation elevates `src` without crossing `slow_delta` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `php` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `phpfpm:status`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "phpfpm"
   ],

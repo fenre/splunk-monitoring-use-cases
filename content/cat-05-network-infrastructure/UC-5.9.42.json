@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Transaction Duration Analysis' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_transaction_duration_analysis` (UC-5.9.42), SOC dashboard panel \"Operations — Transaction Duration Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' that satisfy the UC-5.9.42 SPL filters for 'Transaction Duration Analysis'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.9.42."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `thousandeyes.test.name` satisfies `avg_s` > 10 for UC-5.9.42 ('Transaction Duration Analysis'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `thousandeyes.test.name` stays below `avg_s` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.9.42."
   },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` with `thousandeyes.test.type=\"web-transactions\"`. OTel v2 metric `web.transaction.duration` (seconds). Only reported for successful transactions.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`stream_index` thousandeyes.test.type=\"web-transactions\"\n| stats avg(web.transaction.duration) as avg_duration p95(web.transaction.duration) as p95_duration by thousandeyes.test.name\n| eval avg_s=round(avg_duration,2), p95_s=round(p95_duration,2)\n| where avg_s > 10\n| sort -avg_s",
   "description": "Tracks the total duration of Transaction test workflows — the end-to-end time for a complete user journey (login through task completion). Flags transactions exceeding 10 seconds. Duration is only reported for successful transactions, so this UC focuses on performance of working workflows.",
-  "value": "Transaction duration measures the user's total wait time for a complete workflow. A login workflow taking 15 seconds means users wait 15 seconds before they can start working. For e-commerce, a checkout workflow taking 30 seconds means lost sales. Trending transaction duration over time detects gradual degradation (database growing, more JavaScript, heavier pages) that users notice but individual test metrics might not flag because each component is within threshold.",
+  "value": "Tracks the total duration of Transaction test workflows — the end-to-end time for a complete user journey (.... Timely UC-5.9.42 alerting on 'Transaction Duration Analysis' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Same Transaction tests as UC-5.9.41. Duration is measured alongside completion.",
   "visualization": "(1) Bar chart: transaction duration per test. (2) Timechart: duration trending over time. (3) Percentile chart: p50/p95/p99. (4) Marker timeline: duration breakdown per step.",
   "references": [
@@ -43,7 +43,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Transaction Duration Analysis'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `target index` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index`** — Planned work for 'Transaction Duration Analysis' shifts `avg` over `span=1h` while `thousandeyes.test.name` remains in-scope for UC-5.9.42. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `avg_s` without crossing `avg_s` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `thousandeyes.test.name`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `thousandeyes.test.name` is unstable; join `stream_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `thousandeyes.test.name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

@@ -40,15 +40,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When a CVE previously marked remediated on a host reappears in a subsequent scan, the UC fires with host, cve, remediated_at, rediscovered_at.",
-    "negativeScenario": "Remediated CVEs that remain undetected in subsequent scans do NOT fire.",
-    "fixtureRef": "sample-data/uc-22.43.2-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=vuln` sourcetype='target_sourcetype' where `host` satisfies detection threshold for UC-22.43.2 ('Vulnerability rediscovery after patch — regressed exposures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `vuln` / `target_sourcetype` events where `host` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.43.2."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=vuln earliest=-90d | sort 0 host cve _time | streamstats latest(action) as last_action by host cve\n| where last_action=\"remediated\"\n| join host cve [search index=vuln action=detected earliest=-7d]\n| table host cve remediated_at _time as rediscovered_at",
   "description": "Catches situations where a patched vulnerability resurfaces — typically due to image rollback, snapshot restore, or patch-management regression. Every reappearance erodes prior compliance evidence.",
-  "value": "Prevents the compliance report from overstating the remediation rate by double-counting recurring findings.",
+  "value": "Catches situations where a patched vulnerability resurfaces — typically due to image rollback, snapshot res.... Timely UC-22.43.2 alerting on 'Vulnerability rediscovery after patch — regressed exposures' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Maintain history of vulnerability state per host/CVE; (2) run daily; (3) on finding, re-open original remediation ticket. Indexes required: `index=vuln`.",
   "visualization": "Table of regressions, trend of regressions per scan cycle, single-value 'patches holding (30d)'. Key fields: `cve`, `host`, `rediscovered_at`, `remediated_at`.",
   "cimModels": [
@@ -74,7 +73,7 @@
       "title": "NIST 800-53 Controls Catalog"
     }
   ],
-  "knownFalsePositives": "1. **Authorised security assessment activities** — Planned security control assessments, continuous monitoring scans, and Plan of Action and Milestones (POA&M) validation tests generate expected control deviation signals that are part of the Assessment & Authorisation process.\n\n2. **System authorisation boundary changes** — During ATO re-authorisation, system boundary expansions, or inheritance model updates, temporary control gaps may appear in the monitoring baseline until the updated security plan is approved by the Authorising Official.\n\n3. **Interconnection Security Agreement (ISA) activity** — Data exchanges with authorised external systems operating under signed ISAs produce cross-boundary traffic that triggers network monitoring alerts but is covered by the formal interconnection agreement.\n\n4. **FIPS 199 impact-level re-categorisation** — When system categorisation changes (e.g., Moderate to High), the transition period produces control baseline mismatches until the enhanced controls are fully implemented per the approved implementation schedule.\n\n**Suppression mechanism:** Maintain a `nist_800_53_exception_filter` KV Store lookup containing approved assessment schedule entries, POA&M IDs, ISA identifiers, and system re-categorisation project IDs. The correlation search filters against this lookup and suppresses matches with valid exception entries.",
+  "knownFalsePositives": "1. **Authorised NIST 800 53 control testing** — Internal audit exercises 'Vulnerability rediscovery after patch — regressed exposures' (UC-22.43.2) on `host` during scheduled clause RA-5 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=vuln` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `nist_800_53_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `vuln` for `host`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `host` during normal service delivery.\n\n**Suppression mechanism:** `nist_800_53_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "threat",
   "requiredFields": [

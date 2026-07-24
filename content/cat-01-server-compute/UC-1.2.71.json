@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Scheduled Task Creation (Persistence)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_scheduled_task_creation_persistence` (UC-1.2.71), SOC dashboard panel \"Linux — Scheduled Task Creation (Persistence)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4698 that satisfy the UC-1.2.71 SPL filters for 'Scheduled Task Creation (Persistence)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.71."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4698 where `entity` satisfies detection threshold for UC-1.2.71 ('Scheduled Task Creation (Persistence)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.71."
   },
   "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4698), `sourcetype=WinEventLog:Microsoft-Windows-TaskScheduler/Operational` (EventCode 106) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4698\n| rex field=TaskContent \"<Command>(?<command>[^<]+)</Command>\"\n| rex field=TaskContent \"<Arguments>(?<arguments>[^<]+)</Arguments>\"\n| table _time, host, SubjectUserName, TaskName, command, arguments\n| where NOT match(SubjectUserName, \"(?i)(SYSTEM|sccm|intune)\")\n| sort -_time",
   "description": "Scheduled tasks are a common persistence mechanism for malware. New tasks created outside change management warrant investigation.",
-  "value": "Unexpected scheduled tasks on servers are a favorite way to stay hidden. Flagging new tasks that do not look like your deployment tools gives identity and server teams a head start on cleanup.",
+  "value": "Scheduled tasks are a common persistence mechanism for malware. Timely UC-1.2.71 alerting on 'Scheduled Task Creation (Persistence)' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Enable \"Audit Other Object Access Events\" for EventCode 4698 (task created). The TaskContent XML field contains the full task definition including command, arguments, and triggers. Alert on tasks created by non-SYSTEM/non-admin accounts, tasks with commands in temp/user directories, or tasks executing encoded PowerShell. Cross-reference with Sysmon process creation for execution context.",
   "visualization": "Table (new tasks with commands), Timeline, Bar chart (tasks created by user).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Scheduled Task Creation (Persistence)'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `WinEventLog:Security`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Scheduled Task Creation (Persistence)'. Correlate with apt/yum logs in the same `WinEventLog:Security` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Security`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

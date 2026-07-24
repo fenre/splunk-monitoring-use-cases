@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Emfit HRV Baseline Daily Event Volume' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_emfit_hrv_baseline_daily_event_volume` (UC-25.25.66), SOC dashboard panel \"Personal — Emfit HRV Baseline Daily Event Volume\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='emfit:hrv' that satisfy the UC-25.25.66 SPL filters for 'Emfit HRV Baseline Daily Event Volume'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `emfit:hrv` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.25.66."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='emfit:hrv' where `_time` satisfies detection threshold for UC-25.25.66 ('Emfit HRV Baseline Daily Event Volume'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `emfit:hrv` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.25.66."
   },
   "dataSources": "HRV (`hrv:reading`), blood oxygen (`spo2:reading`), lab panels (`bloodpanel:result`), supplements (`supplement:intake`), continuous glucose (`cgm:glucose`), sleep-apnea events (`apnea:event`), body composition (`bodycomp:measure`), blood pressure (`bloodpressure:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Biohacking data — HRV straps, pulse oximeters, blood-pressure cuffs, continuous glucose monitors, body-composition scales, lab-result exports, and supplement logs — ingested to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=emfit:hrv\n| bin _time span=1d\n| stats count as events, dc(sleeper) as distinct_entities by _time\n| sort - _time",
-  "description": "Counts how many Emfit HRV baseline events land each day and how many distinct sleeper values are represented.",
-  "value": "Daily volume is the fastest way to spot a dead feed, a sudden burst, or a workflow that quietly changed.",
+  "description": "Counts how many Emfit HRV baseline events land each day and how many distinct sleeper values are represented. Searches `index=personal` with sourcetype `emfit:hrv` for UC-25.25.66, aggregating `dc` by `_time` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Emfit HRV Baseline Daily Event Volume' without manual log review.",
+  "value": "Counts how many Emfit HRV baseline events land each day and how many distinct sleeper values are represented. Timely UC-25.25.66 alerting on 'Emfit HRV Baseline Daily Event Volume' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Emfit HRV baseline records into `index=personal`; schedule daily and compare count and distinct sleeper values against your normal baseline.",
   "visualization": "Column chart of daily event count with a line for distinct entities.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Emfit HRV Baseline Daily Event Volume'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `emfit:hrv`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Emfit HRV Baseline Daily Event Volume' stops polling `emfit:hrv`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `dc` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `emfit:hrv`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

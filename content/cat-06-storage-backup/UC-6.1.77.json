@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Pure Storage FlashBlade NFS latency by client and export path' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_pure_storage_flashblade_nfs_latency_by_client_an` (UC-6.1.77), SOC dashboard panel \"Operations — Pure Storage FlashBlade NFS latency by client and export path\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='purestorage:array' that satisfy the UC-6.1.77 SPL filters for 'Pure Storage FlashBlade NFS latency by client and export path'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `purestorage:array` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.77."
+    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='purestorage:array' where `client` satisfies detection threshold for UC-6.1.77 ('Pure Storage FlashBlade NFS latency by client and export path'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `storage` / `purestorage:array` events where `client` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.77."
   },
   "dataSources": "FlashBlade file performance in `purestorage:array` or file-specific sourcetype variants with client/export dimensions Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Pure Storage Unified Add-on for Splunk (5513) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"purestorage:array\"\n| search FlashBlade OR flashblade OR nfs\n| eval client=coalesce(nfs_client, client_ip, client)\n| eval exp=coalesce(export_path, filesystem, fs_name)\n| eval lat_us=coalesce(nfs_latency_usec, op_latency_usec, latency_usec)\n| timechart span=5m perc95(lat_us) as p95_usec by client, exp",
   "description": "NFS hot spots often isolate to a single client or export with aggressive metadata workloads. Client-level latency breaks up array-wide averages that hide real pain.",
-  "value": "Speeds root-cause for HPC and analytics pipelines sharing a single FlashBlade fleet.",
+  "value": "NFS hot spots often isolate to a single client or export with aggressive metadata workloads. Timely UC-6.1.77 alerting on 'Pure Storage FlashBlade NFS latency by client and export path' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Confirm FlashBlade REST exposes per-client NFS metrics; if not, augment with `nfsstat` forwarders on clients for triangulation. Use heavy forwarder for REST polling intervals ≥60s.",
   "visualization": "Heatmap (client × export), line chart (p95 latency).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Pure Storage FlashBlade NFS latency by client and export path'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `storage` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'Pure Storage FlashBlade NFS latency by client and export path' shifts `count` over `span=5m` while `client` remains in-scope for UC-6.1.77. Cross-check CMDB CHG.\n\n2. **Batch `count` on `purestorage:array`** — Scheduled automation elevates `exp` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `client`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `purestorage:array`** — First 48h baseline for `client` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `client`, `exception_reason`, `valid_until`.",
   "equipment": [
     "pure_storage"
   ],

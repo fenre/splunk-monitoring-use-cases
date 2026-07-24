@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Airbnb Payout Payout Amount Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_airbnb_payout_payout_amount_leaderboard` (UC-25.106.21), SOC dashboard panel \"Personal — Airbnb Payout Payout Amount Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='airbnb:payout' that satisfy the UC-25.106.21 SPL filters for 'Airbnb Payout Payout Amount Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `airbnb:payout` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.106.21."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='airbnb:payout' where `listing_name` satisfies detection threshold for UC-25.106.21 ('Airbnb Payout Payout Amount Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `airbnb:payout` events where `listing_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.106.21."
   },
   "dataSources": "Airbnb bookings (`airbnb:booking`), Vrbo reservations (`vrbo:reservation`), Airbnb payouts (`airbnb:payout`), and guest reviews (`guest:review`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Airbnb booking exports, Vrbo reservation webhooks, Airbnb payout statements, guest review logs, and turnover checklists streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=airbnb:payout payout_usd=*\n| stats sum(payout_usd) as total_value, avg(payout_usd) as avg_value by listing_name\n| sort - total_value",
-  "description": "Ranks listing values by total and average payout amount across Airbnb payout events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks listing values by total and average payout amount across Airbnb payout events. Searches `index=personal` with sourcetype `airbnb:payout` for UC-25.106.21, aggregating `sum` by `listing_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Airbnb Payout Payout Amount Leaderboard' without manual log review.",
+  "value": "Ranks listing values by total and average payout amount across Airbnb payout events. Timely UC-25.106.21 alerting on 'Airbnb Payout Payout Amount Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `payout_usd` values for each Airbnb payout event and review total and average payout amount by listing.",
   "visualization": "Table of entities ranked by total payout amount.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Airbnb Payout Payout Amount Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `airbnb:payout`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Airbnb Payout Payout Amount Leaderboard' stops polling `airbnb:payout`; stale `listing_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `airbnb:payout`. Dedup with `stats latest(*) by listing_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

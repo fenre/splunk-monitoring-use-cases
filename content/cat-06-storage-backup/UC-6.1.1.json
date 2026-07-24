@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Volume Capacity Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_volume_capacity_trending` (UC-6.1.1), SOC dashboard panel \"Operations — Volume Capacity Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='netapp:ontap:volume' that satisfy the UC-6.1.1 SPL filters for 'Volume Capacity Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `netapp:ontap:volume` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.1."
+    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='netapp:ontap:volume' where `volume_name` satisfies `pct_used` > 85 for UC-6.1.1 ('Volume Capacity Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `storage` / `netapp:ontap:volume` events where `volume_name` stays below `pct_used` > 85, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.1."
   },
   "dataSources": "Storage array REST API metrics, SNMP hrStorageTable Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Vendor TA (e.g., `TA-netapp_ontap`) or scripted API input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"netapp:ontap:volume\"\n| stats latest(size_used_percent) as pct_used by volume_name\n| where pct_used > 85\n| sort -pct_used",
-  "description": "Prevents application outages caused by full volumes. Enables proactive capacity planning and procurement.",
+  "description": "Prevents application outages caused by full volumes. Enables proactive capacity planning and procurement. Searches `index=storage` with sourcetype `netapp:ontap:volume` for UC-6.1.1, aggregating `count` by `volume_name` over `the scheduled window`. Alerts when grouped results cross `pct_used` > 85 in the saved search. Gives Operations operators a repeatable signal for 'Volume Capacity Trending' without manual log review.",
   "value": "Early 'Volume Capacity Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Deploy vendor TA on a heavy forwarder. Configure REST API polling (every 15 min) for volume metrics. Create alert for >85% and >95% thresholds. Build capacity forecast using `predict` command.",
   "visualization": "Line chart (capacity trend per volume), Single value (current % used), Table (volumes above threshold).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Volume Capacity Trending'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `storage` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'Volume Capacity Trending' shifts `count` over `span=1h` while `volume_name` remains in-scope for UC-6.1.1. Cross-check CMDB CHG.\n\n2. **Batch `count` on `netapp:ontap:volume`** — Scheduled automation elevates `src` without crossing `pct_used` > 85. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `volume_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netapp:ontap:volume`** — First 48h baseline for `volume_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `volume_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netapp",
     "snmp"

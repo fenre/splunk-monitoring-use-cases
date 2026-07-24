@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Posture Assessment Trending' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_posture_assessment_trending` (UC-17.3.5), SOC dashboard panel \"Network — Posture Assessment Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=zt` sourcetype='zt:posture' that satisfy the UC-17.3.5 SPL filters for 'Posture Assessment Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `zt` / `zt:posture` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.5."
+    "positiveScenario": "Ingest synthetic events into `index=zt` sourcetype='zt:posture' where `check_type` satisfies detection threshold for UC-17.3.5 ('Posture Assessment Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `zt` / `zt:posture` events where `check_type` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.5."
   },
   "dataSources": "ZT posture assessment data Indexes: zt. Sourcetypes: zt:posture. Key fields: check_type. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `Splunk_TA_microsoft-cloudservices` (Entra ID / Intune)",
   "spl": "index=zt sourcetype=\"zt:posture\"\n| timechart span=1d avg(compliance_pct) as compliance by check_type",
-  "description": "Endpoint posture compliance rates over time measure security improvement and identify persistent non-compliance areas.",
-  "value": "Zero Trust operations teams track device posture compliance as a continuous signal over time, correlating dips with OS updates, new posture requirements, and endpoint agent issues, and feeding posture trends into access policy decisions.",
+  "description": "Endpoint posture compliance rates over time measure security improvement and identify persistent non-compliance areas. Searches `index=zt` with sourcetype `zt:posture` for UC-17.3.5, aggregating `avg` by `check_type` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Network operators a repeatable signal for 'Posture Assessment Trending' without manual log review.",
+  "value": "Endpoint posture compliance rates over time measure security improvement and identify persistent non-compli.... Timely UC-17.3.5 alerting on 'Posture Assessment Trending' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
   "implementation": "Track posture assessment results over time by check type (AV, encryption, OS patch, firewall). Report on compliance improvement trends. Alert when compliance drops below target. Identify persistent non-compliance patterns.",
   "visualization": "Line chart (compliance trend by check), Bar chart (compliance by OS), Single value (overall compliance %), Table (non-compliant checks).",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'Posture Assessment Trending'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `zt`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `zt:posture` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `zt`** — Planned work for 'Posture Assessment Trending' shifts `avg` over `span=1d` while `check_type` remains in-scope for UC-17.3.5. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `zt:posture`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `check_type`** — Health checks in `zt` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zt:posture`** — First 48h baseline for `check_type` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `check_type`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078",
     "T1133"

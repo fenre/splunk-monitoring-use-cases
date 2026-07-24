@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Traffic Management System Sensor Availability' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_traffic_management_system_sensor_availability` (UC-21.4.12), SOC dashboard panel \"Operations — Traffic Management System Sensor Availability\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=logistics` sourcetype='tms:sensor' that satisfy the UC-21.4.12 SPL filters for 'Traffic Management System Sensor Availability'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `logistics` / `tms:sensor` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.4.12."
+    "positiveScenario": "Ingest synthetic events into `index=logistics` sourcetype='tms:sensor' where `sensor_id` satisfies `age_sec` < 300 for UC-21.4.12 ('Traffic Management System Sensor Availability'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `logistics` / `tms:sensor` events where `sensor_id` stays below `age_sec` < 300, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-21.4.12."
   },
   "dataSources": "`index=logistics` `sourcetype=\"tms:sensor\"` fields `sensor_id`, `last_reading_epoch`, `status` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "ATMS field device gateway via HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=logistics sourcetype=\"tms:sensor\"\n| eval age_sec=now()-last_reading_epoch\n| eval online=if(status=\"active\" AND age_sec < 300, 1, 0)\n| stats avg(online) as avail_frac by sensor_id\n| eval avail_pct=round(avail_frac*100,2)\n| where avail_pct < 95\n| table sensor_id, avail_pct",
   "description": "Roadside sensor availability impacts traffic management system accuracy. Monitoring sensor uptime enables proactive maintenance and reliable traffic data.",
-  "value": "Service and risk leaders use signals from Traffic Management System Sensor Availability to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "value": "Service and risk leaders use signals from Traffic Management System Sensor Availability to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Monitor sensor heartbeats. Tune stale threshold per sensor class. Alert maintenance when availability drops below target. **Domain context:** ATMS data feeds ITS and traveler information systems—stale speed/occupancy sensors degrade routing algorithms and public-facing travel times. **Splunk:** `stats avg(online)` across all rows per sensor assumes one row per poll—if multiple rows per sensor per bucket, use `latest(online)` or `timechart` instead.",
   "visualization": "Map (sensor status), Table (offline sensors), Time chart (online %).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Traffic Management System Sensor Availability'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `logistics` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `logistics`** — Planned work for 'Traffic Management System Sensor Availability' shifts `avg` over `span=1h` while `sensor_id` remains in-scope for UC-21.4.12. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `tms:sensor`** — Scheduled automation elevates `age_sec` without crossing `age_sec` < 300. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sensor_id`** — Health checks in `logistics` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tms:sensor`** — First 48h baseline for `sensor_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sensor_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

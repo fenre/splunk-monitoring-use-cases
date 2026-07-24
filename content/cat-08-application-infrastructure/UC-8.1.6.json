@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'Upstream Backend Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_upstream_backend_health` (UC-8.1.6), SOC dashboard panel \"Operations — Upstream Backend Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='nginx:error' that satisfy the UC-8.1.6 SPL filters for 'Upstream Backend Health'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `nginx:error` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.6."
+    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='nginx:error' where `upstream_addr` satisfies detection threshold for UC-8.1.6 ('Upstream Backend Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `web` / `nginx:error` events where `upstream_addr` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.6."
   },
   "dataSources": "NGINX error logs (upstream errors), HAProxy stats socket, F5 pool member logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`TA-nginx` (error logs), HAProxy stats — Universal Forwarder (Splunkbase 617)",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Upstream Backend Health'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `web` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'Upstream Backend Health' shifts `count` over `span=1h` while `upstream_addr` remains in-scope for UC-8.1.6. Cross-check CMDB CHG.\n\n2. **Batch `count` on `nginx:error`** — Scheduled automation elevates `server_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `upstream_addr`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nginx:error`** — First 48h baseline for `upstream_addr` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `upstream_addr`, `exception_reason`, `valid_until`.",
   "equipment": [
     "haproxy",
     "nginx"

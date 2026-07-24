@@ -67,16 +67,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Implementing a financial-system change with no UAT subtask returns test_evidence_present=0.",
-    "negativeScenario": "A change with a closed-complete UAT subtask is absent.",
-    "fixtureRef": "",
-    "fixtureStatus": "pending"
+    "positiveScenario": "Ingest synthetic events into `index=change` sourcetype='servicenow:change' where `change_id` satisfies `uat_tasks` >= 1 for UC-22.12.38 ('SOX-ITGC ChangeMgmt.Testing — Financial-system change test-evidence completeness'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `change` / `servicenow:change` events where `change_id` stays below `uat_tasks` >= 1, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.12.38."
   },
   "dataSources": "`index=change` sourcetype=servicenow:change; test evidence sub-table sourcetype=servicenow:change_task (type=UAT).",
   "app": "Splunk Add-on for ServiceNow (Splunkbase)",
   "spl": "index=change sourcetype=servicenow:change state=implemented earliest=-7d\n| lookup financial_systems_apps.csv system OUTPUT in_scope\n| where in_scope=\"yes\"\n| stats latest(_time) AS deployed_at latest(change_id) AS change_id BY change_id system\n| join type=outer change_id\n  [search index=change sourcetype=servicenow:change_task task_type=uat state=closed_complete earliest=-60d\n   | stats latest(assigned_to) AS tester count AS uat_tasks BY change_id]\n| eval test_evidence_present=if(uat_tasks>=1,1,0)\n| where test_evidence_present=0\n| table change_id system tester deployed_at test_evidence_present",
   "description": "For every change to a financial system, assert a closed-complete UAT task exists. SOX-ITGC ChangeMgmt.Testing requires documented test evidence.",
-  "value": "Converts a common sampling control into full-coverage evidence, reducing audit sampling and cost.",
+  "value": "For every change to a financial system, assert a closed-complete UAT task exists. Timely UC-22.12.38 alerting on 'SOX-ITGC ChangeMgmt.Testing — Financial-system change test-evidence completeness' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Maintain financial_systems_apps.csv; (2) configure ServiceNow to require a UAT subtask; (3) schedule UC hourly; (4) test_evidence_present=0 triggers a deficiency record. Indexes required: `index=change`; Sourcetypes: `sourcetype=servicenow:change`, `sourcetype=servicenow:change;`, `sourcetype=servicenow:change_task`.",
   "visualization": "Table of missing-test changes, bar chart by system, single value 'missing test evidence'.",
   "cimModels": [
@@ -106,7 +104,7 @@
       "retrieved": "2026-04-16"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised SOX ITGC control testing** — Internal audit exercises 'SOX-ITGC ChangeMgmt.Testing — Financial-system change test-evidence completeness' (UC-22.12.38) on `change_id` during scheduled clause ITGC.ChangeMgmt.Testing sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=change` `servicenow:change` without crossing `uat_tasks` >= 1. Cross-check engagement letter in `sox_itgc_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `change` for `change_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `change_id` during normal service delivery.\n\n**Suppression mechanism:** `sox_itgc_exception_register.csv` keyed on `change_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Baseline",
   "securityDomain": "audit",
   "requiredFields": [

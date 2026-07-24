@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Asterisk Security Log Brute-Force SIP Registration Attempts' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_asterisk_security_log_brute_force_sip_registrati` (UC-11.7.5), SOC dashboard panel \"Operations — Asterisk Security Log Brute-Force SIP Registration Attempts\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=voip` sourcetype='asterisk:security' that satisfy the UC-11.7.5 SPL filters for 'Asterisk Security Log Brute-Force SIP Registration Attempts'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `voip` / `asterisk:security` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.7.5."
+    "positiveScenario": "Ingest synthetic events into `index=voip` sourcetype='asterisk:security' where `user` satisfies `count` >= 15 for UC-11.7.5 ('Asterisk Security Log Brute-Force SIP Registration Attempts'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `voip` / `asterisk:security` events where `user` stays below `count` >= 15, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.7.5."
   },
   "dataSources": "`index=voip` · `sourcetype=\"asterisk:security\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom TA, HEC, or Universal Forwarder mapping Asterisk logs to `asterisk:pjsip`, `asterisk:cdr`, `asterisk:queue_log`, `asterisk:full`, `asterisk:messages`, `asterisk:security`, `asterisk:ami` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=voip sourcetype=\"asterisk:security\" earliest=-1h\n| eval user=coalesce(user, username, account, \"\")\n| eval src=coalesce(src_ip, remote_ip, SRC, \"\")\n| where match(lower(_raw), \"(?i)failed|invalid|reject|ban|wrong password|bad auth|not match\")\n| stats count dc(src) as sources values(src) as src_list by user\n| where count>=15 OR sources>=5",
   "description": "High-velocity bad authentication against SIP registrations precedes toll fraud. Clustering by extension and source IP prioritizes blocks.",
-  "value": "Reduces fraudulent usage charges and gives SOC an actionable VoIP-specific signal.",
+  "value": "High-velocity bad authentication against SIP registrations precedes toll fraud. Timely UC-11.7.5 alerting on 'Asterisk Security Log Brute-Force SIP Registration Attempts' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "(1) Log client IP in security events. (2) Tune thresholds. (3) SOAR or firewall integration. (4) Allowlist scanners.",
   "visualization": "Table of users and IPs; sparkline volume.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Asterisk Security Log Brute-Force SIP Registration Attempts'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `voip` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `voip`** — Planned work for 'Asterisk Security Log Brute-Force SIP Registration Attempts' shifts `dc` over `span=1h` while `user` remains in-scope for UC-11.7.5. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `asterisk:security`** — Scheduled automation elevates `user` without crossing `count` >= 15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `asterisk:security`** — First 48h baseline for `user` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "equipment": [
     "asterisk"
   ],

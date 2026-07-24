@@ -57,13 +57,13 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='cosign:verify' that satisfy the UC-12.3.10 SPL filters for 'Artifact Signing Verification'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cicd` / `cosign:verify` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.3.10."
+    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='cosign:verify' where `entity` satisfies detection threshold for UC-12.3.10 ('Artifact Signing Verification'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `cicd` / `cosign:verify` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.3.10."
   },
   "dataSources": "Verify command JSON `verified`, `issuer`; lookup `trusted_signing_issuers.csv` maintained by the platform team with `issuer` → `trusted` (true/false) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Cosign, Sigstore Rekor — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cicd sourcetype=\"cosign:verify\"\n| lookup trusted_signing_issuers.csv issuer OUTPUT trusted\n| where verified=\"false\" OR trusted!=\"true\"\n| table _time, image, issuer, reason",
-  "description": "Cosign/Notary verification results at deploy time—signature missing or wrong key.",
+  "description": "Cosign/Notary verification results at deploy time—signature missing or wrong key. Searches `index=cicd` with sourcetype `cosign:verify` for UC-12.3.10, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Artifact Signing Verification' without manual log review.",
   "value": "Early 'Artifact Signing Verification' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ingest verification from CD pipeline. Block deploy on false. Rotate keys per runbook.",
   "visualization": "Table (failed verifications), Timeline, Single value (failed count).",
@@ -93,7 +93,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Artifact Signing Verification'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `cicd` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `cicd`** — Planned work for 'Artifact Signing Verification' shifts `count` over `span=1h` while `host` remains in-scope for UC-12.3.10. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cosign:verify`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cosign:verify`** — First 48h baseline for `host` is unstable; join `trusted_signing_issuers.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

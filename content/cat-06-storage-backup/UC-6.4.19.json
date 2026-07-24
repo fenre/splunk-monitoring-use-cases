@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Veeam Backup Copy Job Missing Expected GFS Restore Points' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_veeam_backup_copy_job_missing_expected_gfs_resto` (UC-6.4.19), SOC dashboard panel \"Operations — Veeam Backup Copy Job Missing Expected GFS Restore Points\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='veeam:backup' that satisfy the UC-6.4.19 SPL filters for 'Veeam Backup Copy Job Missing Expected GFS Restore Points'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `backup` / `veeam:backup` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.4.19."
+    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='veeam:backup' where `jn` satisfies `days_since` > 7 for UC-6.4.19 ('Veeam Backup Copy Job Missing Expected GFS Restore Points'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `backup` / `veeam:backup` events where `jn` stays below `days_since` > 7, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.4.19."
   },
   "dataSources": "`veeam:backup` / `veeam:job` completion rows with `job_name`, `end_time`, and backup copy metadata",
   "app": "Veeam App for Splunk (Splunkbase 7312) or TA-ingested job history",
   "spl": "index=backup (sourcetype=\"veeam:backup\" OR sourcetype=\"veeam:job\") earliest=-30d\n| eval jn=coalesce(job_name, JobName)\n| where match(jn,\"(?i)copy\")\n| eval end_epoch=coalesce(if(isnum(end_time), end_time, null()), strptime(job_end,\"%Y-%m-%d %H:%M:%S\"), strptime(job_end,\"%Y-%m-%dT%H:%M:%S%Z\"))\n| stats latest(end_epoch) as last_success by jn\n| eval days_since=round((now()-last_success)/86400,1)\n| where isnotnull(last_success) AND days_since > 7\n| sort - days_since",
   "description": "Backup copy jobs carry Grandfather-Father-Son (GFS) anchors for compliance; if no successful copy lands within the policy window, offsite retention gaps violate internal and external audit requirements.",
-  "value": "Protects legal hold and ransomware recovery postures by catching WAN outages, repository auth failures, or scheduling mistakes before quarterly reviews.",
+  "value": "Backup copy jobs carry Grandfather-Father-Son (GFS) anchors for compliance; if no successful copy lands wit.... Timely UC-6.4.19 alerting on 'Veeam Backup Copy Job Missing Expected GFS Restore Points' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Tag backup copy jobs in Veeam with a consistent naming prefix. Adjust `days_since` threshold to match the tightest GFS interval (weekly anchor = 7 days). Join to a lookup of regulated workloads for routing severity. Use `veeam_vbr_syslog` with the same filters if REST ingestion is unavailable.",
   "visualization": "Table (job, days since success), timeline of successes, single value (worst gap).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Veeam Backup Copy Job Missing Expected GFS Restore Points'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `backup` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `backup`** — Planned work for 'Veeam Backup Copy Job Missing Expected GFS Restore Points' shifts `count` over `span=1h` while `jn` remains in-scope for UC-6.4.19. Cross-check CMDB CHG.\n\n2. **Batch `count` on `veeam:backup`** — Scheduled automation elevates `jn` without crossing `days_since` > 7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `jn`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `veeam:backup`** — First 48h baseline for `jn` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `jn`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog",
     "veeam"

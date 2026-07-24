@@ -11,8 +11,8 @@
   "exclusions": "Covers the detection logic documented for 'Backup Target Capacity and Growth Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_backup_target_capacity_and_growth_rate` (UC-6.3.20), SOC dashboard panel \"Operations — Backup Target Capacity and Growth Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='backup_capacity' that satisfy the UC-6.3.20 SPL filters for 'Backup Target Capacity and Growth Rate'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `backup` / `backup_capacity` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.3.20."
+    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='backup_capacity' where `target_name` satisfies `pct` > 85 for UC-6.3.20 ('Backup Target Capacity and Growth Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `backup` / `backup_capacity` events where `target_name` stays below `pct` > 85, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.3.20."
   },
   "dataSources": "Backup catalog size, target filesystem capacity, object storage metrics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Backup vendor API, storage array metrics, S3/CloudWatch — Universal Forwarder (Splunkbase 617)",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Backup Target Capacity and Growth Rate'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `backup` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `backup`** — Planned work for 'Backup Target Capacity and Growth Rate' shifts `count` over `span=1h` while `target_name` remains in-scope for UC-6.3.20. Cross-check CMDB CHG.\n\n2. **Batch `count` on `backup_capacity`** — Scheduled automation elevates `used_pct` without crossing `pct` > 85. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `target_name`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `backup_capacity`** — First 48h baseline for `target_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `target_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

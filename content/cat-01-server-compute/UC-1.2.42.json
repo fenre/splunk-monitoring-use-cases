@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for '.NET CLR Performance Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_net_clr_performance_monitoring` (UC-1.2.42), SOC dashboard panel \"Linux — .NET CLR Performance Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=perfmon` sourcetype='Perfmon:dotNET_CLR_Memory' that satisfy the UC-1.2.42 SPL filters for '.NET CLR Performance Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `perfmon` / `Perfmon:dotNET_CLR_Memory` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.42."
+    "positiveScenario": "Ingest synthetic events into `index=perfmon` sourcetype='Perfmon:dotNET_CLR_Memory' where `host` satisfies `pct_gc` > 20 for UC-1.2.42 ('.NET CLR Performance Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `perfmon` / `Perfmon:dotNET_CLR_Memory` events where `host` stays below `pct_gc` > 20, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.42."
   },
   "dataSources": "`sourcetype=Perfmon:dotNET_CLR_Memory` (counters: % Time in GC, Gen 2 Collections) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=perfmon sourcetype=\"Perfmon:dotNET_CLR_Memory\" counter=\"% Time in GC\" instance!=\"_Global_\"\n| timechart span=5m avg(Value) as pct_gc by host, instance\n| where pct_gc > 20",
   "description": ".NET garbage collection pauses and high exception rates cause application latency and instability. CLR monitoring reveals issues invisible to external health checks.",
-  "value": "High GC% often foreshadows OOM, restarts, and slow pages—an app-centric lens on a server metric you already collect.",
+  "value": ". Timely UC-1.2.42 alerting on '.NET CLR Performance Monitoring' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "Configure Perfmon inputs for `.NET CLR Memory` object: `% Time in GC`, `# Gen 2 Collections`, `Large Object Heap size`. Also monitor `.NET CLR Exceptions` → `# of Exceps Thrown / sec`. >20% time in GC indicates memory pressure in .NET apps. Frequent Gen 2 collections signal large object allocation issues. Target specific app pool instances (w3wp) for IIS applications.",
   "visualization": "Line chart (GC time %), Bar chart (Gen 2 collections by app), Dual-axis (GC time + exceptions).",
   "cimModels": [
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for '.NET CLR Performance Monitoring'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `perfmon` `Perfmon:dotNET_CLR_Memory`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `perfmon`** — Package managers spike `host` metrics for '.NET CLR Performance Monitoring'. Correlate with apt/yum logs in the same `Perfmon:dotNET_CLR_Memory` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `Perfmon:dotNET_CLR_Memory`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `pct_gc` > 20.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

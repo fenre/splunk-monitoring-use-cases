@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'IPFIX Application-ID Mapping (Cisco NBAR / App-ID)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ipfix_application_id_mapping_cisco_nbar_app_id` (UC-5.7.12), SOC dashboard panel \"Operations — IPFIX Application-ID Mapping (Cisco NBAR / App-ID)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=netflow` sourcetype='stream:ipfix' that satisfy the UC-5.7.12 SPL filters for 'IPFIX Application-ID Mapping (Cisco NBAR / App-ID)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `netflow` / `stream:ipfix` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.7.12."
+    "positiveScenario": "Ingest synthetic events into `index=netflow` sourcetype='stream:ipfix' where `application_id` satisfies detection threshold for UC-5.7.12 ('IPFIX Application-ID Mapping (Cisco NBAR / App-ID)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `netflow` / `stream:ipfix` events where `application_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.7.12."
   },
   "dataSources": "`index=netflow` with Flexible NetFlow or IPFIX records carrying Cisco Network-Based Application Recognition export (`application_id`, `application_name`) from IOS-XE / ASR / ISR via Splunk Add-on for NetFlow (Splunkbase 1838); normalize sourcetype such as `stream:ipfix` or `netflow`; join with optional CSV mapping `nbar_appid_to_category.csv` when names are numeric only.",
   "app": "Splunk Add-on for NetFlow (Splunkbase 1838)",
   "spl": "index=netflow (sourcetype=\"stream:ipfix\" OR sourcetype=\"netflow\")\n| eval app_key=coalesce(application_name, \"app_id_\".application_id)\n| stats sum(bytes) as total_bytes sum(packets) as total_packets dc(src) as sources dc(dest) as destinations last(application_name) as last_app_name\n  by application_id app_key\n| eval gb=round(total_bytes/1073741824, 3)\n| sort -total_bytes\n| head 50",
   "description": "Summarizes bytes and endpoints keyed on exporter-reported application identifiers so teams can verify classification coverage, spot unnamed or stale numeric identifiers, and reconcile policy labels with observed flows.",
-  "value": "Application owners and network operators prioritize troubleshooting and capacity decisions using vendor-native application labels instead of port guesses, catch misclassification after routing changes, and give security teams consistent names for allowlists and investigations.",
+  "value": "Summarizes bytes and endpoints keyed on exporter-reported application identifiers so teams can verify class.... Timely UC-5.7.12 alerting on 'IPFIX Application-ID Mapping (Cisco NBAR / App-ID)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Export NBAR App-ID in IPFIX templates; ingest with NetFlow TA; maintain a supplemental lookup for vendor IDs; build top-application panels and alerts for unknown IDs.",
   "visualization": "Bar chart of gb by app_key; drilldown table with sources, destinations, application_id; treemap when category lookup exists.",
   "references": [
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'IPFIX Application-ID Mapping (Cisco NBAR / App-ID)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `netflow` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `netflow`** — Planned work for 'IPFIX Application-ID Mapping (Cisco NBAR / App-ID)' shifts `sum` over `span=1h` while `application_id` remains in-scope for UC-5.7.12. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `stream:ipfix`** — Scheduled automation elevates `app_key` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `application_id`** — Health checks in `netflow` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `stream:ipfix`** — First 48h baseline for `application_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `application_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "netflow"

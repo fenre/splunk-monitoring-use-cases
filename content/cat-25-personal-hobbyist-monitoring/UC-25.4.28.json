@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Google Home Presence State Mismatch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_google_home_presence_state_mismatch` (UC-25.4.28), SOC dashboard panel \"Personal — Google Home Presence State Mismatch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='googlehome:event' that satisfy the UC-25.4.28 SPL filters for 'Google Home Presence State Mismatch'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `googlehome:event` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.4.28."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='googlehome:event' where `person` satisfies `updates` > 2 for UC-25.4.28 ('Google Home Presence State Mismatch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `googlehome:event` events where `person` stays below `updates` > 2, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.4.28."
   },
   "dataSources": "Home automation orchestration (`homeassistant:event`, `matter:event`, `thread:router`, `alexa:routine`, `googlehome:event`, `zigbee2mqtt:bridge`, `smartthings:event`, `nodered:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home Assistant, Matter and Thread border routers, Alexa routine logs, Google Home automations, Zigbee2MQTT bridges, SmartThings, Node-RED, and webhooks streamed to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=googlehome:event event_type=presence_sync\n| bin _time span=1d\n| stats dc(presence_state) as presence_states, count as updates by person _time\n| where updates>2 AND presence_states>1\n| sort - updates",
   "description": "Uses Google Home presence sync events telemetry to monitor days where household presence bounced between conflicting states in index=personal.",
-  "value": "Splunk turns the feed into an operational check for presence automations that are likely to misfire, so the signal does not stay buried inside separate consumer apps or exports.",
+  "value": "Uses Google Home presence sync events telemetry to monitor days where household presence bounced between co.... Timely UC-25.4.28 alerting on 'Google Home Presence State Mismatch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest Google Home presence sync events data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Daily person table of updates and distinct states.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Google Home Presence State Mismatch'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `googlehome:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Google Home Presence State Mismatch' stops polling `googlehome:event`; stale `person` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `dc` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `googlehome:event`. Dedup with `stats latest(*) by person`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `updates` > 2. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

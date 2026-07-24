@@ -12,7 +12,7 @@
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:client\" connectionType=\"WIRELESS\"\n| stats avg(healthScore{}.score) as avg_health avg(rssi) as avg_rssi avg(snr) as avg_snr dc(macAddress) as client_count count(eval(healthScore{}.score<50)) as poor_clients by ssid\n| eval experience=round((avg_health*0.4 + (100+avg_rssi)*0.3 + avg_snr*0.3*4),1)\n| eval experience=if(experience>100,100,experience)\n| sort experience",
   "description": "Computes a comprehensive wireless client experience score per SSID by combining Assurance health scores, signal strength (RSSI), and signal quality (SNR) into a single weighted metric — providing a more nuanced view than UC-5.13.12's basic health percentage, and directly answering 'which SSID has the worst user experience?'",
-  "value": "UC-5.13.12 shows health percentage per SSID but doesn't weight signal quality. An SSID can show 80% healthy clients while every connected client has RSSI -78 dBm — technically functional but practically miserable for voice and video. This composite experience score weights three factors: (1) Assurance health score (40%) — the platform's AI-computed assessment; (2) RSSI (30%) — raw signal strength; (3) SNR (30%) — signal quality relative to noise. The result is a single number per SSID that correlates more closely with actual user experience than any individual metric alone.",
+  "value": "Computes a comprehensive wireless client experience score per SSID by combining Assurance health scores, si.... Timely UC-5.13.63 alerting on 'Wireless Client Experience Score by SSID' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Same `client` detail input as UC-5.13.40. Requires `healthScore{}.score`, `rssi`, and `snr` fields populated for wireless clients. The experience formula weights health, RSSI, and SNR; adjust weights based on your network's priorities (voice-heavy → increase SNR weight).",
   "visualization": "(1) Table: ssid, experience, avg_health, avg_rssi, avg_snr, client_count, poor_clients — sorted by experience ascending (worst first). (2) Bar chart: experience score by SSID (colour-coded: green > 70, yellow 50–70, red < 50). (3) Radar chart: per-SSID comparison across health, RSSI, SNR dimensions. (4) Timechart: `| timechart span=1h avg(experience) by ssid` for experience trending.",
   "references": [
@@ -33,7 +33,7 @@
       "url": "https://www.cisco.com/c/en/us/solutions/design-zone/networking-design-guides/campus-wired-wireless.html"
     }
   ],
-  "knownFalsePositives": "**IoT SSIDs with inherently lower experience scores.** IoT devices have weaker radios and simpler wireless capabilities, producing lower RSSI and health scores. Distinguish by checking the SSID name against IoT naming conventions. Suppress by comparing within SSID categories (corporate vs guest vs IoT) rather than across all SSIDs.\n\n**Guest SSIDs with diverse client device quality.** Guest networks serve a wide range of device ages and capabilities, pulling down average scores. Distinguish by checking `client_count` and `hostType` distribution. Present guest and corporate SSIDs in separate comparisons.\n\n**Low client count producing volatile scores.** An SSID with 2 connected clients produces unreliable averages. Distinguish by checking `client_count`. Suppress by filtering `| where client_count >= 10` for meaningful comparison.\n\n**RSSI component dominated by 5 GHz clients.** 5 GHz RSSI is naturally lower than 2.4 GHz. An SSID serving mostly 5 GHz clients will have a lower RSSI-component than one serving mostly 2.4 GHz clients, even with identical coverage. Consider computing the experience score per-band rather than per-SSID.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Wireless Client Experience Score by SSID' shifts `avg` over `span=1h` while `ssid` remains in-scope for UC-5.13.63. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `cisco:dnac:client`** — Scheduled automation elevates `experience` without crossing `score` < 50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ssid`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:client`** — First 48h baseline for `ssid` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ssid`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -53,5 +53,9 @@
     "UC-5.13.40",
     "UC-5.13.42"
   ],
-  "wave": "walk"
+  "wave": "walk",
+  "controlTest": {
+    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:client' where `ssid` satisfies `score` < 50 for UC-5.13.63 ('Wireless Client Experience Score by SSID'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:client` events where `ssid` stays below `score` < 50, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.63."
+  }
 }

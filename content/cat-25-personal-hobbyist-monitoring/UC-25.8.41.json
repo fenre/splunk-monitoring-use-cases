@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Uptime Kuma Monitor Flap Longer Than Five Minutes' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_uptime_kuma_monitor_flap_longer_than_five_minute` (UC-25.8.41), SOC dashboard panel \"Personal — Uptime Kuma Monitor Flap Longer Than Five Minutes\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='uptimekuma:monitor' that satisfy the UC-25.8.41 SPL filters for 'Uptime Kuma Monitor Flap Longer Than Five Minutes'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `uptimekuma:monitor` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.41."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='uptimekuma:monitor' where `entity` satisfies `duration` > 300 for UC-25.8.41 ('Uptime Kuma Monitor Flap Longer Than Five Minutes'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `uptimekuma:monitor` events where `entity` stays below `duration` > 300, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.41."
   },
   "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=uptimekuma:monitor monitor_status=down\n| transaction monitor_name maxspan=10m\n| where duration>300",
   "description": "Finds Uptime Kuma monitors with extended down periods. Runs scheduled SPL against `index=personal` to surface **Uptime Kuma Monitor Flap Longer Than Five Minutes** so you can spot drift before it becomes a habit.",
-  "value": "Surfacing uptime kuma monitor flap longer than five minutes helps you act before small issues become habits.",
+  "value": "Surfacing uptime kuma monitor flap longer than five minutes helps you act before small issues become habits reduces missed training goals, stale hobby data, and connector failures by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Ingest the relevant home lab & self-hosting export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Uptime Kuma Monitor Flap Longer Than Five Minutes'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `uptimekuma:monitor`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Uptime Kuma Monitor Flap Longer Than Five Minutes' stops polling `uptimekuma:monitor`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `10m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `uptimekuma:monitor`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `10m` bins on UTC vs local schedule skew `duration` > 300. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "proxmox",

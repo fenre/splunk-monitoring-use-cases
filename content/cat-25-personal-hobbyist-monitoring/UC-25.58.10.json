@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Year-in-Review Summary' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_year_in_review_summary` (UC-25.58.10), SOC dashboard panel \"Personal — Year-in-Review Summary\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='photo:capture' that satisfy the UC-25.58.10 SPL filters for 'Year-in-Review Summary'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `photo:capture` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.58.10."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='photo:capture' where `entity` satisfies detection threshold for UC-25.58.10 ('Year-in-Review Summary'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `photo:capture` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.58.10."
   },
   "dataSources": "Photos (`photo:capture`), places visited (`location:visit`), voice memos (`voicememo:note`), logged moments (`lifelog:moment`), timeline events (`timeline:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Life-logging and memory telemetry — photo libraries (Google Photos, Immich), location history, voice memos, and daily-moment journals — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal (sourcetype=photo:capture OR sourcetype=location:visit OR sourcetype=lifelog:moment)\n| where _time>relative_time(now(),\"-1y@d\")\n| stats count(eval(sourcetype=\"photo:capture\")) as photos, dc(eval(if(sourcetype=\"location:visit\",place,null()))) as places, count(eval(sourcetype=\"lifelog:moment\")) as moments",
-  "description": "Rolls up a year of photos, places, and logged moments into one shareable year-in-review.",
-  "value": "A personal year-in-review turns scattered data into a story of the year that is genuinely moving to read.",
+  "description": "Rolls up a year of photos, places, and logged moments into one shareable year-in-review. Searches `index=personal` with sourcetype `photo:capture` for UC-25.58.10, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Year-in-Review Summary' without manual log review.",
+  "value": "Rolls up a year of photos, places, and logged moments into one shareable year-in-review. Timely UC-25.58.10 alerting on 'Year-in-Review Summary' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Combine memory feeds in `index=personal`; summarise the last year in one view.",
   "visualization": "Summary panel of the year's photos, places, and moments.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Year-in-Review Summary'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `photo:capture`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Year-in-Review Summary' stops polling `photo:capture`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `photo:capture`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

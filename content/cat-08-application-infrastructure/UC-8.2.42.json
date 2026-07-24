@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Microsoft IIS HTTP.sys Request Queue Length per Application Pool' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_microsoft_iis_http_sys_request_queue_length_per_` (UC-8.2.42), SOC dashboard panel \"Operations — Microsoft IIS HTTP.sys Request Queue Length per Application Pool\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=windows` sourcetype='Perfmon:IIS' that satisfy the UC-8.2.42 SPL filters for 'Microsoft IIS HTTP.sys Request Queue Length per Application Pool'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `windows` / `Perfmon:IIS` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.42."
+    "positiveScenario": "Ingest synthetic events into `index=windows` sourcetype='Perfmon:IIS' where `instance` satisfies `qsize` > 100 for UC-8.2.42 ('Microsoft IIS HTTP.sys Request Queue Length per Application Pool'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `windows` / `Perfmon:IIS` events where `instance` stays below `qsize` > 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.42."
   },
   "dataSources": "`index=windows` IIS HTTP.sys Perfmon counters (`HTTP Service Request Queue\\CurrentQueueSize`) via `Splunk_TA_windows` Perfmon or `Nmon`",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`); Splunk Add-on for Microsoft IIS (Splunkbase 3185)",
   "spl": "index=windows sourcetype=\"Perfmon:IIS\" OR sourcetype=\"perfmon\"\n| search object=\"HTTP Service Request Queue\" OR counter=\"CurrentQueueSize\"\n| eval qsize=tonumber(Value)\n| where qsize > 100\n| timechart span=1m max(qsize) by instance",
   "description": "HTTP.sys queues requests before IIS worker threads dequeue them. Queue growth often appears before application-level latency and implicates kernel-layer throttling, thread starvation, or SYN floods.",
-  "value": "Explains latency that application profilers miss and speeds isolation between network, kernel, and code paths.",
+  "value": "HTTP. Timely UC-8.2.42 alerting on 'Microsoft IIS HTTP.sys Request Queue Length per Application Pool' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Collect Perfmon every 60s; map `instance` to site/app pool. Alert when queue sustained above baseline.",
   "visualization": "Stacked bars for status/substatus, Perfmon timecharts, top client tables.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Microsoft IIS HTTP.sys Request Queue Length per Application Pool'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `windows` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `windows`** — Planned work for 'Microsoft IIS HTTP.sys Request Queue Length per Application Pool' shifts `max` over `span=1m` while `instance` remains in-scope for UC-8.2.42. Cross-check CMDB CHG.\n\n2. **Batch `max` on `Perfmon:IIS`** — Scheduled automation elevates `qsize` without crossing `qsize` > 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `instance`** — Health checks in `windows` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `Perfmon:IIS`** — First 48h baseline for `instance` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `instance`, `exception_reason`, `valid_until`.",
   "equipment": [
     "iis",
     "windows"

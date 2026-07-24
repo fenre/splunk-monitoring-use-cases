@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Price-Per-Use Redemption Progress' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_price_per_use_redemption_progress` (UC-25.34.16), SOC dashboard panel \"Personal — Price-Per-Use Redemption Progress\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='priceperuse:item' that satisfy the UC-25.34.16 SPL filters for 'Price-Per-Use Redemption Progress'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `priceperuse:item` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.34.16."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='priceperuse:item' where `item` satisfies detection threshold for UC-25.34.16 ('Price-Per-Use Redemption Progress'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `priceperuse:item` events where `item` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.34.16."
   },
   "dataSources": "Micro-spend transactions (`microspend:txn`), no-spend days (`nospend:day`), price-per-use items (`priceperuse:item`), cash-back rewards (`cashback:reward`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Bank-transaction exports categorised for micro-spending, no-spend-day trackers, price-per-use logs, and cash-back / rewards feeds — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=priceperuse:item\n| eval cost_per_use=round(price/uses,2)\n| stats latest(price) as price, latest(uses) as uses, latest(cost_per_use) as cost_per_use by item\n| sort cost_per_use",
-  "description": "Shows which purchases are earning their keep and which are still expensive clutter.",
-  "value": "Price-per-use turns guilt about a purchase into an objective signal of whether it is becoming valuable over time.",
+  "description": "Shows which purchases are earning their keep and which are still expensive clutter. Searches `index=personal` with sourcetype `priceperuse:item` for UC-25.34.16, aggregating `count` by `item` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Price-Per-Use Redemption Progress' without manual log review.",
+  "value": "Shows which purchases are earning their keep and which are still expensive clutter. Timely UC-25.34.16 alerting on 'Price-Per-Use Redemption Progress' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Track item price and uses in `index=personal`; rank items by latest cost per use.",
   "visualization": "Table of items with price, uses, and current cost per use.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Price-Per-Use Redemption Progress'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `priceperuse:item`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Price-Per-Use Redemption Progress' stops polling `priceperuse:item`; stale `item` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `priceperuse:item`. Dedup with `stats latest(*) by item`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

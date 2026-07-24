@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Scan Coverage Monitoring' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_scan_coverage_monitoring` (UC-10.6.3), SOC dashboard panel \"Security Infra — Scan Coverage Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vulnerability` sourcetype='tenable:vuln' that satisfy the UC-10.6.3 SPL filters for 'Scan Coverage Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vulnerability` / `tenable:vuln` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.6.3."
+    "positiveScenario": "Ingest synthetic events into `index=vulnerability` sourcetype='tenable:vuln' where `hostname]` satisfies `days_since_scan` > 30 for UC-10.6.3 ('Scan Coverage Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `vulnerability` / `tenable:vuln` events where `hostname]` stays below `days_since_scan` > 30, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.6.3."
   },
   "dataSources": "Scan activity, asset inventory Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Vuln management TA + CMDB — Universal Forwarder (Splunkbase 617)",
   "spl": "| inputlookup cmdb_assets.csv\n| join type=left max=1 hostname [search index=vulnerability sourcetype=\"tenable:vuln\" | stats latest(_time) as last_scan by hostname]\n| eval days_since_scan=round((now()-last_scan)/86400)\n| where isnull(last_scan) OR days_since_scan > 30\n| table hostname, os, department, last_scan, days_since_scan",
-  "description": "Assets not scanned are unknown risks. Coverage monitoring ensures comprehensive vulnerability assessment.",
+  "description": "Assets not scanned are unknown risks. Coverage monitoring ensures comprehensive vulnerability assessment. Searches `index=vulnerability` with sourcetype `tenable:vuln` for UC-10.6.3, aggregating `count` by `hostname]` over `the scheduled window`. Alerts when grouped results cross `days_since_scan` > 30 in the saved search. Gives Security Infra operators a repeatable signal for 'Scan Coverage Monitoring' without manual log review.",
   "value": "Early 'Scan Coverage Monitoring' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Cross-reference scan targets with CMDB. Identify assets not scanned in 30 days. Alert on scan failures. Track coverage percentage as a KPI. Report on uncovered assets for remediation.",
   "visualization": "Single value (scan coverage %), Table (unscanned assets), Pie chart (scanned vs unscanned), Bar chart (gaps by department).",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Scan Coverage Monitoring'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=vulnerability` `tenable:vuln`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `vulnerability`** — Planned work for 'Scan Coverage Monitoring' shifts `count` over `span=1h` while `hostname]` remains in-scope for UC-10.6.3. Cross-check CMDB CHG.\n\n2. **Batch `count` on `tenable:vuln`** — Scheduled automation elevates `days_since_scan` without crossing `days_since_scan` > 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `hostname]`** — Health checks in `vulnerability` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tenable:vuln`** — First 48h baseline for `hostname]` is unstable; join `cmdb_assets.csv` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `hostname]`, `exception_reason`, `valid_until`.",
   "equipment": [
     "tenable"
   ],

@@ -26,13 +26,13 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=govcloud` sourcetype='aws:cloudtrail' that satisfy the UC-10.12.39 SPL filters for 'FedRAMP Continuous Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `govcloud` / `aws:cloudtrail` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.39."
+    "positiveScenario": "Ingest synthetic events into `index=govcloud` sourcetype='aws:cloudtrail' where `resource_id` satisfies detection threshold for UC-10.12.39 ('FedRAMP Continuous Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `govcloud` / `aws:cloudtrail` events where `resource_id` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.39."
   },
   "dataSources": "`sourcetype=\"aws:cloudtrail\"`, `sourcetype=\"tenable:scan\"` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "SCAP scanners, cloud TAs (AWS/Azure/GCP) — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=govcloud (sourcetype=\"aws:cloudtrail\" OR sourcetype=\"tenable:scan\")\n| search (eventName=\"DeleteTrail\" OR severity=\"CRITICAL\") AND tag=fedramp_boundary\n| stats latest(_time) as last_event by resource_id, control_id\n| where last_event < relative_time(now(),\"-30d@d\")",
-  "description": "Automates ConMon evidence: vulnerability scanning, logging, and boundary defenses for FedRAMP Moderate/High.",
+  "description": "Automates ConMon evidence: vulnerability scanning, logging, and boundary defenses for FedRAMP Moderate/High. Searches `index=govcloud` with sourcetype `aws:cloudtrail` for UC-10.12.39, aggregating `count` by `resource_id` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'FedRAMP Continuous Monitoring' without manual log review.",
   "value": "Early 'FedRAMP Continuous Monitoring' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Map controls to saved searches; export to POA&M workflow; 3PAO evidence packs from scheduled PDFs.",
   "visualization": "Gantt (control testing), Table (stale evidence), Scorecard (ConMon % green).",
@@ -62,7 +62,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'FedRAMP Continuous Monitoring'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=govcloud` `aws:cloudtrail`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `govcloud`** — Planned work for 'FedRAMP Continuous Monitoring' shifts `count` over `span=1h` while `resource_id` remains in-scope for UC-10.12.39. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudtrail`** — Scheduled automation elevates `control_id` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `resource_id`** — Health checks in `govcloud` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for `resource_id` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `resource_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "azure",

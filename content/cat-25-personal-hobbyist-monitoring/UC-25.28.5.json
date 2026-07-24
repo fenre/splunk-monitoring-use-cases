@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Cycling Fitness and Fatigue Balance' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_cycling_fitness_and_fatigue_balance` (UC-25.28.5), SOC dashboard panel \"Personal — Cycling Fitness and Fatigue Balance\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='powermeter:interval' that satisfy the UC-25.28.5 SPL filters for 'Cycling Fitness and Fatigue Balance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `powermeter:interval` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.28.5."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='powermeter:interval' where `_time` satisfies detection threshold for UC-25.28.5 ('Cycling Fitness and Fatigue Balance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `powermeter:interval` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.28.5."
   },
   "dataSources": "Bar-velocity reps (`vbt:rep`), running gait (`gait:metric`), hangboard sessions (`hangboard:session`), golf-swing metrics (`golfswing:metric`), power-meter intervals (`powermeter:interval`), basketball shot arcs (`shotarc:make`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Sports and skill sensors — velocity-based-training bar trackers, running-form IMUs, climbing hangboard load cells, golf launch monitors, cycling power meters, and computer-vision shot trackers — logged to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=powermeter:interval\n| bin _time span=1d\n| stats sum(training_load) as daily_load by _time\n| streamstats window=42 avg(daily_load) as fitness\n| streamstats window=7 avg(daily_load) as fatigue\n| eval form=round(fitness-fatigue,1)",
-  "description": "Trends long-term fitness against short-term fatigue to estimate your form, guiding when to push and when to taper.",
-  "value": "The fitness-minus-fatigue balance predicts readiness; watching it helps you peak for events and avoid overtraining.",
+  "description": "Trends long-term fitness against short-term fatigue to estimate your form, guiding when to push and when to taper. Searches `index=personal` with sourcetype `powermeter:interval` for UC-25.28.5, aggregating `sum` by `_time` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Cycling Fitness and Fatigue Balance' without manual log review.",
+  "value": "Trends long-term fitness against short-term fatigue to estimate your form, guiding when to push and when to.... Timely UC-25.28.5 alerting on 'Cycling Fitness and Fatigue Balance' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest daily training load into `index=personal`; compute rolling fitness and fatigue and trend the difference.",
   "visualization": "Line chart of fitness, fatigue, and resulting form.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Cycling Fitness and Fatigue Balance'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `powermeter:interval`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Cycling Fitness and Fatigue Balance' stops polling `powermeter:interval`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `powermeter:interval`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

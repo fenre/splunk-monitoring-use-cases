@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Sim vs Real Approach Consistency' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_sim_vs_real_approach_consistency` (UC-25.42.7), SOC dashboard panel \"Personal — Sim vs Real Approach Consistency\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flightsim:session' that satisfy the UC-25.42.7 SPL filters for 'Sim vs Real Approach Consistency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `flightsim:session` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.7."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flightsim:session' where `src` satisfies detection threshold for UC-25.42.7 ('Sim vs Real Approach Consistency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `flightsim:session` events where `src` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.7."
   },
   "dataSources": "Pilot logbook (`flightlog:entry`), avionics telemetry (`avionics:telemetry`), flight-sim sessions (`flightsim:session`), pre-flight checklists (`preflight:check`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Pilot and flight-sim telemetry — electronic logbooks (ForeFlight, LogTen Pro), Stratux / GDL90 avionics receivers, and Microsoft Flight Simulator / X-Plane SimConnect sessions — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal (sourcetype=flightsim:session OR sourcetype=avionics:telemetry) event=approach\n| eval src=if(sourcetype==\"flightsim:session\",\"sim\",\"real\")\n| stats avg(glideslope_dev) as avg_dev, stdev(glideslope_dev) as consistency by src\n| sort src",
-  "description": "Compares how consistently you fly the approach glideslope in the simulator versus real flights.",
-  "value": "Seeing sim and real approach precision side by side shows whether sim practice is sharpening the real thing.",
+  "description": "Compares how consistently you fly the approach glideslope in the simulator versus real flights. Searches `index=personal` with sourcetype `flightsim:session` for UC-25.42.7, aggregating `avg` by `src` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Sim vs Real Approach Consistency' without manual log review.",
+  "value": "Compares how consistently you fly the approach glideslope in the simulator versus real flights. Timely UC-25.42.7 alerting on 'Sim vs Real Approach Consistency' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest approach data from both sources into `index=personal`; compare glideslope deviation.",
   "visualization": "Bar chart of approach consistency, sim versus real.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Sim vs Real Approach Consistency'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flightsim:session`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Sim vs Real Approach Consistency' stops polling `flightsim:session`; stale `src` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flightsim:session`. Dedup with `stats latest(*) by src`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hardware_bmc"
   ],

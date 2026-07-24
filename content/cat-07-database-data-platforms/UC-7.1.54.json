@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'ClickHouse Query Duration P95 and P99 from Query Log' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_clickhouse_query_duration_p95_and_p99_from_query` (UC-7.1.54), SOC dashboard panel \"Operations — ClickHouse Query Duration P95 and P99 from Query Log\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='clickhouse:query_log' that satisfy the UC-7.1.54 SPL filters for 'ClickHouse Query Duration P95 and P99 from Query Log'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `clickhouse:query_log` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.54."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='clickhouse:query_log' where `query_kind` satisfies `p95_ms` > 5000 for UC-7.1.54 ('ClickHouse Query Duration P95 and P99 from Query Log'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `clickhouse:query_log` events where `query_kind` stays below `p95_ms` > 5000, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.54."
   },
   "dataSources": "`system.query_log` (query_finish rows) ingested as `clickhouse:query_log` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "ClickHouse `query_log` table + DB Connect batch or `clickhouse-client --query` scripted input to Splunk HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"clickhouse:query_log\"\n| where type==2 OR type==\"QueryFinish\" OR match(_raw,\"QueryFinish\")\n| bin _time span=1h\n| stats perc95(query_duration_ms) as p95_ms perc99(query_duration_ms) as p99_ms count by query_kind, host, _time\n| where p95_ms > 5000 OR p99_ms > 30000",
   "description": "Percentile latency drift in `query_log` is an early signal of CPU, disk, or merge pressure before mean metrics move. Segmenting by `query_kind` keeps ETL batch noise separate from interactive SELECT SLAs.",
-  "value": "Protects analyst and application SLAs by catching regressions tied to schema or data volume changes early.",
+  "value": "Percentile latency drift in `query_log` is an early signal of CPU, disk, or merge pressure before mean metr.... Timely UC-7.1.54 alerting on 'ClickHouse Query Duration P95 and P99 from Query Log' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Enable `query_log` in `config.xml` (`query_log` section) with appropriate flush interval. Export finished queries only (`type` = QueryFinish / numeric 2 depending on version). Map `query_duration_ms`, `query_kind`, `user`, `read_rows` at index time. Baseline per workload class; tune thresholds per environment.",
   "visualization": "Line chart (p95_ms, p99_ms by query_kind), Heatmap (hour × query_kind).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'ClickHouse Query Duration P95 and P99 from Query Log'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'ClickHouse Query Duration P95 and P99 from Query Log' shifts `count` over `span=1h` while `query_kind` remains in-scope for UC-7.1.54. Cross-check CMDB CHG.\n\n2. **Batch `count` on `clickhouse:query_log`** — Scheduled automation elevates `host` without crossing `p95_ms` > 5000. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `query_kind`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `clickhouse:query_log`** — First 48h baseline for `query_kind` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `query_kind`, `exception_reason`, `valid_until`.",
   "equipment": [
     "clickhouse",
     "db_connect"

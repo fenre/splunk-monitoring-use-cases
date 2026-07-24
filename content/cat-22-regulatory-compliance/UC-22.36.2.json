@@ -87,15 +87,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When an erasure ticket is closed but at least one registered downstream system has no deletion_ack within 7 days, the UC fires naming the subject_token and the system(s) missing the ack.",
-    "negativeScenario": "Systems covered by a lawful-retention exception (retention_hold=true in erasure_exceptions.csv) do NOT fire.",
-    "fixtureRef": "sample-data/uc-22.36.2-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=dsar` sourcetype='target_sourcetype' where `subject_token` satisfies detection threshold for UC-22.36.2 ('Right-to-erasure propagation completeness across downstream systems'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dsar` / `target_sourcetype` events where `subject_token` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.36.2."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=dsar subject_token=* action=erasure earliest=-180d\n| stats values(system) as acked_systems by subject_token ticket_id\n| lookup ropa_system_map.csv ticket_id OUTPUT systems_in_scope\n| eval missing=mvfilter(NOT match(acked_systems, system))\n| where mvcount(missing)>0\n| table ticket_id subject_token systems_in_scope acked_systems missing",
   "description": "Enforces that every registered downstream system reports a deletion acknowledgement for each accepted erasure request within seven days. A subject_token that persists past the SLA in any system is a direct Art.17 / CPRA §1798.105 finding.",
-  "value": "Moves the erasure claim from 'we believe it propagated' to 'we proved it propagated, system by system' — exactly the evidence supervisory authorities ask for on first inspection.",
+  "value": "Enforces that every registered downstream system reports a deletion acknowledgement for each accepted erasu.... Timely UC-22.36.2 alerting on 'Right-to-erasure propagation completeness across downstream systems' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Publish a ropa_system_map.csv lookup keyed by ticket_id → list of systems-in-scope; (2) ingest deletion-ack events from each system (DB TTL jobs, DWH deletion manifests, app-level hooks); (3) run hourly; (4) integrate with SOAR to auto-reopen tickets with missing acks. Indexes required: `index=dsar`.",
   "visualization": "Matrix of ticket_id × system with green/red cells; aging histogram; single-value for 'in-scope systems with ack in SLA'.",
   "cimModels": [],
@@ -119,7 +118,7 @@
       "title": "ICO — GDPR Guidance"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised GDPR control testing** — Internal audit exercises 'Right-to-erasure propagation completeness across downstream systems' (UC-22.36.2) on `subject_token` during scheduled clause Art.17 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=dsar` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `gdpr_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `dsar` for `subject_token`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `subject_token` during normal service delivery.\n\n**Suppression mechanism:** `gdpr_exception_register.csv` keyed on `subject_token`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Correlation",
   "securityDomain": "audit",
   "requiredFields": [

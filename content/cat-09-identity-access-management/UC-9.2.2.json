@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Search Performance Degradation' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_search_performance_degradation` (UC-9.2.2), SOC dashboard panel \"IAM — Search Performance Degradation\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ldap` sourcetype='openldap:access' that satisfy the UC-9.2.2 SPL filters for 'Search Performance Degradation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ldap` / `openldap:access` events outside the detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.2.2."
+    "positiveScenario": "Ingest synthetic events into `index=ldap` sourcetype='openldap:access' where `base_dn` satisfies `elapsed_ms` > 1000 for UC-9.2.2 ('Search Performance Degradation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ldap` / `openldap:access` events where `base_dn` stays below `elapsed_ms` > 1000, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.2.2."
   },
   "dataSources": "OpenLDAP access log (search duration), 389 Directory access log Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "LDAP access log parsing — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ldap sourcetype=\"openldap:access\" operation=\"SEARCH\"\n| where elapsed_ms > 1000\n| stats count, avg(elapsed_ms) as avg_ms by base_dn, filter\n| sort -avg_ms",
-  "description": "Slow LDAP searches impact all applications relying on directory services for authentication and authorization.",
+  "description": "Slow LDAP searches impact all applications relying on directory services for authentication and authorization. Searches `index=ldap` with sourcetype `openldap:access` for UC-9.2.2, aggregating `avg` by `base_dn` over `the scheduled window`. Alerts when grouped results cross `elapsed_ms` > 1000 in the saved search. Gives IAM operators a repeatable signal for 'Search Performance Degradation' without manual log review.",
   "value": "Early 'Search Performance Degradation' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
   "implementation": "Enable LDAP access logging with timing information. Parse search operations with duration. Alert on searches exceeding 1 second. Identify expensive filters (unindexed attributes, broad base DN). Recommend index creation.",
   "visualization": "Table (slow searches), Bar chart (avg duration by filter), Line chart (search latency trend).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Application misconfigured bind DN** — Deploy sends wrong `bind_dn` after release. Correlate spike with `index=ldap` deploy timestamp in `index=changes`.\n\n2. **Directory maintenance restart** — Short bind failure burst while 389/636 restarts. Match maintenance window in change calendar.\n\n3. **Brute-force against LDAP** — External `src` hammering `bind_dn` with err=49. Compare with firewall deny logs for same `src`.\n\n4. **Expired service credential** — Single application account stale password. One `bind_dn` dominates stats; fix in vault rotation.\n\n**Suppression mechanism:** `ldap_exception_register.csv` with `bind_dn`, `src`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ldap`** — Planned work for 'Search Performance Degradation' shifts `avg` over `span=1h` while `base_dn` remains in-scope for UC-9.2.2. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `openldap:access`** — Scheduled automation elevates `filter` without crossing `elapsed_ms` > 1000. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `base_dn`** — Health checks in `ldap` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `openldap:access`** — First 48h baseline for `base_dn` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `base_dn`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

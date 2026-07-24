@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Microsoft IIS Client Certificate Authentication Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_microsoft_iis_client_certificate_authentication_` (UC-8.2.43), SOC dashboard panel \"Operations — Microsoft IIS Client Certificate Authentication Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='ms:iis:auto' that satisfy the UC-8.2.43 SPL filters for 'Microsoft IIS Client Certificate Authentication Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `ms:iis:auto` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.43."
+    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='ms:iis:auto' where `c_ip` satisfies `count` > 10 for UC-8.2.43 ('Microsoft IIS Client Certificate Authentication Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `web` / `ms:iis:auto` events where `c_ip` stays below `count` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.43."
   },
   "dataSources": "`index=web` `sourcetype=ms:iis:auto` with SSL client cert auth (403.7 patterns) and optional `iis:httperr`",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`); Splunk Add-on for Microsoft IIS (Splunkbase 3185)",
   "spl": "index=web sourcetype=\"ms:iis:auto\"\n| where sc_status=403 AND match(cs_uri_stem, \"(?i)\\.asmx|api\")\n| regex _raw=\"(?i)(403\\.7|certificate|SSL client)\"\n| stats count by c_ip, cs_uri_stem, sc_status\n| where count > 10",
   "description": "Mutual TLS and client certificate mapping failures often surface as HTTP 403.7-class patterns. Volume spikes frequently track partner certificate expiries or cipher suite mismatches after hardening.",
-  "value": "Protects B2B APIs and federated integrations that depend on certificate authentication continuity.",
+  "value": "Mutual TLS and client certificate mapping failures often surface as HTTP 403. Timely UC-8.2.43 alerting on 'Microsoft IIS Client Certificate Authentication Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Enable detailed errors in lower env only; prod relies on W3C fields. Join `iis:httperr` for `BadRequest` reasons.",
   "visualization": "Stacked bars for status/substatus, Perfmon timecharts, top client tables.",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Microsoft IIS Client Certificate Authentication Failures'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `web` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'Microsoft IIS Client Certificate Authentication Failures' shifts `count` over `span=1h` while `c_ip` remains in-scope for UC-8.2.43. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ms:iis:auto`** — Scheduled automation elevates `cs_uri_stem` without crossing `count` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `c_ip`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ms:iis:auto`** — First 48h baseline for `c_ip` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `c_ip`, `exception_reason`, `valid_until`.",
   "equipment": [
     "iis",
     "windows"

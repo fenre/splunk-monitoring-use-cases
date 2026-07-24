@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Tax Payment Payment Amount Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_tax_payment_payment_amount_leaderboard` (UC-25.102.27), SOC dashboard panel \"Personal — Tax Payment Payment Amount Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tax:payment' that satisfy the UC-25.102.27 SPL filters for 'Tax Payment Payment Amount Leaderboard'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tax:payment` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.102.27."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tax:payment' where `payment_method` satisfies detection threshold for UC-25.102.27 ('Tax Payment Payment Amount Leaderboard'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `tax:payment` events where `payment_method` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.102.27."
   },
   "dataSources": "TurboTax returns (`turbotax:return`), IRS transcripts (`irs:transcript`), tax estimates (`tax:estimate`), tax payments (`tax:payment`), and W-2 imports (`w2:import`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "TurboTax return exports, IRS transcript pulls, tax estimate calculators, payment confirmations, and W-2 import logs ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tax:payment payment_usd=*\n| stats sum(payment_usd) as total_value, avg(payment_usd) as avg_value by payment_method\n| sort - total_value",
-  "description": "Ranks payment method values by total and average payment amount across tax payment events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Ranks payment method values by total and average payment amount across tax payment events. Searches `index=personal` with sourcetype `tax:payment` for UC-25.102.27, aggregating `sum` by `payment_method` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Tax Payment Payment Amount Leaderboard' without manual log review.",
+  "value": "Ranks payment method values by total and average payment amount across tax payment events. Timely UC-25.102.27 alerting on 'Tax Payment Payment Amount Leaderboard' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Ingest numeric `payment_usd` values for each tax payment event and review total and average payment amount by payment method.",
   "visualization": "Table of entities ranked by total payment amount.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Tax Payment Payment Amount Leaderboard'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tax:payment`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Tax Payment Payment Amount Leaderboard' stops polling `tax:payment`; stale `payment_method` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tax:payment`. Dedup with `stats latest(*) by payment_method`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'RabbitMQ Unacknowledged Message Growth Rate (Consumer Stall Signal)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_rabbitmq_unacknowledged_message_growth_rate_cons` (UC-8.5.23), SOC dashboard panel \"Operations — RabbitMQ Unacknowledged Message Growth Rate (Consumer Stall Signal)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='rabbitmq:queue' that satisfy the UC-8.5.23 SPL filters for 'RabbitMQ Unacknowledged Message Growth Rate (Consumer Stall Signal)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `messaging` / `rabbitmq:queue` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.5.23."
+    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='rabbitmq:queue' where `_time` satisfies `unacked_growth` >= 100 for UC-8.5.23 ('RabbitMQ Unacknowledged Message Growth Rate (Consumer Stall Signal)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `messaging` / `rabbitmq:queue` events where `_time` stays below `unacked_growth` >= 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.5.23."
   },
   "dataSources": "`index=messaging` `sourcetype=rabbitmq:queue` from RabbitMQ Management HTTP API `/api/queues` (`messages_unacknowledged`, `messages`, `consumer_utilisation`)",
   "app": "RabbitMQ management plugin + scripted/HEC poller (`sourcetype=rabbitmq:queue`); AMQP Messaging Modular Input (Splunkbase 1812) optional",
   "spl": "index=messaging sourcetype=\"rabbitmq:queue\" earliest=-4h\n| bin _time span=5m\n| stats latest(messages_unacknowledged) as unacked latest(consumer_utilisation) as cu by _time, vhost, name\n| sort 0 vhost name _time\n| streamstats window=2 global=f current=f last(unacked) as prev_unacked by vhost, name\n| eval unacked_growth=unacked-prev_unacked\n| where unacked_growth >= 100 AND unacked >= 200 AND (isnull(cu) OR cu < 0.4)\n| table _time, vhost, name, unacked, prev_unacked, unacked_growth, cu",
   "description": "A sustained rise in `messages_unacknowledged` while `consumer_utilisation` stays low usually means consumers have stalled, prefetch is exhausted, or processing latency jumped before queue depth (`messages_ready`) explodes. Catching the growth rate early limits backlog and memory pressure on the broker.",
-  "value": "Reduces time-to-detect silent consumer failure, preventing publisher throttling and SLA breaches on latency-sensitive workloads.",
+  "value": "A sustained rise in `messages_unacknowledged` while `consumer_utilisation` stays low usually means consumer.... Timely UC-8.5.23 alerting on 'RabbitMQ Unacknowledged Message Growth Rate (Consumer Stall Signal)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Poll `/api/queues` at least every 60s; normalize `name`/`vhost` consistently. Tune `unacked_growth` and minimum `unacked` to your traffic. Exclude federation/shovel internal queues via a lookup if needed.",
   "visualization": "Line chart (`messages_unacknowledged` per queue), overlay `consumer_utilisation`; single-value alert on growth; table of worst queues.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'RabbitMQ Unacknowledged Message Growth Rate (Consumer Stall Signal)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `messaging` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging`** — Planned work for 'RabbitMQ Unacknowledged Message Growth Rate (Consumer Stall Signal)' shifts `count` over `span=5m` while `_time` remains in-scope for UC-8.5.23. Cross-check CMDB CHG.\n\n2. **Batch `count` on `rabbitmq:queue`** — Scheduled automation elevates `vhost` without crossing `unacked_growth` >= 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `rabbitmq:queue`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "rabbitmq"
   ],

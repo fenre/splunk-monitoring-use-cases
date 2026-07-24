@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'Account Expiry Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_account_expiry_monitoring` (UC-1.1.109), SOC dashboard panel \"Linux — Account Expiry Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='custom:account_expiry' that satisfy the UC-1.1.109 SPL filters for 'Account Expiry Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `custom:account_expiry` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.109."
+    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='custom:account_expiry' where `host` satisfies `days_until_expiry` <= 30 for UC-1.1.109 ('Account Expiry Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `os` / `custom:account_expiry` events where `host` stays below `days_until_expiry` <= 30, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.109."
   },
   "dataSources": "`sourcetype=custom:account_expiry` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix, custom scripted input` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:account_expiry host=*\n| where days_until_expiry <= 30\n| stats by host, user, days_until_expiry",
-  "description": "Account expiry tracking ensures user accounts remain valid and prevents access with expired credentials.",
+  "description": "Account expiry tracking ensures user accounts remain valid and prevents access with expired credentials. Searches `index=os` with sourcetype `custom:account_expiry` for UC-1.1.109, aggregating `count` by `host` over `the scheduled window`. Alerts when grouped results cross `days_until_expiry` <= 30 in the saved search. Gives Linux operators a repeatable signal for 'Account Expiry Monitoring' without manual log review.",
   "value": "Early 'Account Expiry Monitoring' detection reduces capacity incidents, patch regressions, and service outages by giving Linux operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Create a scripted input that parses /etc/shadow and calculates days until account expiry. Alert 30 days before expiry with reminders. Track expired accounts on production systems.",
   "visualization": "Table, Alert",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Account Expiry Monitoring'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `os` `custom:account_expiry`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Account Expiry Monitoring'. Correlate with apt/yum logs in the same `custom:account_expiry` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:account_expiry`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `days_until_expiry` <= 30.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],

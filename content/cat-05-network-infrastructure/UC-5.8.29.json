@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Infoblox DNS NXDOMAIN Flood per Client (Potential Tunneling or Malware DGA)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_infoblox_dns_nxdomain_flood_per_client_potential` (UC-5.8.29), SOC dashboard panel \"Operations — Infoblox DNS NXDOMAIN Flood per Client (Potential Tunneling or Malware DGA)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dns` sourcetype='infoblox:dns' that satisfy the UC-5.8.29 SPL filters for 'Infoblox DNS NXDOMAIN Flood per Client (Potential Tunneling or Malware DGA)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dns` / `infoblox:dns` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.8.29."
+    "positiveScenario": "Ingest synthetic events into `index=dns` sourcetype='infoblox:dns' where `_time` satisfies `unique_qnames` > 200 for UC-5.8.29 ('Infoblox DNS NXDOMAIN Flood per Client (Potential Tunneling or Malware DGA)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `dns` / `infoblox:dns` events where `_time` stays below `unique_qnames` > 200, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.8.29."
   },
   "dataSources": "Infoblox resolver query logs, `sourcetype=infoblox:dns` Indexes: dns. Sourcetypes: infoblox:dns. Key fields: _time, nx_total, src_ip, unique_qnames. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2934)",
   "spl": "index=dns sourcetype=\"infoblox:dns\" earliest=-24h\n| eval rcode=upper(coalesce(response_code, dns_response, \"NOERROR\"))\n| eval qname=coalesce(dns_request, dns_query, query, dns_qname)\n| where rcode=\"NXDOMAIN\" OR match(_raw,\"(?i)NXDOMAIN\")\n| bin _time span=10m\n| stats dc(qname) as unique_qnames, count as nx_total by _time, src_ip\n| where unique_qnames > 200 AND nx_total > 500\n| sort -nx_total",
   "description": "Malware domain generation algorithms and some DNS tunneling implementations produce bursts of unique names that fail resolution. A single client generating hundreds of NXDOMAIN responses in minutes is rarely normal user behavior.",
-  "value": "Security operations teams detect potential malware DGA activity and DNS tunneling by identifying clients generating excessive NXDOMAIN responses with domain entropy analysis, enabling rapid endpoint isolation before C2 communication succeeds.",
+  "value": "Malware domain generation algorithms and some DNS tunneling implementations produce bursts of unique names.... Timely UC-5.8.29 alerting on 'Infoblox DNS NXDOMAIN Flood per Client (Potential Tunneling or Malware DGA)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Ingest full resolver query and response fields. Confirm which extracted field carries the query name and response code for your NIOS version. Baseline internal resolvers and exclude known security scanners. Pair with threat intelligence on SLD patterns for tuning.",
   "visualization": "Scatter (unique QNAMEs vs total NXDOMAIN), Table (top offending src_ip), Line chart (baseline vs spike).",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Infoblox DNS NXDOMAIN Flood per Client (Potential Tunneling or Malware DGA)'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `dns` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `dns`** — Planned work for 'Infoblox DNS NXDOMAIN Flood per Client (Potential Tunneling or Malware DGA)' shifts `dc` over `span=10m` while `_time` remains in-scope for UC-5.8.29. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `infoblox:dns`** — Scheduled automation elevates `src_ip` without crossing `unique_qnames` > 200. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `dns` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `infoblox:dns`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "infoblox"

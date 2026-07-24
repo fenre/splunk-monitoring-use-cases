@@ -12,7 +12,7 @@
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)) + custom scripted input (wireless RF poller).",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:wireless:rf\"\n| stats latest(channelUtilization) as util latest(interferencePercentage) as interference latest(channel) as ch latest(txPower) as power by apName, band\n| eval rf_quality=case(util>80,\"Congested\", util>50,\"Busy\", interference>30,\"High Interference\", 1==1,\"Good\")\n| sort -util",
   "description": "Monitors wireless channel utilisation and interference levels per AP and frequency band, identifying congested channels, high-interference zones, and opportunities for RRM optimisation — the RF-layer diagnostics that explain why Wi-Fi is slow even when signal strength (UC-5.13.42) looks fine.",
-  "value": "Signal strength (RSSI) tells you whether the client can hear the AP. Channel utilisation tells you whether the AP can actually *transmit*. An AP with excellent RSSI (-55 dBm) but 85% channel utilisation is like a strong radio station on a crowded frequency — you can hear it, but it can't get a word in. High utilisation means the AP is waiting for airtime, causing latency and jitter that destroy VoIP and video quality. High interference means non-Wi-Fi sources (microwaves, Bluetooth, radar on DFS channels) are corrupting the channel. This UC is the missing link between 'signal is fine' (UC-5.13.42) and 'users say Wi-Fi is slow' (UC-5.13.9).",
+  "value": "Monitors wireless channel utilisation and interference levels per AP and frequency band, identifying conges.... Timely UC-5.13.62 alerting on 'Wireless Channel Utilization and Interference' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "Requires a custom scripted input for wireless RF data (see `docs/guides/catalyst-center.md` § Custom Scripted Inputs). Poll every 15 minutes. Place alongside UC-5.13.42 (RSSI/SNR) on the Wireless Performance dashboard.",
   "visualization": "(1) Table: apName, band, ch, util, interference, power, rf_quality — sorted by utilisation. (2) Heatmap: APs (rows) × bands (columns) with utilisation as colour (green < 50%, yellow 50–80%, red > 80%). (3) Histogram: channel utilisation distribution across fleet. (4) Scatter: utilisation (x) vs interference (y) — APs in top-right quadrant (high both) need channel changes.",
   "references": [
@@ -33,7 +33,7 @@
       "url": "https://www.cisco.com/c/en/us/solutions/design-zone/networking-design-guides/campus-wired-wireless.html"
     }
   ],
-  "knownFalsePositives": "**High channel utilisation during peak business hours.** Channel utilisation naturally increases during high-client-density periods (10 AM–3 PM). Distinguish by comparing against time-of-day baselines. Suppress by setting thresholds appropriate for peak hours (70%) vs off-hours (30%).\n\n**DFS channel radar event causing temporary channel change.** APs on DFS channels (5 GHz channels 52–144) may vacate the channel when radar is detected, temporarily spiking utilisation on the fallback channel. Distinguish by checking for channel changes: `| streamstats last(channel) as prev_ch by apName | where channel != prev_ch`. Do not suppress — but note it's a regulatory requirement, not a network problem.\n\n**High interference from non-Wi-Fi sources.** Microwaves, Bluetooth devices, wireless video transmitters, and medical equipment operate in the 2.4 GHz band and cause interference that's unrelated to Wi-Fi design. Distinguish by checking whether interference is concentrated in the 2.4 GHz band at specific locations (kitchen, break room, medical wing). Fix by using spectrum analysis to identify the source.\n\n**RRM power/channel adjustments appearing as instability.** Catalyst Center's RRM engine periodically adjusts AP channels and power levels, which can cause short-term utilisation changes. Distinguish by correlating with RRM event logs. Do not suppress — but expect periodic channel shifts as normal RRM behaviour.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Wireless Channel Utilization and Interference' shifts `count` over `span=1h` while `apName` remains in-scope for UC-5.13.62. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:wireless:rf`** — Scheduled automation elevates `band` without crossing `util` > 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `apName`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:wireless:rf`** — First 48h baseline for `apName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `apName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -52,5 +52,9 @@
   "prerequisiteUseCases": [
     "UC-5.13.60"
   ],
-  "wave": "walk"
+  "wave": "walk",
+  "controlTest": {
+    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:wireless:rf' where `apName` satisfies `util` > 80 for UC-5.13.62 ('Wireless Channel Utilization and Interference'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:wireless:rf` events where `apName` stays below `util` > 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.62."
+  }
 }

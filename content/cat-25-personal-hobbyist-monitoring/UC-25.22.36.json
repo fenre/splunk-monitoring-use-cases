@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'ASCOM Driver Response Latency Outlier' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_ascom_driver_response_latency_outlier` (UC-25.22.36), SOC dashboard panel \"Personal — ASCOM Driver Response Latency Outlier\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ascom:device' that satisfy the UC-25.22.36 SPL filters for 'ASCOM Driver Response Latency Outlier'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `ascom:device` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.22.36."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ascom:device' where `device_name` satisfies `response_ms` > 2000 for UC-25.22.36 ('ASCOM Driver Response Latency Outlier'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `ascom:device` events where `device_name` stays below `response_ms` > 2000, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.22.36."
   },
   "dataSources": "Observatory environment (`observatory:env`), sky-quality meter (`skyquality:reading`), imaging sessions (`imaging:session`), telescope mount (`mount:status`), cloud sensor (`allsky:cloud`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Backyard observatory automation — roll-off-roof/dome controller, sky-quality meter, cloud sensor, telescope mount, and astrophotography software (N.I.N.A./Ekos) — via MQTT and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=ascom:device response_ms>2000\n| stats avg(response_ms) as latency by device_name",
   "description": "Finds ASCOM devices with slow property responses. Runs scheduled SPL against `index=personal` to surface **ASCOM Driver Response Latency Outlier** so you can spot drift before it becomes a habit.",
-  "value": "Surfacing ascom driver response latency outlier helps you act before small issues become habits.",
+  "value": "Surfacing ascom driver response latency outlier helps you act before small issues become habits reduces missed training goals, stale hobby data, and connector failures by surfacing actionable rows before manual triage or audit channels escalate the issue.",
   "implementation": "Ingest the relevant backyard astronomy & observatory export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'ASCOM Driver Response Latency Outlier'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ascom:device`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'ASCOM Driver Response Latency Outlier' stops polling `ascom:device`; stale `device_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ascom:device`. Dedup with `stats latest(*) by device_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `response_ms` > 2000. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

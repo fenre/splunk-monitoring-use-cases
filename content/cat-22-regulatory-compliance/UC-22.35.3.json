@@ -123,15 +123,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "When replication lag across any index exceeds the configured RPO (default 5 minutes) for more than two consecutive search intervals, the UC fires and lists affected indexes with their lag in seconds.",
-    "negativeScenario": "Transient spikes (up to 90 seconds) during hot-bucket roll do NOT fire.",
-    "fixtureRef": "sample-data/uc-22.35.3-fixture.json"
+    "positiveScenario": "Ingest synthetic events into `index=title` sourcetype='target_sourcetype' where `title` satisfies detection threshold for UC-22.35.3 ('Indexer replication lag exposing evidence to single-point failure'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `title` / `target_sourcetype` events where `title` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.35.3."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "| rest /services/cluster/master/indexes splunk_server=* | stats max(replication_factor_met) as rf_met max(search_factor_met) as sf_met by title | eval index=title, rf_met=coalesce(rf_met,0), sf_met=coalesce(sf_met,0) | where rf_met=0 OR sf_met=0",
   "description": "Polls indexer cluster topology and raises a finding whenever replication-factor or search-factor is not met. Because auditors treat a single-replica audit trail as equivalent to no audit trail, a sustained lag above the stated RPO breaks the compliance claim.",
-  "value": "Turns an otherwise-silent SLO breach into evidence that the control was monitored continuously, even across shards that never had an incident.",
+  "value": "Polls indexer cluster topology and raises a finding whenever replication-factor or search-factor is not met. Timely UC-22.35.3 alerting on 'Indexer replication lag exposing evidence to single-point failure' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
   "implementation": "(1) Schedule hourly; (2) parameterise RPO via macro `worm_rpo_seconds`; (3) correlate with maintenance-window lookup to suppress planned reboots; (4) wire to ITSI availability KPI for cross-pillar visibility. Indexes required: `index=title`.",
   "visualization": "Line chart of replication lag by index; table of out-of-SLA indexes with duration; single-value for '% of time within RPO'.",
   "cimModels": [],
@@ -156,7 +155,7 @@
       "title": "Regulation (EU) 2016/679 — GDPR"
     }
   ],
-  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
+  "knownFalsePositives": "1. **Authorised GDPR control testing** — Internal audit exercises 'Indexer replication lag exposing evidence to single-point failure' (UC-22.35.3) on `title` during scheduled clause Art.32 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=title` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `gdpr_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `title` for `title`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `title` during normal service delivery.\n\n**Suppression mechanism:** `gdpr_exception_register.csv` keyed on `title`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "detectionType": "Anomaly",
   "securityDomain": "audit",
   "requiredFields": [

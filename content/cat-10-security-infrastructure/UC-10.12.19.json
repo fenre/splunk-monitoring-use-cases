@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'Minimum Necessary Access Validation' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_minimum_necessary_access_validation` (UC-10.12.19), SOC dashboard panel \"Security Infra — Minimum Necessary Access Validation\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=healthcare` sourcetype='epic:security' that satisfy the UC-10.12.19 SPL filters for 'Minimum Necessary Access Validation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `healthcare` / `epic:security` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.19."
+    "positiveScenario": "Ingest synthetic events into `index=healthcare` sourcetype='epic:security' where `user_id` satisfies detection threshold for UC-10.12.19 ('Minimum Necessary Access Validation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `healthcare` / `epic:security` events where `user_id` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.19."
   },
   "dataSources": "`sourcetype=\"epic:security\"`, HR feed Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "IAM, EHR role extracts — Universal Forwarder (Splunkbase 617)",
   "spl": "index=healthcare sourcetype=\"epic:security\"\n| lookup hr_job_role user_id OUTPUT job_family expected_epic_role\n| where epic_role!=expected_epic_role AND NOT match(epic_role,\"(train|breakglass)\")\n| stats values(epic_role) as roles by user_id, job_family",
-  "description": "Identifies users with broader EHR rights than their role requires (privilege creep).",
+  "description": "Identifies users with broader EHR rights than their role requires (privilege creep). Searches `index=healthcare` with sourcetype `epic:security` for UC-10.12.19, aggregating `values` by `user_id` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'Minimum Necessary Access Validation' without manual log review.",
   "value": "Early 'Minimum Necessary Access Validation' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Quarterly recertification; break-glass accounts heavily monitored; integrate with provisioning.",
   "visualization": "Table (misaligned users), Bar chart (excess roles by department), Funnel (remediation).",
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Minimum Necessary Access Validation'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=healthcare` `epic:security`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `healthcare`** — Planned work for 'Minimum Necessary Access Validation' shifts `values` over `span=1h` while `user_id` remains in-scope for UC-10.12.19. Cross-check CMDB CHG.\n\n2. **Batch `values` on `epic:security`** — Scheduled automation elevates `job_family` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user_id`** — Health checks in `healthcare` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `epic:security`** — First 48h baseline for `user_id` is unstable; join `hr_job_role` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `user_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

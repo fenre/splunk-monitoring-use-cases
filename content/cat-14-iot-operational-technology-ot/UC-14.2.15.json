@@ -11,13 +11,13 @@
   "exclusions": "Covers the detection logic documented for 'Control Loop Deviation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_control_loop_deviation` (UC-14.2.15), SOC dashboard panel \"Operations — Control Loop Deviation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='opcua:control' that satisfy the UC-14.2.15 SPL filters for 'Control Loop Deviation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `opcua:control` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.15."
+    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='opcua:control' where `loop_id` satisfies detection threshold for UC-14.2.15 ('Control Loop Deviation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ot` / `opcua:control` events where `loop_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.15."
   },
   "dataSources": "`sourcetype=\"opcua:control\"` (pv, sp, out) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "OPC-UA process tags — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"opcua:control\"\n| eval err=abs(pv-sp)\n| where err > deadband*5 OR (abs(out)>95 AND err>deadband)\n| timechart span=1m avg(err) by loop_id",
-  "description": "PV diverging from SP with saturated output indicates tuning issues or actuator faults.",
+  "description": "PV diverging from SP with saturated output indicates tuning issues or actuator faults. Searches `index=ot` with sourcetype `opcua:control` for UC-14.2.15, aggregating `avg` by `loop_id` over `1m`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Control Loop Deviation' without manual log review.",
   "value": "Early 'Control Loop Deviation' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Define deadband per loop. Alert when sustained error exceeds threshold or output pegs. Integrate with maintenance CMMS.",
   "visualization": "Line chart (PV vs SP), Gauge (loop error), Table (loops in alarm).",
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Control Loop Deviation'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `ot` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'Control Loop Deviation' shifts `avg` over `span=1m` while `loop_id` remains in-scope for UC-14.2.15. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `opcua:control`** — Scheduled automation elevates `err` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `loop_id`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `opcua:control`** — First 48h baseline for `loop_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `loop_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "opcua"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Pass-the-Hash / NTLM Relay Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_pass_the_hash_ntlm_relay_detection` (UC-1.2.65), SOC dashboard panel \"Linux — Pass-the-Hash / NTLM Relay Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4624 that satisfy the UC-1.2.65 SPL filters for 'Pass-the-Hash / NTLM Relay Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.65."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4624 where `TargetUserName` satisfies `target_hosts` > 3 for UC-1.2.65 ('Pass-the-Hash / NTLM Relay Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events where `TargetUserName` stays below `target_hosts` > 3, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.65."
   },
   "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4624, LogonType 3, AuthenticationPackageName=NTLM) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4624 LogonType=3\n  AuthenticationPackageName=\"NTLM\" TargetUserName!=\"ANONYMOUS LOGON\"\n| stats count dc(host) as target_hosts values(host) as targets by TargetUserName, IpAddress\n| where target_hosts > 3\n| sort -target_hosts",
   "description": "Pass-the-hash attacks use stolen NTLM hashes to authenticate without knowing the password. Detecting NTLM logons from unusual sources catches this common lateral movement technique.",
-  "value": "PTH/relay programs are a trained hunt, not a single alert; this tstats is a CIM-parallel slice your ES admin can still accelerate while you run the main Security SPL.",
+  "value": "Pass-the-hash attacks use stolen NTLM hashes to authenticate without knowing the password. Timely UC-1.2.65 alerting on 'Pass-the-Hash / NTLM Relay Detection' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
   "implementation": "NTLM type 3 (network) logons from non-standard sources indicate pass-the-hash. In environments enforcing Kerberos, any NTLM logon to a server is suspicious. Focus on admin accounts using NTLM to access multiple hosts. EventCode 4776 on the DC shows the NTLM validation. Remediation: enable \"Restrict NTLM\" GPO settings, enforce Kerberos, deploy Credential Guard. MITRE ATT&CK T1550.002.",
   "visualization": "Table (NTLM logons from suspicious sources), Network graph (source→targets), Timeline, Single value (NTLM vs Kerberos ratio).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Pass-the-Hash / NTLM Relay Detection'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `WinEventLog:Security`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `TargetUserName` metrics for 'Pass-the-Hash / NTLM Relay Detection'. Correlate with apt/yum logs in the same `WinEventLog:Security` window.\n\n2. **Nightly backup I/O on `TargetUserName`** — Predictable `dc` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Security`** — Nagios/Zabbix polls `TargetUserName` and mimics sustained load without crossing `target_hosts` > 3.\n\n4. **New host onboarding** — `TargetUserName` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `TargetUserName`, `valid_until`.",
   "equipment": [
     "windows"
   ],

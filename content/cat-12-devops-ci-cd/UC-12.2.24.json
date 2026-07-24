@@ -12,13 +12,13 @@
   "exclusions": "Covers the detection logic documented for 'Pipeline Secret Rotation Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_pipeline_secret_rotation_compliance` (UC-12.2.24), SOC dashboard panel \"Operations — Pipeline Secret Rotation Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=secrets` sourcetype='vault:audit' that satisfy the UC-12.2.24 SPL filters for 'Pipeline Secret Rotation Compliance'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `secrets` / `vault:audit` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.24."
+    "positiveScenario": "Ingest synthetic events into `index=secrets` sourcetype='vault:audit' where `entity` satisfies `days_left` < 14 for UC-12.2.24 ('Pipeline Secret Rotation Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `secrets` / `vault:audit` events where `entity` stays below `days_left` < 14, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.24."
   },
   "dataSources": "Secret `expires_at`, `last_rotated` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Vault audit, cloud IAM credential reports — Universal Forwarder (Splunkbase 617)",
   "spl": "index=secrets sourcetype=\"vault:audit\" OR sourcetype=\"ci:credential_inventory\"\n| eval days_left=(expiry_epoch-now())/86400\n| where days_left < 14 AND days_left > 0\n| table secret_name, pipeline, days_left, owner\n| sort days_left",
-  "description": "CI/CD credentials (vault tokens, cloud API keys) approaching expiry without rotation break builds and create risk.",
+  "description": "CI/CD credentials (vault tokens, cloud API keys) approaching expiry without rotation break builds and create risk. Searches `index=secrets` with sourcetype `vault:audit` for UC-12.2.24, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `days_left` < 14 in the saved search. Gives Operations operators a repeatable signal for 'Pipeline Secret Rotation Compliance' without manual log review.",
   "value": "Early 'Pipeline Secret Rotation Compliance' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Export CI secret inventory from Vault or sealed secrets metadata. Alert at 14/7/1 days. Block pipeline if expired.",
   "visualization": "Table (expiring secrets), Gauge (compliance %), Timeline.",
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Pipeline Secret Rotation Compliance'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `secrets` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `secrets`** — Planned work for 'Pipeline Secret Rotation Compliance' shifts `count` over `span=1h` while `host` remains in-scope for UC-12.2.24. Cross-check CMDB CHG.\n\n2. **Batch `count` on `vault:audit`** — Scheduled automation elevates `days_left` without crossing `days_left` < 14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `secrets` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `vault:audit`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "hashicorp"
   ],

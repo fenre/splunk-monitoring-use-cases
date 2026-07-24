@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Aranet Rapid Pressure Change Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_aranet_rapid_pressure_change_detection` (UC-14.10.4), SOC dashboard panel \"Operations — Aranet Rapid Pressure Change Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=environment` sourcetype='aranet:sensor' that satisfy the UC-14.10.4 SPL filters for 'Aranet Rapid Pressure Change Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `environment` / `aranet:sensor` events outside the detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.10.4."
+    "positiveScenario": "Ingest synthetic events into `index=environment` sourcetype='aranet:sensor' where `sensor_id` satisfies `dp` > 1.5 for UC-14.10.4 ('Aranet Rapid Pressure Change Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `environment` / `aranet:sensor` events where `sensor_id` stays below `dp` > 1.5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.10.4."
   },
   "dataSources": "`index=environment` · `sourcetype=\"aranet:sensor\"` (co2_ppm, temp_c, humidity_pct, pressure_hpa, battery_pct, rssi_dbm) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom HEC or scripted input from Aranet Cloud API / Aranet PRO base station — Universal Forwarder (Splunkbase 617)",
   "spl": "index=environment sourcetype=\"aranet:sensor\" earliest=-6h\n| eval p=tonumber(coalesce(pressure_hpa, pressure, \"\"))\n| streamstats window=2 global=f earliest(p) as p_prev by sensor_id\n| eval dp=abs(p-p_prev)\n| where dp>1.5\n| table _time sensor_id location p dp",
-  "description": "Step changes in pressure accompany doors, windows, or HVAC failures; useful in cleanrooms and pressure-stabilized labs.",
-  "value": "Speeds diagnosis of envelope breaches and fan failures. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
+  "description": "Step changes in pressure accompany doors, windows, or HVAC failures; useful in cleanrooms and pressure-stabilized labs. Searches `index=environment` with sourcetype `aranet:sensor` for UC-14.10.4, aggregating `count` by `sensor_id` over `the scheduled window`. Alerts when grouped results cross `dp` > 1.5 in the saved search. Gives Operations operators a repeatable signal for 'Aranet Rapid Pressure Change Detection' without manual log review.",
+  "value": "Step changes in pressure accompany doors, windows, or HVAC failures; useful in cleanrooms and pressure-stab.... Timely UC-14.10.4 alerting on 'Aranet Rapid Pressure Change Detection' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
   "implementation": "(1) 1–5 minute ingestion. (2) Tune hPa delta. (3) Suppress known door events via schedule.",
   "visualization": "Scatter of dp; timeline.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Aranet Rapid Pressure Change Detection'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `environment` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `ops_exception_register.csv` with entity, reason, valid_until.",
+  "knownFalsePositives": "1. **Maintenance window on `environment`** — Planned work for 'Aranet Rapid Pressure Change Detection' shifts `count` over `span=1h` while `sensor_id` remains in-scope for UC-14.10.4. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aranet:sensor`** — Scheduled automation elevates `p` without crossing `dp` > 1.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sensor_id`** — Health checks in `environment` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aranet:sensor`** — First 48h baseline for `sensor_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sensor_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aranet"
   ],

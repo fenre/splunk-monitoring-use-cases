@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Personal Forecasting Dashboard Consistency' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_personal_forecasting_dashboard_consistency` (UC-25.60.33), SOC dashboard panel \"Personal — Personal Forecasting Dashboard Consistency\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='forecast:ops' that satisfy the UC-25.60.33 SPL filters for 'Personal Forecasting Dashboard Consistency'. Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `forecast:ops` events outside the detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.60.33."
+    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='forecast:ops' where `dashboard_name` satisfies detection threshold for UC-25.60.33 ('Personal Forecasting Dashboard Consistency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `personal` / `forecast:ops` events where `dashboard_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.60.33."
   },
   "dataSources": "Forecasts (`forecast:personal`), journal reviews (`forecast:journal`), resolved outcomes (`forecast:resolution`), calibration scores (`forecast:calibration`), ops reviews (`forecast:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal forecasting telemetry — Metaculus personal predictions, private prediction-journal entries, and calibration-bin scoring — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=forecast:ops dashboard_name=* data_current=*\n| stats count as total, sum(eval(if(data_current=\"yes\",1,0))) as matched by dashboard_name\n| eval current_data_pct=round(100*matched/total,1)\n| sort - current_data_pct",
-  "description": "Measures the percentage of forecasting dashboards that end with current data by dashboard.",
-  "value": "Completion and exception percentages make it easier to spot which dashboard are helping or hurting forecasting dashboards.",
+  "description": "Measures the percentage of forecasting dashboards that end with current data by dashboard. Searches `index=personal` with sourcetype `forecast:ops` for UC-25.60.33, aggregating `sum` by `dashboard_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Personal Forecasting Dashboard Consistency' without manual log review.",
+  "value": "Measures the percentage of forecasting dashboards that end with current data by dashboard. Timely UC-25.60.33 alerting on 'Personal Forecasting Dashboard Consistency' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
   "implementation": "Store a normalized flag for `current data` on `forecast:ops` events and summarize the hit rate by `dashboard_name`.",
   "visualization": "Table of dashboard with percentage of forecasting dashboards ending with current data.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Vendor connector stops polling for 'Personal Forecasting Dashboard Consistency'; stale rows remain in `index=personal`. Check `_internal` HEC 401s and renew token in passwords.conf.\n\n2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. Vendor app shows no sessions for the calendar day.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `forecast:ops`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew thresholds. Document offset in SPL `bin _time` or connector config.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Personal Forecasting Dashboard Consistency' stops polling `forecast:ops`; stale `dashboard_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `forecast:ops`. Dedup with `stats latest(*) by dashboard_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],
