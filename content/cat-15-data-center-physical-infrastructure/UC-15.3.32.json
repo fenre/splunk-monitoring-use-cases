@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Visitor Dwell Time and Movement Flow Analysis' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_visitor_dwell_time_and_movement_flow_analysis` (UC-15.3.32), SOC dashboard panel \"Operations — Visitor Dwell Time and Movement Flow Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-15.3.32 positive (Visitor, Dwell, Time, and, Movement): ingest synthetic events into `index=cisco_spaces` sourcetype='cisco:spaces:location' where `avg_dwell`, `median_dwell`, `max_dwell` grouped by `zoneName`, `building`, `floor` satisfies `dwell_min` > 0, `avg_dwell` > 30, `avg_dwell` > 10, or `avg_dwell` > 2 for 'Visitor Dwell Time and Movement Flow Analysis'. Validate filter `eventType=\"DEVICE_PRESENCE\"`, eventType `DEVICE_PRESENCE`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.3.32 negative (Flow Analysis): ingest benign `cisco_spaces` / `cisco:spaces:location` events where `zoneName`, `building`, `floor` stays below `dwell_min` > 0, `avg_dwell` > 30, `avg_dwell` > 10, or `avg_dwell` > 2, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Visitor Dwell Time and Movement Flow Analysis'."
+  },
   "dataSources": "Cisco Spaces Firehose API (DEVICE_LOCATION_UPDATE, DEVICE_PRESENCE events — entry, exit, dwell)",
   "app": "`Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces Location Analytics",
   "spl": "index=cisco_spaces sourcetype=\"cisco:spaces:location\"\n| search eventType=\"DEVICE_PRESENCE\"\n| eval dwell_min=round((exitTime-entryTime)/60, 1)\n| where isnotnull(dwell_min) AND dwell_min > 0\n| stats avg(dwell_min) as avg_dwell, median(dwell_min) as median_dwell, max(dwell_min) as max_dwell, count as visits by zoneName, building, floor\n| eval engagement=case(avg_dwell>30, \"High\", avg_dwell>10, \"Medium\", avg_dwell>2, \"Low\", 1==1, \"Pass-through\")\n| sort -visits\n| table zoneName, building, floor, visits, avg_dwell, median_dwell, max_dwell, engagement",
-  "description": "Measures how long visitors and employees spend in specific zones and tracks movement patterns between areas. For corporate campuses, this optimizes cafeteria layouts, identifies bottleneck corridors, and improves wayfinding. For retail environments, it measures engagement with displays and optimizes store layouts. For healthcare, it tracks patient flow through departments to reduce wait times. Dwell time analysis reveals which spaces create value and which are passed through without engagement.",
-  "value": "Measures how long visitors and employees spend in specific zones and tracks movement patterns between areas. For corporate campuses, this optimizes cafeteria layouts, identifies bottleneck corridors, and improves wayfinding. For retail environments, it measures engagement with displays and optimizes store layouts. For healthcare, it tracks patient flow through departments to reduce wait times. Dwell time analysis reveals which spaces create value and which are passed through without engagement.",
+  "description": "Alerts on UC-15.3.32 for Visitor, Dwell, Time, and, Movement over `index=cisco_spaces` sourcetype `cisco:spaces:location` with thresholds `dwell_min` > 0, `avg_dwell` > 30, `avg_dwell` > 10, or `avg_dwell` > 2. Groups `avg_dwell`, `median_dwell`, `max_dwell` by `zoneName`, `building`, `floor` each `the scheduled window`. Differentiated by filter `eventType=\"DEVICE_PRESENCE\"`, eventType `DEVICE_PRESENCE`. Supports repeatable operations triage for 'Visitor Dwell Time and Movement Flow Analysis'.",
+  "value": "For 'Visitor Dwell Time and Movement Flow Analysis', UC-15.3.32 converts `avg_dwell`, `median_dwell`, `max_dwell` on `cisco:spaces:location` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Enable location analytics in Cisco Spaces with zone definitions mapped to your floor plans. Configure the Firehose API to stream DEVICE_PRESENCE and DEVICE_LOCATION_UPDATE events. Define meaningful zones in Cisco Spaces (lobbies, meeting areas, cafeterias, collaboration spaces). Device presence events fire at entry, after 10 minutes of inactivity, and at exit. Filter out devices with dwell times under 2 minutes to exclude pass-throughs. Build movement flow analysis by sequencing location updates per device MAC.",
   "visualization": "Sankey diagram (movement flows between zones), Heat map (dwell time by zone and time of day), Bar chart (visits and avg dwell by zone), Table (zone engagement ranking).",
   "cimModels": [
@@ -23,17 +29,39 @@
   "references": [
     {
       "title": "Splunkbase app 8485",
-      "url": "https://splunkbase.splunk.com/app/8485"
+      "url": "https://splunkbase.splunk.com/app/8485",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Security (Splunkbase 1352)",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Denied access for expired badges, role changes pending update, or guest badges with limited zones.",
+  "knownFalsePositives": "1. **Maintenance window on `cisco_spaces` (UC-15.3.32)** — Planned work for 'Visitor Dwell Time and Movement Flow Analysis' shifts `avg_dwell`, `median_dwell`, `max_dwell` over `span=1h` while `zoneName`, `building`, `floor` remains in-scope. eventType=DEVICE_PRESENCE Applies filter `eventType=\"DEVICE_PRESENCE\"`, eventType `DEVICE_PRESENCE`. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `cisco:spaces:location`** — Scheduled automation elevates `building` without crossing `dwell_min` > 0 for UC-15.3.32. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `zoneName`, `building`, `floor`** — Health checks in `cisco_spaces` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:spaces:location`** — First 48h baseline for UC-15.3.32 on `zoneName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `zoneName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
   "equipmentModels": [
     "cisco_spaces"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces Location Analytics.\n• Ensure the following data sources are available: Cisco Spaces Firehose API (DEVICE_LOCATION_UPDATE, DEVICE_PRESENCE events — entry, exit, dwell).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable location analytics in Cisco Spaces with zone definitions mapped to your floor plans. Configure the Firehose API to stream DEVICE_PRESENCE and DEVICE_LOCATION_UPDATE events. Define meaningful zones in Cisco Spaces (lobbies, meeting areas, cafeterias, collaboration spaces). Device presence events fire at entry, after 10 minutes of inactivity, and at exit. Filter out devices with dwell times under 2 minutes to exclude pass-throughs. Build movement flow analysis by sequencing location updates…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cisco_spaces sourcetype=\"cisco:spaces:location\"\n| search eventType=\"DEVICE_PRESENCE\"\n| eval dwell_min=round((exitTime-entryTime)/60, 1)\n| where isnotnull(dwell_min) AND dwell_min > 0\n| stats avg(dwell_min) as avg_dwell, median(dwell_min) as median_dwell, max(dwell_min) as max_dwell, count as visits by zoneName, building, floor\n| eval engagement=case(avg_dwell>30, \"High\", avg_dwell>10, \"Medium\", avg_dwell>2, \"Low\", 1==1, \"Pass-through\")\n| sort -visits\n| table zoneName, building, floor, visits, avg_dwell, median_dwell, max_dwell, engagement\n```\n\nUnderstanding this SPL\n\n**Visitor Dwell Time and Movement Flow Analysis** — Measures how long visitors and employees spend in specific zones and tracks movement patterns between areas. For corporate campuses, this optimizes cafeteria layouts, identifies bottleneck corridors, and improves wayfinding. For retail environments, it measures engagement with displays and optimizes store layouts. For healthcare, it tracks patient flow through departments to reduce wait times. Dwell time analysis reveals which spaces create value and which are passed…\n\nDocumented **Data sources**: Cisco Spaces Firehose API (DEVICE_LOCATION_UPDATE, DEVICE_PRESENCE events — entry, exit, dwell). **App/TA** (typical add-on context): `Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces Location Analytics. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cisco_spaces; **sourcetype**: cisco:spaces:location. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cisco_spaces, sourcetype=\"cisco:spaces:location\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `eval` defines or adjusts **dwell_min** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnotnull(dwell_min) AND dwell_min > 0` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by zoneName, building, floor** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **engagement** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Visitor Dwell Time and Movement Flow Analysis**): table zoneName, building, floor, visits, avg_dwell, median_dwell, max_dwell, engagement\n\n\nStep 3 — Validate\nCompare with the badge reader and access control system for the same doors, events, and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sankey diagram (movement flows between zones), Heat map (dwell time by zone and time of day), Bar chart (visits and avg dwell by zone), Table (zone engagement ranking).",
   "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
-  "hardware": "Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86"
+  "hardware": "Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

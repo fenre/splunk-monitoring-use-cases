@@ -8,23 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Lightroom photo exports (`lightroom:photo`), Flickr photo metadata (`flickr:photo`), ShutterCount body audits (`shuttercount:camera`), and F3 card tests (`f3:card`).",
-  "app": "Adobe Lightroom exports, Flickr API metadata, ShutterCount camera audits, and F3 SD-card health checks sent to Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Photography & Camera Gear Weekend vs Weekday Split' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_photography_camera_gear_weekend_vs_weekday_split` (UC-25.63.31), SOC dashboard panel \"Personal — Photography & Camera Gear Weekend vs Weekday Split\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.63.31 positive (Photography, Camera, Gear, Weekend, Weekday): ingest synthetic events into `index=personal` sourcetype='lightroom:photo' where `avg_duration` grouped by `day_type` satisfies detection threshold for 'Photography & Camera Gear Weekend vs Weekday Split'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.63.31 negative (Weekday Split): ingest benign `personal` / `lightroom:photo` events where `day_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Photography & Camera Gear Weekend vs Weekday Split'."
+  },
+  "dataSources": "Lightroom photo exports (`lightroom:photo`), Flickr photo metadata (`flickr:photo`), ShutterCount body audits (`shuttercount:camera`), and F3 card tests (`f3:card`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Adobe Lightroom exports, Flickr API metadata, ShutterCount camera audits, and F3 SD-card health checks sent to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=lightroom:photo\n| eval day_type=if(in(strftime(_time,\"%u\"),\"6\",\"7\"),\"weekend\",\"weekday\")\n| stats count as events, avg(duration_min) as avg_duration by day_type",
-  "description": "Separates photography activity between weekdays and weekends when duration is present.",
-  "value": "Weekend/weekday splits quickly show whether a life domain is work-driven, leisure-driven, or bleeding into the wrong days.",
+  "description": "Monitors Weekday Split anomalies for UC-25.63.31 with window `the scheduled window` on `index=personal` sourcetype `lightroom:photo`. Combines `avg_duration` by `day_type` and compares against configured threshold. Mapped to keywords Photography, Camera, Gear, Weekend, Weekday for dashboard routing.",
+  "value": "Alerting on Photography, Camera, Gear, Weekend, Weekday through UC-25.63.31 reduces missed training goals, stale hobby data, and connector failures by surfacing `avg_duration` early.",
   "implementation": "Populate optional `duration_min` on `lightroom:photo` events if available; the search still works on counts alone when duration is missing.",
   "visualization": "Side-by-side bar chart of weekday vs weekend event counts.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk Search Reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It works out whether your photography activity mostly happens on weekdays or weekends so you can see if the habit fits the life you actually live."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.63.31)** — Connector for 'Photography & Camera Gear Weekend vs Weekday Split' stops polling `lightroom:photo`; stale `avg_duration` on `day_type` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_duration` over `1w` is expected for UC-25.63.31, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lightroom:photo`. Dedup with `stats latest(*) by day_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Photography & Camera Gear Weekend vs Weekday Split'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Photography & Camera Gear — typical feeds: Lightroom photo exports (`lightroom:photo`), Flickr photo metadata (`flickr:photo`), ShutterCount body audits (`shuttercount:camera`), and F3 card tests (`f3:card`)..\n• **Sourcetypes in this search**: `lightroom:photo`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=lightroom:photo`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Adobe Lightroom exports, Flickr API metadata, ShutterCount camera audits, and F3 SD-card health checks sent to Splunk HEC..\n\n**Author notes:** Populate optional `duration_min` on `lightroom:photo` events if available; the search still works on counts alone when duration is missing.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"lightroom:photo\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=lightroom:photo earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Photography & Camera Gear Weekend vs Weekday Split** over `personal` data (primarily `sourcetype=lightroom:photo`) across the full search range. The `avg` aggregation groups by `day_type`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `day_type`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=lightroom:photo\n| eval day_type=if(in(strftime(_time,\"%u\"),\"6\",\"7\"),\"weekend\",\"weekday\")\n| stats count as events, avg(duration_min) as avg_duration by day_type\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=lightroom:photo earliest=-7d\n| head 50\n| table day_type\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=lightroom:photo earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.63.31: Personal evidence` with the following panel layout:\n\n**Panel 1 — Side-By-Side Bar Chart Of Weekday Vs Weekend Event Counts (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `lightroom:photo` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=lightroom:photo | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It works out whether your photography activity mostly happens on weekdays or weekends so you can see if the habit fits the life you actually live.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,27 +9,55 @@
     "Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "MedBridge exercises (`medbridge:exercise`), PT clinic sessions (`pt:session`), Hinge Health sessions (`hingehealth:session`), rehab range-of-motion logs (`rehab:rom`), and pain diary entries (`pain:diary`).",
-  "app": "MedBridge exercise completions, clinic PT session exports, Hinge Health digital sessions, ROM measurement logs, and pain diary entries forwarded to Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'MedBridge Exercise Failure Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_medbridge_exercise_failure_rate` (UC-25.88.7), SOC dashboard panel \"Personal — MedBridge Exercise Failure Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.88.7 positive (MedBridge, Exercise, Failure, Rate): ingest synthetic events into `index=personal` sourcetype='medbridge:exercise' where `failed_events` grouped by `exercise_name` satisfies detection threshold for 'MedBridge Exercise Failure Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.88.7 negative (Failure Rate): ingest benign `personal` / `medbridge:exercise` events where `exercise_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'MedBridge Exercise Failure Rate'."
+  },
+  "dataSources": "MedBridge exercises (`medbridge:exercise`), PT clinic sessions (`pt:session`), Hinge Health sessions (`hingehealth:session`), rehab range-of-motion logs (`rehab:rom`), and pain diary entries (`pain:diary`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "MedBridge exercise completions, clinic PT session exports, Hinge Health digital sessions, ROM measurement logs, and pain diary entries forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=medbridge:exercise\n| eval status_value=lower(coalesce(completion_status,\"unknown\"))\n| eval failed=if(match(status_value,\"error|fail|alert|overdue|late|stale|breach\"),1,0)\n| stats count as events, sum(failed) as failed_events by exercise_name\n| eval failure_pct=round(100*failed_events/events,1)\n| sort - failure_pct - failed_events",
-  "description": "Measures how often MedBridge exercise records land in an unhealthy or exception state for each exercise.",
-  "value": "A plain failure-rate view highlights noisy devices, flaky automations, and habits that repeatedly slip.",
+  "description": "Detects when Failure Rate criteria fire for 'MedBridge Exercise Failure Rate' (UC-25.88.7) in `index=personal` sourcetype `medbridge:exercise`. Pipeline aggregates `failed_events` by `exercise_name` over `the scheduled window`. Alert logic enforces configured threshold. Title terms: MedBridge, Exercise, Failure, Rate. Eliminates manual hunting for UC-25.88.7 conditions.",
+  "value": "UC-25.88.7 helps teams contain MedBridge, Exercise, Failure, Rate scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Normalize completion_status values into good or bad states and review the failure percentage per exercise.",
   "visualization": "Bar chart of failure percentage by entity.",
   "cimModels": [],
   "references": [
     {
       "title": "MedBridge",
-      "url": "https://www.medbridgeeducation.com/"
+      "url": "https://www.medbridgeeducation.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Hinge Health",
-      "url": "https://www.hingehealth.com/"
+      "url": "https://www.hingehealth.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It maps which parts of your MedBridge exercise data keep ending up in a bad state instead of working cleanly."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.88.7)** — Connector for 'MedBridge Exercise Failure Rate' stops polling `medbridge:exercise`; stale `failed_events` on `exercise_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `failed_events` over `1w` is expected for UC-25.88.7, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `medbridge:exercise`. Dedup with `stats latest(*) by exercise_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'MedBridge Exercise Failure Rate'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Physical Therapy & Rehab — typical feeds: MedBridge exercises (`medbridge:exercise`), PT clinic sessions (`pt:session`), Hinge Health sessions (`hingehealth:session`), rehab range-of-motion logs (`rehab:rom`), and pain diary entries (`pain:di.\n• **Sourcetypes in this search**: `medbridge:exercise`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=medbridge:exercise`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** MedBridge exercise completions, clinic PT session exports, Hinge Health digital sessions, ROM measurement logs, and pain diary entries forwarded to Splunk HEC..\n\n**Author notes:** Normalize completion_status values into good or bad states and review the failure percentage per exercise.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"medbridge:exercise\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=medbridge:exercise earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **MedBridge Exercise Failure Rate** over `personal` data (primarily `sourcetype=medbridge:exercise`) across the full search range. The `sum` aggregation groups by `exercise_name`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `exercise_name`, `failed`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=medbridge:exercise\n| eval status_value=lower(coalesce(completion_status,\"unknown\"))\n| eval failed=if(match(status_value,\"error|fail|alert|overdue|late|stale|breach\"),1,0)\n| stats count as events, sum(failed) as failed_events by exercise_name\n| eval failure_pct=round(100*failed_events/events,1)\n| sort - failure_pct - failed_events\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=medbridge:exercise earliest=-7d\n| head 50\n| table exercise_name, failed\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=medbridge:exercise earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.88.7: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Failure Percentage By Entity (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `medbridge:exercise` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=medbridge:exercise | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It maps which parts of your MedBridge exercise data keep ending up in a bad state instead of working cleanly.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

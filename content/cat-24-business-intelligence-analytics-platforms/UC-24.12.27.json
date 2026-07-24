@@ -8,27 +8,55 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Polytomic syncs (`polytomic:sync`).",
-  "app": "Polytomic sync run events via the Polytomic API/webhooks to HEC.",
+  "exclusions": "Covers the detection logic documented for 'Polytomic Failures by Sync' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_polytomic_failures_by_sync` (UC-24.12.27), SOC dashboard panel \"Operations — Polytomic Failures by Sync\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.12.27 positive (Polytomic, Failures, Sync): ingest synthetic events into `index=bi` sourcetype='polytomic:sync' where `count` grouped by `sync_name` satisfies `failures` > 0 for 'Polytomic Failures by Sync'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.12.27 negative (by Sync): ingest benign `bi` / `polytomic:sync` events where `sync_name` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Polytomic Failures by Sync'."
+  },
+  "dataSources": "Polytomic syncs (`polytomic:sync`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Polytomic sync run events via the Polytomic API/webhooks to HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=polytomic:sync status=\"error\"\n| stats count as failures, latest(_time) as last_failure by sync_name\n| where failures>0\n| sort - failures",
-  "description": "Counts Polytomic failures grouped by sync so operators immediately see which specific syncs are broken rather than a single global failure number.",
-  "value": "Object-level failure attribution turns a vague 'Polytomic is failing' alert into an actionable list of exactly what to fix first.",
+  "description": "Identifies UC-24.12.27 — Polytomic, Failures, Sync — using `index=bi` sourcetype `polytomic:sync`, grouped by `sync_name`. Outputs `count` each `the scheduled window`; alert when `failures` > 0. Primary focus: by Sync. Purpose-built for 'Polytomic Failures by Sync' in Operations workflows.",
+  "value": "UC-24.12.27 helps teams contain Polytomic, Failures, Sync scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ingest Polytomic failure events; schedule every 15 minutes and alert on failures for business-critical syncs.",
   "visualization": "Table of sync by failure count and last failure time.",
   "cimModels": [],
   "references": [
     {
       "title": "Polytomic — Documentation",
-      "url": "https://docs.polytomic.com/"
+      "url": "https://docs.polytomic.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Polytomic — API reference",
-      "url": "https://apidocs.polytomic.com/"
+      "url": "https://apidocs.polytomic.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We tell you exactly which parts of Polytomic are failing, not just that something is wrong, so the right thing gets fixed first."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.12.27)** — Planned work for 'Polytomic Failures by Sync' shifts `count` over `span=1h` while `sync_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `polytomic:sync`** — Scheduled automation elevates `src` without crossing `failures` > 0 for UC-24.12.27. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sync_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `polytomic:sync`** — First 48h baseline for UC-24.12.27 on `sync_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sync_name`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Polytomic sync run events via the Polytomic API/webhooks to HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=polytomic:sync into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`failures, sync_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We tell you exactly which parts of Polytomic are failing, not just that something is wrong, so the right thing gets fixed first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

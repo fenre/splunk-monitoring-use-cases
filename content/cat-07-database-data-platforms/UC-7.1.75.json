@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Snowflake Credit Consumption Trending by Warehouse' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_snowflake_credit_consumption_trending_by_warehou` (UC-7.1.75), SOC dashboard panel \"Operations — Snowflake Credit Consumption Trending by Warehouse\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.75 positive (Snowflake, Credit, Consumption, Trending, Warehouse): ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:warehouse_metering' where `daily_credits`, `baseline` grouped by `wh`, `_time` satisfies `daily_credits` > 50 for 'Snowflake Credit Consumption Trending by Warehouse'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.75 negative (by Warehouse): ingest benign `datawarehouse` / `snowflake:warehouse_metering` events where `wh`, `_time` stays below `daily_credits` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Snowflake Credit Consumption Trending by Warehouse'."
+  },
   "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY` as `snowflake:warehouse_metering`",
   "app": "Splunk Add-on for Snowflake (Splunkbase 5390)",
   "spl": "index=datawarehouse sourcetype=\"snowflake:warehouse_metering\"\n| eval wh=coalesce(WAREHOUSE_NAME, warehouse_name)\n| eval credits=tonumber(CREDITS_USED)\n| bin _time span=1d\n| stats sum(credits) as daily_credits by wh, _time\n| streamstats window=14 global=f avg(daily_credits) as baseline by wh\n| where daily_credits > baseline*1.4 AND daily_credits > 50",
-  "description": "Smooth credit trending by warehouse separates organic growth from a runaway job or missing auto-suspend. Comparing each day to a rolling two-week average highlights anomalies before monthly chargeback surprises.",
-  "value": "Lets FinOps and data platform teams intervene on mis-sized warehouses or rogue queries while workloads are still running.",
+  "description": "Monitors UC-7.1.75 — Snowflake, Credit, Consumption, Trending, Warehouse — using `index=datawarehouse` sourcetype `snowflake:warehouse_metering`, grouped by `wh`, `_time`. Outputs `daily_credits`, `baseline` each `1d`; alert when `daily_credits` > 50. Primary focus: by Warehouse. Purpose-built for 'Snowflake Credit Consumption Trending by Warehouse' in Operations workflows.",
+  "value": "UC-7.1.75 operationalises 'Snowflake Credit Consumption Trending by Warehouse' against `snowflake:warehouse_metering` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Confirm `CREDITS_USED` and `WAREHOUSE_NAME` field names match your TA version in `props.conf`. Schedule daily aggregation after ACCOUNT_USAGE refresh. Map warehouses to cost centers via lookup. Tune minimum credits (50) per environment.",
   "visualization": "Line chart (daily_credits vs baseline), Stacked area (top warehouses).",
   "cimModels": [
@@ -22,13 +28,33 @@
   "references": [
     {
       "title": "Snowflake WAREHOUSE_METERING_HISTORY",
-      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/warehouse_metering_history"
+      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/warehouse_metering_history",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 5390",
+      "url": "https://splunkbase.splunk.com/app/5390",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Larger ETL or analyst workloads and seasonal reporting can raise warehouse credits or queueing without a fault; tune to business hours and team-specific baselines.",
+  "knownFalsePositives": "1. **Maintenance window on `datawarehouse` (UC-7.1.75)** — Planned work for 'Snowflake Credit Consumption Trending by Warehouse' shifts `daily_credits`, `baseline` over `span=1d` while `wh`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snowflake:warehouse_metering`** — Scheduled automation elevates `_time` without crossing `daily_credits` > 50 for UC-7.1.75. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `wh`, `_time`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snowflake:warehouse_metering`** — First 48h baseline for UC-7.1.75 on `wh` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `wh`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow",
     "snowflake"
+  ],
+  "equipmentModels": [
+    "servicenow_generic",
+    "snowflake_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -37,5 +63,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch Snowflake Credit Consumption Trending by Warehouse so we can keep this part of the data platform within the capacity and quality targets our teams expect."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Snowflake (Splunkbase 5390)). Enable the modular input or HEC token that writes sourcetype=snowflake:warehouse_metering into datawarehouse. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, daily_credits, wh`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch Snowflake Credit Consumption Trending by Warehouse so we can keep this part of the data platform within the capacity and quality targets our teams expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

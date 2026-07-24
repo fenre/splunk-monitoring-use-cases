@@ -9,33 +9,55 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Fabric capacity metrics (`fabric:capacity:metrics`) and admin API.",
-  "app": "Microsoft Fabric Capacity Metrics app exports and the Fabric Admin API via HEC scripted inputs.",
+  "exclusions": "Covers the detection logic documented for 'Microsoft Fabric Resource Saturation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_microsoft_fabric_resource_saturation` (UC-24.2.23), SOC dashboard panel \"Operations — Microsoft Fabric Resource Saturation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.2.23 positive (Microsoft, Fabric, Resource, Saturation): ingest synthetic events into `index=bi` sourcetype='fabric:capacity:metrics' where `max_cpu`, `avg_cpu`, `max_mem` grouped by `host` satisfies `max_cpu` > 85, or `max_mem` > 85 for 'Microsoft Fabric Resource Saturation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.2.23 negative (Resource Saturation): ingest benign `bi` / `fabric:capacity:metrics` events where `host` stays below `max_cpu` > 85, or `max_mem` > 85, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Microsoft Fabric Resource Saturation'."
+  },
+  "dataSources": "Fabric capacity metrics (`fabric:capacity:metrics`) and admin API. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Microsoft Fabric Capacity Metrics app exports and the Fabric Admin API via HEC scripted inputs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=fabric:capacity:metrics\n| stats max(cpu_pct) as max_cpu, avg(cpu_pct) as avg_cpu, max(memory_pct) as max_mem by host\n| where max_cpu>85 OR max_mem>85\n| sort - max_cpu",
-  "description": "Tracks CPU and memory utilisation on Microsoft Fabric nodes and flags hosts running hot, which throttle every workload on the node and precede hard failures.",
-  "value": "A saturated Microsoft Fabric node degrades all its users at once; catching saturation early drives autoscaling or workload rebalancing before an outage.",
+  "description": "Identifies UC-24.2.23 — Microsoft, Fabric, Resource, Saturation — using `index=bi` sourcetype `fabric:capacity:metrics`, grouped by `host`. Outputs `max_cpu`, `avg_cpu`, `max_mem` each `the scheduled window`; alert when `max_cpu` > 85, or `max_mem` > 85. Primary focus: Resource Saturation. Purpose-built for 'Microsoft Fabric Resource Saturation' in Operations workflows.",
+  "value": "Alerting on Microsoft, Fabric, Resource, Saturation through UC-24.2.23 reduces operational risk and delayed incident response by surfacing `max_cpu`, `avg_cpu`, `max_mem` early.",
   "implementation": "Ingest Microsoft Fabric host metrics; schedule every 10 minutes and alert when a node sustains high CPU or memory.",
   "visualization": "Table of host by peak resource use, heat map.",
   "cimModels": [],
   "references": [
     {
       "title": "Microsoft Fabric — Monitor capacities",
-      "url": "https://learn.microsoft.com/en-us/fabric/enterprise/metrics-app"
+      "url": "https://learn.microsoft.com/en-us/fabric/enterprise/metrics-app",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Microsoft Fabric — Admin APIs",
-      "url": "https://learn.microsoft.com/en-us/rest/api/fabric/admin/"
+      "url": "https://learn.microsoft.com/en-us/rest/api/fabric/admin/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.2.23)** — Planned work for 'Microsoft Fabric Resource Saturation' shifts `max_cpu`, `avg_cpu`, `max_mem` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `fabric:capacity:metrics`** — Scheduled automation elevates `src` without crossing `max_cpu` > 85 for UC-24.2.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `fabric:capacity:metrics`** — First 48h baseline for UC-24.2.23 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
   "equipmentModels": [
     "cisco_aci"
   ],
-  "grandmaExplanation": "We watch how hard the Microsoft Fabric servers are working so more power can be added before they slow down or crash."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Microsoft Fabric Capacity Metrics app exports and the Fabric Admin API via HEC scripted inputs. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=fabric:capacity:metrics into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, max_cpu, max_mem`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how hard the Microsoft Fabric servers are working so more power can be added before they slow down or crash.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

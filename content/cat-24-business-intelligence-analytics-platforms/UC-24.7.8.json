@@ -9,33 +9,55 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events.",
-  "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs.",
+  "exclusions": "Covers the detection logic documented for 'dbt Test Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_dbt_test_failures` (UC-24.7.8), SOC dashboard panel \"Operations — dbt Test Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.7.8 positive (dbt, Test, Failures): ingest synthetic events into `index=dataops` sourcetype='dbt:run_results' where `sum` grouped by `test_name`, `model` satisfies `failures` > 0 for 'dbt Test Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.8 negative (Test Failures): ingest benign `dataops` / `dbt:run_results` events where `test_name`, `model` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'dbt Test Failures'."
+  },
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops sourcetype=dbt:run_results resource_type=test\n| stats count as tests, sum(eval(status IN (\"fail\",\"error\"))) as failures by test_name, model\n| where failures>0\n| sort - failures",
-  "description": "Parses dbt run results to surface failing data tests (uniqueness, not-null, relationships, accepted values), the front line of data-quality enforcement.",
-  "value": "dbt tests are where bad data is meant to be caught; surfacing failures ensures broken data is stopped before it reaches dashboards.",
+  "description": "Surfaces UC-24.7.8 — dbt, Test, Failures — using `index=dataops` sourcetype `dbt:run_results`, grouped by `test_name`, `model`. Outputs `sum` each `the scheduled window`; alert when `failures` > 0. Primary focus: Test Failures. Purpose-built for 'dbt Test Failures' in Operations workflows.",
+  "value": "UC-24.7.8 operationalises 'dbt Test Failures' against `dbt:run_results` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Emit `run_results.json` to HEC after each dbt build; schedule after each run; alert on failures for critical models.",
   "visualization": "Table of failing tests by model, timechart of test failures, alert.",
   "cimModels": [],
   "references": [
     {
       "title": "dbt — run_results.json artifact",
-      "url": "https://docs.getdbt.com/reference/artifacts/run-results-json"
+      "url": "https://docs.getdbt.com/reference/artifacts/run-results-json",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "dbt — Monitor jobs",
-      "url": "https://docs.getdbt.com/docs/deploy/monitor-jobs"
+      "url": "https://docs.getdbt.com/docs/deploy/monitor-jobs",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `dataops` (UC-24.7.8)** — Planned work for 'dbt Test Failures' shifts `sum` over `span=1h` while `test_name`, `model` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `dbt:run_results`** — Scheduled automation elevates `model` without crossing `failures` > 0 for UC-24.7.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `test_name`, `model`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbt:run_results`** — First 48h baseline for UC-24.7.8 on `test_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `test_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache"
   ],
   "equipmentModels": [
     "apache_httpd"
   ],
-  "grandmaExplanation": "We watch the automatic data-quality checks in your pipeline and flag failures so bad data is caught before it reaches a report."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=dbt:run_results into dataops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`failures, model, test_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the automatic data-quality checks in your pipeline and flag failures so bad data is caught before it reaches a report.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

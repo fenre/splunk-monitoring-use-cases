@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Akamai Guardicore Agent Installation Coverage vs Expected Assets (`guardicore:agent`)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_akamai_guardicore_agent_installation_coverage_vs` (UC-17.6.4), SOC dashboard panel \"Network — Akamai Guardicore Agent Installation Coverage vs Expected Assets (`guardicore:agent`)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.6.4 positive (Akamai, Guardicore, Agent, Installation, Coverage): ingest synthetic events into `index=microseg` sourcetype='guardicore:agent' where `covered` grouped by `datacenter` satisfies `gap` > 0 for 'Akamai Guardicore Agent Installation Coverage vs Expected Assets (`guardicore:agent`)'. Validate lookup `expected_assets.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.6.4 negative (Assets (`guardicore:agent`)): ingest benign `microseg` / `guardicore:agent` events where `datacenter` stays below `gap` > 0, or exclude the test entity via `network_exception_register.csv`. Variant 14 confirms zero alert rows for 'Akamai Guardicore Agent Installation Coverage vs Expected Assets (`guardicore:agent`)'."
+  },
   "dataSources": "Guardicore Centra exports: `guardicore:network`, `guardicore:agent`, `guardicore:incident`, `guardicore:policy`, `guardicore:deception`",
   "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=microseg sourcetype=\"guardicore:agent\" earliest=-4h\n| stats dc(hostname) as covered by datacenter\n| lookup expected_assets.csv datacenter OUTPUT expected\n| eval gap=expected-covered\n| where gap>0",
-  "description": "Uninstrumented VMs break microsegmentation guarantees.",
-  "value": "Microsegmentation program managers quantify agent deployment coverage against the expected asset inventory, ensuring that uninstrumented VMs — which bypass all segmentation policies — are identified and remediated before they become attacker pivot points.",
+  "description": "Monitors UC-17.6.4 — Akamai, Guardicore, Agent, Installation, Coverage — using `index=microseg` sourcetype `guardicore:agent`, grouped by `datacenter`. Outputs `covered` each `the scheduled window`; alert when `gap` > 0. Filter chain includes lookup `expected_assets.csv`. Purpose-built for 'Akamai Guardicore Agent Installation Coverage vs Expected Assets (`guardicore:agent`)' in Network workflows.",
+  "value": "Alerting on Akamai, Guardicore, Agent, Installation, Coverage through UC-17.6.4 reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing `covered` early.",
   "implementation": "Install the add-on, configure API polling intervals appropriate to API limits, and map assets to CMDB for enrichment lookups.",
   "visualization": "Bar chart (gap), table.",
   "cimModels": [],
@@ -21,18 +27,34 @@
   "references": [
     {
       "title": "Splunkbase — Akamai Guardicore Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/7426"
+      "url": "https://splunkbase.splunk.com/app/7426",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Akamai Guardicore documentation",
-      "url": "https://www.akamai.com/products/guardicore"
+      "url": "https://www.akamai.com/products/guardicore",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Maintenance window on `microseg` (UC-17.6.4)** — Planned work for 'Akamai Guardicore Agent Installation Coverage vs Expected Assets (`guardicore:agent`)' shifts `covered` over `span=1h` while `datacenter` remains in-scope. Applies lookup `expected_assets.csv`. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `guardicore:agent`** — Scheduled automation elevates `gap` without crossing `gap` > 0 for UC-17.6.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `datacenter`** — Health checks in `microseg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `guardicore:agent`** — First 48h baseline for UC-17.6.4 on `datacenter` is unstable; join `expected_assets.csv` prior to threshold.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `datacenter`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "guardicore",
     "m365"
+  ],
+  "equipmentModels": [
+    "guardicore_generic",
+    "m365_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -42,5 +64,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n• Akamai Guardicore Add-on for Splunk (Splunkbase 7426) v3.x collecting agent status data from the Centra REST API.\n• Data in `index=microseg` with `sourcetype=guardicore:agent`. Key fields: `hostname`, `ip_address`, `agent_version`, `agent_status` (active/inactive/disconnected), `os_type`, `datacenter`, `label_group`, `last_seen`.\n• A `gc_expected_assets.csv` lookup: `hostname,ip_address,datacenter,environment,expected` (exported from CMDB, VMware vCenter, or cloud asset inventory). This is the source of truth for what should be instrumented.\n• Guardicore coverage gaps are the biggest risk to microsegmentation — an uninstrumented VM is invisible to policies and can serve as a pivot point for attackers.\n\nStep 1 — Configure data collection\nVerify agent data is flowing:\n```spl\nindex=microseg sourcetype=\"guardicore:agent\" earliest=-4h\n| stats dc(hostname) as agents_reporting count by agent_status\n```\nCompare `agents_reporting` with the total number of assets in `gc_expected_assets.csv`. Any gap represents uninstrumented assets.\n\nStep 2 — Create the search and alert\n\nPrimary search — Coverage gap analysis:\n```spl\n| inputlookup gc_expected_assets.csv where expected=\"yes\"\n| join type=left hostname [\n    search index=microseg sourcetype=\"guardicore:agent\" earliest=-4h\n    | stats latest(agent_status) as status latest(agent_version) as version latest(_time) as last_seen by hostname\n]\n| eval coverage=if(isnotnull(status) AND status=\"active\", \"covered\", \"GAP\")\n| stats count(eval(coverage=\"covered\")) as covered count(eval(coverage=\"GAP\")) as gaps by datacenter, environment\n| eval coverage_pct=round(covered/(covered+gaps)*100, 1)\n| sort coverage_pct\n```\n\nUnderstanding this SPL: Left-joins the expected asset list with actual agent status data. Assets missing from Splunk entirely, or with `status!=active`, are gaps. Coverage percentage below 95% per environment is a significant risk. Common gaps: newly provisioned VMs (agent not yet deployed), legacy systems (agent incompatible with the OS), and ephemeral containers (require different instrumentation).\n\nIndividual gap identification:\n```spl\n| inputlookup gc_expected_assets.csv where expected=\"yes\"\n| join type=left hostname [\n    search index=microseg sourcetype=\"guardicore:agent\" earliest=-4h\n    | stats latest(agent_status) as status latest(agent_version) as version by hostname\n]\n| where isnull(status) OR status!=\"active\"\n| table hostname, ip_address, datacenter, environment, status\n| sort datacenter, hostname\n```\n\nStep 3 — Validate\n(a) In Guardicore Centra: Assets > Agents. Compare the total agent count with Splunk's `dc(hostname)`.\n(b) Cross-reference 5 known gap hosts against the Centra UI — confirm they are indeed missing or disconnected.\n(c) Verify the `gc_expected_assets.csv` is current — compare with your CMDB or cloud inventory export. Stale entries inflate false gaps.\n\nStep 4 — Operationalize\nDashboard (\"Guardicore — Agent Coverage\"):\n• Row 1 — Single-value tiles: \"Coverage rate (%)\", \"Total gaps\", \"Newly discovered gaps (24h)\".\n• Row 2 — Bar chart: coverage percentage by datacenter/environment.\n• Row 3 — Table: gap assets with hostname, IP, datacenter, reason (missing/disconnected/inactive).\n\nAlert: Weekly report to the microsegmentation program owner. Trigger immediate alert when coverage drops below 90% in any critical environment.\n\nRunbook:\n1. **New VMs not instrumented** — Update the VM provisioning pipeline to include Guardicore agent installation in the base image or post-deployment automation (Ansible, Puppet, SCCM).\n2. **Agent disconnected** — The host may have network issues, the agent process crashed, or the host was decommissioned. SSH to the host and check agent status: `systemctl status gc-agent` (Linux) or `Get-Service GC*` (Windows).\n3. **Legacy OS not supported** — Guardicore agents support Windows Server 2012+, RHEL/CentOS 6+, Ubuntu 14.04+. For unsupported OSes, use network-based segmentation (Centra's agentless mode with switch integration) instead.\n\nStep 5 — Troubleshooting\n• **Agent count in Splunk doesn't match Centra** — The TA poll interval may not have captured recently deployed agents. Wait one poll cycle (default 5 minutes) and re-check.\n• **`gc_expected_assets.csv` out of date** — Automate the lookup generation from your CMDB or cloud API using a scheduled script.\n• **Coverage looks good but violations are happening from uncovered hosts** — The host is communicating without an agent. This confirms the gap — the violating traffic comes from an unmonitored source.",
-  "grandmaExplanation": "We make sure every important computer in our network has its protective software installed, because one unprotected machine can be used as a hiding spot to get around all our security walls."
+  "grandmaExplanation": "We make sure every important computer in our network has its protective software installed, because one unprotected machine can be used as a hiding spot to get around all our security walls.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,26 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), kombucha brew (`kombucha:reading`).",
-  "app": "ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Coffee-Bean Freshness Countdown' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_coffee_bean_freshness_countdown` (UC-25.15.12), SOC dashboard panel \"Personal — Coffee-Bean Freshness Countdown\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.15.12 positive (Coffee, Bean, Freshness, Countdown): ingest synthetic events into `index=personal` sourcetype='pantry:item' where `count` grouped by `entity` satisfies `days_since_roast` < 7, `days_since_roast` < 21, or `days_since_roast` < 35 for 'Coffee-Bean Freshness Countdown'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.15.12 negative (Freshness Countdown): ingest benign `personal` / `pantry:item` events where `entity` stays below `days_since_roast` < 7, `days_since_roast` < 21, or `days_since_roast` < 35, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Coffee-Bean Freshness Countdown'."
+  },
+  "dataSources": "Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), kombucha brew (`kombucha:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=pantry:item category=coffee\n| eval days_since_roast=round((now()-roast_epoch)/86400,0)\n| eval freshness=case(days_since_roast<7,\"resting\",days_since_roast<21,\"peak\",days_since_roast<35,\"fading\",1=1,\"stale\")\n| table item days_since_roast freshness quantity",
-  "description": "Counts the days since each bag of coffee was roasted and rates its freshness so you brew beans at their best.",
-  "value": "Coffee peaks a couple of weeks after roasting and fades fast after a month; a freshness clock makes sure good beans are not wasted.",
+  "description": "Surfaces Freshness Countdown anomalies for UC-25.15.12 with window `the scheduled window` on `index=personal` sourcetype `pantry:item`. Combines `count` by `entity` and compares against `days_since_roast` < 7, `days_since_roast` < 21, or `days_since_roast` < 35. Mapped to keywords Coffee, Bean, Freshness, Countdown for dashboard routing.",
+  "value": "Alerting on Coffee, Bean, Freshness, Countdown through UC-25.15.12 reduces missed training goals, stale hobby data, and connector failures by surfacing `activity` early.",
   "implementation": "Record roast dates with your coffee inventory; schedule daily and rate each bag from resting through stale.",
   "visualization": "Table of coffee bags with days since roast and a freshness rating.",
   "cimModels": [],
   "references": [
     {
       "title": "Home Assistant — REST sensor",
-      "url": "https://www.home-assistant.io/integrations/rest/"
+      "url": "https://www.home-assistant.io/integrations/rest/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.15.12)** — Connector for 'Coffee-Bean Freshness Countdown' stops polling `pantry:item`; stale `count` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.15.12, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pantry:item`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_since_roast` < 7 for 'Coffee-Bean Freshness Countdown'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It counts how long ago your coffee was roasted and tells you when the beans are at their tastiest."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Kitchen, Cooking & Fermentation — typical feeds: Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), .\n• **Sourcetypes in this search**: `pantry:item`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=pantry:item`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC..\n\n**Author notes:** Record roast dates with your coffee inventory; schedule daily and rate each bag from resting through stale.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"pantry:item\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=pantry:item earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Coffee-Bean Freshness Countdown** over `personal` data (primarily `sourcetype=pantry:item`) across the full search range. It applies numeric thresholds on `days_since_roast` (< 7) after aggregation — tune these constants to your household baseline.\n\n**Fields this search depends on:** `days_since_roast`, `freshness`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=pantry:item category=coffee\n| eval days_since_roast=round((now()-roast_epoch)/86400,0)\n| eval freshness=case(days_since_roast<7,\"resting\",days_since_roast<21,\"peak\",days_since_roast<35,\"fading\",1=1,\"stale\")\n| table item days_since_roast freshness quantity\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=pantry:item earliest=-7d\n| head 50\n| table days_since_roast, freshness\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=pantry:item earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `days_since_roast` before alerting:\n\n```spl\nindex=personal sourcetype=pantry:item earliest=-30d\n| stats perc50(days_since_roast) AS p50 perc90(days_since_roast) AS p90 perc99(days_since_roast) AS p99 max(days_since_roast) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.15.12: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Coffee Bags With Days Since Roast And A Freshness Rating (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `pantry:item` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=pantry:item | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It counts how long ago your coffee was roasted and tells you when the beans are at their tastiest.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

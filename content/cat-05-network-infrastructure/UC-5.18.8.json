@@ -10,28 +10,42 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Detailed: RSVP PATH/RESV churn logged during autoroute reoptimization, ISIS/OSPF TE SPF-triggered logs, Cisco `%ROUTING-RT*`/`%ROUTING-ISIS*` linking metric changes, Junos `ted` trace summaries, Nokia TE database rebuild notifications; correlate with interface metric syslog.",
-  "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`), Splunk Add-on for Juniper, Nokia SR OS; optional ITSI for episode grouping.",
+  "exclusions": "Covers the detection logic documented for 'Traffic Engineering Re-Optimization Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_traffic_engineering_re_optimization_events` (UC-5.18.8), SOC dashboard panel \"Operations — Traffic Engineering Re-Optimization Events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.18.8 positive (Traffic, Engineering, Optimization, Events): ingest synthetic events into `index=network` sourcetype='target_sourcetype' where `tunnels_affected` grouped by `_time`, `host` satisfies `count` >= 5, or `tunnels_affected` >= 3 for 'Traffic Engineering Re-Optimization Events'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.18.8 negative (Optimization Events): ingest benign `network` / `target_sourcetype` events where `_time`, `host` stays below `count` >= 5, or `tunnels_affected` >= 3, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Traffic Engineering Re-Optimization Events'."
+  },
+  "dataSources": "Detailed: RSVP PATH/RESV churn logged during autoroute reoptimization, ISIS/OSPF TE SPF-triggered logs, Cisco `%ROUTING-RT*`/`%ROUTING-ISIS*` linking metric changes, Junos `ted` trace summaries, Nokia TE database rebuild notifications; correlate with interface metric syslog. Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`), Splunk Add-on for Juniper, Nokia SR OS; optional ITSI for episode grouping. — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=network earliest=-24h@h latest=now\n| eval msg=lower(_raw)\n| eval te_evt=match(msg,\"(?:reoptim|re.?optim|cspf|(?:ted|traffic.?engineering).*(?:spf|recalc|update)|mpls.?te.*(?:recalc|metric.?chang)|tunnel.*(?:reroute|path.?chang)|(?:igp|isis|ospf).*(?:metric|te).*(?:chang|update)|(?:bandwidth).*(?:avail|update).*tunnel)\")\n| where te_evt=1\n| rex field=_raw max_match=0 \"(?i)(?:tunnel.?id|tunnel)\\s*[:=]?\\s*(?<tunnel_id>[0-9]+)\"\n| rex field=_raw max_match=0 \"(?i)(?:metric|cost)\\s*[:=]?\\s*(?<metric>[0-9]+)\"\n| bin _time span=5m\n| stats count values(metric) as metrics dc(tunnel_id) as tunnels_affected by _time host\n| where count>=5 OR tunnels_affected>=3\n| sort _time host",
-  "description": "Splunk detects bursts of MPLS traffic-engineering reoptimization—whether from CSPF recomputation, metric churn, or bandwidth advertisement updates—so transient tunnel reroutes become measurable incidents instead of invisible controller churn.",
-  "value": "Optical and IP operations gain shared situational awareness because Splunk correlates TE reroute storms with underlying fiber hits or metric manipulation, preventing duplicate escalations when CE complaints lag core stabilization.",
+  "description": "Alerts on UC-5.18.8 for Traffic, Engineering, Optimization, Events over `index=network` sourcetype `configured sourcetype` with thresholds `count` >= 5, or `tunnels_affected` >= 3. Groups `tunnels_affected` by `_time`, `host` each `5m`. Centered on Optimization Events indicators. Supports repeatable operations triage for 'Traffic Engineering Re-Optimization Events'.",
+  "value": "For 'Traffic Engineering Re-Optimization Events', UC-5.18.8 converts `tunnels_affected` on UC-5.18.8 search results into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Tune syslog to capture TE subsystem informational messages during business hours pilot, baseline normal CSPF frequency per POP, alert when five-minute bucket exceeds rolling median ×4 joined with ISIS metric events.",
   "visualization": "Dashboard Studio: timeline of TE events overlaid with ISIS metric deltas; bubble chart sized by `tunnels_affected`; drilldown raw `_raw` panel.",
   "references": [
     {
       "title": "Cisco IOS XR ISIS Configuration Guide — MPLS TE Extensions",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Juniper RSVP and Traffic Engineering User Guide",
-      "url": "https://www.juniper.net/documentation/us/en/software/junos/mpls/"
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/mpls/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IETF RFC 3630 — Traffic Engineering Extensions for OSPF",
-      "url": "https://www.rfc-editor.org/rfc/rfc3630"
+      "url": "https://www.rfc-editor.org/rfc/rfc3630",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Periodic auto-bandwidth adjustments:** weekly timers mimic outage churn—whitelist schedules.**Metric micro-flaps:** sub-second changes invisible to Splunk buckets aggregate oddly.**Log verbosity toggles:** engineering debugging spikes counts—tag source IPs.**Multi-instance ISIS:** messages lacking instance ID ambiguous—extract NET.**Telemetry-only TE:** silent syslog environments require alternate signals.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.18.8)** — Planned work for 'Traffic Engineering Re-Optimization Events' shifts `tunnels_affected` over `span=5m` while `_time`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `configured_sourcetype`** — Scheduled automation elevates `host` without crossing `count` >= 5 for UC-5.18.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.18.8 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "N/A (change monitoring)"
   ],
@@ -56,7 +70,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Maintenance calendar tagging planned optical works impacting metrics.\n• Baseline median TE messages per hour derived from thirty-day summary index.\n\nStep 1 — Vendor logging alignment\nIOS-XR: enable MPLS TE logging for auto-bandwidth and reoptimization paths sparingly to avoid flooding—sample via discriminators. Junos: route `rpd` TED updates at notice level.\n\nStep 2 — SPL anomaly layer\nUse `streamstats` over `_time` to compute Z-score on `count`; hybrid alert uses absolute threshold OR statistical spike.\n\nStep 3 — Correlation join\nSubsearch pulling ISIS metric change events within ±120s window stitched via `transaction host maxspan=120s`.\n\nStep 4 — CLI validation\nValidate Splunk spike against `show isis database verbose` TE TLV shifts and `show mpls traffic-eng tunnels` reroute counters.\n\nStep 5 — Governance\nMonthly review with optical NOC calibrates thresholds; document vendor bugs where false CSPF loops occurred.",
+  "detailedImplementation": "Prerequisites\n• Maintenance calendar tagging planned optical works impacting metrics.\n• Baseline median TE messages per hour derived from thirty-day summary index.\n\nStep 1 — Vendor logging alignment\nIOS-XR: enable MPLS TE logging for auto-bandwidth and reoptimization paths sparingly to avoid flooding—sample via discriminators. Junos: route `rpd` TED updates at notice level.\n\nStep 2 — SPL anomaly layer\nUse `streamstats` over `_time` to compute Z-score on `count`; hybrid alert uses absolute threshold OR statistical spike.\n\nStep 3 — Correlation join\nSubsearch pulling ISIS metric change events within ±120s window stitched via `transaction host maxspan=120s`.\n\nStep 4 — CLI validation\nValidate Splunk spike against `show isis database verbose` TE TLV shifts and `show mpls traffic-eng tunnels` reroute counters.\n\nStep 5 — Governance\nMonthly review with optical NOC calibrates thresholds; document vendor bugs where false CSPF loops occurred.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cisco Networks Add-on for Splunk (`TA-cisco_ios`), Splunk Add-on for Juniper, Nokia SR OS; optional ITSI for episode grouping. — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=see SPL into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, host, tunnels_affected`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We notice when the backbone suddenly redraws its detour maps over and over because roads closed or weights changed. Seeing the flurry helps crews tell normal tweaks from a messy pile-up.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

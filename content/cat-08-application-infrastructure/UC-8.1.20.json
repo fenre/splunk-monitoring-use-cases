@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=php` `sourcetype=phpfpm:status` JSON from `pm.status_path`",
-  "app": "Custom scripted input or HEC (PHP-FPM `pm.status_path` JSON)",
+  "exclusions": "Covers the detection logic documented for 'PHP-FPM Slow Request Counter Increases' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_php_fpm_slow_request_counter_increases` (UC-8.1.20), SOC dashboard panel \"Operations — PHP-FPM Slow Request Counter Increases\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.1.20 positive (PHP, FPM, Slow, Request, Counter): ingest synthetic events into `index=php` sourcetype='phpfpm:status' where `count` grouped by `entity` satisfies `slow_delta` > 10 for 'PHP-FPM Slow Request Counter Increases'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.20 negative (Counter Increases): ingest benign `php` / `phpfpm:status` events where `entity` stays below `slow_delta` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'PHP-FPM Slow Request Counter Increases'."
+  },
+  "dataSources": "`index=php` `sourcetype=phpfpm:status` JSON from `pm.status_path` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input or HEC (PHP-FPM `pm.status_path` JSON) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=php sourcetype=\"phpfpm:status\"\n| sort 0 _time\n| delta slow_requests as slow_delta\n| where slow_delta > 10\n| table _time, host, pool, slow_requests, slow_delta",
-  "description": "The `slow_requests` counter increments when requests exceed `request_slowlog_timeout`. Sustained increases pinpoint slow PHP code, database calls, or external APIs.",
-  "value": "Surfaces PHP endpoints that breach slow thresholds so you can tune code or pool settings before queues explode.",
+  "description": "Identifies UC-8.1.20 — PHP, FPM, Slow, Request, Counter — using `index=php` sourcetype `phpfpm:status`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `slow_delta` > 10. Primary focus: Counter Increases. Purpose-built for 'PHP-FPM Slow Request Counter Increases' in Operations workflows.",
+  "value": "Alerting on PHP, FPM, Slow, Request, Counter through UC-8.1.20 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Expose `pm.status_path` over loopback, poll JSON every minute, and parse `slow_requests`, `active processes`, and `idle processes`. Alert on delta spikes, not one-off counter values.",
   "visualization": "Line chart (`slow_requests` counter), bar chart (slow_delta per pool), correlation with upstream database latency.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "PHP-FPM Status Page",
-      "url": "https://www.php.net/manual/en/install.fpm.configuration.php"
+      "url": "https://www.php.net/manual/en/install.fpm.configuration.php",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Response time spikes during JVM garbage collection, connection pool exhaustion, or backend dependency degradation. Load tests, campaigns, and cold caches also move percentiles.",
+  "knownFalsePositives": "1. **Maintenance window on `php` (UC-8.1.20)** — Planned work for 'PHP-FPM Slow Request Counter Increases' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `phpfpm:status`** — Scheduled automation elevates `src` without crossing `slow_delta` > 10 for UC-8.1.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `php` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `phpfpm:status`** — First 48h baseline for UC-8.1.20 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "phpfpm"
+  ],
+  "equipmentModels": [
+    "phpfpm_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -37,5 +62,7 @@
   ],
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input or HEC (PHP-FPM `pm.status_path`); Add On for Traefik Proxy patterns optional for edge logs.\n• Ensure the following data sources are available: `index=php` `sourcetype=phpfpm:status` JSON from `pm.status_path`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll `/status?json` on each pool; ensure `slow_requests` is extracted; use `delta` on the counter for alert logic.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=php sourcetype=\"phpfpm:status\"\n| sort 0 _time\n| delta slow_requests as slow_delta\n| where slow_delta > 10\n| table _time, host, pool, slow_requests, slow_delta\n```\n\nUnderstanding this SPL\n\n**PHP-FPM Slow Request Counter Increases** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=php` `sourcetype=phpfpm:status` JSON from `pm.status_path`. **App/TA**: Custom scripted input or HEC (PHP-FPM `pm.status_path`); Add On for Traefik Proxy patterns optional for edge logs. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with web server access logs on disk (Apache, NGINX, or W3C) for the same time range, or tail the same sourcetype in Search, to confirm status codes, URIs, and counts.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Line chart (`slow_requests` counter), bar chart (slow_delta per pool), correlation with upstream database latency..",
-  "grandmaExplanation": "We use this to surfaces PHP endpoints that breach slow thresholds so you can tune code or pool settings before queues explode."
+  "grandmaExplanation": "We use this to surfaces PHP endpoints that breach slow thresholds so you can tune code or pool settings before queues explode.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

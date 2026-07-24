@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=zscaler:web` or `zscaler:zia`",
-  "app": "Zscaler TA",
+  "exclusions": "Covers the detection logic documented for 'Zscaler ZIA Policy Violation Trends' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_zscaler_zia_policy_violation_trends` (UC-17.3.12), SOC dashboard panel \"Network — Zscaler ZIA Policy Violation Trends\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.12 positive (Zscaler, ZIA, Policy, Violation, Trends): ingest synthetic events into `index=proxy` sourcetype='zscaler:web' where `count` grouped by `rule_name` satisfies `threat_score` > 0 for 'Zscaler ZIA Policy Violation Trends'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.12 negative (Violation Trends): ingest benign `proxy` / `zscaler:web` events where `rule_name` stays below `threat_score` > 0, or exclude the test entity via `network_exception_register.csv`. Variant 11 confirms zero alert rows for 'Zscaler ZIA Policy Violation Trends'."
+  },
+  "dataSources": "`sourcetype=zscaler:web` or `zscaler:zia` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Zscaler TA — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"zscaler:web\" earliest=-30d\n| where action=\"blocked\" OR threat_score>0\n| timechart span=1d count by rule_name",
-  "description": "Time-series of blocked violations per URL category and rule — tunes SWG policy and spots sudden policy drift.",
-  "value": "Security teams trend Zscaler ZIA web policy violations by category, identifying active malware campaigns targeting users, repeat policy violators, and DLP incidents where sensitive data was attempted to be uploaded to unauthorized destinations.",
+  "description": "Surfaces UC-17.3.12 — Zscaler, ZIA, Policy, Violation, Trends — using `index=proxy` sourcetype `zscaler:web`, grouped by `rule_name`. Outputs `count` each `1d`; alert when `threat_score` > 0. Primary focus: Violation Trends. Purpose-built for 'Zscaler ZIA Policy Violation Trends' in Network workflows.",
+  "value": "UC-17.3.12 helps teams contain Zscaler, ZIA, Policy, Violation, Trends scenarios and reduce unauthorized access, segmentation drift, and NAC policy failures before incidents compound.",
   "implementation": "Map `rule_name` / `policy` from ZIA. Alert when daily blocks for a rule exceed 2× 7-day average (possible mis-tuned category).",
   "visualization": "Line chart (blocks by rule), Stacked area (categories), Table (top rules).",
   "cimModels": [
@@ -25,16 +31,41 @@
   "references": [
     {
       "title": "CIM: Network_Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Vulnerability scanner signature matches** — Qualys/Tenable traffic triggers IPS/threat signatures for 'Zscaler ZIA Policy Violation Trends'. Compare `src` against `scanner_ips` lookup.\n\n2. **Policy push during change window** — New deny rule generates expected blocks. Match firewall commit timestamp in change calendar.\n\n3. **Encrypted traffic inspection gap** — TLS-heavy apps bypass deep inspection; volume drop is operational, not a sensor failure.\n\n4. **Red-team C2 simulation** — Approved exercise from `pen_test_hosts.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src`, `signature_id`, `valid_until`.",
   "mitreAttack": [
     "T1071.001"
   ],
   "equipment": [
     "zscaler"
   ],
+  "equipmentModels": [
+    "zscaler_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Zscaler Internet Access (ZIA) logs via Nanolog Streaming Service (NSS) to Splunk. Data in `index=zscaler` with `sourcetype=zscaler:zia:web`. Key fields: `action` (Allowed/Blocked/Cautioned/Isolated), `urlclass` (URL category), `department`, `user`, `url`, `threatname`, `dlpengine`, `dlpdictionaries`, `riskscore`, `bandwidth`.\n• ZIA is a Secure Web Gateway (SWG) in the SASE stack. Policy violations include: blocked URLs by category (adult, gambling, malware), DLP violations (sensitive data in uploads), threat blocks (malware downloads, phishing sites), and SSL inspection bypasses.\n• Zscaler NSS: Configure in ZIA Admin > Administration > Nanolog Streaming Service > add NSS server (Splunk HF) with web log type.\n\nStep 1 — Configure data collection\nVerify ZIA data:\n```spl\nindex=zscaler sourcetype=\"zscaler:zia:web\" earliest=-1h\n| stats count by action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Policy violation trends:\n```spl\nindex=zscaler sourcetype=\"zscaler:zia:web\" action=Blocked earliest=-7d\n| timechart span=1d count by urlclass limit=10\n```\n\nUnderstanding this SPL: Trends blocked web requests by URL category over 7 days. Spikes in 'Malware' or 'Phishing' categories indicate active campaigns targeting your users. Steady 'Adult' or 'Gambling' blocks indicate policy enforcement working as intended. A spike in 'Custom Blocked' (your custom categories) indicates a specific policy change. If blocks drop to zero, the policy may have been disabled.\n\nTop violators:\n```spl\nindex=zscaler sourcetype=\"zscaler:zia:web\" action=Blocked earliest=-7d\n| stats count dc(url) as unique_urls by user, department, urlclass\n| sort - count\n| head 20\n```\n\nDLP violations:\n```spl\nindex=zscaler sourcetype=\"zscaler:zia:web\" earliest=-7d\n| where isnotnull(dlpengine)\n| stats count by dlpengine, dlpdictionaries, user, action\n| sort - count\n```\n\nStep 3 — Validate\n(a) In ZIA Admin: Analytics > Web Insights > Policy blocks. Compare with Splunk.\n(b) Visit a known-blocked URL category and verify the block event.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Block category trend. Row 2 — Top violating users. Row 3 — DLP violations.\nAlert: When 'Malware' or 'Phishing' blocks exceed 2x the 7-day average.\n\nRunbook:\n1. **Malware/Phishing spike** — Active campaign. Check threat intelligence for context.\n2. **Top user with many blocks** — May be infected or intentionally trying to bypass. Investigate.\n3. **DLP violation** — Sensitive data attempted upload. Follow DLP incident response process.\n\nStep 5 — Troubleshooting\n• **No ZIA data** — NSS may not be configured. Check ZIA Admin > Nanolog Streaming Service.\n• **All traffic 'Allowed'** — ZIA policy may be too permissive or in monitor-only mode.",
-  "grandmaExplanation": "We watch which websites our employees try to visit that are blocked by our security rules. When many people suddenly get blocked from dangerous websites, it usually means there is an active attack campaign, and we can warn everyone and strengthen our defenses."
+  "grandmaExplanation": "We watch which websites our employees try to visit that are blocked by our security rules. When many people suddenly get blocked from dangerous websites, it usually means there is an active attack campaign, and we can warn everyone and strengthen our defenses.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

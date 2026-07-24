@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Webex Events API (messages created/deleted, files shared, memberships changed)",
-  "app": "`ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Events/Compliance API via HEC",
+  "exclusions": "Covers the detection logic documented for 'Webex Messaging Activity and Anomaly Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_webex_messaging_activity_and_anomaly_detection` (UC-11.3.21), SOC dashboard panel \"Operations — Webex Messaging Activity and Anomaly Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.3.21 positive (Webex, Messaging, Activity, and, Anomaly): ingest synthetic events into `index=webex` sourcetype='webex:events' where `active_spaces`, `avg_msgs`, `stdev_msgs` grouped by `actorEmail`, `_time` satisfies `msg_count` > 50 for 'Webex Messaging Activity and Anomaly Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.3.21 negative (Anomaly Detection): ingest benign `webex` / `webex:events` events where `actorEmail`, `_time` stays below `msg_count` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Webex Messaging Activity and Anomaly Detection'."
+  },
+  "dataSources": "Webex Events API (messages created/deleted, files shared, memberships changed) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Events/Compliance API via HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=webex sourcetype=\"webex:events\" resource=\"messages\"\n| bin _time span=1h\n| stats count as msg_count, dc(roomId) as active_spaces by actorEmail, _time\n| eventstats avg(msg_count) as avg_msgs, stdev(msg_count) as stdev_msgs by actorEmail\n| eval upper_bound=avg_msgs+(3*stdev_msgs)\n| where msg_count > upper_bound AND msg_count > 50\n| table _time, actorEmail, msg_count, active_spaces, avg_msgs, upper_bound",
-  "description": "Tracks messaging volume, file sharing, and space activity across Webex Messaging. Establishes baselines per user to detect anomalous bulk messaging that could indicate a compromised account, bot abuse, or policy violation. Also measures collaboration adoption and engagement trends across departments. Identifies inactive spaces consuming storage and active spaces that may need governance controls.",
-  "value": "Tracks messaging volume, file sharing, and space activity across Webex Messaging. Establishes baselines per user to detect anomalous bulk messaging that could indicate a compromised account, bot abuse, or policy violation. Also measures collaboration adoption and engagement trends across departments. Identifies inactive spaces consuming storage and active spaces that may need governance controls.",
+  "description": "Detects 'Webex Messaging Activity and Anomaly Detection' (UC-11.3.21) using `index=webex` sourcetype `webex:events` by aggregating `active_spaces`, `avg_msgs`, `stdev_msgs` grouped by `actorEmail`, `_time` over `1h` and alerting when `msg_count` > 50. Keywords: Webex, Messaging, Activity, and, Anomaly. Focuses on Anomaly Detection behaviour so operations teams can triage UC-11.3.21 without ad-hoc log review.",
+  "value": "UC-11.3.21 accelerates insight into Anomaly Detection ('Webex Messaging Activity and Anomaly Detection') by tracking `active_spaces`, `avg_msgs`, `stdev_msgs` on `webex:events` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Register a Webex Compliance integration with the `spark-compliance:events_read` scope to access organization-wide message events. Poll the Events API every 5 minutes for near-real-time visibility. Build user activity baselines over 30 days before enabling anomaly alerting. Alert on: message volume exceeding 3 standard deviations from baseline, bulk file uploads (>20 files in 1 hour), and messages containing URLs to known-bad domains (cross-reference with threat intel). Combine with DLP data for comprehensive messaging security.",
   "visualization": "Timechart (message volume by department), Table (anomalous users), Bar chart (top active spaces), Line chart (adoption trend over 90 days).",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Bots, integrations, and off-hours red-eye teams that can look anomalous without being malicious.",
+  "knownFalsePositives": "1. **Maintenance window on `webex` (UC-11.3.21)** — Planned work for 'Webex Messaging Activity and Anomaly Detection' shifts `active_spaces`, `avg_msgs`, `stdev_msgs` over `span=1h` while `actorEmail`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `webex:events`** — Scheduled automation elevates `_time` without crossing `msg_count` > 50 for UC-11.3.21. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `actorEmail`, `_time`** — Health checks in `webex` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `webex:events`** — First 48h baseline for UC-11.3.21 on `actorEmail` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `actorEmail`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "github"
@@ -34,7 +56,13 @@
   "equipmentModels": [
     "cisco_webex"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Events/Compliance API via HEC.\n• Ensure the following data sources are available: Webex Events API (messages created/deleted, files shared, memberships changed).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRegister a Webex Compliance integration with the `spark-compliance:events_read` scope to access organization-wide message events. Poll the Events API every 5 minutes for near-real-time visibility. Build user activity baselines over 30 days before enabling anomaly alerting. Alert on: message volume exceeding 3 standard deviations from baseline, bulk file uploads (>20 files in 1 hour), and messages containing URLs to known-bad domains (cross-reference with threat intel). Combine with DLP data for …\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=webex sourcetype=\"webex:events\" resource=\"messages\"\n| bin _time span=1h\n| stats count as msg_count, dc(roomId) as active_spaces by actorEmail, _time\n| eventstats avg(msg_count) as avg_msgs, stdev(msg_count) as stdev_msgs by actorEmail\n| eval upper_bound=avg_msgs+(3*stdev_msgs)\n| where msg_count > upper_bound AND msg_count > 50\n| table _time, actorEmail, msg_count, active_spaces, avg_msgs, upper_bound\n```\n\nUnderstanding this SPL\n\n**Webex Messaging Activity and Anomaly Detection** — Tracks messaging volume, file sharing, and space activity across Webex Messaging. Establishes baselines per user to detect anomalous bulk messaging that could indicate a compromised account, bot abuse, or policy violation. Also measures collaboration adoption and engagement trends across departments. Identifies inactive spaces consuming storage and active spaces that may need governance controls.\n\nDocumented **Data sources**: Webex Events API (messages created/deleted, files shared, memberships changed). **App/TA** (typical add-on context): `ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Events/Compliance API via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: webex; **sourcetype**: webex:events. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=webex, sourcetype=\"webex:events\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by actorEmail, _time** so each row reflects one combination of those dimensions.\n• `eventstats` rolls up events into metrics; results are split **by actorEmail** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **upper_bound** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where msg_count > upper_bound AND msg_count > 50` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Webex Messaging Activity and Anomaly Detection**): table _time, actorEmail, msg_count, active_spaces, avg_msgs, upper_bound\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nCompare with Cisco Webex Control Hub analytics, audit, and service status for the same time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart (message volume by department), Table (anomalous users), Bar chart (top active spaces), Line chart (adoption trend over 90 days).",
   "grandmaExplanation": "We use this to stay ahead of email and collaboration problems, so the team is not the last to know when something drifts or breaks.",
-  "hardware": "Cisco Webex Messaging, Webex App"
+  "hardware": "Cisco Webex Messaging, Webex App",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Change"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=observability` `sourcetype=grafana:log` provisioning success/fail, `sourcetype=grafana:datasource` live UID snapshot",
-  "app": "GitOps exporter comparing disk YAML to API `/api/dashboards/uid` hash",
+  "exclusions": "Covers the detection logic documented for 'Grafana Provisioned Dashboard and Data Source Config Drift' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_grafana_provisioned_dashboard_and_data_source_co` (UC-13.6.14), SOC dashboard panel \"Operations — Grafana Provisioned Dashboard and Data Source Config Drift\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-13.6.14 positive (Grafana, Provisioned, Dashboard, and, Data): ingest synthetic events into `index=observability` sourcetype='grafana:log' where `values` grouped by `provisioner`, `host` satisfies `count` >= 1 for 'Grafana Provisioned Dashboard and Data Source Config Drift'. Validate filter `failed OR error OR \"cannot delete\" OR mismatch OR \"already e`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-13.6.14 negative (Config Drift): ingest benign `observability` / `grafana:log` events where `provisioner`, `host` stays below `count` >= 1, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Grafana Provisioned Dashboard and Data Source Config Drift'."
+  },
+  "dataSources": "`index=observability` `sourcetype=grafana:log` provisioning success/fail, `sourcetype=grafana:datasource` live UID snapshot Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "GitOps exporter comparing disk YAML to API `/api/dashboards/uid` hash — Universal Forwarder (Splunkbase 617)",
   "spl": "index=observability sourcetype=\"grafana:log\" component=provisioning\n| search \"provisioned dashboard\" OR \"provisioned datasource\" OR \"provisioning\"\n| search failed OR error OR \"cannot delete\" OR mismatch OR \"already exists\" OR \"invalid\"\n| stats count, values(path) as paths, values(name) as objects, latest(_raw) as sample by provisioner, host\n| where count >= 1\n| sort -count",
-  "description": "As-code provisioning should be the source of truth; manual UI edits to provisioned objects create drift that the next sync overwrites unexpectedly. Combining provisioning logs with datasource content hashes exposes shadow changes.",
-  "value": "Prevents surprise dashboard loss during deploys and keeps staging/prod aligned.",
+  "description": "Alerts on Config Drift activity in UC-13.6.14 ('Grafana Provisioned Dashboard and Data Source Config Drift') from `index=observability` sourcetype `grafana:log`. Rolls up `values` by `provisioner`, `host` across `the scheduled window` and pages when `count` >= 1. Uses filter `failed OR error OR \"cannot delete\" OR mismatch OR \"already e`. Operations operators treat UC-13.6.14 as the canonical signal.",
+  "value": "Operators running UC-13.6.14 on `grafana:log` feeds shorten triage for Config Drift tied to 'Grafana Provisioned Dashboard and Data Source Config Drift', lowering operational risk and delayed incident response.",
   "implementation": "Prefer emitting `json_sha256` from CI for expected state and join in Splunk. Simplify the `append` subsearch if only logs are available: alert on provisioning error lines alone.",
   "visualization": "Diff table, timeline of provisioning errors, single-value (drift count).",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "Grafana — Provisioning",
-      "url": "https://grafana.com/docs/grafana/latest/administration/provisioning/"
+      "url": "https://grafana.com/docs/grafana/latest/administration/provisioning/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Noisy periods after retention, target, or scrape changes. We compare with the Grafana or Prometheus view for the same minutes.",
+  "knownFalsePositives": "1. **Maintenance window on `observability` (UC-13.6.14)** — Planned work for 'Grafana Provisioned Dashboard and Data Source Config Drift' shifts `values` over `span=1h` while `provisioner`, `host` remains in-scope. Applies filter `failed OR error OR \"cannot delete\" OR mismatch OR \"already e`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `grafana:log`** — Scheduled automation elevates `host` without crossing `count` >= 1 for UC-13.6.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `provisioner`, `host`** — Health checks in `observability` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `grafana:log`** — First 48h baseline for UC-13.6.14 on `provisioner` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `provisioner`, `exception_reason`, `valid_until`.",
   "equipment": [
     "grafana"
+  ],
+  "equipmentModels": [
+    "grafana_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-01",
@@ -42,5 +63,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We see which views and stored searches people actually use so we can drop clutter and keep the right work maintained."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (GitOps exporter comparing disk YAML to API `/api/dashboards/uid` hash — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=grafana:log into observability. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, provisioner`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We see which views and stored searches people actually use so we can drop clutter and keep the right work maintained.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

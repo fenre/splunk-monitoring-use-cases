@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Proxmox REST API (`/api2/json/cluster/status`), cluster resources, HA manager",
-  "app": "Custom (Proxmox API input)",
+  "exclusions": "Covers the detection logic documented for 'Proxmox VE Cluster Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_proxmox_ve_cluster_monitoring` (UC-2.3.17), SOC dashboard panel \"Linux — Proxmox VE Cluster Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.3.17 positive (Proxmox, Cluster, Monitoring): ingest synthetic events into `index=virtualization` sourcetype='proxmox_cluster_status' where `count` grouped by `node` satisfies detection threshold for 'Proxmox VE Cluster Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.3.17 negative (Cluster Monitoring): ingest benign `virtualization` / `proxmox_cluster_status` events where `node` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'Proxmox VE Cluster Monitoring'."
+  },
+  "dataSources": "Proxmox REST API (`/api2/json/cluster/status`), cluster resources, HA manager Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom (Proxmox API input) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=virtualization sourcetype=\"proxmox_cluster_status\"\n| stats latest(node) as node, latest(status) as status, latest(quorum) as quorum, latest(name) as cluster_name by node\n| eval node_ok = if(status=\"online\", \"OK\", \"CRITICAL\")\n| where node_ok=\"CRITICAL\" OR quorum!=\"1\"\n| table cluster_name, node, status, quorum, node_ok",
-  "description": "Node status, storage usage, and HA fence events for Proxmox VE clusters. Ensures all nodes are online, storage is healthy, and HA operations complete successfully. Critical for multi-node Proxmox deployments.",
-  "value": "Node status, storage usage, and HA fence events for Proxmox VE clusters. Ensures all nodes are online, storage is healthy, and HA operations complete successfully. Critical for multi-node Proxmox deployments.",
+  "description": "Monitors UC-2.3.17 — Proxmox, Cluster, Monitoring — using `index=virtualization` sourcetype `proxmox_cluster_status`, grouped by `node`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Cluster Monitoring. Purpose-built for 'Proxmox VE Cluster Monitoring' in Linux workflows.",
+  "value": "Operators running UC-2.3.17 on `proxmox_cluster_status` feeds shorten triage for Cluster Monitoring tied to 'Proxmox VE Cluster Monitoring', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Create scripted input polling Proxmox API: `GET /api2/json/cluster/status` for node membership and quorum; `GET /api2/json/nodes/{node}/storage` for storage usage; `GET /api2/json/cluster/ha/status` for HA resources. Authenticate via API token or ticket. Run every 60 seconds. Alert on node offline, quorum loss, or storage >85% used. Correlate with Corosync logs for fence events.",
   "visualization": "Status grid (node health per cluster), Table (storage usage by node), Timeline (HA fence events).",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "KVM and scripted metrics may gap when collectors restart, SSH keys roll, or virsh is blocked by lockfiles; a single null interval is not always a full outage.",
+  "knownFalsePositives": "1. **Patch Tuesday on `virtualization`** — Package managers spike `node` metrics for 'Proxmox VE Cluster Monitoring'. Correlate with apt/yum logs in the same `proxmox_cluster_status` window.\n\n2. **Nightly backup I/O on `node`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `proxmox_cluster_status`** — Nagios/Zabbix polls `node` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `node` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `node`, `valid_until`.",
   "equipment": [
     "proxmox"
   ],
+  "equipmentModels": [
+    "proxmox_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Proxmox API input).\n• Ensure the following data sources are available: Proxmox REST API (`/api2/json/cluster/status`), cluster resources, HA manager.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate scripted input polling Proxmox API: `GET /api2/json/cluster/status` for node membership and quorum; `GET /api2/json/nodes/{node}/storage` for storage usage; `GET /api2/json/cluster/ha/status` for HA resources. Authenticate via API token or ticket. Run every 60 seconds. Alert on node offline, quorum loss, or storage >85% used. Correlate with Corosync logs for fence events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=virtualization sourcetype=\"proxmox_cluster_status\"\n| stats latest(node) as node, latest(status) as status, latest(quorum) as quorum, latest(name) as cluster_name by node\n| eval node_ok = if(status=\"online\", \"OK\", \"CRITICAL\")\n| where node_ok=\"CRITICAL\" OR quorum!=\"1\"\n| table cluster_name, node, status, quorum, node_ok\n```\n\nUnderstanding this SPL\n\n**Proxmox VE Cluster Monitoring** — Node status, storage usage, and HA fence events for Proxmox VE clusters. Ensures all nodes are online, storage is healthy, and HA operations complete successfully. Critical for multi-node Proxmox deployments.\n\nDocumented **Data sources**: Proxmox REST API (`/api2/json/cluster/status`), cluster resources, HA manager. **App/TA** (typical add-on context): Custom (Proxmox API input). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: virtualization; **sourcetype**: proxmox_cluster_status. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=virtualization, sourcetype=\"proxmox_cluster_status\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by node** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **node_ok** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where node_ok=\"CRITICAL\" OR quorum!=\"1\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Proxmox VE Cluster Monitoring**): table cluster_name, node, status, quorum, node_ok\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (node health per cluster), Table (storage usage by node), Timeline (HA fence events).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We keep an eye on vE Cluster and raise the alarm before it drags down real work or real outages start."
+  "grandmaExplanation": "We keep an eye on vE Cluster and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

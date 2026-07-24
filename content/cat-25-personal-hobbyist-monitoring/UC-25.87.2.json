@@ -9,35 +9,60 @@
     "Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "SimplePractice therapy sessions (`simplepractice:session`), Headway appointments (`headway:appointment`), BetterHelp sessions (`betterhelp:session`), CBT homework logs (`cbt:homework`), and Daylio mood entries (`daylio:mood`).",
-  "app": "SimplePractice session notes, Headway appointment confirmations, BetterHelp messaging sessions, CBT homework trackers, and Daylio mood exports ingested into Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'CBT Homework Completion Streak' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_cbt_homework_completion_streak` (UC-25.87.2), SOC dashboard panel \"Personal — CBT Homework Completion Streak\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.87.2 positive (CBT, Homework, Completion, Streak): ingest synthetic events into `index=personal` sourcetype='cbt:homework' where `longest_streak`, `avg_completion` grouped by `entity` satisfies `completion_pct` >= 80 for 'CBT Homework Completion Streak'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.87.2 negative (Completion Streak): ingest benign `personal` / `cbt:homework` events where `entity` stays below `completion_pct` >= 80, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'CBT Homework Completion Streak'."
+  },
+  "dataSources": "SimplePractice therapy sessions (`simplepractice:session`), Headway appointments (`headway:appointment`), BetterHelp sessions (`betterhelp:session`), CBT homework logs (`cbt:homework`), and Daylio mood entries (`daylio:mood`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "SimplePractice session notes, Headway appointment confirmations, BetterHelp messaging sessions, CBT homework trackers, and Daylio mood exports ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=cbt:homework completion_pct=*\n| eval completed=if(completion_pct>=80,1,0)\n| sort 0 _time\n| streamstats count as streak reset=eval(completed=0)\n| stats max(streak) as longest_streak, avg(completion_pct) as avg_completion",
-  "description": "Finds the longest run of CBT homework assignments completed at or above eighty percent.",
-  "value": "Homework streaks turn abstract therapy goals into a concrete habit you can celebrate or troubleshoot.",
+  "description": "Alerts on UC-25.87.2 — CBT, Homework, Completion, Streak — using `index=personal` sourcetype `cbt:homework`, grouped by `entity`. Outputs `longest_streak`, `avg_completion` each `the scheduled window`; alert when `completion_pct` >= 80. Primary focus: Completion Streak. Purpose-built for 'CBT Homework Completion Streak' in Personal workflows.",
+  "value": "Tracking `longest_streak`, `avg_completion` via UC-25.87.2 on `cbt:homework` feeds improves response to 'CBT Homework Completion Streak' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Log each worksheet with `completion_pct` and review streak length during weekly check-ins with your therapist.",
   "visualization": "Single-value tile for longest streak with average completion percentage.",
   "cimModels": [],
   "references": [
     {
       "title": "SimplePractice",
-      "url": "https://www.simplepractice.com/"
+      "url": "https://www.simplepractice.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Headway",
-      "url": "https://headway.co/"
+      "url": "https://headway.co/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "BetterHelp",
-      "url": "https://www.betterhelp.com/"
+      "url": "https://www.betterhelp.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Daylio",
-      "url": "https://daylio.net/"
+      "url": "https://daylio.net/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It watches your longest stretch of actually finishing CBT homework instead of skipping it."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.87.2)** — Connector for 'CBT Homework Completion Streak' stops polling `cbt:homework`; stale `longest_streak`, `avg_completion` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `longest_streak`, `avg_completion` over `1w` is expected for UC-25.87.2, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `cbt:homework`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `completion_pct` >= 80 for 'CBT Homework Completion Streak'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Therapy & Mental Health Care — typical feeds: SimplePractice therapy sessions (`simplepractice:session`), Headway appointments (`headway:appointment`), BetterHelp sessions (`betterhelp:session`), CBT homework logs (`cbt:homework`), and Daylio moo.\n• **Sourcetypes in this search**: `cbt:homework`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=cbt:homework`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** SimplePractice session notes, Headway appointment confirmations, BetterHelp messaging sessions, CBT homework trackers, and Daylio mood exports ingested into Splunk HEC..\n\n**Author notes:** Log each worksheet with `completion_pct` and review streak length during weekly check-ins with your therapist.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"cbt:homework\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=cbt:homework earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **CBT Homework Completion Streak** over `personal` data (primarily `sourcetype=cbt:homework`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `completed`, `completion_pct`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=cbt:homework completion_pct=*\n| eval completed=if(completion_pct>=80,1,0)\n| sort 0 _time\n| streamstats count as streak reset=eval(completed=0)\n| stats max(streak) as longest_streak, avg(completion_pct) as avg_completion\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=cbt:homework earliest=-7d\n| head 50\n| table completed, completion_pct\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=cbt:homework earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `completion_pct` before alerting:\n\n```spl\nindex=personal sourcetype=cbt:homework earliest=-30d\n| stats perc50(completion_pct) AS p50 perc90(completion_pct) AS p90 perc99(completion_pct) AS p99 max(completion_pct) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.87.2: Personal evidence` with the following panel layout:\n\n**Panel 1 — Single-Value Tile For Longest Streak With Average Completion Percentage (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `cbt:homework` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=cbt:homework | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It watches your longest stretch of actually finishing CBT homework instead of skipping it.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

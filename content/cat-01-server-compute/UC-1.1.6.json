@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=syslog`, `/var/log/messages`, `/var/log/syslog`",
-  "app": "`Splunk_TA_nix`, Splunk Add-on for Syslog",
+  "exclusions": "Covers the detection logic documented for 'Process Crash Detection (Linux)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_process_crash_detection_linux` (UC-1.1.6), SOC dashboard panel \"Linux — Process Crash Detection (Linux)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.6 positive (Process, Crash, Detection, (Linux)): ingest synthetic events into `index=os` sourcetype='syslog' where `count` grouped by `host`, `process_name`, `_time` satisfies detection threshold for 'Process Crash Detection (Linux)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.6 negative (Detection (Linux)): ingest benign `os` / `syslog` events where `host`, `process_name`, `_time` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 4 confirms zero alert rows for 'Process Crash Detection (Linux)'."
+  },
+  "dataSources": "`sourcetype=syslog`, `/var/log/messages`, `/var/log/syslog` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix`, Splunk Add-on for Syslog — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=syslog (\"segfault\" OR \"killed process\" OR \"core dumped\" OR \"terminated\" OR \"SIGABRT\" OR \"SIGSEGV\")\n| rex \"(?<process_name>\\w+)\\[\\d+\\]\"\n| stats count by host, process_name, _time\n| sort -count",
-  "description": "Immediate awareness of unexpected process terminations. Critical for services that don't auto-restart or have no watchdog.",
-  "value": "Immediate awareness of unexpected process terminations. Critical for services that don't auto-restart or have no watchdog.",
+  "description": "Alerts on risk tied to Process, Crash, Detection, (Linux) through UC-1.1.6 on `index=os` sourcetype `syslog`. Summarises `count` grouped by `host`, `process_name`, `_time` across `the scheduled window` before applying configured threshold. Operators tune 'Process Crash Detection (Linux)' using UC-1.1.6 runbook steps.",
+  "value": "Tracking `activity` via UC-1.1.6 on `syslog` feeds improves response to 'Process Crash Detection (Linux)' and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Forward `/var/log/messages` and `/var/log/syslog` via UF inputs.conf. Create an alert on keywords: `segfault`, `killed process`, `core dumped`. Enrich with service/owner lookup.",
   "visualization": "Events list (timeline view), Stats table grouped by host and process, Bar chart of crash counts by process.",
   "cimModels": [
@@ -21,18 +27,40 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Endpoint",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned restarts, package upgrades, and noisy kernel or library log lines can resemble crashes. Tune keywords and severity for your distros, and match to change records.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Process Crash Detection (Linux)'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "syslog"
   ],
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`, Splunk Add-on for Syslog.\n• Ensure the following data sources are available: `sourcetype=syslog`, `/var/log/messages`, `/var/log/syslog`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward `/var/log/messages` and `/var/log/syslog` via UF inputs.conf. Create an alert on keywords: `segfault`, `killed process`, `core dumped`. Enrich with service/owner lookup.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=syslog (\"segfault\" OR \"killed process\" OR \"core dumped\" OR \"terminated\" OR \"SIGABRT\" OR \"SIGSEGV\")\n| rex \"(?<process_name>\\w+)\\[\\d+\\]\"\n| stats count by host, process_name, _time\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Process Crash Detection (Linux)** — Immediate awareness of unexpected process terminations. Critical for services that don't auto-restart or have no watchdog.\n\nDocumented **Data sources**: `sourcetype=syslog`, `/var/log/messages`, `/var/log/syslog`. **App/TA** (typical add-on context): `Splunk_TA_nix`, Splunk Add-on for Syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by host, process_name, _time** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Events list (timeline view), Stats table grouped by host and process, Bar chart of crash counts by process.",
-  "grandmaExplanation": "Immediate awareness of unexpected process terminations — so you find out before users do when something is slowing down or breaking."
+  "grandmaExplanation": "Immediate awareness of unexpected process terminations — so you find out before users do when something is slowing down or breaking.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

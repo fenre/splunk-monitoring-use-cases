@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Google Meet quality logs",
-  "app": "`Splunk_TA_GoogleWorkspace`",
+  "exclusions": "Covers the detection logic documented for 'Meet Quality Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_meet_quality_monitoring` (UC-11.2.5), SOC dashboard panel \"Operations — Meet Quality Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.2.5 positive (Meet, Quality, Monitoring): ingest synthetic events into `index=gws` sourcetype='gws:meet' where `avg_jitter` grouped by `organizer_email`, `meeting_code` satisfies `video_recv_jitter_ms` > 30, or `audio_recv_jitter_ms` > 30 for 'Meet Quality Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.2.5 negative (Quality Monitoring): ingest benign `gws` / `gws:meet` events where `organizer_email`, `meeting_code` stays below `video_recv_jitter_ms` > 30, or `audio_recv_jitter_ms` > 30, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Meet Quality Monitoring'."
+  },
+  "dataSources": "Google Meet quality logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_GoogleWorkspace` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=gws sourcetype=\"gws:meet\"\n| where video_recv_jitter_ms > 30 OR audio_recv_jitter_ms > 30\n| stats count, avg(video_recv_jitter_ms) as avg_jitter by organizer_email, meeting_code",
-  "description": "Poor meeting quality impacts productivity and user satisfaction. Monitoring enables network/infrastructure optimization.",
-  "value": "Poor meeting quality impacts productivity and user satisfaction. Monitoring enables network/infrastructure optimization.",
+  "description": "Alerts on 'Meet Quality Monitoring' patterns (UC-11.2.5) sourced from `index=gws` sourcetype `gws:meet`. Threshold bundle: `video_recv_jitter_ms` > 30, or `audio_recv_jitter_ms` > 30; aggregation grain: `organizer_email`, `meeting_code`; metrics: `avg_jitter`. Watch terms: Meet, Quality, Monitoring.",
+  "value": "UC-11.2.5 gives Operations teams earlier visibility into Quality Monitoring through `gws:meet` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest Meet quality data. Track jitter, latency, and packet loss per meeting. Alert on recurring poor quality for specific users or locations. Correlate with network performance data.",
   "visualization": "Table (poor quality meetings), Line chart (quality metrics trend), Bar chart (issues by location).",
   "cimModels": [
@@ -22,10 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Regional ISP issues and home Wi-Fi problems that mirror Meet quality dips without a Google outage.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_GoogleWorkspace`.\n• Ensure the following data sources are available: Google Meet quality logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest Meet quality data. Track jitter, latency, and packet loss per meeting. Alert on recurring poor quality for specific users or locations. Correlate with network performance data.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=gws sourcetype=\"gws:meet\"\n| where video_recv_jitter_ms > 30 OR audio_recv_jitter_ms > 30\n| stats count, avg(video_recv_jitter_ms) as avg_jitter by organizer_email, meeting_code\n```\n\nUnderstanding this SPL\n\n**Meet Quality Monitoring** — Poor meeting quality impacts productivity and user satisfaction. Monitoring enables network/infrastructure optimization.\n\nDocumented **Data sources**: Google Meet quality logs. **App/TA** (typical add-on context): `Splunk_TA_GoogleWorkspace`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: gws; **sourcetype**: gws:meet. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=gws, sourcetype=\"gws:meet\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where video_recv_jitter_ms > 30 OR audio_recv_jitter_ms > 30` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by organizer_email, meeting_code** so each row reflects one combination of those dimensions.\n\n\nStep 3 — Validate\nCompare with Google Admin console audit and Google Workspace reports for the same org unit and time window.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (poor quality meetings), Line chart (quality metrics trend), Bar chart (issues by location).",
-  "grandmaExplanation": "We watch Meet call quality, so we can tell a bad call from a bad day on the public Internet."
+  "knownFalsePositives": "1. **Maintenance window on `gws` (UC-11.2.5)** — Planned work for 'Meet Quality Monitoring' shifts `avg_jitter` over `span=1h` while `organizer_email`, `meeting_code` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `gws:meet`** — Scheduled automation elevates `meeting_code` without crossing `video_recv_jitter_ms` > 30 for UC-11.2.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `organizer_email`, `meeting_code`** — Health checks in `gws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gws:meet`** — First 48h baseline for UC-11.2.5 on `organizer_email` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `organizer_email`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_GoogleWorkspace`.\n• Ensure the following data sources are available: Google Meet quality logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest Meet quality data. Track jitter, latency, and packet loss per meeting. Alert on recurring poor quality for specific users or locations. Correlate with network performance data.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=gws sourcetype=\"gws:meet\"\n| where video_recv_jitter_ms > 30 OR audio_recv_jitter_ms > 30\n| stats count, avg(video_recv_jitter_ms) as avg_jitter by organizer_email, meeting_code\n```\n\nUnderstanding this SPL\n\n**Meet Quality Monitoring** — Poor meeting quality impacts productivity and user satisfaction. Monitoring enables network/infrastructure optimization.\n\nDocumented **Data sources**: Google Meet quality logs. **App/TA** (typical add-on context): `Splunk_TA_GoogleWorkspace`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: gws; **sourcetype**: gws:meet. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=gws, sourcetype=\"gws:meet\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where video_recv_jitter_ms > 30 OR audio_recv_jitter_ms > 30` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by organizer_email, meeting_code** so each row reflects one combination of those dimensions.\n\n\nStep 3 — Validate\nCompare with Google Admin console audit and Google Workspace reports for the same org unit and time window.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (poor quality meetings), Line chart (quality metrics trend), Bar chart (issues by location).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_GoogleWorkspace` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=gws:meet into gws. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`audio_recv_jitter_ms, meeting_code, organizer_email, video_recv_jitter_ms`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch Meet call quality, so we can tell a bad call from a bad day on the public Internet.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,21 +8,43 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=network` `sourcetype=\"citrix:netscaler:syslog\"` fields `vserver_name`, `vserver_state`, `vserver_type`, `service_name`, `service_state`",
-  "app": "Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`), Splunk Connect for Syslog",
+  "exclusions": "Covers the detection logic documented for 'Citrix ADC Virtual Server Health and State (NetScaler)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_citrix_adc_virtual_server_health_and_state_netsc` (UC-5.3.13), SOC dashboard panel \"Operations — Citrix ADC Virtual Server Health and State (NetScaler)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.3.13 positive (Citrix, ADC, Virtual, Server, Health): ingest synthetic events into `index=network` sourcetype='citrix:netscaler:syslog' where `values` grouped by `vserver_name`, `_time` satisfies detection threshold for 'Citrix ADC Virtual Server Health and State (NetScaler)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.3.13 negative (State (NetScaler)): ingest benign `network` / `citrix:netscaler:syslog` events where `vserver_name`, `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Citrix ADC Virtual Server Health and State (NetScaler)'."
+  },
+  "dataSources": "`index=network` `sourcetype=\"citrix:netscaler:syslog\"` fields `vserver_name`, `vserver_state`, `vserver_type`, `service_name`, `service_state` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`), Splunk Connect for Syslog — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=network sourcetype=\"citrix:netscaler:syslog\" \"Vserver\" (\"DOWN\" OR \"UP\" OR \"OUT OF SERVICE\")\n| rex \"Vserver (?<vserver_name>\\S+) - State (?<state>\\w+)\"\n| where state=\"DOWN\" OR state=\"OUTOFSERVICE\"\n| bin _time span=5m\n| stats count as state_changes, latest(state) as current_state, values(host) as adc_node by vserver_name, _time\n| table _time, vserver_name, current_state, state_changes, adc_node",
-  "description": "Citrix ADC (NetScaler) virtual servers (vServers) are the front-end load-balancing endpoints that distribute traffic to back-end service groups. A vServer transitions from UP to DOWN when all bound services fail health checks, causing a complete outage for the application it serves. Monitoring vServer state changes provides immediate alerting when applications lose load-balanced availability.",
-  "value": "Application delivery teams monitor Citrix ADC virtual server states (UP/DOWN/BUSY/OOS) across the fleet, detecting service outages and capacity issues with application context.",
+  "description": "Detects UC-5.3.13 — Citrix, ADC, Virtual, Server, Health — using `index=network` sourcetype `citrix:netscaler:syslog`, grouped by `vserver_name`, `_time`. Outputs `values` each `5m`; alert when configured threshold. Primary focus: State (NetScaler). Purpose-built for 'Citrix ADC Virtual Server Health and State (NetScaler)' in Operations workflows.",
+  "value": "Operators running UC-5.3.13 on `citrix:netscaler:syslog` feeds shorten triage for State (NetScaler) tied to 'Citrix ADC Virtual Server Health and State (NetScaler)', lowering operational risk and delayed incident response.",
   "implementation": "Configure Citrix ADC to send syslog to Splunk via Splunk Connect for Syslog (SC4S). The ADC generates syslog messages for vServer state transitions (SNMP trap equivalent). Alternatively, use the NITRO API via scripted input to poll `lbvserver` statistics including `state`, `curclntconnections`, `tothits`, and `health` (percentage of UP services). Alert immediately on any vServer transitioning to DOWN. Track vServer health percentage — a vServer at 50% health means half its services are down and may be approaching failure. Correlate with service group member health checks for root cause.",
   "visualization": "Status grid (vServer name x state), Timeline (state transitions), Table (DOWN vServers with service count).",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 833",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Admin disable, GSLB moves, and maintenance can mark a service down on purpose; compare to the runbook and change record.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.3.13)** — Planned work for 'Citrix ADC Virtual Server Health and State (NetScaler)' shifts `values` over `span=5m` while `vserver_name`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `citrix:netscaler:syslog`** — Scheduled automation elevates `_time` without crossing configured threshold for UC-5.3.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `vserver_name`, `_time`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `citrix:netscaler:syslog`** — First 48h baseline for UC-5.3.13 on `vserver_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `vserver_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "citrix",
     "snmp",
@@ -32,6 +54,12 @@
     "citrix_netscaler",
     "snmp_generic"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`, Splunkbase 2770) installed. Citrix ADC syslog in `index=netscaler` with `sourcetype=citrix:netscaler:syslog`. Optionally, NITRO REST API performance counters in `sourcetype=citrix:netscaler:perf`. Key fields: `vs_name` (virtual server name), `vs_state` (UP/DOWN/OUT_OF_SERVICE), `vs_type` (HTTP/SSL/TCP/UDP), `vserver_ip`, `current_connections`, `total_requests`.\n* Citrix ADC virtual server states: UP (healthy, serving traffic), DOWN (no healthy services), OUT_OF_SERVICE (admin-disabled), BUSY (at connection limit).\n\nStep 1 -- Configure data collection\nConfigure Citrix ADC syslog:\n```\nadd syslogAction splunk_syslog <splunk_ip> -logLevel ALL -transport UDP\nadd syslogPolicy splunk_policy \"true\" splunk_syslog\nbind system global splunk_policy -priority 1\n```\nVerify:\n```spl\nindex=netscaler sourcetype=\"citrix:netscaler:syslog\" earliest=-4h\n| where isnotnull(vs_name) OR match(_raw, \"(?i)(vserver|virtual server)\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Virtual server health monitoring:**\n```spl\nindex=netscaler (sourcetype=\"citrix:netscaler:syslog\" OR sourcetype=\"citrix:netscaler:perf\") earliest=-15m\n| eval vs=coalesce(vs_name, vserver_name, vserver)\n| eval state=coalesce(vs_state, vserver_state, state)\n| eval vs_ip=coalesce(vserver_ip, vs_ip, ip_address)\n| stats latest(state) as current_state latest(current_connections) as conns latest(total_requests) as reqs by host, vs, vs_ip\n| lookup citrix_vserver_inventory.csv vs OUTPUT application, tier, owner, expected_state\n| eval is_problem=case(current_state=\"DOWN\", 1, current_state=\"OUT_OF_SERVICE\" AND expected_state=\"UP\", 1, current_state=\"BUSY\", 1, 1==1, 0)\n| eval severity=case(current_state=\"DOWN\" AND tier=\"prod\", \"CRITICAL\", current_state=\"DOWN\", \"HIGH\", current_state=\"BUSY\", \"WARNING -- at capacity\", current_state=\"OUT_OF_SERVICE\" AND expected_state=\"UP\", \"WARNING -- unexpectedly disabled\", 1==1, \"OK\")\n| where is_problem=1\n| table host, vs, vs_ip, application, tier, current_state, conns, severity\n| sort severity\n```\n\nStep 3 -- Validate\n(a) On ADC CLI: `show lb vserver` -- compare states with Splunk.\n(b) Disable a test vserver: `disable lb vserver <vs>` -- verify OUT_OF_SERVICE appears.\n(c) Enable: `enable lb vserver <vs>` -- verify recovery.\n\nStep 4 -- Operationalize\nDashboard (\"Citrix ADC -- Virtual Server Health\"):\n* Row 1 -- Single-value: \"Total vServers\", \"DOWN\", \"BUSY\", \"Fleet availability %\".\n* Row 2 -- Problem vserver detail table.\n\nAlerting:\n* Critical (prod vserver DOWN): service outage.\n* Warning (vserver BUSY): connection limit reached.\n\nStep 5 -- Troubleshooting\n\n* **vServer DOWN but services are UP** -- Check: (1) vserver is admin-enabled, (2) backup vserver is not configured to take over, (3) spillover threshold not exceeded.\n\n* **vServer BUSY** -- Max connections hit. Check: `show lb vserver <vs>` for `MaxClient` setting. Increase or investigate why connections aren't closing.\n\n* **No vserver state events** -- Ensure syslog level is set to ALL (not just CRITICAL/ERROR).",
-  "grandmaExplanation": "We follow virtual service state in the same logs so a down or disabled front door is something you can match to a change, not a rumor."
+  "grandmaExplanation": "We follow virtual service state in the same logs so a down or disabled front door is something you can match to a change, not a rumor.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

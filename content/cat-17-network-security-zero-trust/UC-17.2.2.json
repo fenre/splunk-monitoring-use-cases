@@ -8,6 +8,8 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'VPN Authentication Failures' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_vpn_authentication_failures` (UC-17.2.2), SOC dashboard panel \"Network — VPN Authentication Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "psd2",
@@ -65,11 +67,15 @@
       "evidenceArtifact": "Saved search 'UC-17.2.2' running on VPN authentication logs, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
-  "dataSources": "VPN authentication logs",
-  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`",
+  "controlTest": {
+    "positiveScenario": "UC-17.2.2 positive (VPN, Authentication, Failures): ingest synthetic events into `index=vpn` sourcetype='cisco:asa' where `count` grouped by `user`, `src` satisfies `count` > 5 for 'VPN Authentication Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.2.2 negative (Authentication Failures): ingest benign `vpn` / `cisco:asa` events where `user`, `src` stays below `count` > 5, or exclude the test entity via `network_exception_register.csv`. Variant 9 confirms zero alert rows for 'VPN Authentication Failures'."
+  },
+  "dataSources": "VPN authentication logs Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper` — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=vpn sourcetype=\"cisco:asa\" action=\"authentication_failed\"\n| stats count by user, src\n| where count > 5\n| sort -count",
-  "description": "Repeated VPN auth failures indicate credential attacks against the remote access perimeter, a primary attack vector.",
-  "value": "Security operations teams detect brute-force and credential-stuffing attacks against VPN concentrators, distinguish between automated attacks and legitimate user lockouts, and identify compromised credentials before they are used for unauthorized access.",
+  "description": "Detects UC-17.2.2 — VPN, Authentication, Failures — using `index=vpn` sourcetype `cisco:asa`, grouped by `user`, `src`. Outputs `count` each `the scheduled window`; alert when `count` > 5. Primary focus: Authentication Failures. Purpose-built for 'VPN Authentication Failures' in Network workflows.",
+  "value": "Operators running UC-17.2.2 on `cisco:asa` feeds shorten triage for Authentication Failures tied to 'VPN Authentication Failures', lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Track VPN authentication failures by user and source IP. Alert on >5 failures per user per 15 minutes. Correlate with AD lockout events. Block source IPs with excessive failures. Report on attack patterns.",
   "visualization": "Table (failed auth events), Bar chart (failures by user), Geo map (source IPs), Line chart (failure rate trend).",
   "cimModels": [
@@ -81,14 +87,26 @@
   "references": [
     {
       "title": "Splunk_TA_paloalto",
-      "url": "https://splunkbase.splunk.com/app/2757"
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Remote workforce login storm** — Morning VPN/ZTNA session spike for 'VPN Authentication Failures'. Compare with historical same-hour baseline.\n\n2. **IdP or SAML metadata refresh** — Brief auth failures during federation cert rotation.\n\n3. **Split-tunnel policy change** — New route advertisements shift traffic patterns.\n\n4. **Synthetic ZTNA health checks** — Monitoring probes from known appliance IPs.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `src`, `valid_until`.",
   "mitreAttack": [
     "T1071.001"
   ],
@@ -104,7 +122,13 @@
     "paloalto_pan_firewall"
   ],
   "status": "verified",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA (`sourcetype=cisco:asa`). For Palo Alto: `sourcetype=pan:globalprotect`. For Fortinet: `sourcetype=fgt_event`.\n• Syslog from VPN concentrators to HF. Cisco ASA message IDs for auth failures: 113005 (AAA user authentication rejected), 113006 (AAA user locked out), 716039 (WebVPN user login failed).\n• Data in `index=vpn`. Key fields: `action` (authentication_failed), `user`, `src`, `reason` (invalid_credentials, locked_out, certificate_error, mfa_failed), `tunnel_group`.\n• Create a `vpn_users.csv` lookup: `user,department,vip_flag,mfa_type` for user enrichment.\n\nStep 1 — Configure data collection\nVerify auth failure events:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" earliest=-24h\n| where action=\"authentication_failed\" OR match(_raw, \"(?i)113005|113006|716039|auth.*fail\")\n| stats count by user, src, reason\n```\nIf no failures: either everyone authenticates successfully (unlikely at scale) or auth failure logging is not enabled.\n\nStep 2 — Create the search and alert\n\nPrimary search — Auth failures with brute-force detection:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" earliest=-4h\n| where action=\"authentication_failed\"\n| stats count as failures dc(user) as targeted_users values(user) as users dc(src) as source_ips earliest(_time) as first latest(_time) as last by src\n| eval duration_min=round((last - first)/60, 0)\n| eval attack_type=case(\n    failures>50 AND targeted_users=1, \"BRUTE FORCE - single user\",\n    failures>20 AND targeted_users>5, \"CREDENTIAL STUFFING\",\n    failures>10 AND targeted_users=1, \"REPEATED FAILURE - check lockout\",\n    1==1, \"LOW VOLUME\"\n)\n| where failures > 5\n| sort - failures\n```\n\nUnderstanding this SPL: Groups failures by source IP to distinguish attack patterns. Brute force against a single user (many attempts, one target) indicates a targeted attack — the attacker knows the username. Credential stuffing (many attempts, many users) indicates a leaked credential list. The `duration_min` helps determine attack velocity — 50 failures in 5 minutes is automated; 50 in 4 hours could be manual.\n\nFailed users analysis:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" earliest=-24h\n| where action=\"authentication_failed\"\n| stats count as failures dc(src) as source_ips values(reason) as reasons by user\n| lookup vpn_users.csv user OUTPUT department vip_flag\n| sort - failures\n| head 25\n```\n\nStep 3 — Validate\n(a) On ASA: `show aaa local user lockout` shows locked accounts. Cross-reference with Splunk's top failed users.\n(b) Intentionally fail a VPN login 3 times. Verify each failure appears in Splunk with correct `user`, `src`, and `reason`.\n(c) Compare failure counts with RADIUS/LDAP server logs for the same period.\n\nStep 4 — Operationalize\nDashboard (\"VPN — Authentication Failures\"):\n• Row 1 — Single-value: \"Failures (4h)\", \"Unique users failing\", \"Locked accounts\".\n• Row 2 — Timechart: failures per hour over 24h.\n• Row 3 — Table: source IP, failures, targeted users, attack type, duration.\n• Row 4 — Table: top failed users with department, failure count, reasons.\n\nAlert: Trigger when any source IP generates >20 failures in 1h (credential stuffing). Trigger when a VIP user fails >3 times in 1h (targeted attack on executive).\n\nRunbook:\n1. **Credential stuffing detected** — Block the source IP on the perimeter firewall. Check if any of the targeted usernames successfully authenticated from a different IP (account compromise).\n2. **Single user repeated failures** — Contact the user. If they are not attempting to connect: their credentials are compromised. Reset the password and revoke active sessions.\n3. **MFA failures increasing** — The MFA service may be degraded. Check the MFA provider status page.\n\nStep 5 — Troubleshooting\n• **No auth failure events** — ASA logging level may be too low. Ensure `logging trap informational` (level 6). Message ID 113005 requires level 6.\n• **`user` field is empty** — The user may not have reached the username prompt (pre-auth failure, e.g., certificate mismatch). Check `reason` field.\n• **`reason` not parsed** — The TA may not extract failure reasons. Use `rex` to parse from `_raw`: `| rex \"Reason=(?<reason>[^,]+)\"`.",
   "grandmaExplanation": "We watch for repeated failed login attempts on our remote access system, catching when someone is trying many passwords to break in versus when a real employee just forgot their password.",
-  "hardware": "Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN"
+  "hardware": "Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

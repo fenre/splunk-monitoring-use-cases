@@ -9,28 +9,42 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'IPv6 Reverse DNS (ip6.arpa) Completeness and PTR Record Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_reverse_dns_ip6_arpa_completeness_and_ptr_r` (UC-5.20.52), SOC dashboard panel \"Operations — IPv6 Reverse DNS (ip6.arpa) Completeness and PTR Record Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.52 positive (IPv6, Reverse, DNS, (ip6.arpa), Completeness): ingest synthetic events into `index=network` sourcetype='infoblox:dns' where `total` grouped by `response_type` satisfies -24h for 'IPv6 Reverse DNS (ip6.arpa) Completeness and PTR Record Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.52 negative (Record Audit): ingest benign `network` / `infoblox:dns` events where `response_type` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'IPv6 Reverse DNS (ip6.arpa) Completeness and PTR Record Audit'."
+  },
   "dataSources": "`index=network sourcetype=infoblox:dns` or `sourcetype=named:querylog` containing DNS PTR query logs and responses for the ip6.arpa zone. IPv6 reverse DNS uses the ip6.arpa domain (RFC 3596), mapping IPv6 addresses to hostnames. Each nibble (4-bit hex digit) of the 128-bit address is reversed and separated by dots:\n\n- Forward: `2001:db8::1` → AAAA → `server.example.com`\n- Reverse: `1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa` → PTR → `server.example.com`\n\nReverse DNS completeness is important for:\n1. **Email deliverability** — mail servers check reverse DNS; missing PTR records cause mail rejection\n2. **Security logging** — SIEM and log analysis tools resolve source IPs to hostnames for readability\n3. **Compliance** — RFC 6302 requires forward-confirmed reverse DNS (FCrDNS) for logging\n4. **Troubleshooting** — traceroute displays hostnames from reverse DNS, making path analysis much easier\n5. **SSH strict checking** — SSH with `UseDNS yes` checks reverse DNS and may delay or reject connections\n\nIPv6 reverse DNS challenges:\n- The ip6.arpa zone is much larger than in-addr.arpa (128 bits vs 32 bits)\n- Dynamically assigned IPv6 addresses (SLAAC, privacy extensions) make manual PTR maintenance impractical\n- Dynamic DNS updates (RFC 2136) or wildcard PTR records are needed for scale\n- Delegation follows nibble boundaries (/48, /32), not arbitrary prefix lengths",
   "app": "Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2946).",
   "spl": "index=network (sourcetype=\"infoblox:dns\" OR sourcetype=\"named:querylog\") \"ip6.arpa\" earliest=-24h\n| eval response_type=case(\n    match(_raw, \"NXDOMAIN\"), \"NXDOMAIN — no PTR record\",\n    match(_raw, \"NOERROR\"), \"NOERROR — PTR found\",\n    match(_raw, \"SERVFAIL\"), \"SERVFAIL — resolver error\",\n    match(_raw, \"REFUSED\"), \"REFUSED — not authoritative\",\n    1=1, \"query\")\n| stats count by response_type\n| eventstats sum(count) as total\n| eval pct=round(count / total * 100, 1)",
-  "description": "Audits IPv6 reverse DNS (ip6.arpa) completeness by tracking PTR query success rates and identifying IPv6 addresses without reverse DNS records. Missing reverse DNS for IPv6 addresses causes email delivery failures (rejected by receiving mail servers), degrades security log readability (IP addresses instead of hostnames), breaks SSH UseDNS checks, and violates RFC 6302 logging requirements. This use case identifies the gaps and tracks remediation progress.",
-  "value": "IPv6 reverse DNS is often overlooked during deployment because it requires separate zone delegation and either dynamic DNS or wildcard PTR configuration — neither of which is required for IPv4 in many environments. The result is that IPv6 addresses appear as raw hex strings in logs, traceroutes, and email headers, making operations significantly harder. Auditing PTR completeness identifies which IPv6 subnets lack reverse DNS so they can be remediated systematically.",
+  "description": "Identifies when Record Audit criteria fire for 'IPv6 Reverse DNS (ip6.arpa) Completeness and PTR Record Audit' (UC-5.20.52) in `index=network` sourcetype `infoblox:dns`. Pipeline aggregates `total` by `response_type` over `the scheduled window`. Alert logic enforces -24h. Title terms: IPv6, Reverse, DNS, (ip6.arpa), Completeness. Eliminates manual hunting for UC-5.20.52 conditions.",
+  "value": "UC-5.20.52 helps teams contain IPv6, Reverse, DNS, (ip6.arpa), Completeness scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Collect DNS query logs for ip6.arpa zone. Track NXDOMAIN vs NOERROR response rates for PTR queries. Identify IPv6 subnets with high NXDOMAIN rates (missing PTR records). Monitor for SERVFAIL (misconfigured delegation).",
   "visualization": "(1) Pie chart: ip6.arpa response distribution (NOERROR/NXDOMAIN/SERVFAIL). (2) Table: top queried IPv6 addresses with NXDOMAIN — highest-priority PTR records to create. (3) Timechart: reverse DNS completeness over 30 days. (4) By-subnet analysis: which /48s have the worst reverse DNS coverage.",
   "references": [
     {
       "title": "RFC 3596 — DNS Extensions to Support IP Version 6 (AAAA and ip6.arpa)",
-      "url": "https://www.rfc-editor.org/rfc/rfc3596"
+      "url": "https://www.rfc-editor.org/rfc/rfc3596",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 6302 — Logging Recommendations for Internet-Facing Servers (requires FCrDNS)",
-      "url": "https://www.rfc-editor.org/rfc/rfc6302"
+      "url": "https://www.rfc-editor.org/rfc/rfc6302",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 8501 — Reverse DNS in IPv6 for Internet Service Providers (operational guidance)",
-      "url": "https://www.rfc-editor.org/rfc/rfc8501"
+      "url": "https://www.rfc-editor.org/rfc/rfc8501",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Privacy extension addresses.** Hosts using RFC 8981 privacy extensions generate new temporary IPv6 addresses daily. Creating PTR records for every temporary address is impractical. Use wildcard PTR records for client subnets (e.g., `*.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.1.0.0.8.b.d.0.1.0.0.2.ip6.arpa IN PTR dynamic-client.example.com`).\n\n**SLAAC addresses without DDNS.** Hosts using SLAAC (Stateless Address Autoconfiguration) do not register in DNS unless dynamic DNS updates are configured. NXDOMAIN for SLAAC addresses is expected without DDNS.\n\n**External addresses.** PTR queries for external IPv6 addresses (not controlled by the organisation) will return NXDOMAIN if the external organisation hasn't configured reverse DNS. This is outside the organisation's control.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.52)** — Planned work for 'IPv6 Reverse DNS (ip6.arpa) Completeness and PTR Record Audit' shifts `total` over `span=1h` while `response_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `infoblox:dns`** — Scheduled automation elevates `response_type` without crossing configured threshold for UC-5.20.52. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `response_type`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `infoblox:dns`** — First 48h baseline for UC-5.20.52 on `response_type` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `response_type`, `exception_reason`, `valid_until`.",
   "equipment": [
     "bind",
     "infoblox",

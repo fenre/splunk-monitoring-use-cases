@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`vsftpd`, `proftpd`, or `openssh-sftp-server` logs; scripted TCP port probe output",
-  "app": "`Splunk_TA_syslog`, custom scripted input",
+  "exclusions": "Covers the detection logic documented for 'FTP / SFTP Service Availability Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ftp_sftp_service_availability_monitoring` (UC-8.6.2), SOC dashboard panel \"Operations — FTP / SFTP Service Availability Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.6.2 positive (FTP, SFTP, Service, Availability, Monitoring): ingest synthetic events into `index=os` sourcetype='vsftpd' where `count` grouped by `host]` satisfies -15m for 'FTP / SFTP Service Availability Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.6.2 negative (Availability Monitoring): ingest benign `os` / `vsftpd` events where `host]` stays below -15m, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'FTP / SFTP Service Availability Monitoring'."
+  },
+  "dataSources": "`vsftpd`, `proftpd`, or `openssh-sftp-server` logs; scripted TCP port probe output Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_syslog`, custom scripted input — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "| inputlookup ftp_hosts.csv\n| fields host, service_name\n| join type=left max=1 host [search index=os (sourcetype=vsftpd OR sourcetype=syslog process=sftp-server) earliest=-15m | stats count as ftp_events by host]\n| where isnull(ftp_events) OR ftp_events=0\n| eval status=\"FTP_DOWN\"\n| table host, service_name, status",
-  "description": "FTP and SFTP services support automated file transfer workflows between systems, partners, and legacy integrations. Silent service failures cause missed file deliveries that may not surface until business processes fail downstream. Nagios `check_ftp` provides port-level verification; Splunk replicates this through daemon log monitoring and scripted probes.",
-  "value": "FTP and SFTP services support automated file transfer workflows between systems, partners, and legacy integrations. Silent service failures cause missed file deliveries that may not surface until business processes fail downstream. Nagios `check_ftp` provides port-level verification; Splunk replicates this through daemon log monitoring and scripted probes.",
+  "description": "Identifies UC-8.6.2 — FTP, SFTP, Service, Availability, Monitoring — using `index=os` sourcetype `vsftpd`, grouped by `host]`. Outputs `count` each `the scheduled window`; alert when -15m. Primary focus: Availability Monitoring. Purpose-built for 'FTP / SFTP Service Availability Monitoring' in Operations workflows.",
+  "value": "UC-8.6.2 operationalises 'FTP / SFTP Service Availability Monitoring' against `vsftpd` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Monitor vsftpd, proftpd, or OpenSSH SFTP subsystem logs via Universal Forwarder. For SFTP (port 22 subsystem), filter syslog for `sftp-server` process events. Alert when no daemon activity is seen for more than 15 minutes on a host expected to serve FTP/SFTP. Supplement with a scripted input using `nc -z -w5 host 21` (FTP) or `nc -z -w5 host 22` (SFTP) logged as synthetic check results. Correlate FTP availability with file-transfer success/failure logs.",
   "visualization": "Table (host, port, status, last event), Single value (unavailable FTP hosts), Line chart (event rate over time per host), Alert timeline.",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 833",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `os` (UC-8.6.2)** — Planned work for 'FTP / SFTP Service Availability Monitoring' shifts `count` over `span=1h` while `host]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `vsftpd`** — Scheduled automation elevates `status` without crossing configured threshold for UC-8.6.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host]`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `vsftpd`** — First 48h baseline for UC-8.6.2 on `host]` is unstable; join `ftp_hosts.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host]`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog"
   ],
+  "equipmentModels": [
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_syslog`, custom scripted input.\n• Ensure the following data sources are available: `vsftpd`, `proftpd`, or `openssh-sftp-server` logs; scripted TCP port probe output.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor vsftpd, proftpd, or OpenSSH SFTP subsystem logs via Universal Forwarder. For SFTP (port 22 subsystem), filter syslog for `sftp-server` process events. Alert when no daemon activity is seen for more than 15 minutes on a host expected to serve FTP/SFTP. Supplement with a scripted input using `nc -z -w5 host 21` (FTP) or `nc -z -w5 host 22` (SFTP) logged as synthetic check results. Correlate FTP availability with file-transfer success/failure logs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup ftp_hosts.csv\n| fields host, service_name\n| join type=left max=1 host [search index=os (sourcetype=vsftpd OR sourcetype=syslog process=sftp-server) earliest=-15m | stats count as ftp_events by host]\n| where isnull(ftp_events) OR ftp_events=0\n| eval status=\"FTP_DOWN\"\n| table host, service_name, status\n```\n\nUnderstanding this SPL\n\n**FTP / SFTP Service Availability Monitoring** — FTP and SFTP services support automated file transfer workflows between systems, partners, and legacy integrations. Silent service failures cause missed file deliveries that may not surface until business processes fail downstream. Nagios `check_ftp` provides port-level verification; Splunk replicates this through daemon log monitoring and scripted probes.\n\nDocumented **Data sources**: `vsftpd`, `proftpd`, or `openssh-sftp-server` logs; scripted TCP port probe output. **App/TA** (typical add-on context): `Splunk_TA_syslog`, custom scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Keeps or drops fields with `fields` to shape columns and size.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(ftp_events) OR ftp_events=0` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **FTP / SFTP Service Availability Monitoring**): table host, service_name, status\n\n\nStep 3 — Validate\nCompare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (host, port, status, last event), Single value (unavailable FTP hosts), Line chart (event rate over time per host), Alert timeline.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch for signs that FTP and SFTP services support automated file transfer workflows between systems, partners, and legacy integrations."
+  "grandmaExplanation": "We watch for signs that FTP and SFTP services support automated file transfer workflows between systems, partners, and legacy integrations.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,30 +9,55 @@
     "Cost"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`).",
-  "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Solar Self-Consumption Ratio Dip' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_solar_self_consumption_ratio_dip` (UC-25.6.9), SOC dashboard panel \"Personal — Solar Self-Consumption Ratio Dip\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.6.9 positive (Solar, Self, Consumption, Ratio, Dip): ingest synthetic events into `index=personal` sourcetype='powerwall:aggregate' where `solar_kw` grouped by `_time` satisfies `grid_kw` < 0, `solar_kw` > 0, or `self_consumed_pct` < 60 for 'Solar Self-Consumption Ratio Dip'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.6.9 negative (Ratio Dip): ingest benign `personal` / `powerwall:aggregate` events where `_time` stays below `grid_kw` < 0, `solar_kw` > 0, or `self_consumed_pct` < 60, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Solar Self-Consumption Ratio Dip'."
+  },
+  "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=powerwall:aggregate\n| bin _time span=1d\n| stats sum(solar_kw) as solar_kw, sum(eval(if(grid_kw<0,abs(grid_kw),0))) as export_kw by _time\n| eval self_consumed_pct=round(100*(solar_kw-export_kw)/solar_kw,1)\n| where solar_kw>0 AND self_consumed_pct<60\n| sort self_consumed_pct",
-  "description": "Estimates how much of your solar production stayed useful at home versus being exported, surfacing days where self-consumption fell off a cliff.",
-  "value": "Self-consumption is where the bill savings live; a dip can point to scheduling opportunities, battery settings, or simply habits worth shifting.",
+  "description": "Surfaces Ratio Dip activity in UC-25.6.9 ('Solar Self-Consumption Ratio Dip') from `index=personal` sourcetype `powerwall:aggregate`. Rolls up `solar_kw` by `_time` across `1d` and pages when `grid_kw` < 0, `solar_kw` > 0, or `self_consumed_pct` < 60. Covers Solar, Self, Consumption, Ratio, Dip. Personal operators treat UC-25.6.9 as the canonical signal.",
+  "value": "Operators running UC-25.6.9 on `powerwall:aggregate` feeds shorten triage for Ratio Dip tied to 'Solar Self-Consumption Ratio Dip', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Forward site power-flow telemetry from Powerwall or a similar gateway; review daily self-consumption percentage and tune loads accordingly.",
   "visualization": "Daily chart of solar generation versus estimated export and self-consumption percentage.",
   "cimModels": [],
   "references": [
     {
       "title": "Tesla Powerwall owner resources",
-      "url": "https://www.tesla.com/support/energy/powerwall"
+      "url": "https://www.tesla.com/support/energy/powerwall",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "SolarEdge Monitoring API",
-      "url": "https://developers.solaredge.com/docs/monitoring-api/"
+      "url": "https://developers.solaredge.com/docs/monitoring-api/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.6.9)** — Connector for 'Solar Self-Consumption Ratio Dip' stops polling `powerwall:aggregate`; stale `solar_kw` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `solar_kw` over `1d` is expected for UC-25.6.9, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `powerwall:aggregate`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `grid_kw` < 0 for 'Solar Self-Consumption Ratio Dip'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It watches how much of your solar power you actually used yourself instead of sending back out to the grid."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Energy & Solar — typical feeds: SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Tesla Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue circuits (`emporia:circuit`), Sense .\n• **Sourcetypes in this search**: `powerwall:aggregate`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=powerwall:aggregate`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC..\n\n**Author notes:** Forward site power-flow telemetry from Powerwall or a similar gateway; review daily self-consumption percentage and tune loads accordingly.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"powerwall:aggregate\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=powerwall:aggregate earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Solar Self-Consumption Ratio Dip** over `personal` data (primarily `sourcetype=powerwall:aggregate`) across the full search range. It applies numeric thresholds on `grid_kw` (< 0) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `grid_kw`, `self_consumed_pct`, `solar_kw`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=powerwall:aggregate\n| bin _time span=1d\n| stats sum(solar_kw) as solar_kw, sum(eval(if(grid_kw<0,abs(grid_kw),0))) as export_kw by _time\n| eval self_consumed_pct=round(100*(solar_kw-export_kw)/solar_kw,1)\n| where solar_kw>0 AND self_consumed_pct<60\n| sort self_consumed_pct\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=powerwall:aggregate earliest=-7d\n| head 50\n| table _time, grid_kw, self_consumed_pct, solar_kw\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=powerwall:aggregate earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `grid_kw` before alerting:\n\n```spl\nindex=personal sourcetype=powerwall:aggregate earliest=-30d\n| stats perc50(grid_kw) AS p50 perc90(grid_kw) AS p90 perc99(grid_kw) AS p99 max(grid_kw) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.6.9: Personal evidence` with the following panel layout:\n\n**Panel 1 — Daily Chart Of Solar Generation Versus Estimated Export And Self-Consumption Percentage (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `powerwall:aggregate` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=powerwall:aggregate | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It watches how much of your solar power you actually used yourself instead of sending back out to the grid.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,30 +9,55 @@
     "Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Posture readings (`posture:reading`), symptom logs (`symptom:log`), bathroom visits (`bathroom:visit`), sneeze events (`sneeze:event`).",
-  "app": "Everyday body-signal logs — posture sensors, symptom and allergy journals, hydration-linked bathroom logs, and quirky personal counters — sent to Splunk HEC via wearables, MQTT, and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Overnight Bathroom Wake-Up Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_overnight_bathroom_wake_up_trend` (UC-25.35.12), SOC dashboard panel \"Personal — Overnight Bathroom Wake-Up Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.35.12 positive (Overnight, Bathroom, Wake, Trend): ingest synthetic events into `index=personal` sourcetype='bathroom:visit' where `count` grouped by `_time` satisfies `hour` < 6 for 'Overnight Bathroom Wake-Up Trend'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.35.12 negative (Up Trend): ingest benign `personal` / `bathroom:visit` events where `_time` stays below `hour` < 6, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'Overnight Bathroom Wake-Up Trend'."
+  },
+  "dataSources": "Posture readings (`posture:reading`), symptom logs (`symptom:log`), bathroom visits (`bathroom:visit`), sneeze events (`sneeze:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Everyday body-signal logs — posture sensors, symptom and allergy journals, hydration-linked bathroom logs, and quirky personal counters — sent to Splunk HEC via wearables, MQTT, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=bathroom:visit\n| eval hour=tonumber(strftime(_time,\"%H\"))\n| where hour<6\n| bin _time span=1d\n| stats count as overnight_visits by _time\n| sort - _time",
-  "description": "Tracks nighttime bathroom interruptions that may be chipping away at sleep quality.",
-  "value": "A creeping overnight pattern is hard to notice from memory but easy to see in a daily count.",
+  "description": "Alerts on UC-25.35.12 — Overnight, Bathroom, Wake, Trend — using `index=personal` sourcetype `bathroom:visit`, grouped by `_time`. Outputs `count` each `1d`; alert when `hour` < 6. Primary focus: Up Trend. Purpose-built for 'Overnight Bathroom Wake-Up Trend' in Personal workflows.",
+  "value": "UC-25.35.12 operationalises 'Overnight Bathroom Wake-Up Trend' against `bathroom:visit` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Send bathroom-visit events to `index=personal`; review visits occurring before 6 AM as a sleep-disruption signal.",
   "visualization": "Daily column chart of overnight bathroom visits.",
   "cimModels": [],
   "references": [
     {
       "title": "Upright — posture training",
-      "url": "https://www.uprightpose.com/"
+      "url": "https://www.uprightpose.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CDC — symptoms",
-      "url": "https://www.cdc.gov/"
+      "url": "https://www.cdc.gov/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.35.12)** — Connector for 'Overnight Bathroom Wake-Up Trend' stops polling `bathroom:visit`; stale `count` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1d` is expected for UC-25.35.12, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `bathroom:visit`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `hour` < 6 for 'Overnight Bathroom Wake-Up Trend'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It spots how often bathroom trips are breaking your sleep overnight, because even small interruptions add up."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Body Signals & Personal Oddities — typical feeds: Posture readings (`posture:reading`), symptom logs (`symptom:log`), bathroom visits (`bathroom:visit`), sneeze events (`sneeze:event`)..\n• **Sourcetypes in this search**: `bathroom:visit`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=bathroom:visit`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Everyday body-signal logs — posture sensors, symptom and allergy journals, hydration-linked bathroom logs, and quirky personal counters — sent to Splunk HEC via wearables, MQTT, and scripted inputs..\n\n**Author notes:** Send bathroom-visit events to `index=personal`; review visits occurring before 6 AM as a sleep-disruption signal.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"bathroom:visit\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=bathroom:visit earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Overnight Bathroom Wake-Up Trend** over `personal` data (primarily `sourcetype=bathroom:visit`) across the full search range. It applies numeric thresholds on `hour` (< 6) after aggregation — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `hour`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=bathroom:visit\n| eval hour=tonumber(strftime(_time,\"%H\"))\n| where hour<6\n| bin _time span=1d\n| stats count as overnight_visits by _time\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=bathroom:visit earliest=-7d\n| head 50\n| table _time, hour\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=bathroom:visit earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hour` before alerting:\n\n```spl\nindex=personal sourcetype=bathroom:visit earliest=-30d\n| stats perc50(hour) AS p50 perc90(hour) AS p90 perc99(hour) AS p99 max(hour) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.35.12: Personal evidence` with the following panel layout:\n\n**Panel 1 — Daily Column Chart Of Overnight Bathroom Visits (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `bathroom:visit` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=bathroom:visit | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It spots how often bathroom trips are breaking your sleep overnight, because even small interruptions add up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

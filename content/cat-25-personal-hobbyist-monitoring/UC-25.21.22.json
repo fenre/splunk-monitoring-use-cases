@@ -8,42 +8,65 @@
     "Performance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "FT8 spots (`ft8:spot`), JS8Call messages (`js8call:message`), PSKReporter receptions (`pskreporter:spot`), Direwolf TNC telemetry (`direwolf:packet`), and NOAA APT pass events (`noaaapt:pass`).",
-  "app": "Weak-signal and decoder telemetry from WSJT-X FT8, JS8Call, PSKReporter, Direwolf TNC, NOAA APT pass schedulers, and station-control scripts sent to Splunk HEC via APIs, ADIF/log exports, and MQTT.",
+  "exclusions": "Covers personal hobby monitoring for 'JS8Call Directed Message Turnaround' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_js8call_directed_message_turnaround` (UC-25.21.22), SOC dashboard panel \"Personal — JS8Call Directed Message Turnaround\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.21.22 positive (JS8Call, Directed, Message, Turnaround): ingest synthetic events into `index=personal` sourcetype='js8call:message' where `avg_reply_latency_sec` grouped by `peer_call` satisfies detection threshold for 'JS8Call Directed Message Turnaround'. Validate filter `msg_type=directed reply_latency_sec=*`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.21.22 negative (Message Turnaround): ingest benign `personal` / `js8call:message` events where `peer_call` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'JS8Call Directed Message Turnaround'."
+  },
+  "dataSources": "FT8 spots (`ft8:spot`), JS8Call messages (`js8call:message`), PSKReporter receptions (`pskreporter:spot`), Direwolf TNC telemetry (`direwolf:packet`), and NOAA APT pass events (`noaaapt:pass`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Weak-signal and decoder telemetry from WSJT-X FT8, JS8Call, PSKReporter, Direwolf TNC, NOAA APT pass schedulers, and station-control scripts sent to Splunk HEC via APIs, ADIF/log exports, and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=js8call:message\n| search msg_type=directed reply_latency_sec=*\n| stats avg(reply_latency_sec) as avg_reply_latency_sec perc90(reply_latency_sec) as p90_reply_latency_sec count as samples by peer_call\n| sort 0 - avg_reply_latency_sec",
-  "description": "Measures JS8Call directed-message turnaround by peer call.",
-  "value": "Turnaround time shows which contacts are flowing naturally and which ones are becoming store-and-forward conversations.",
+  "description": "Monitors UC-25.21.22 for JS8Call, Directed, Message, Turnaround over `index=personal` sourcetype `js8call:message` with thresholds configured threshold. Groups `avg_reply_latency_sec` by `peer_call` each `the scheduled window`. Differentiated by filter `msg_type=directed reply_latency_sec=*`. Supports repeatable personal triage for 'JS8Call Directed Message Turnaround'.",
+  "value": "For 'JS8Call Directed Message Turnaround', UC-25.21.22 converts `avg_reply_latency_sec` on `js8call:message` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Send the relevant duration field for JS8Call directed-message turnaround to `index=personal` and review both average and p90 latency instead of relying on single examples.",
   "visualization": "Table of average and p90 JS8Call directed-message turnaround.",
   "cimModels": [],
   "references": [
     {
       "title": "WSJT-X",
-      "url": "https://wsjt.sourceforge.io/wsjtx.html"
+      "url": "https://wsjt.sourceforge.io/wsjtx.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "JS8Call",
-      "url": "https://js8call.com/"
+      "url": "https://js8call.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "PSK Reporter",
-      "url": "https://pskreporter.info/"
+      "url": "https://pskreporter.info/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Dire Wolf TNC",
-      "url": "https://github.com/wb2osz/direwolf"
+      "url": "https://github.com/wb2osz/direwolf",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NOAA satellites",
-      "url": "https://www.nesdis.noaa.gov/our-satellites/currently-flying"
+      "url": "https://www.nesdis.noaa.gov/our-satellites/currently-flying",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.21.22)** — Connector for 'JS8Call Directed Message Turnaround' stops polling `js8call:message`; stale `avg_reply_latency_sec` on `peer_call` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_reply_latency_sec` over `1w` is expected for UC-25.21.22, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `js8call:message`. Dedup with `stats latest(*) by peer_call`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'JS8Call Directed Message Turnaround'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It highlights how long JS8Call directed-message turnaround usually takes, so slowdowns are obvious instead of anecdotal."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Radio, SDR & Space — typical feeds: APRS packets (`aprs:packet`), WSPR spots (`wspr:spot`), satellite passes (`satpass:prediction`), NOAA APT captures (`noaa:apt`), meteor-scatter pings (`meteorscatter:ping`), SSTV images (`sstv:image`).\n• **Sourcetypes in this search**: `js8call:message`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=js8call:message`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Software-defined radio and ham stations — APRS igate, WSPR beacon, NOAA weather-satellite (APT) receiver, meteor-scatter monitor, and SSTV decoder — logging to Splunk HEC via scripted inputs..\n\n**Author notes:** Send the relevant duration field for JS8Call directed-message turnaround to `index=personal` and review both average and p90 latency instead of relying on single examples.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"js8call:message\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=js8call:message earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **JS8Call Directed Message Turnaround** over `personal` data (primarily `sourcetype=js8call:message`) across the full search range. The `avg, perc90` aggregation groups by `peer_call`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `peer_call`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=js8call:message\n| search msg_type=directed reply_latency_sec=*\n| stats avg(reply_latency_sec) as avg_reply_latency_sec perc90(reply_latency_sec) as p90_reply_latency_sec count as samples by peer_call\n| sort 0 - avg_reply_latency_sec\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=js8call:message earliest=-7d\n| head 50\n| table peer_call\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=js8call:message earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.21.22: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Average And P90 Js8Call Directed-Message Turnaround (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `js8call:message` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=js8call:message | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It highlights how long JS8Call directed-message turnaround usually takes, so slowdowns are obvious instead of anecdotal.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

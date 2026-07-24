@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4768, 4769)",
-  "app": "`Splunk_TA_windows`",
+  "exclusions": "Covers the detection logic documented for 'Golden Ticket Detection (TGT Anomalies)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_golden_ticket_detection_tgt_anomalies` (UC-1.2.67), SOC dashboard panel \"Linux — Golden Ticket Detection (TGT Anomalies)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.2.67 positive (Golden, Ticket, Detection, (TGT, Anomalies)): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4768 where `count` grouped by `TargetUserName`, `IpAddress` satisfies detection threshold for 'Golden Ticket Detection (TGT Anomalies)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.2.67 negative ((TGT Anomalies)): ingest benign `wineventlog` / `WinEventLog:Security` events where `TargetUserName`, `IpAddress` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 10 confirms zero alert rows for 'Golden Ticket Detection (TGT Anomalies)'."
+  },
+  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4768, 4769) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4768 TicketEncryptionType=0x17\n| stats count by TargetUserName, IpAddress",
-  "description": "Golden tickets are forged Kerberos TGTs that grant domain-wide access. Detecting anomalous TGT properties catches this catastrophic compromise.",
-  "value": "Domain-wide access from a forged ticket is one of the worst cases for Active Directory. Early signals on odd Kerberos TGT patterns buy time to reset KRBTGT and contain attackers.",
+  "description": "Detects UC-1.2.67 — Golden, Ticket, Detection, (TGT, Anomalies) — using `index=wineventlog` sourcetype `WinEventLog:Security`, grouped by `TargetUserName`, `IpAddress`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: (TGT Anomalies). Purpose-built for 'Golden Ticket Detection (TGT Anomalies)' in Linux workflows.",
+  "value": "For 'Golden Ticket Detection (TGT Anomalies)', UC-1.2.67 converts `activity` on `WinEventLog:Security` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Golden tickets typically use RC4 encryption (0x17) with abnormally long lifetimes (default Kerberos max is 10 hours). EventCode 4768=TGT request, 4769=TGS request. Detect TGS requests referencing TGTs older than 10 hours, or TGT requests with RC4 in environments that enforce AES. Also monitor for EventCode 4769 with services accessed that the user normally doesn't touch. Requires KRBTGT password rotation as remediation.",
   "visualization": "Table (anomalous ticket requests), Timeline, Single value (RC4 TGT count), Alert.",
   "cimModels": [
@@ -23,17 +29,38 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Legacy applications or domains that still negotiate RC4; lab or isolated forests with relaxed crypto policy; mixed-mode or migration windows. Baseline TGT volume per account and corroborate with ticket lifetime and source DC before calling incident.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `TargetUserName` metrics for 'Golden Ticket Detection (TGT Anomalies)'. Correlate with apt/yum logs in the same `WinEventLog:Security` window.\n\n2. **Nightly backup I/O on `TargetUserName`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Security`** — Nagios/Zabbix polls `TargetUserName` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `TargetUserName` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `TargetUserName`, `valid_until`.",
   "equipment": [
     "windows"
   ],
+  "equipmentModels": [
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 4768, 4769).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nGolden tickets typically use RC4 encryption (0x17) with abnormally long lifetimes (default Kerberos max is 10 hours). EventCode 4768=TGT request, 4769=TGS request. Detect TGS requests referencing TGTs older than 10 hours, or TGT requests with RC4 in environments that enforce AES. Also monitor for EventCode 4769 with services accessed that the user normally doesn't touch. Requires KRBTGT password rotation as remediation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4768 TicketEncryptionType=0x17\n| stats count by TargetUserName, IpAddress\n```\n\nUnderstanding this SPL\n\n**Golden Ticket Detection (TGT Anomalies)** — Golden tickets are forged Kerberos TGTs that grant domain-wide access. Detecting anomalous TGT properties catches this catastrophic compromise.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4768, 4769). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Security. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Security\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by TargetUserName, IpAddress** so each row reflects one combination of those dimensions.\n\nOptional CIM / accelerated variant (maps `TicketEncryptionType=0x17` to `Authentication.signature` when Windows Security events are CIM-tagged):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where (Authentication.signature=\"0x17\" OR Authentication.signature=\"23\")\n  by Authentication.user Authentication.src span=1h\n| where count > 0\n```\n\nEnable **data model acceleration** on `Authentication`. If signatures are empty, keep the primary `WinEventLog:Security` search—field aliasing for `TicketEncryptionType` may be required.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (anomalous ticket requests), Timeline, Single value (RC4 TGT count), Alert.",
-  "grandmaExplanation": "We watch for strange Kerberos login-ticket patterns on Windows that can mean someone forged a 'golden ticket' and could act as anyone in the directory, so the team can respond while damage is still limited."
+  "grandmaExplanation": "We watch for strange Kerberos login-ticket patterns on Windows that can mean someone forged a 'golden ticket' and could act as anyone in the directory, so the team can respond while damage is still limited.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

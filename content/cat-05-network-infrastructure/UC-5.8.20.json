@@ -8,21 +8,43 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Configuration Change Window Compliance (Meraki)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_configuration_change_window_compliance_meraki` (UC-5.8.20), SOC dashboard panel \"Operations — Configuration Change Window Compliance (Meraki)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.8.20 positive (Configuration, Change, Window, Compliance, (Meraki)): ingest synthetic events into `index=meraki` sourcetype='meraki:audit' where `values` grouped by `window_compliant`, `change_hour` satisfies `change_hour` >= 22, or `change_hour` < 6 for 'Configuration Change Window Compliance (Meraki)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.8.20 negative (Compliance (Meraki)): ingest benign `meraki` / `meraki:audit` events where `window_compliant`, `change_hour` stays below `change_hour` >= 22, or `change_hour` < 6, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Configuration Change Window Compliance (Meraki)'."
+  },
   "dataSources": "Splunk_TA_cisco_meraki (Splunkbase #5580): Audit input (sourcetype=meraki:audit). Configuration changes are NOT in Meraki syslog — they are only available via the Audit input which polls GET /organizations/{orgId}/configurationChanges.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:audit\" earliest=-30d\n| eval change_hour = strftime(_time, \"%H\")\n| eval window_compliant = if(change_hour>=22 OR change_hour<6, \"Yes\", \"No\")\n| stats count as change_count,\n        values(adminName) as admins,\n        values(page) as pages\n         by window_compliant, change_hour\n| where window_compliant=\"No\"\n| sort change_hour",
-  "description": "Ensures configuration changes only occur within approved maintenance windows.",
-  "value": "Network operations teams enforce configuration change window compliance across Meraki networks, detecting out-of-window changes, flagging sensitive modifications, and generating governance compliance reports.",
+  "description": "Alerts on risk tied to Configuration, Change, Window, Compliance, (Meraki) through UC-5.8.20 on `index=meraki` sourcetype `meraki:audit`. Summarises `values` grouped by `window_compliant`, `change_hour` across `the scheduled window` before applying `change_hour` >= 22, or `change_hour` < 6. Operators tune 'Configuration Change Window Compliance (Meraki)' using UC-5.8.20 runbook steps.",
+  "value": "Tracking `activity` via UC-5.8.20 on `meraki:audit` feeds improves response to 'Configuration Change Window Compliance (Meraki)' and reduces operational risk and delayed incident response.",
   "implementation": "1. Enable the Audit input in Splunk_TA_cisco_meraki. 2. The 'change window' is a policy decision — adjust the eval threshold to your maintenance window definition (here: 22:00–06:00 local). 3. _time on each audit event is the change timestamp. 4. Pair with adminName to identify out-of-window admins; route to your change-advisory-board ticketing system.",
   "visualization": "Change compliance timeline; out-of-window change alert table.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Emergency fixes outside the window are sometimes correct; require change ticket and approver for exceptions, do not only silence the alert.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.8.20)** — Planned work for 'Configuration Change Window Compliance (Meraki)' shifts `values` over `span=1h` while `window_compliant`, `change_hour` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `meraki:audit`** — Scheduled automation elevates `change_hour` without crossing `change_hour` >= 22 for UC-5.8.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `window_compliant`, `change_hour`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:audit`** — First 48h baseline for UC-5.8.20 on `window_compliant` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `window_compliant`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
@@ -30,6 +52,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Audit input (sourcetype=meraki:audit). Configuration changes are NOT in Meraki syslog — they are only available via the Audit input which polls GET /organizations/{orgId}/configurationChanges..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n1. Enable the Audit input in Splunk_TA_cisco_meraki. 2. The 'change window' is a policy decision — adjust the eval threshold to your maintenance window definition (here: 22:00–06:00 local). 3. _time on each audit event is the change timestamp. 4. Pair with adminName to identify out-of-window admins; route to your change-advisory-board ticketing system.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki:audit\" earliest=-30d\n| eval change_hour = strftime(_time, \"%H\")\n| eval window_compliant = if(change_hour>=22 OR change_hour<6, \"Yes\", \"No\")\n| stats count as change_count,\n        values(adminName) as admins,\n        values(page) as pages\n         by window_compliant, change_hour\n| where window_compliant=\"No\"\n| sort change_hour\n```\n\nUnderstanding this SPL\n\n**Configuration Change Window Compliance (Meraki)** — Network operations teams enforce configuration change window compliance across Meraki networks, detecting out-of-window changes, flagging sensitive modifications, and generating governance compliance reports.\n\nDocumented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Audit input (sourcetype=meraki:audit). Configuration changes are NOT in Meraki syslog — they are only available via the Audit input which polls GET /organizations/{orgId}/configurationChanges. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki:audit\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **change_hour** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **window_compliant** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by window_compliant, change_hour** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where window_compliant=\"No\"` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Change compliance timeline; out-of-window change alert table.",
-  "grandmaExplanation": "We help you show when changes were made in approved windows versus odd hours, so maintenance stays under control."
+  "grandmaExplanation": "We help you show when changes were made in approved windows versus odd hours, so maintenance stays under control.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

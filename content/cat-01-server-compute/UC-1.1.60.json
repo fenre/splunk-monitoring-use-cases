@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=custom:mtu` (parsed `ip link show` or `ip -d link` with `mtu` per `interface`)",
-  "app": "`Splunk_TA_nix` with a custom scripted input for per-interface MTU",
+  "exclusions": "Covers the detection logic documented for 'MTU Mismatch Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_mtu_mismatch_detection` (UC-1.1.60), SOC dashboard panel \"Linux — MTU Mismatch Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.60 positive (MTU, Mismatch, Detection): ingest synthetic events into `index=os` sourcetype='custom:mtu' where `values` grouped by `host`, `interface` satisfies detection threshold for 'MTU Mismatch Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.60 negative (Mismatch Detection): ingest benign `os` / `custom:mtu` events where `host`, `interface` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 8 confirms zero alert rows for 'MTU Mismatch Detection'."
+  },
+  "dataSources": "`sourcetype=custom:mtu` (parsed `ip link show` or `ip -d link` with `mtu` per `interface`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` with a custom scripted input for per-interface MTU — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:mtu host=*\n| stats latest(mtu) as interface_mtu by host, interface\n| stats values(interface_mtu) as mtus by host\n| where mvcount(mtus) > 1",
-  "description": "Flags a host on which at least two interfaces in the last snapshot use different MTU values, a situation that can cause hidden fragmentation or black-holed jumbo traffic across mixed networks.",
-  "value": "Mixed-MTU boxes often sit on edges between 1500- and 9000-byte networks; making the mismatch visible prevents long hunts when apps see retransmission storms only on certain paths.",
+  "description": "Detects UC-1.1.60 — MTU, Mismatch, Detection — using `index=os` sourcetype `custom:mtu`, grouped by `host`, `interface`. Outputs `values` each `the scheduled window`; alert when configured threshold. Primary focus: Mismatch Detection. Purpose-built for 'MTU Mismatch Detection' in Linux workflows.",
+  "value": "UC-1.1.60 accelerates insight into Mismatch Detection ('MTU Mismatch Detection') by tracking `activity` on `custom:mtu` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Snapshot `ip link` output into key=value lines with **host**, **interface**, **mtu**. The search dedupes to latest per interface, then looks for more than one distinct MTU on the same host, which is not automatically bad but always worth confirming against design documents.",
   "visualization": "Table, Alert",
   "cimModels": [
@@ -21,17 +27,38 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Intentional designs: jumbo on storage VLAN, 1500 on management; down interfaces still reporting an old MTU; containers or VRFs with deliberate differences—add a **lookup** of `expected_mismatch_ok` for those hosts.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'MTU Mismatch Detection'. Correlate with apt/yum logs in the same `custom:mtu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `values` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:mtu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• A script the forwarder can run (often with **sudo -n** to **ip** if needed) to dump MTU in a single pass across interfaces you care about.\n\nStep 1 — Configure data collection\nRun every 15–30 minutes; MTU does not need per-second resolution. Index as `custom:mtu` under the **os** index.\n\nStep 2 — Create the search and alert\nSPL as written finds **any** mixed MTU on a host; scope with `| search interface!=lo*` if loopback mis-sized values are normal in your build.\n\n**Understanding this SPL** — `values()` of MTU with `where mvcount(mtus) > 1` marks heterogeneity, not a specific “wrong” value.\n\n\nStep 3 — Validate\nOn host, `ip -4 link` / `ip -6 link` to compare, and your switch `show interface` for native MTU. Use `ping -M do` / `ping -s` path tests for path MTU; **traceroute** is optional in complex MPLS cases.\n\nStep 4 — Operationalize\nStore intended MTU in CMDB, auto-close alerts when a lookup says the host is an approved mixed-MTU border.\n\n",
-  "grandmaExplanation": "We help you know when the same computer’s network doors are not all the same size, which can make some big packets fit on one path but get chopped up or stuck on another."
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• A script the forwarder can run (often with **sudo -n** to **ip** if needed) to dump MTU in a single pass across interfaces you care about.\n\nStep 1 — Configure data collection\nRun every 15–30 minutes; MTU does not need per-second resolution. Index as `custom:mtu` under the **os** index.\n\nStep 2 — Create the search and alert\nSPL as written finds **any** mixed MTU on a host; scope with `| search interface!=lo*` if loopback mis-sized values are normal in your build.\n\n**Understanding this SPL** — `values()` of MTU with `where mvcount(mtus) > 1` marks heterogeneity, not a specific “wrong” value.\n\n\nStep 3 — Validate\nOn host, `ip -4 link` / `ip -6 link` to compare, and your switch `show interface` for native MTU. Use `ping -M do` / `ping -s` path tests for path MTU; **traceroute** is optional in complex MPLS cases.\n\nStep 4 — Operationalize\nStore intended MTU in CMDB, auto-close alerts when a lookup says the host is an approved mixed-MTU border.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` with a custom scripted input for per-interface MTU — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=custom:mtu into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, interface`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you know when the same computer’s network doors are not all the same size, which can make some big packets fit on one path but get chopped up or stuck on another.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

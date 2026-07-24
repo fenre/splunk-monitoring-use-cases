@@ -9,31 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "FastF1 session data (`fastf1:session`), Ergast race results (`ergast:result`), F1 Fantasy teams (`f1fantasy:team`), race watch parties (`race:watchparty`), and F1 telemetry laps (`f1telemetry:lap`).",
-  "app": "FastF1 session exports, Ergast race results, F1 Fantasy team snapshots, race watch-party logs, and F1 telemetry lap dumps forwarded to Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Watch Party Attendance vs Race Quality' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_watch_party_attendance_vs_race_quality` (UC-25.99.4), SOC dashboard panel \"Personal — Watch Party Attendance vs Race Quality\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.99.4 positive (Watch, Party, Attendance, Race, Quality): ingest synthetic events into `index=personal` sourcetype='ergast:result' where `guests` grouped by `_time` satisfies `races` > 0 for 'Watch Party Attendance vs Race Quality'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.99.4 negative (Race Quality): ingest benign `personal` / `ergast:result` events where `_time` stays below `races` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Watch Party Attendance vs Race Quality'."
+  },
+  "dataSources": "FastF1 session data (`fastf1:session`), Ergast race results (`ergast:result`), F1 Fantasy teams (`f1fantasy:team`), race watch parties (`race:watchparty`), and F1 telemetry laps (`f1telemetry:lap`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "FastF1 session exports, Ergast race results, F1 Fantasy team snapshots, race watch-party logs, and F1 telemetry lap dumps forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "(index=personal sourcetype=race:watchparty guest_count=*) OR (index=personal sourcetype=ergast:result)\n| bin _time span=1w\n| stats max(guest_count) as guests, sum(eval(if(sourcetype=\"ergast:result\",1,0))) as races by _time\n| where races>0\n| sort - guests",
-  "description": "Correlates race-weekend watch-party guest counts with Ergast result events on the same calendar week.",
-  "value": "Guest spikes on boring weekends may mean social draw beats on-track action for your crew.",
+  "description": "Monitors UC-25.99.4 — Watch, Party, Attendance, Race, Quality — using `index=personal` sourcetype `ergast:result`, grouped by `_time`. Outputs `guests` each `1w`; alert when `races` > 0. Primary focus: Race Quality. Purpose-built for 'Watch Party Attendance vs Race Quality' in Personal workflows.",
+  "value": "For 'Watch Party Attendance vs Race Quality', UC-25.99.4 converts `guests` on `ergast:result` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Log watch parties with `guest_count` and align weekly bins with Ergast race result timestamps.",
   "visualization": "Scatter plot of guest count by race week.",
   "cimModels": [],
   "references": [
     {
       "title": "FastF1 Python API",
-      "url": "https://docs.fastf1.dev/"
+      "url": "https://docs.fastf1.dev/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Ergast F1 API",
-      "url": "http://ergast.com/mrd/"
+      "url": "http://ergast.com/mrd/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "F1 Fantasy",
-      "url": "https://fantasy.formula1.com/"
+      "url": "https://fantasy.formula1.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It spots whether your watch parties get bigger on the most exciting race weekends."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.99.4)** — Connector for 'Watch Party Attendance vs Race Quality' stops polling `ergast:result`; stale `guests` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `guests` over `1w` is expected for UC-25.99.4, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ergast:result`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `races` > 0 for 'Watch Party Attendance vs Race Quality'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Formula 1 & Motorsport Fandom — typical feeds: FastF1 session data (`fastf1:session`), Ergast race results (`ergast:result`), F1 Fantasy teams (`f1fantasy:team`), race watch parties (`race:watchparty`), and F1 telemetry laps (`f1telemetry:lap`)..\n• **Sourcetypes in this search**: `race:watchparty`, `ergast:result`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=race:watchparty`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** FastF1 session exports, Ergast race results, F1 Fantasy team snapshots, race watch-party logs, and F1 telemetry lap dumps forwarded to Splunk HEC..\n\n**Author notes:** Log watch parties with `guest_count` and align weekly bins with Ergast race result timestamps.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"race:watchparty\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=race:watchparty earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Watch Party Attendance vs Race Quality** over `personal` data (primarily `sourcetype=race:watchparty`) across the full search range. It applies numeric thresholds on `races` (> 0) after max, sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `races`. Confirm each is populated before scheduling alerts.\n\n```spl\n(index=personal sourcetype=race:watchparty guest_count=*) OR (index=personal sourcetype=ergast:result)\n| bin _time span=1w\n| stats max(guest_count) as guests, sum(eval(if(sourcetype=\"ergast:result\",1,0))) as races by _time\n| where races>0\n| sort - guests\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=race:watchparty earliest=-7d\n| head 50\n| table _time, races\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=race:watchparty earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `races` before alerting:\n\n```spl\nindex=personal sourcetype=race:watchparty earliest=-30d\n| stats perc50(races) AS p50 perc90(races) AS p90 perc99(races) AS p99 max(races) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.99.4: Personal evidence` with the following panel layout:\n\n**Panel 1 — Scatter Plot Of Guest Count By Race Week (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `race:watchparty` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=race:watchparty | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It spots whether your watch parties get bigger on the most exciting race weekends.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

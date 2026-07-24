@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Citrix Cloud Service Health Status Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_citrix_cloud_service_health_status_monitoring` (UC-2.6.56), SOC dashboard panel \"Linux — Citrix Cloud Service Health Status Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.56 positive (Citrix, Cloud, Service, Health, Status): ingest synthetic events into `index=citrix` sourcetype='citrix:cloud:status' where `count` grouped by `comp`, `region` satisfies detection threshold for 'Citrix Cloud Service Health Status Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.56 negative (Status Monitoring): ingest benign `citrix` / `citrix:cloud:status` events where `comp`, `region` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 13 confirms zero alert rows for 'Citrix Cloud Service Health Status Monitoring'."
+  },
   "dataSources": "`index=citrix` `sourcetype=\"citrix:cloud:status\"` or `sourcetype=\"citrix:status:api\"` with `component_name`, `region`, `impact`, `status`; optional HEC feed from Citrix Cloud Status page or third-party mirroring; `index=xd` `sourcetype=\"citrix:analytics:health\"` when using Citrix Analytics Add-on for Splunk (Splunkbase 6280) for correlated service signals Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
   "app": "Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated analytics data. For raw Cloud service data, use the Citrix Cloud System Log Add-on (open-source, see citrix/cc-system-log-addon-for-splunk repository) or poll the Monitor Service OData API (https://api.cloud.com/monitorodata) with a custom scripted input.",
   "spl": "index=citrix (sourcetype=\"citrix:cloud:status\" OR sourcetype=\"citrix:status:api\")\n| eval comp=coalesce(component_name, service, product, \"unknown\")\n| eval st=lower(coalesce(status, overall_status, health, \"unknown\"))\n| eval sev=lower(coalesce(impact, incident_severity, \"none\"))\n| where st!=\"operational\" AND st!=\"none\" AND st!=\"healthy\" OR match(sev, \"(major|critical|degraded|partial)\")\n| stats latest(st) as status, latest(sev) as impact, latest(_time) as last_update by comp, region\n| sort - last_update\n| table comp, region, status, impact, last_update",
-  "description": "Citrix Cloud publishes health for core services such as Virtual Apps and Desktops service, StoreFront-related cloud services, and Gateway components. Regional incidents or degraded subcomponents can shrink capacity, break brokering, or strand users before your internal monitors move. Ingesting normalized status events (API or add-on) into a single timeline lets operations correlate internal session drops with upstream Citrix Cloud issues, route communication faster, and avoid fruitless VDI war rooms when the root cause is provider-side.",
-  "value": "Citrix Cloud publishes health for core services such as Virtual Apps and Desktops service, StoreFront-related cloud services, and Gateway components. Regional incidents or degraded subcomponents can shrink capacity, break brokering, or strand users before your internal monitors move. Ingesting normalized status events (API or add-on) into a single timeline lets operations correlate internal session drops with upstream Citrix Cloud issues, route communication faster, and avoid fruitless VDI war rooms when the root cause is provider-side.",
+  "description": "Monitors UC-2.6.56 — Citrix, Cloud, Service, Health, Status — using `index=citrix` sourcetype `citrix:cloud:status`, grouped by `comp`, `region`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Status Monitoring. Purpose-built for 'Citrix Cloud Service Health Status Monitoring' in Linux workflows.",
+  "value": "UC-2.6.56 gives Linux teams earlier visibility into Status Monitoring through `citrix:cloud:status` feeds, lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Stand up a collector that polls the Citrix Cloud status API or streams change events at a steady interval (for example every 60 seconds) and writes one event per component per region. Normalize field names across regions. Create a lookup of business-critical components for your tenant (for example brokering, workspace, gateway). Alert when any monitored component leaves an operational state or when incident severity matches major or critical. Feed the same index from the Citrix Analytics Add-on if you use it so internal health metrics and public status share a dashboard. Document a comms template that names the component and region.",
   "visualization": "Single-value strip of red or yellow components; timeline of status flips by region; table of open incidents with start time and blast radius; overlay with session-failure rate from VDA or gateway logs.",
   "cimModels": [
@@ -21,18 +27,39 @@
   "references": [
     {
       "title": "Citrix Analytics Add-on for Splunk (Splunkbase 6280)",
-      "url": "https://splunkbase.splunk.com/app/6280"
+      "url": "https://splunkbase.splunk.com/app/6280",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Citrix Cloud service health (product documentation)",
-      "url": "https://docs.citrix.com/en-us/citrix-cloud/"
+      "url": "https://docs.citrix.com/en-us/citrix-cloud/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `citrix`** — Package managers spike `comp` metrics for 'Citrix Cloud Service Health Status Monitoring'. Correlate with apt/yum logs in the same `citrix:cloud:status` window.\n\n2. **Nightly backup I/O on `comp`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `citrix:cloud:status`** — Nagios/Zabbix polls `comp` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `comp` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `comp`, `valid_until`.",
   "equipment": [
     "citrix"
   ],
+  "equipmentModels": [
+    "citrix_generic"
+  ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites\n• Install Citrix Analytics Add-on for Splunk (Splunkbase 6280) if you will merge analytics health with public status, or deploy a small ingest app with HEC or scripted input for Citrix Cloud status JSON.\n• Ensure the following data sources are available: `index=citrix` with a dedicated sourcetype for status API events; optional `index=xd` cross-checks.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap API fields to `component_name`, `region`, `status`, and `impact`. Deduplicate polls so only changes create notable events, but keep a five-minute heartbeat for freshness checks.\n\nStep 2 — Create the search and alert\nStart with a broad timechart of non-operational events, then narrow to components in your lookup. Wire alerts to a chat channel and include deep links to the vendor status page.\n\nStep 3 — Validate\nDuring a known maintenance window, confirm status transitions appear within one poll of the public page. In a test index, inject a synthetic degraded state and verify the alert and dashboard.\n\nStep 4 — Operationalize\nAdd this panel to the Citrix NOC runbook, pair with session KPIs, and review quarterly which components are in scope as your cloud footprint grows.",
-  "grandmaExplanation": "We keep an eye on cloud Service Health Status and raise the alarm before it drags down real work or real outages start."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install Citrix Analytics Add-on for Splunk (Splunkbase 6280) if you will merge analytics health with public status, or deploy a small ingest app with HEC or scripted input for Citrix Cloud status JSON.\n• Ensure the following data sources are available: `index=citrix` with a dedicated sourcetype for status API events; optional `index=xd` cross-checks.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap API fields to `component_name`, `region`, `status`, and `impact`. Deduplicate polls so only changes create notable events, but keep a five-minute heartbeat for freshness checks.\n\nStep 2 — Create the search and alert\nStart with a broad timechart of non-operational events, then narrow to components in your lookup. Wire alerts to a chat channel and include deep links to the vendor status page.\n\nStep 3 — Validate\nDuring a known maintenance window, confirm status transitions appear within one poll of the public page. In a test index, inject a synthetic degraded state and verify the alert and dashboard.\n\nStep 4 — Operationalize\nAdd this panel to the Citrix NOC runbook, pair with session KPIs, and review quarterly which components are in scope as your cloud footprint grows.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated analytics data. For raw Cloud service data, use the Citrix Cloud System Log Add-on (open-source, see citrix/cc-system-log-addon-for-splunk repository) or poll the Monitor Service OData API (https://api.cloud.com/monitorodata) with a custom scripted input.). Enable the modular input or HEC token that writes sourcetype=citrix:cloud:status, citrix:status:api into citrix. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`comp, region`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on cloud Service Health Status and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

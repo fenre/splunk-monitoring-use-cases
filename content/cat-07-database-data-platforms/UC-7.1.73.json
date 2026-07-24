@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`cassandra:system` log; JVM `cassandra:gc` long pauses correlated",
-  "app": "UF for `system.log`; optional GC log forwarder as `cassandra:gc`",
+  "exclusions": "Covers the detection logic documented for 'Cassandra Dropped Mutations and Read Timeouts' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cassandra_dropped_mutations_and_read_timeouts` (UC-7.1.73), SOC dashboard panel \"Operations — Cassandra Dropped Mutations and Read Timeouts\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.73 positive (Cassandra, Dropped, Mutations, and, Read): ingest synthetic events into `index=database` sourcetype='cassandra:system' where `values` grouped by `host`, `_time` satisfies `pause_time_ms` > 2000, or `events` >= 10 for 'Cassandra Dropped Mutations and Read Timeouts'. Validate filter `\"DroppedMutation\" OR \"ReadTimeout\" OR \"Operation timed out\" `. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.73 negative (Read Timeouts): ingest benign `database` / `cassandra:system` events where `host`, `_time` stays below `pause_time_ms` > 2000, or `events` >= 10, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Cassandra Dropped Mutations and Read Timeouts'."
+  },
+  "dataSources": "`cassandra:system` log; JVM `cassandra:gc` long pauses correlated Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "UF for `system.log`; optional GC log forwarder as `cassandra:gc` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database (sourcetype=\"cassandra:system\" OR sourcetype=\"cassandra:gc\")\n| search \"DroppedMutation\" OR \"ReadTimeout\" OR \"Operation timed out\" OR (sourcetype=\"cassandra:gc\" AND \"GC pause\" AND pause_time_ms>2000)\n| rex field=_raw \"(?<timeout_kind>Read|Write|CAS) timeout\"\n| bin _time span=5m\n| stats count as events values(timeout_kind) as kinds by host, _time\n| where events >= 10",
-  "description": "Dropped mutations and read timeouts mean coordinators could not complete requests in time—often GC, overload, or replica unavailability. Treating log bursts as a first-class signal reduces mean time to detect compared to waiting for client dashboards.",
-  "value": "Protects revenue-critical APIs backed by Cassandra from silent degradation when a subset of replicas is sick.",
+  "description": "Monitors UC-7.1.73 — Cassandra, Dropped, Mutations, and, Read — using `index=database` sourcetype `cassandra:system`, grouped by `host`, `_time`. Outputs `values` each `5m`; alert when `pause_time_ms` > 2000, or `events` >= 10. Filter chain includes filter `\"DroppedMutation\" OR \"ReadTimeout\" OR \"Operation timed out\" `. Purpose-built for 'Cassandra Dropped Mutations and Read Timeouts' in Operations workflows.",
+  "value": "Alerting on Cassandra, Dropped, Mutations, and, Read through UC-7.1.73 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Normalize log levels; use `TRANSFORMS` to extract `coordinator`, `keyspace`, `table` when present. Ingest GC logs with `pause_time_ms` extracted for correlation searches (`join`). Suppress known load-test hosts. Page when event rate exceeds 10 per 5 minutes outside drills.",
   "visualization": "Timeline (events), Table (host, kinds), Overlay GC pause max line.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "Apache Cassandra — Timeouts",
-      "url": "https://cassandra.apache.org/doc/latest/cassandra/"
+      "url": "https://cassandra.apache.org/doc/latest/cassandra/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned failovers, network maintenance, or heavy bulk replication can extend lag for a time without an outage; align the alert with the DR runbook and change window.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.73)** — Planned work for 'Cassandra Dropped Mutations and Read Timeouts' shifts `values` over `span=5m` while `host`, `_time` remains in-scope. Applies filter `\"DroppedMutation\" OR \"ReadTimeout\" OR \"Operation timed out\" `. Cross-check CMDB CHG.\n\n2. **Batch `values` on `cassandra:system`** — Scheduled automation elevates `_time` without crossing `pause_time_ms` > 2000 for UC-7.1.73. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `_time`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cassandra:system`** — First 48h baseline for UC-7.1.73 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cassandra"
+  ],
+  "equipmentModels": [
+    "cassandra_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -36,5 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch Cassandra Dropped Mutations and Read Timeouts so we can keep this part of the data platform within the capacity and quality targets our teams expect."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (UF for `system.log`; optional GC log forwarder as `cassandra:gc` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=cassandra:system, cassandra:gc into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, events, host, pause_time_ms`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch Cassandra Dropped Mutations and Read Timeouts so we can keep this part of the data platform within the capacity and quality targets our teams expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

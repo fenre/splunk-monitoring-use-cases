@@ -8,38 +8,60 @@
     "Performance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Hive metrics (`flowhive:reading`), egg counter events (`eggcounter:event`), goat RFID visits (`goattag:scan`), goat watering and feed logs (`goatcare:event`), and compost readings (`compost:reading`).",
-  "app": "Smallholding and backyard telemetry from Flow Hive scales, chicken coop counters, RFID goat tags, compost thermometers, and camera-driven chore logs sent to Splunk HEC via MQTT and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Chicken Egg Collection Delay After Lay' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_chicken_egg_collection_delay_after_lay` (UC-25.24.22), SOC dashboard panel \"Personal — Chicken Egg Collection Delay After Lay\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.24.22 positive (Chicken, Egg, Collection, Delay, After): ingest synthetic events into `index=personal` sourcetype='eggcounter:event' where `avg_collect_delay_min` grouped by `coop_id` satisfies detection threshold for 'Chicken Egg Collection Delay After Lay'. Validate filter `collect_delay_min=*`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.24.22 negative (After Lay): ingest benign `personal` / `eggcounter:event` events where `coop_id` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 4 confirms zero alert rows for 'Chicken Egg Collection Delay After Lay'."
+  },
+  "dataSources": "Hive metrics (`flowhive:reading`), egg counter events (`eggcounter:event`), goat RFID visits (`goattag:scan`), goat watering and feed logs (`goatcare:event`), and compost readings (`compost:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Smallholding and backyard telemetry from Flow Hive scales, chicken coop counters, RFID goat tags, compost thermometers, and camera-driven chore logs sent to Splunk HEC via MQTT and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=eggcounter:event\n| search collect_delay_min=*\n| stats avg(collect_delay_min) as avg_collect_delay_min perc90(collect_delay_min) as p90_collect_delay_min count as samples by coop_id\n| sort 0 - avg_collect_delay_min",
-  "description": "Measures egg collection delay by coop.",
-  "value": "Collection delay matters for cleanliness, breakage risk, and whether the morning routine is aligned with when eggs actually arrive.",
+  "description": "Monitors risk tied to Chicken, Egg, Collection, Delay, After through UC-25.24.22 on `index=personal` sourcetype `eggcounter:event`. Summarises `avg_collect_delay_min` grouped by `coop_id` across `the scheduled window` before applying configured threshold. Operators tune 'Chicken Egg Collection Delay After Lay' using UC-25.24.22 runbook steps.",
+  "value": "Tracking `avg_collect_delay_min` via UC-25.24.22 on `eggcounter:event` feeds improves response to 'Chicken Egg Collection Delay After Lay' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Send the relevant duration field for egg collection delay to `index=personal` and review both average and p90 latency instead of relying on single examples.",
   "visualization": "Table of average and p90 egg collection delay.",
   "cimModels": [],
   "references": [
     {
       "title": "Flow Hive",
-      "url": "https://www.honeyflow.com/"
+      "url": "https://www.honeyflow.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Frigate",
-      "url": "https://frigate.video/"
+      "url": "https://frigate.video/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Allflex Livestock Intelligence",
-      "url": "https://www.allflex.global/"
+      "url": "https://www.allflex.global/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "REOTEMP compost thermometers",
-      "url": "https://reotemp.com/products/compost-thermometers/"
+      "url": "https://reotemp.com/products/compost-thermometers/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.24.22)** — Connector for 'Chicken Egg Collection Delay After Lay' stops polling `eggcounter:event`; stale `avg_collect_delay_min` on `coop_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_collect_delay_min` over `1w` is expected for UC-25.24.22, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `eggcounter:event`. Dedup with `stats latest(*) by coop_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Chicken Egg Collection Delay After Lay'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It lists how long egg collection delay usually takes, so slowdowns are obvious instead of anecdotal."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Homestead, Bees & Livestock — typical feeds: Beehive telemetry (`beehive:reading`), coop door (`chickencoop:door`), egg counts (`egg:count`), livestock tags (`livestock:tag`), feed level (`feed:level`), pasture sensors (`pasture:sensor`), trail .\n• **Sourcetypes in this search**: `eggcounter:event`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=eggcounter:event`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Homestead sensors — connected beehive scale/temperature/sound, automatic chicken-coop door, egg counter, livestock GPS/health tags, feed-silo level, and pasture soil sensors — via MQTT and LoRaWAN gateways..\n\n**Author notes:** Send the relevant duration field for egg collection delay to `index=personal` and review both average and p90 latency instead of relying on single examples.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"eggcounter:event\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=eggcounter:event earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Chicken Egg Collection Delay After Lay** over `personal` data (primarily `sourcetype=eggcounter:event`) across the full search range. The `avg, perc90` aggregation groups by `coop_id`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `coop_id`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=eggcounter:event\n| search collect_delay_min=*\n| stats avg(collect_delay_min) as avg_collect_delay_min perc90(collect_delay_min) as p90_collect_delay_min count as samples by coop_id\n| sort 0 - avg_collect_delay_min\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=eggcounter:event earliest=-7d\n| head 50\n| table coop_id\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=eggcounter:event earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.24.22: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Average And P90 Egg Collection Delay (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `eggcounter:event` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=eggcounter:event | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It lists how long egg collection delay usually takes, so slowdowns are obvious instead of anecdotal.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

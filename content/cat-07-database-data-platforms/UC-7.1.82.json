@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Snowflake Failed Login and MFA Anomaly Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_snowflake_failed_login_and_mfa_anomaly_detection` (UC-7.1.82), SOC dashboard panel \"Operations — Snowflake Failed Login and MFA Anomaly Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.82 positive (Snowflake, Failed, Login, and, MFA): ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:login_history' where `ips`, `had_mfa_error`, `had_priv_no_mfa` grouped by `USER_NAME`, `_time` satisfies `events` > 5 for 'Snowflake Failed Login and MFA Anomaly Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.82 negative (Anomaly Detection): ingest benign `datawarehouse` / `snowflake:login_history` events where `USER_NAME`, `_time` stays below `events` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Snowflake Failed Login and MFA Anomaly Detection'."
+  },
   "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.LOGIN_HISTORY` authentication factors on `snowflake:login_history`",
   "app": "Splunk Add-on for Snowflake (Splunkbase 5390)",
   "spl": "index=datawarehouse sourcetype=\"snowflake:login_history\"\n| eval ok=if(IS_SUCCESS=\"true\" OR IS_SUCCESS=\"TRUE\" OR IS_SUCCESS=1,1,0)\n| eval mfa=coalesce(SECOND_AUTHENTICATION_FACTOR, second_authentication_factor,\"\")\n| eval mfa_fail=if(ok=0 AND match(coalesce(ERROR_MESSAGE,\"\"),\"(?i)mfa|multi-?factor|second factor\"),1,0)\n| eval priv_bypass=if(ok=1 AND match(USER_NAME,\"(?i)admin\") AND (mfa=\"\" OR match(mfa,\"(?i)not applicable\")),1,0)\n| where ok=0 OR mfa_fail=1 OR priv_bypass=1\n| bin _time span=1h\n| stats count as events values(ERROR_MESSAGE) as err dc(CLIENT_IP) as ips max(mfa_fail) as had_mfa_error max(priv_bypass) as had_priv_no_mfa by USER_NAME, _time\n| where events > 5 OR had_mfa_error=1",
-  "description": "Credential attacks produce failed logins, while risky configuration can allow privileged roles to authenticate without a second factor. Combining failure volume with MFA field presence highlights both brute-force and policy-bypass patterns worth investigating.",
-  "value": "Reduces account takeover and privileged-access risk for Snowflake-native and hybrid SSO deployments.",
+  "description": "Detects UC-7.1.82 — Snowflake, Failed, Login, and, MFA — using `index=datawarehouse` sourcetype `snowflake:login_history`, grouped by `USER_NAME`, `_time`. Outputs `ips`, `had_mfa_error`, `had_priv_no_mfa` each `1h`; alert when `events` > 5. Primary focus: Anomaly Detection. Purpose-built for 'Snowflake Failed Login and MFA Anomaly Detection' in Operations workflows.",
+  "value": "UC-7.1.82 accelerates insight into Anomaly Detection ('Snowflake Failed Login and MFA Anomaly Detection') by tracking `ips`, `had_mfa_error`, `had_priv_no_mfa` on `snowflake:login_history` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Map `FIRST_AUTHENTICATION_FACTOR`, `SECOND_AUTHENTICATION_FACTOR`, `IS_SUCCESS`, `ERROR_MESSAGE`, `CLIENT_IP` per TA version. Maintain `privileged_snowflake_users.csv` instead of hardcoding roles in production. For IdP-MFA, expect `SECOND_AUTHENTICATION_FACTOR` to be empty—tune the MFA-bypass stanza to your SSO model. Correlate with IdP sign-in logs.",
   "visualization": "Timeline (events), Table (user, ok, err, ips), Map (CLIENT_IP).",
   "cimModels": [
@@ -22,17 +28,33 @@
   "references": [
     {
       "title": "Snowflake LOGIN_HISTORY",
-      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/login_history"
+      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/login_history",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Snowflake — Multi-factor authentication",
-      "url": "https://docs.snowflake.com/en/user-guide/security-mfa"
+      "url": "https://docs.snowflake.com/en/user-guide/security-mfa",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Pen tests, help desk–driven password resets, misconfigured app credentials, and short IdP or SSO outages can look like the same pattern as a real attack without environment-specific tuning.",
+  "knownFalsePositives": "1. **Maintenance window on `datawarehouse` (UC-7.1.82)** — Planned work for 'Snowflake Failed Login and MFA Anomaly Detection' shifts `ips`, `had_mfa_error`, `had_priv_no_mfa` over `span=1h` while `USER_NAME`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `snowflake:login_history`** — Scheduled automation elevates `_time` without crossing `events` > 5 for UC-7.1.82. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `USER_NAME`, `_time`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snowflake:login_history`** — First 48h baseline for UC-7.1.82 on `USER_NAME` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `USER_NAME`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow",
     "snowflake"
+  ],
+  "equipmentModels": [
+    "servicenow_generic",
+    "snowflake_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -41,5 +63,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch for repeated or suspicious sign-in activity on our databases so we can catch brute-force and misconfiguration before they become account takeovers."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Snowflake (Splunkbase 5390)). Enable the modular input or HEC token that writes sourcetype=snowflake:login_history into datawarehouse. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`USER_NAME, _time, events, mfa_fail`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for repeated or suspicious sign-in activity on our databases so we can catch brute-force and misconfiguration before they become account takeovers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

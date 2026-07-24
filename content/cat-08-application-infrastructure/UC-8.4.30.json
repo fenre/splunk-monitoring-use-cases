@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'ActiveMQ Temporary Storage Limit Pressure' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_activemq_temporary_storage_limit_pressure` (UC-8.4.30), SOC dashboard panel \"Operations — ActiveMQ Temporary Storage Limit Pressure\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.4.30 positive (ActiveMQ, Temporary, Storage, Limit, Pressure): ingest synthetic events into `index=messaging` sourcetype='activemq:broker' where `temp_usage_pct` grouped by `broker_name` satisfies `temp_pct` > 70 for 'ActiveMQ Temporary Storage Limit Pressure'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.4.30 negative (Limit Pressure): ingest benign `messaging` / `activemq:broker` events where `broker_name` stays below `temp_pct` > 70, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'ActiveMQ Temporary Storage Limit Pressure'."
+  },
   "dataSources": "JMX `org.apache.activemq:type=Broker` `TempLimit`, `TempUsage` (percent or bytes depending on collector normalization)",
   "app": "Splunk Add-on for JMX (Splunkbase 2647) with ActiveMQ templates or scripted Jolokia→HEC (`sourcetype=activemq:broker`)",
   "spl": "index=messaging sourcetype=\"activemq:broker\"\n| eval temp_pct=coalesce(TempPercentUsage, round(temp_used/temp_limit*100,1))\n| where temp_pct > 70\n| timechart span=5m max(temp_pct) as temp_usage_pct by broker_name",
-  "description": "Non-persistent and slow-consumer spillover lands in temp storage; hitting `TempLimit` blocks producers even when the persistent store is healthy.",
-  "value": "Isolates slow-consumer and large-message issues before they convert into broker-wide producer blocking.",
+  "description": "Detects Limit Pressure anomalies for UC-8.4.30 with window `5m` on `index=messaging` sourcetype `activemq:broker`. Combines `temp_usage_pct` by `broker_name` and compares against `temp_pct` > 70. Mapped to keywords ActiveMQ, Temporary, Storage, Limit, Pressure for dashboard routing.",
+  "value": "Alerting on ActiveMQ, Temporary, Storage, Limit, Pressure through UC-8.4.30 reduces operational risk and delayed incident response by surfacing `temp_usage_pct` early.",
   "implementation": "Map JMX attributes to Splunk fields (`TempLimit`, `TempUsage`, or percent usage). Poll every 60s. Correlate with destination memory usage and consumer advisories. Alert at 70% sustained.",
   "visualization": "Gauge (temp %), Line chart (temp usage trend), Table (brokers over threshold).",
   "cimModels": [
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "Apache ActiveMQ — Producer Flow Control",
-      "url": "https://activemq.apache.org/components/classic/documentation/producer-flow-control"
+      "url": "https://activemq.apache.org/components/classic/documentation/producer-flow-control",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apache ActiveMQ — Performance",
-      "url": "https://activemq.apache.org/components/classic/documentation/performance-tuning"
+      "url": "https://activemq.apache.org/components/classic/documentation/performance-tuning",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Queues and broker metrics swing during rebalancing, replay, or maintenance. We align with change windows.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging` (UC-8.4.30)** — Planned work for 'ActiveMQ Temporary Storage Limit Pressure' shifts `temp_usage_pct` over `span=5m` while `broker_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `activemq:broker`** — Scheduled automation elevates `temp_pct` without crossing `temp_pct` > 70 for UC-8.4.30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `broker_name`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `activemq:broker`** — First 48h baseline for UC-8.4.30 on `broker_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `broker_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "activemq",
     "apache"
@@ -44,6 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We watch for signs that isolates slow-consumer and large-message issues before they convert into broker-wide producer blocking."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for JMX (Splunkbase 2647) with ActiveMQ templates or scripted Jolokia→HEC (`sourcetype=activemq:broker`)). Enable the modular input or HEC token that writes sourcetype=activemq:broker into messaging. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`broker_name, temp_pct`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for signs that isolates slow-consumer and large-message issues before they convert into broker-wide producer blocking.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

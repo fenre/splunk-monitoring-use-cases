@@ -9,29 +9,60 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Fivetran log-service events and REST API (`connectors`, sync status), Airbyte job logs (`airbyte:job`), Matillion task history, Kafka Connect connector/task status, AWS Glue job runs (CloudWatch), ADF pipeline runs (Azure Monitor).",
-  "app": "Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF).",
+  "exclusions": "Covers the detection logic documented for 'Kafka Connect Connector Task Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_kafka_connect_connector_task_failures` (UC-24.8.5), SOC dashboard panel \"Operations — Kafka Connect Connector Task Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.8.5 positive (Kafka, Connect, Connector, Task, Failures): ingest synthetic events into `index=dataops` sourcetype='kafka:connect' where `count` grouped by `connector`, `task` satisfies detection threshold for 'Kafka Connect Connector Task Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.8.5 negative (Task Failures): ingest benign `dataops` / `kafka:connect` events where `connector`, `task` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Kafka Connect Connector Task Failures'."
+  },
+  "dataSources": "Fivetran log-service events and REST API (`connectors`, sync status), Airbyte job logs (`airbyte:job`), Matillion task history, Kafka Connect connector/task status, AWS Glue job runs (CloudWatch), ADF pipeline runs (Azure Monitor). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF). — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops sourcetype=kafka:connect\n| stats latest(state) as state by connector, task\n| where state=\"FAILED\"\n| sort connector, task",
-  "description": "Polls Kafka Connect connector and task status and flags tasks in the FAILED state, which stall streaming ingestion into or out of the data platform.",
-  "value": "A failed Connect task silently halts a streaming pipeline; task-level status is the only reliable way to catch it before data gaps appear.",
+  "description": "Monitors when Task Failures criteria fire for 'Kafka Connect Connector Task Failures' (UC-24.8.5) in `index=dataops` sourcetype `kafka:connect`. Pipeline aggregates `count` by `connector`, `task` over `the scheduled window`. Alert logic enforces configured threshold. Title terms: Kafka, Connect, Connector, Task, Failures. Eliminates manual hunting for UC-24.8.5 conditions.",
+  "value": "UC-24.8.5 helps teams contain Kafka, Connect, Connector, Task, Failures scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Poll the Connect REST `/connectors/*/status` endpoint into HEC; schedule every 5 minutes; alert on FAILED tasks. Auto-restart where safe.",
   "visualization": "Table of failed connectors/tasks, timechart of failures, alert.",
   "cimModels": [],
   "references": [
     {
       "title": "Kafka Connect — Monitoring",
-      "url": "https://docs.confluent.io/platform/current/connect/monitoring.html"
+      "url": "https://docs.confluent.io/platform/current/connect/monitoring.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `dataops` (UC-24.8.5)** — Planned work for 'Kafka Connect Connector Task Failures' shifts `count` over `span=1h` while `connector`, `task` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `kafka:connect`** — Scheduled automation elevates `task` without crossing configured threshold for UC-24.8.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `connector`, `task`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:connect`** — First 48h baseline for UC-24.8.5 on `connector` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `connector`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "azure",
     "kafka",
     "m365"
   ],
-  "grandmaExplanation": "We watch the always-on data-streaming jobs and flag any that have failed, so streaming data does not quietly stop."
+  "equipmentModels": [
+    "aws_generic",
+    "azure_generic",
+    "kafka_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF). — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=kafka:connect into dataops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`connector, task`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the always-on data-streaming jobs and flag any that have failed, so streaming data does not quietly stop.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

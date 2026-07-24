@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "OSD daemon logs indexed as `ceph:log` with slow op warnings",
-  "app": "Universal Forwarder `monitor://` on `/var/log/ceph/ceph-osd*.log`",
+  "exclusions": "Covers the detection logic documented for 'Ceph slow OSD requests and op queue latency spikes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ceph_slow_osd_requests_and_op_queue_latency_spik` (UC-6.2.23), SOC dashboard panel \"Operations — Ceph slow OSD requests and op queue latency spikes\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.23 positive (Ceph, slow, OSD, requests, and): ingest synthetic events into `index=os` sourcetype='ceph:log' where `count` grouped by `host`, `osd_id` satisfies `slow_ops` > 20 for 'Ceph slow OSD requests and op queue latency spikes'. Validate filter `\"slow request\" OR \"blocked op\" OR \"op_queue\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.23 negative (latency spikes): ingest benign `os` / `ceph:log` events where `host`, `osd_id` stays below `slow_ops` > 20, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Ceph slow OSD requests and op queue latency spikes'."
+  },
+  "dataSources": "OSD daemon logs indexed as `ceph:log` with slow op warnings Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Universal Forwarder `monitor://` on `/var/log/ceph/ceph-osd*.log` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=\"ceph:log\" earliest=-4h\n| search \"slow request\" OR \"blocked op\" OR \"op_queue\"\n| rex field=_raw max_match=1 \"(?i)osd\\.(?<osd_id>\\d+)\"\n| stats count as slow_ops latest(_time) as last_seen by host, osd_id\n| where slow_ops > 20\n| sort - slow_ops",
-  "description": "Slow requests indicate disk, network, or BlueStore contention on specific OSDs. Aggregating by OSD surfaces hotspots that cluster-wide latency hides.",
-  "value": "Prevents prolonged tail latency for RBD volumes backing databases and VMs.",
+  "description": "Surfaces UC-6.2.23 — Ceph, slow, OSD, requests, and — using `index=os` sourcetype `ceph:log`, grouped by `host`, `osd_id`. Outputs `count` each `the scheduled window`; alert when `slow_ops` > 20. Filter chain includes filter `\"slow request\" OR \"blocked op\" OR \"op_queue\"`. Purpose-built for 'Ceph slow OSD requests and op queue latency spikes' in Operations workflows.",
+  "value": "For 'Ceph slow OSD requests and op queue latency spikes', UC-6.2.23 converts `activity` on `ceph:log` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Tune threshold to cluster size; use percentile summaries for large fleets. Join with `ceph:osd` utilization to separate disk-bound from network-bound cases.",
   "visualization": "Bar chart (slow_ops by OSD), timeline.",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "Ceph Documentation — monitoring",
-      "url": "https://docs.ceph.com/en/latest/radosgw/"
+      "url": "https://docs.ceph.com/en/latest/radosgw/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Red Hat Ceph Storage — troubleshooting",
-      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/"
+      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `os` (UC-6.2.23)** — Planned work for 'Ceph slow OSD requests and op queue latency spikes' shifts `count` over `span=1h` while `host`, `osd_id` remains in-scope. Applies filter `\"slow request\" OR \"blocked op\" OR \"op_queue\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ceph:log`** — Scheduled automation elevates `osd_id` without crossing `slow_ops` > 20 for UC-6.2.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `osd_id`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:log`** — First 48h baseline for UC-6.2.23 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ceph"
+  ],
+  "equipmentModels": [
+    "ceph_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch when disks or arrays slow down for your important workloads, so you can act before people notice a frozen app or missed deadlines."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Universal Forwarder `monitor://` on `/var/log/ceph/ceph-osd*.log` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ceph:log into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, osd_id, slow_ops`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch when disks or arrays slow down for your important workloads, so you can act before people notice a frozen app or missed deadlines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

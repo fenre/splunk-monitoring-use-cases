@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Splunk metrics index from Prometheus remote write or OTel (`metric_name=scrape_duration_seconds`)",
-  "app": "OpenTelemetry Collector Prometheus receiver → Splunk Observability Cloud or Splunk Platform metrics",
+  "exclusions": "Covers the detection logic documented for 'Prometheus Scrape Duration Seconds P99 Regression' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_prometheus_scrape_duration_seconds_p99_regressio` (UC-13.1.52), SOC dashboard panel \"Operations — Prometheus Scrape Duration Seconds P99 Regression\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-13.1.52 positive (Prometheus, Scrape, Duration, Seconds, P99): ingest synthetic events into `index=prometheus` sourcetype='target_sourcetype' where `avg_scrape` grouped by `job`, `instance` satisfies `avg_scrape` > 8 for 'Prometheus Scrape Duration Seconds P99 Regression'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-13.1.52 negative (P99 Regression): ingest benign `prometheus` / `target_sourcetype` events where `job`, `instance` stays below `avg_scrape` > 8, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Prometheus Scrape Duration Seconds P99 Regression'."
+  },
+  "dataSources": "Splunk metrics index from Prometheus remote write or OTel (`metric_name=scrape_duration_seconds`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "OpenTelemetry Collector Prometheus receiver → Splunk Observability Cloud or Splunk Platform metrics — Universal Forwarder (Splunkbase 617)",
   "spl": "| mstats avg(_value) AS avg_scrape WHERE index=prometheus metric_name=\"scrape_duration_seconds\" span=5m BY job, instance\n| where avg_scrape > 8\n| sort - avg_scrape",
-  "description": "Slow scrapes delay evaluations and can skip intervals on large targets.",
-  "value": "Detects targets approaching scrape_timeout before silent metric gaps appear.",
+  "description": "Identifies UC-13.1.52 — Prometheus, Scrape, Duration, Seconds, P99 — using `index=prometheus` sourcetype `configured sourcetype`, grouped by `job`, `instance`. Outputs `avg_scrape` each `5m`; alert when `avg_scrape` > 8. Primary focus: P99 Regression. Purpose-built for 'Prometheus Scrape Duration Seconds P99 Regression' in Operations workflows.",
+  "value": "UC-13.1.52 operationalises 'Prometheus Scrape Duration Seconds P99 Regression' against UC-13.1.52 search results so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ensure `job` and `instance` labels preserved; align `span` with scrape interval.",
   "visualization": "Line chart (p99 scrape duration), Table (worst targets).",
   "cimModels": [
@@ -23,17 +29,33 @@
   "references": [
     {
       "title": "Prometheus documentation — monitoring Prometheus",
-      "url": "https://prometheus.io/docs/prometheus/"
+      "url": "https://prometheus.io/docs/prometheus/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk OpenTelemetry Collector",
-      "url": "https://docs.splunk.com/observability/en/gdi/opentelemetry/opentelemetry.html"
+      "url": "https://docs.splunk.com/observability/en/gdi/opentelemetry/opentelemetry.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Latency spikes during pool exhaustion, garbage collection, or upstream slowness. We compare with the APM UI and deploy history before a code-only theory.",
+  "knownFalsePositives": "1. **Maintenance window on `prometheus` (UC-13.1.52)** — Planned work for 'Prometheus Scrape Duration Seconds P99 Regression' shifts `avg_scrape` over `span=5m` while `job`, `instance` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `instance` without crossing `avg_scrape` > 8 for UC-13.1.52. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job`, `instance`** — Health checks in `prometheus` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-13.1.52 on `job` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job`, `exception_reason`, `valid_until`.",
   "equipment": [
     "opentelemetry",
     "prometheus"
+  ],
+  "equipmentModels": [
+    "opentelemetry_generic",
+    "prometheus_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,5 +64,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch how long work takes across services so slowdowns in our code or a dependency show up while they are still small."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (OpenTelemetry Collector Prometheus receiver → Splunk Observability Cloud or Splunk Platform metrics — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into prometheus. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`avg_scrape, instance, job`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how long work takes across services so slowdowns in our code or a dependency show up while they are still small.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

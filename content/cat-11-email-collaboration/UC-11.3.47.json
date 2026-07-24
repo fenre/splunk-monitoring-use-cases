@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=cisco:ucm:syslog` (CSF/BOT/TCT/TAB registration events), `sourcetype=jabber:problemreport` (Jabber PRT logs)",
-  "app": "`Splunk Connect for Syslog`, CUCM AXL API scripted input",
+  "exclusions": "Covers the detection logic documented for 'Jabber Client Version Compliance and Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_jabber_client_version_compliance_and_health` (UC-11.3.47), SOC dashboard panel \"Operations — Jabber Client Version Compliance and Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.3.47 positive (Jabber, Client, Version, Compliance, and): ingest synthetic events into `index=voip` sourcetype='cisco:ucm:syslog' where `sum` grouped by `device_name`, `client_type` satisfies detection threshold for 'Jabber Client Version Compliance and Health'. Validate lookup `jabber_version_baseline`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.3.47 negative (and Health): ingest benign `voip` / `cisco:ucm:syslog` events where `device_name`, `client_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Jabber Client Version Compliance and Health'."
+  },
+  "dataSources": "`sourcetype=cisco:ucm:syslog` (CSF/BOT/TCT/TAB registration events), `sourcetype=jabber:problemreport` (Jabber PRT logs) Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Connect for Syslog`, CUCM AXL API scripted input — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=voip sourcetype=\"cisco:ucm:syslog\" \"%CCM_CALLMANAGER-CALLMANAGER-7-DeviceRegistered%\"\n    (DeviceName=CSF* OR DeviceName=BOT* OR DeviceName=TCT* OR DeviceName=TAB*)\n| rex field=_raw \"DeviceName=(?<device_name>\\S+).*ActiveLoadID=(?<version>\\S+).*IPAddress=(?<ip>\\S+)\"\n| eval client_type=case(\n    like(device_name, \"CSF%\"), \"Jabber Windows/Mac\",\n    like(device_name, \"BOT%\"), \"Jabber Bot\",\n    like(device_name, \"TCT%\"), \"Jabber Mobile (Phone)\",\n    like(device_name, \"TAB%\"), \"Jabber Tablet\")\n| stats latest(version) as current_version, latest(ip) as last_ip, latest(_time) as last_seen, count as registrations by device_name, client_type\n| lookup jabber_version_baseline client_type OUTPUT min_version, eol_version\n| eval compliant=if(current_version>=min_version, \"Yes\", \"No\")\n| stats count as total, sum(eval(if(compliant==\"No\",1,0))) as non_compliant by client_type\n| eval compliance_pct=round((total-non_compliant)*100/total, 1)",
-  "description": "Cisco Jabber clients run on Windows, macOS, iOS, and Android with different version lifecycles and vulnerability profiles. Outdated Jabber versions may have known security vulnerabilities (CVEs), lack support for current SRTP/TLS standards, or miss critical bug fixes. Fleet-wide version tracking replaces manual inventory audits and supports security compliance reporting by quantifying the attack surface from legacy communication clients.",
-  "value": "Cisco Jabber clients run on Windows, macOS, iOS, and Android with different version lifecycles and vulnerability profiles. Outdated Jabber versions may have known security vulnerabilities (CVEs), lack support for current SRTP/TLS standards, or miss critical bug fixes. Fleet-wide version tracking replaces manual inventory audits and supports security compliance reporting by quantifying the attack surface from legacy communication clients.",
+  "description": "Monitors when and Health criteria fire for 'Jabber Client Version Compliance and Health' (UC-11.3.47) in `index=voip` sourcetype `cisco:ucm:syslog`. Pipeline aggregates `sum` by `device_name`, `client_type` over `the scheduled window`. Alert logic enforces configured threshold. SPL signature: lookup `jabber_version_baseline`. Eliminates manual hunting for UC-11.3.47 conditions.",
+  "value": "UC-11.3.47 helps teams contain Jabber, Client, Version, Compliance, and scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "CUCM logs device registration events for Jabber clients using device name prefixes: CSF (desktop softphone), BOT (Jabber bot/integration), TCT (mobile phone mode), TAB (tablet). The `ActiveLoadID` contains the Jabber version. Build a `jabber_version_baseline` lookup mapping client type to minimum acceptable version (from Cisco's Jabber release matrix). Schedule daily to track compliance. For crash analysis, collect Jabber Problem Report Tool (PRT) logs submitted to CUCM — these contain stack traces, network diagnostics, and configuration snapshots. Track crash frequency per version to prioritize upgrade campaigns. Alert when any client type's compliance drops below 80%.",
   "visualization": "Pie chart (version distribution per client type), Single value (fleet compliance %), Table (non-compliant devices with version and last seen), Bar chart (compliance by client type).",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Beta clients in pilot groups, VDI, and mobile Jabber on unstable networks.",
+  "knownFalsePositives": "1. **Maintenance window on `voip` (UC-11.3.47)** — Planned work for 'Jabber Client Version Compliance and Health' shifts `sum` over `span=1h` while `device_name`, `client_type` remains in-scope. Applies lookup `jabber_version_baseline`. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cisco:ucm:syslog`** — Scheduled automation elevates `client_type` without crossing configured threshold for UC-11.3.47. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `device_name`, `client_type`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ucm:syslog`** — First 48h baseline for UC-11.3.47 on `device_name` is unstable; join `jabber_version_baseline` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `device_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "macos",
@@ -35,7 +57,13 @@
   "equipmentModels": [
     "cisco_ucm"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk Connect for Syslog`, CUCM AXL API scripted input.\n• Ensure the following data sources are available: `sourcetype=cisco:ucm:syslog` (CSF/BOT/TCT/TAB registration events), `sourcetype=jabber:problemreport` (Jabber PRT logs).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCUCM logs device registration events for Jabber clients using device name prefixes: CSF (desktop softphone), BOT (Jabber bot/integration), TCT (mobile phone mode), TAB (tablet). The `ActiveLoadID` contains the Jabber version. Build a `jabber_version_baseline` lookup mapping client type to minimum acceptable version (from Cisco's Jabber release matrix). Schedule daily to track compliance. For crash analysis, collect Jabber Problem Report Tool (PRT) logs submitted to CUCM — these contain stack tra…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=voip sourcetype=\"cisco:ucm:syslog\" \"%CCM_CALLMANAGER-CALLMANAGER-7-DeviceRegistered%\"\n    (DeviceName=CSF* OR DeviceName=BOT* OR DeviceName=TCT* OR DeviceName=TAB*)\n| rex field=_raw \"DeviceName=(?<device_name>\\S+).*ActiveLoadID=(?<version>\\S+).*IPAddress=(?<ip>\\S+)\"\n| eval client_type=case(\n    like(device_name, \"CSF%\"), \"Jabber Windows/Mac\",\n    like(device_name, \"BOT%\"), \"Jabber Bot\",\n    like(device_name, \"TCT%\"), \"Jabber Mobile (Phone)\",\n    like(device_name, \"TAB%\"), \"Jabber Tablet\")\n| stats latest(version) as current_version, latest(ip) as last_ip, latest(_time) as last_seen, count as registrations by device_name, client_type\n| lookup jabber_version_baseline client_type OUTPUT min_version, eol_version\n| eval compliant=if(current_version>=min_version, \"Yes\", \"No\")\n| stats count as total, sum(eval(if(compliant==\"No\",1,0))) as non_compliant by client_type\n| eval compliance_pct=round((total-non_compliant)*100/total, 1)\n```\n\nUnderstanding this SPL\n\n**Jabber Client Version Compliance and Health** — Cisco Jabber clients run on Windows, macOS, iOS, and Android with different version lifecycles and vulnerability profiles. Outdated Jabber versions may have known security vulnerabilities (CVEs), lack support for current SRTP/TLS standards, or miss critical bug fixes. Fleet-wide version tracking replaces manual inventory audits and supports security compliance reporting by quantifying the attack surface from legacy communication clients.\n\nDocumented **Data sources**: `sourcetype=cisco:ucm:syslog` (CSF/BOT/TCT/TAB registration events), `sourcetype=jabber:problemreport` (Jabber PRT logs). **App/TA** (typical add-on context): `Splunk Connect for Syslog`, CUCM AXL API scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: voip; **sourcetype**: cisco:ucm:syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=voip, sourcetype=\"cisco:ucm:syslog\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• `eval` defines or adjusts **client_type** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by device_name, client_type** so each row reflects one combination of those dimensions.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **compliant** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by client_type** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **compliance_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nCompare with CUCM RTMT, CallManager service parameters, and CDR/CMR or quality reports in Cisco unified communications admin for the same cluster and interval.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Pie chart (version distribution per client type), Single value (fleet compliance %), Table (non-compliant devices with version and last seen), Bar chart (compliance by client type).",
   "grandmaExplanation": "We use this to stay ahead of email and collaboration problems, so the team is not the last to know when something drifts or breaks.",
-  "hardware": "Cisco Jabber for Windows, Cisco Jabber for Mac, Cisco Jabber for iOS, Cisco Jabber for Android"
+  "hardware": "Cisco Jabber for Windows, Cisco Jabber for Mac, Cisco Jabber for iOS, Cisco Jabber for Android",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

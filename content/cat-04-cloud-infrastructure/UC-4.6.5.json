@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=cloud sourcetype=aws:cloudwatch:vpcflow` OR `sourcetype=azure:nsg:flow`",
-  "app": "Splunk Add-on for AWS (VPC Flow Logs), Azure NSG flow logs",
+  "exclusions": "Covers the detection logic documented for 'Cloud Network Traffic Volume Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cloud_network_traffic_volume_trending` (UC-4.6.5), SOC dashboard panel \"Operations — Cloud Network Traffic Volume Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-4.6.5 positive (Cloud, Network, Traffic, Volume, Trending): ingest synthetic events into `index=cloud` sourcetype='aws:cloudwatch:vpcflow' where `total_bytes` grouped by `entity` satisfies detection threshold for 'Cloud Network Traffic Volume Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.6.5 negative (Volume Trending): ingest benign `cloud` / `aws:cloudwatch:vpcflow` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Cloud Network Traffic Volume Trending'."
+  },
+  "dataSources": "`index=cloud sourcetype=aws:cloudwatch:vpcflow` OR `sourcetype=azure:nsg:flow` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for AWS (VPC Flow Logs), Azure NSG flow logs — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=cloud sourcetype=\"aws:cloudwatch:vpcflow\"\n| eval bytes=tonumber(bytes)\n| timechart span=1w sum(bytes) as total_bytes\n| eval total_gb=round(total_bytes/1073741824, 2)\n| trendline sma4(total_gb) as traffic_trend",
-  "description": "Weekly VPC flow log volume indicates shifting traffic patterns, DDoS aftermath, or misconfigured mirroring. Complements per-flow analysis with a coarse health signal and correlates with network-related cost changes.",
-  "value": "Weekly VPC flow log volume indicates shifting traffic patterns, DDoS aftermath, or misconfigured mirroring. Complements per-flow analysis with a coarse health signal and correlates with network-related cost changes.",
+  "description": "Monitors 'Cloud Network Traffic Volume Trending' patterns (UC-4.6.5) sourced from `index=cloud` sourcetype `aws:cloudwatch:vpcflow`. Threshold bundle: configured threshold; aggregation grain: `entity`; metrics: `total_bytes`. Watch terms: Cloud, Network, Traffic, Volume, Trending.",
+  "value": "UC-4.6.5 gives Operations teams earlier visibility into Volume Trending through `aws:cloudwatch:vpcflow` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Parse VPC Flow or NSG flow fields so bytes is numeric. Filter internal-only noise if needed via RFC1918 CIDR lists. Use weekly buckets for medium-term trending; index volume growth also correlates with ingest cost. For Azure, map to the appropriate custom sourcetype for raw flows. Alert on sudden jumps exceeding 2x the 4-week moving average.",
   "visualization": "Column chart (weekly total GB), line overlay (4-week SMA), dual axis with flow record count.",
   "cimModels": [
@@ -21,18 +27,40 @@
   "references": [
     {
       "title": "Splunk Add-on for AWS",
-      "url": "https://splunkbase.splunk.com/app/1876"
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Network Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Inventories can skip a run when an API is throttled or a connector is in maintenance, which looks like a big drop. We check the ingest time and the last good snapshot before we call it shrinkage.",
+  "knownFalsePositives": "1. **Maintenance window on `cloud` (UC-4.6.5)** — Planned work for 'Cloud Network Traffic Volume Trending' shifts `total_bytes` over `span=1w` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch:vpcflow`** — Scheduled automation elevates `bytes` without crossing configured threshold for UC-4.6.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cloud` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch:vpcflow`** — First 48h baseline for UC-4.6.5 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "azure"
   ],
+  "equipmentModels": [
+    "aws_generic",
+    "azure_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for AWS (VPC Flow Logs), Azure NSG flow logs.\n• Ensure the following data sources are available: `index=cloud sourcetype=aws:cloudwatch:vpcflow` OR `sourcetype=azure:nsg:flow`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nParse VPC Flow or NSG flow fields so bytes is numeric. Filter internal-only noise if needed via RFC1918 CIDR lists. Use weekly buckets for medium-term trending; index volume growth also correlates with ingest cost. For Azure, map to the appropriate custom sourcetype for raw flows. Alert on sudden jumps exceeding 2x the 4-week moving average.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud sourcetype=\"aws:cloudwatch:vpcflow\"\n| eval bytes=tonumber(bytes)\n| timechart span=1w sum(bytes) as total_bytes\n| eval total_gb=round(total_bytes/1073741824, 2)\n| trendline sma4(total_gb) as traffic_trend\n```\n\nUnderstanding this SPL\n\n**Cloud Network Traffic Volume Trending** — Weekly VPC flow log volume indicates shifting traffic patterns, DDoS aftermath, or misconfigured mirroring. Complements per-flow analysis with a coarse health signal and correlates with network-related cost changes.\n\nDocumented **Data sources**: `index=cloud sourcetype=aws:cloudwatch:vpcflow` OR `sourcetype=azure:nsg:flow`. **App/TA** (typical add-on context): Splunk Add-on for AWS (VPC Flow Logs), Azure NSG flow logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: aws:cloudwatch:vpcflow. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"aws:cloudwatch:vpcflow\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **bytes** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=1w** buckets — ideal for trending and alerting on this use case.\n• `eval` defines or adjusts **total_gb** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Cloud Network Traffic Volume Trending**): trendline sma4(total_gb) as traffic_trend\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Column chart (weekly total GB), line overlay (4-week SMA), dual axis with flow record count.",
-  "grandmaExplanation": "Weekly VPC flow log volume indicates shifting traffic patterns, overload attacks aftermath, or misconfigured mirroring."
+  "grandmaExplanation": "Weekly VPC flow log volume indicates shifting traffic patterns, overload attacks aftermath, or misconfigured mirroring.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

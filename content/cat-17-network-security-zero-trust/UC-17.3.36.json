@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=netskope:connection` or `netskope:network` (NPA connection events)",
+  "exclusions": "Covers the detection logic documented for 'Netskope Private Access (NPA) Health' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_netskope_private_access_npa_health` (UC-17.3.36), SOC dashboard panel \"Network — Netskope Private Access (NPA) Health\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.36 positive (Netskope, Private, Access, (NPA), Health): ingest synthetic events into `index=casb` sourcetype='netskope:connection' where `ok` grouped by `publisher_name`, `private_app` satisfies `latency_ms` < 1000, or `error_pct` > 5 for 'Netskope Private Access (NPA) Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.36 negative ((NPA) Health): ingest benign `casb` / `netskope:connection` events where `publisher_name`, `private_app` stays below `latency_ms` < 1000, or `error_pct` > 5, or exclude the test entity via `network_exception_register.csv`. Variant 1 confirms zero alert rows for 'Netskope Private Access (NPA) Health'."
+  },
+  "dataSources": "`sourcetype=netskope:connection` or `netskope:network` (NPA connection events) Indexes: casb. Sourcetypes: netskope:connection. Key fields: error_pct, healthy, latency_ms, private_app, publisher_name. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Netskope Add-on for Splunk (Splunkbase 3808)",
   "spl": "index=casb sourcetype=\"netskope:connection\" earliest=-24h\n| eval healthy=if(match(lower(status),\"(?i)success|established|active\") AND latency_ms<1000,1,0)\n| stats count sum(healthy) as ok by publisher_name, private_app\n| eval error_pct=round(100*(count-ok)/count,1)\n| where error_pct > 5\n| sort -error_pct",
-  "description": "Netskope Private Access (NPA) is the ZTNA component — replacing VPN for private application access. Publisher (connector) health, error rates, and latency determine whether users can reach internal apps.",
-  "value": "ZTNA operations teams monitor Netskope Private Access Publisher health and application access success rates, ensuring NPA connectors remain available and identifying private applications with connection failures that leave users without secure access to internal resources.",
+  "description": "Alerts on (NPA) Health activity in UC-17.3.36 ('Netskope Private Access (NPA) Health') from `index=casb` sourcetype `netskope:connection`. Rolls up `ok` by `publisher_name`, `private_app` across `the scheduled window` and pages when `latency_ms` < 1000, or `error_pct` > 5. Covers Netskope, Private, Access, (NPA), Health. Network operators treat UC-17.3.36 as the canonical signal.",
+  "value": "Operators running UC-17.3.36 on `netskope:connection` feeds shorten triage for (NPA) Health tied to 'Netskope Private Access (NPA) Health', lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Map `publisher_name` to datacenter/region. Alert when any publisher shows >10% error rate or latency p95 exceeds 2s. Report on NPA adoption vs legacy VPN.",
   "visualization": "Table (unhealthy publishers), Single value (publishers in error), Line chart (error rate trend), Bar chart (latency by app).",
   "cimModels": [],
@@ -22,17 +28,42 @@
   "references": [
     {
       "title": "Netskope Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3808"
+      "url": "https://splunkbase.splunk.com/app/3808",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from new SaaS rollouts, automated workflows, sanctioned bulk uploads, or M&A integration.",
+  "knownFalsePositives": "1. **Maintenance window on `casb` (UC-17.3.36)** — Planned work for 'Netskope Private Access (NPA) Health' shifts `ok` over `span=1h` while `publisher_name`, `private_app` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `netskope:connection`** — Scheduled automation elevates `private_app` without crossing `latency_ms` < 1000 for UC-17.3.36. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `publisher_name`, `private_app`** — Health checks in `casb` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netskope:connection`** — First 48h baseline for UC-17.3.36 on `publisher_name` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `publisher_name`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1133"
   ],
   "equipment": [
     "netskope"
   ],
-  "detailedImplementation": "Prerequisites\n• Netskope Private Access (NPA) events in `index=netskope` with `sourcetype=netskope:events` or `sourcetype=netskope:infrastructure`. Key fields: `app`, `npa_status` (Connected/Failed/Timeout), `publisher_name` (NPA Publisher = connector), `publisher_status`, `user`, `latency_ms`, `private_app_name`.\n• NPA is Netskope's ZTNA solution — it replaces VPN by publishing internal applications through Publishers (connectors). Each Publisher tunnels to the Netskope cloud. Publisher health directly impacts application availability.\n\nStep 1 — Configure data collection\nVerify NPA data:\n```spl\nindex=netskope earliest=-24h\n| where isnotnull(publisher_name) OR isnotnull(npa_status)\n| stats count by publisher_name, publisher_status\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Publisher health:\n```spl\nindex=netskope earliest=-24h\n| where isnotnull(publisher_name)\n| dedup publisher_name sortby -_time\n| table publisher_name, publisher_status, _time\n| eval health=if(publisher_status=\"Connected\", \"Healthy\", \"UNHEALTHY\")\n```\n\nUnderstanding this SPL: Shows the current status of each NPA Publisher. If a Publisher is disconnected, all private apps behind it become unreachable through ZTNA. Users may fall back to VPN or lose access entirely. Multiple Publishers per app segment provide redundancy.\n\nApplication access success rate:\n```spl\nindex=netskope earliest=-24h\n| where isnotnull(npa_status)\n| eval success=if(npa_status=\"Connected\", 1, 0)\n| stats avg(success) as success_rate count by private_app_name\n| eval success_pct=round(success_rate*100, 1)\n| sort success_pct\n```\n\nStep 3 — Validate\n(a) In Netskope Admin: Settings > Security Cloud Platform > Publishers.\n(b) Access a private app via NPA. Verify the event.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Publisher status. Row 2 — App access success rate. Row 3 — Connection failures.\nAlert: Immediate when any Publisher goes offline.\n\nRunbook:\n1. **Publisher offline** — Check Publisher VM. Restart Netskope Publisher service.\n2. **Low success rate** — App server may be down. Check behind the Publisher.\n3. **All Publishers offline** — Network outage at Publisher site. Escalate.\n\nStep 5 — Troubleshooting\n• **No NPA events** — NPA may not be licensed. Check Netskope subscription.\n• **`publisher_status` missing** — Infrastructure events may require a separate API endpoint.",
+  "equipmentModels": [
+    "netskope_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Netskope Private Access (NPA) events in `index=netskope` with `sourcetype=netskope:events` or `sourcetype=netskope:infrastructure`. Key fields: `app`, `npa_status` (Connected/Failed/Timeout), `publisher_name` (NPA Publisher = connector), `publisher_status`, `user`, `latency_ms`, `private_app_name`.\n• NPA is Netskope's ZTNA solution — it replaces VPN by publishing internal applications through Publishers (connectors). Each Publisher tunnels to the Netskope cloud. Publisher health directly impacts application availability.\n\nStep 1 — Configure data collection\nVerify NPA data:\n```spl\nindex=netskope earliest=-24h\n| where isnotnull(publisher_name) OR isnotnull(npa_status)\n| stats count by publisher_name, publisher_status\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Publisher health:\n```spl\nindex=netskope earliest=-24h\n| where isnotnull(publisher_name)\n| dedup publisher_name sortby -_time\n| table publisher_name, publisher_status, _time\n| eval health=if(publisher_status=\"Connected\", \"Healthy\", \"UNHEALTHY\")\n```\n\nUnderstanding this SPL: Shows the current status of each NPA Publisher. If a Publisher is disconnected, all private apps behind it become unreachable through ZTNA. Users may fall back to VPN or lose access entirely. Multiple Publishers per app segment provide redundancy.\n\nApplication access success rate:\n```spl\nindex=netskope earliest=-24h\n| where isnotnull(npa_status)\n| eval success=if(npa_status=\"Connected\", 1, 0)\n| stats avg(success) as success_rate count by private_app_name\n| eval success_pct=round(success_rate*100, 1)\n| sort success_pct\n```\n\nStep 3 — Validate\n(a) In Netskope Admin: Settings > Security Cloud Platform > Publishers.\n(b) Access a private app via NPA. Verify the event.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Publisher status. Row 2 — App access success rate. Row 3 — Connection failures.\nAlert: Immediate when any Publisher goes offline.\n\nRunbook:\n1. **Publisher offline** — Check Publisher VM. Restart Netskope Publisher service.\n2. **Low success rate** — App server may be down. Check behind the Publisher.\n3. **All Publishers offline** — Network outage at Publisher site. Escalate.\n\nStep 5 — Troubleshooting\n• **No NPA events** — NPA may not be licensed. Check Netskope subscription.\n• **`publisher_status` missing** — Infrastructure events may require a separate API endpoint.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Netskope Add-on for Splunk (Splunkbase 3808)). Enable the modular input or HEC token that writes sourcetype=netskope:connection into casb. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`error_pct, healthy, latency_ms, private_app`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Our private applications are accessed through special connectors called Publishers instead of a VPN. We monitor each Publisher to make sure it is running, because if it goes down, people cannot reach the applications it serves — even though they have the right permissions.",
-  "hardware": "Netskope Security Cloud, Netskope Publisher (on-prem connector), Netskope Client"
+  "hardware": "Netskope Security Cloud, Netskope Publisher (on-prem connector), Netskope Client",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

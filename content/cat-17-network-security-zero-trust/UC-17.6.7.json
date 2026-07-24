@@ -9,11 +9,17 @@
     "Governance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Akamai Guardicore Segmentation Policy Change Audit Trail (`guardicore:policy`)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_akamai_guardicore_segmentation_policy_change_aud` (UC-17.6.7), SOC dashboard panel \"Network — Akamai Guardicore Segmentation Policy Change Audit Trail (`guardicore:policy`)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.6.7 positive (Akamai, Guardicore, Segmentation, Policy, Change): ingest synthetic events into `index=microseg` sourcetype='guardicore:policy' where `values` grouped by `admin_user`, `policy_name` satisfies -30d for 'Akamai Guardicore Segmentation Policy Change Audit Trail (`guardicore:policy`)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.6.7 negative (Trail (`guardicore:policy`)): ingest benign `microseg` / `guardicore:policy` events where `admin_user`, `policy_name` stays below -30d, or exclude the test entity via `network_exception_register.csv`. Variant 11 confirms zero alert rows for 'Akamai Guardicore Segmentation Policy Change Audit Trail (`guardicore:policy`)'."
+  },
   "dataSources": "Guardicore Centra exports: `guardicore:network`, `guardicore:agent`, `guardicore:incident`, `guardicore:policy`, `guardicore:deception`",
   "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=microseg sourcetype=\"guardicore:policy\" earliest=-30d\n| stats count values(change_type) as changes by admin_user, policy_name\n| sort -count",
-  "description": "Policy drift increases risk; auditing who relaxed rules supports least-privilege governance.",
-  "value": "Compliance and security governance teams audit all microsegmentation policy changes, detect unauthorized relaxations that weaken east-west controls, and verify that changes occur within approved maintenance windows.",
+  "description": "Monitors UC-17.6.7 — Akamai, Guardicore, Segmentation, Policy, Change — using `index=microseg` sourcetype `guardicore:policy`, grouped by `admin_user`, `policy_name`. Outputs `values` each `the scheduled window`; alert when -30d. Primary focus: Trail (`guardicore:policy`). Purpose-built for 'Akamai Guardicore Segmentation Policy Change Audit Trail (`guardicore:policy`)' in Network workflows.",
+  "value": "UC-17.6.7 helps teams contain Akamai, Guardicore, Segmentation, Policy, Change scenarios and reduce unauthorized access, segmentation drift, and NAC policy failures before incidents compound.",
   "implementation": "Install the add-on, configure API polling intervals appropriate to API limits, and map assets to CMDB for enrichment lookups.",
   "visualization": "Timeline, table.",
   "cimModels": [],
@@ -22,18 +28,34 @@
   "references": [
     {
       "title": "Splunkbase — Akamai Guardicore Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/7426"
+      "url": "https://splunkbase.splunk.com/app/7426",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Akamai Guardicore documentation",
-      "url": "https://www.akamai.com/products/guardicore"
+      "url": "https://www.akamai.com/products/guardicore",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Maintenance window on `microseg` (UC-17.6.7)** — Planned work for 'Akamai Guardicore Segmentation Policy Change Audit Trail (`guardicore:policy`)' shifts `values` over `span=1h` while `admin_user`, `policy_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `guardicore:policy`** — Scheduled automation elevates `policy_name` without crossing configured threshold for UC-17.6.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `admin_user`, `policy_name`** — Health checks in `microseg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `guardicore:policy`** — First 48h baseline for UC-17.6.7 on `admin_user` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `admin_user`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "guardicore",
     "m365"
+  ],
+  "equipmentModels": [
+    "guardicore_generic",
+    "m365_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -43,5 +65,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n• Akamai Guardicore Add-on for Splunk (Splunkbase 7426) v3.x collecting policy and audit events from the Centra REST API.\n• Data in `index=microseg` with `sourcetype=guardicore:policy`. Key fields: `change_type` (create/modify/delete), `policy_name`, `admin_user`, `source_ip`, `timestamp`, `old_value`, `new_value`, `affected_segments`.\n• Centra audit logging must be enabled (default in v4.x+). The TA polls the audit API endpoint for policy change events.\n• Create a `gc_admins.csv` lookup: `admin_user,role,team,approved_change_window` for mapping administrators to their authorized change windows.\n\nStep 1 — Configure data collection\nVerify policy change events are arriving:\n```spl\nindex=microseg sourcetype=\"guardicore:policy\" earliest=-30d\n| stats count by change_type, admin_user\n```\nYou should see create/modify/delete events attributed to named administrators. If empty: verify the TA's audit API input is enabled, and that the API account has audit-read permissions.\n\nStep 2 — Create the search and alert\n\nPrimary search — Policy changes with risk assessment:\n```spl\nindex=microseg sourcetype=\"guardicore:policy\" earliest=-30d\n| eval risk=case(\n    change_type=\"delete\", \"HIGH\",\n    match(lower(new_value), \"(?i)any|allow.*all|0\\.0\\.0\\.0\"), \"HIGH\",\n    change_type=\"modify\" AND isnotnull(old_value), \"MEDIUM\",\n    change_type=\"create\", \"LOW\",\n    1==1, \"INFO\"\n)\n| lookup gc_admins.csv admin_user OUTPUT role team approved_change_window\n| eval outside_window=if(isnotnull(approved_change_window) AND NOT match(strftime(_time, \"%H\"), approved_change_window), \"YES\", \"NO\")\n| stats count values(change_type) as changes values(policy_name) as policies by admin_user, risk, outside_window, team\n| sort - risk, - count\n```\n\nUnderstanding this SPL: Classifies policy changes by risk level. Deletions are always high-risk (removing protection). Modifications that introduce overly broad rules (any/allow-all/0.0.0.0) are also high-risk — these bypass intended segmentation. Changes outside the administrator's approved window may indicate compromised credentials or unauthorized access.\n\nPolicy relaxation detection:\n```spl\nindex=microseg sourcetype=\"guardicore:policy\" earliest=-7d\n| where change_type=\"modify\"\n| eval relaxed=if(match(lower(new_value), \"allow|permit|any\") AND NOT match(lower(old_value), \"allow|permit|any\"), \"YES\", \"NO\")\n| where relaxed=\"YES\"\n| table _time, admin_user, policy_name, old_value, new_value\n| sort - _time\n```\n\nStep 3 — Validate\n(a) In Guardicore Centra: Administration > Audit Log. Compare the change entries with Splunk for the same time range.\n(b) Make a test policy change (e.g., add a comment to a rule). Verify the event appears in Splunk with the correct `admin_user`, `change_type`, and `policy_name`.\n(c) Verify admin mapping: spot-check 3 admin usernames against the `gc_admins.csv` lookup.\n\nStep 4 — Operationalize\nDashboard (\"Guardicore — Policy Audit\"):\n• Row 1 — Single-value tiles: \"Changes (30d)\", \"High-risk changes\", \"Outside-window changes\".\n• Row 2 — Timechart: changes by type over 30 days.\n• Row 3 — Table: admin, change type, policy, risk, timestamp.\n\nAlert: Trigger immediately for any HIGH-risk change (deletion or broad allow rule). Trigger for any change outside the approved window.\n\nRunbook:\n1. **Policy deleted** — Verify with the administrator. If unintentional: restore from Centra's policy version history. If intentional: document the business justification.\n2. **Broad allow rule created** — This effectively disables segmentation for the affected segments. Confirm with the administrator and set a review deadline to narrow the rule.\n3. **Change outside approved window** — Investigate whether the admin account was compromised. Check the source IP against known admin workstations.\n\nStep 5 — Troubleshooting\n• **No policy events** — The TA's audit input may not be enabled. Check the TA setup page and enable the Audit/Policy input.\n• **`admin_user` shows a service account** — API-driven changes (e.g., from automation or orchestration) use service accounts. Ensure these are documented in `gc_admins.csv`.\n• **`old_value` and `new_value` are empty** — Some change types (especially 'create') may not populate diff fields. Focus on 'modify' and 'delete' for diff analysis.",
-  "grandmaExplanation": "We keep a log of who changed the security rules inside our network, when they did it, and what they changed, so we can catch mistakes or unauthorized weakening of our defenses."
+  "grandmaExplanation": "We keep a log of who changed the security rules inside our network, when they did it, and what they changed, so we can catch mistakes or unauthorized weakening of our defenses.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

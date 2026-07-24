@@ -9,23 +9,55 @@
     "Audit"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player/achievements (`steam:player`), Sonarr/Radarr events (`sonarr:event`).",
-  "app": "Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and *arr stack (Sonarr/Radarr) APIs and webhooks via HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'GOG Galaxy Library Status Mix' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_gog_galaxy_library_status_mix` (UC-25.7.77), SOC dashboard panel \"Personal — GOG Galaxy Library Status Mix\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.7.77 positive (GOG, Galaxy, Library, Status, Mix): ingest synthetic events into `index=personal` sourcetype='gog:library' where `count` grouped by `status_value` satisfies detection threshold for 'GOG Galaxy Library Status Mix'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.7.77 negative (Status Mix): ingest benign `personal` / `gog:library` events where `status_value` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'GOG Galaxy Library Status Mix'."
+  },
+  "dataSources": "Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player/achievements (`steam:player`), Sonarr/Radarr events (`sonarr:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and *arr stack (Sonarr/Radarr) APIs and webhooks via HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=gog:library\n| eval status_value=lower(coalesce(library_status,\"unknown\"))\n| stats count as events by status_value\n| sort - events",
-  "description": "Breaks down the current mix of states reported by the GOG Galaxy library feed.",
-  "value": "A status-mix panel provides quick at-a-glance context before you investigate specific outliers.",
+  "description": "Detects UC-25.7.77 — GOG, Galaxy, Library, Status, Mix — using `index=personal` sourcetype `gog:library`, grouped by `status_value`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Status Mix. Purpose-built for 'GOG Galaxy Library Status Mix' in Personal workflows.",
+  "value": "UC-25.7.77 operationalises 'GOG Galaxy Library Status Mix' against `gog:library` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Map the source's `library_status` values into a small set of clear labels and chart the resulting counts.",
   "visualization": "Donut or bar chart of event count by status.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It always the overall mood of your GOG Galaxy library feed by counting how many events are healthy, warning, or bad."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.7.77)** — Connector for 'GOG Galaxy Library Status Mix' stops polling `gog:library`; stale `count` on `status_value` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.7.77, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `gog:library`. Dedup with `stats latest(*) by status_value`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'GOG Galaxy Library Status Mix'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Media, Gaming & Entertainment — typical feeds: Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player/achievements (`steam:player`), Sonarr/Radarr events (`sonarr:e.\n• **Sourcetypes in this search**: `gog:library`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=gog:library`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and *arr stack (Sonarr/Radarr) APIs and webhooks via HEC..\n\n**Author notes:** Map the source's `library_status` values into a small set of clear labels and chart the resulting counts.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"gog:library\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=gog:library earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **GOG Galaxy Library Status Mix** over `personal` data (primarily `sourcetype=gog:library`) across the full search range. The `aggregation` aggregation groups by `status_value`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `status_value`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=gog:library\n| eval status_value=lower(coalesce(library_status,\"unknown\"))\n| stats count as events by status_value\n| sort - events\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=gog:library earliest=-7d\n| head 50\n| table status_value\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=gog:library earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.7.77: Personal evidence` with the following panel layout:\n\n**Panel 1 — Donut Or Bar Chart Of Event Count By Status (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `gog:library` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=gog:library | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It always the overall mood of your GOG Galaxy library feed by counting how many events are healthy, warning, or bad.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

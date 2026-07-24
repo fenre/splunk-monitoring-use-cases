@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=webex:device`, Webex Control Hub device telemetry",
-  "app": "`ta_cisco_webex_add_on_for_splunk`",
+  "exclusions": "Covers the detection logic documented for 'Webex Device Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_webex_device_health` (UC-11.5.4), SOC dashboard panel \"Operations — Webex Device Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.5.4 positive (Webex, Device, Health): ingest synthetic events into `index=webex` sourcetype='webex:device' where `max_cpu`, `max_temp` grouped by `device_id`, `product` satisfies `cpu_pct` > 85, or `temperature_c` > 45 for 'Webex Device Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.5.4 negative (Device Health): ingest benign `webex` / `webex:device` events where `device_id`, `product` stays below `cpu_pct` > 85, or `temperature_c` > 45, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Webex Device Health'."
+  },
+  "dataSources": "`sourcetype=webex:device`, Webex Control Hub device telemetry Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`ta_cisco_webex_add_on_for_splunk` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=webex sourcetype=\"webex:device\"\n| where health_state!=\"ok\" OR cpu_pct > 85 OR temperature_c > 45\n| stats latest(health_state) as state, max(cpu_pct) as max_cpu, max(temperature_c) as max_temp by device_id, product\n| sort -max_cpu",
-  "description": "Room devices with high CPU, thermal, or firmware errors degrade meetings; proactive health reduces onsite truck rolls and VIP room incidents.",
-  "value": "Room devices with high CPU, thermal, or firmware errors degrade meetings; proactive health reduces onsite truck rolls and VIP room incidents.",
+  "description": "Monitors UC-11.5.4 — Webex, Device, Health — using `index=webex` sourcetype `webex:device`, grouped by `device_id`, `product`. Outputs `max_cpu`, `max_temp` each `the scheduled window`; alert when `cpu_pct` > 85, or `temperature_c` > 45. Primary focus: Device Health. Purpose-built for 'Webex Device Health' in Operations workflows.",
+  "value": "UC-11.5.4 helps teams contain Webex, Device, Health scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ingest Control Hub device inventory and health APIs. Poll or stream alerts for offline, warning, or error states. Track firmware version drift. Alert on sustained high CPU or temperature before automatic thermal throttling.",
   "visualization": "Status grid (device × health), Table (devices over threshold), Line chart (CPU/temperature trend).",
   "cimModels": [
@@ -22,16 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned room maintenance, power cycles, and vendor swaps on devices under warranty.",
+  "knownFalsePositives": "1. **Maintenance window on `webex` (UC-11.5.4)** — Planned work for 'Webex Device Health' shifts `max_cpu`, `max_temp` over `span=1h` while `device_id`, `product` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `webex:device`** — Scheduled automation elevates `product` without crossing `cpu_pct` > 85 for UC-11.5.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `device_id`, `product`** — Health checks in `webex` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `webex:device`** — First 48h baseline for UC-11.5.4 on `device_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `device_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
   "equipmentModels": [
     "cisco_webex"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `ta_cisco_webex_add_on_for_splunk`.\n• Ensure the following data sources are available: `sourcetype=webex:device`, Webex Control Hub device telemetry.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest Control Hub device inventory and health APIs. Poll or stream alerts for offline, warning, or error states. Track firmware version drift. Alert on sustained high CPU or temperature before automatic thermal throttling.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=webex sourcetype=\"webex:device\"\n| where health_state!=\"ok\" OR cpu_pct > 85 OR temperature_c > 45\n| stats latest(health_state) as state, max(cpu_pct) as max_cpu, max(temperature_c) as max_temp by device_id, product\n| sort -max_cpu\n```\n\nUnderstanding this SPL\n\n**Webex Device Health** — Room devices with high CPU, thermal, or firmware errors degrade meetings; proactive health reduces onsite truck rolls and VIP room incidents.\n\nDocumented **Data sources**: `sourcetype=webex:device`, Webex Control Hub device telemetry. **App/TA** (typical add-on context): `ta_cisco_webex_add_on_for_splunk`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: webex; **sourcetype**: webex:device. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=webex, sourcetype=\"webex:device\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where health_state!=\"ok\" OR cpu_pct > 85 OR temperature_c > 45` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by device_id, product** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with Webex Control Hub device and meeting analytics for the same room or user.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (device × health), Table (devices over threshold), Line chart (CPU/temperature trend).",
-  "grandmaExplanation": "We use this to stay ahead of email and collaboration problems, so the team is not the last to know when something drifts or breaks."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `ta_cisco_webex_add_on_for_splunk`.\n• Ensure the following data sources are available: `sourcetype=webex:device`, Webex Control Hub device telemetry.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest Control Hub device inventory and health APIs. Poll or stream alerts for offline, warning, or error states. Track firmware version drift. Alert on sustained high CPU or temperature before automatic thermal throttling.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=webex sourcetype=\"webex:device\"\n| where health_state!=\"ok\" OR cpu_pct > 85 OR temperature_c > 45\n| stats latest(health_state) as state, max(cpu_pct) as max_cpu, max(temperature_c) as max_temp by device_id, product\n| sort -max_cpu\n```\n\nUnderstanding this SPL\n\n**Webex Device Health** — Room devices with high CPU, thermal, or firmware errors degrade meetings; proactive health reduces onsite truck rolls and VIP room incidents.\n\nDocumented **Data sources**: `sourcetype=webex:device`, Webex Control Hub device telemetry. **App/TA** (typical add-on context): `ta_cisco_webex_add_on_for_splunk`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: webex; **sourcetype**: webex:device. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=webex, sourcetype=\"webex:device\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where health_state!=\"ok\" OR cpu_pct > 85 OR temperature_c > 45` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by device_id, product** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with Webex Control Hub device and meeting analytics for the same room or user.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (device × health), Table (devices over threshold), Line chart (CPU/temperature trend).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`ta_cisco_webex_add_on_for_splunk` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=webex:device into webex. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cpu_pct, device_id, product, temperature_c`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to stay ahead of email and collaboration problems, so the team is not the last to know when something drifts or breaks.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

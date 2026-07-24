@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Kafka broker log files ingested as `sourcetype=kafka:serverLog`",
+  "exclusions": "Covers the detection logic documented for 'Kafka Broker Fatal Shutdown Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_kafka_broker_fatal_shutdown_detection` (UC-8.2.35), SOC dashboard panel \"Operations — Kafka Broker Fatal Shutdown Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.2.35 positive (Kafka, Broker, Fatal, Shutdown, Detection): ingest synthetic events into `index=kafka` sourcetype='kafka:serverLog' where `count` grouped by `host`, `log_level` satisfies `count` >= 1 for 'Kafka Broker Fatal Shutdown Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.2.35 negative (Shutdown Detection): ingest benign `kafka` / `kafka:serverLog` events where `host`, `log_level` stays below `count` >= 1, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Kafka Broker Fatal Shutdown Detection'."
+  },
+  "dataSources": "Kafka broker log files ingested as `sourcetype=kafka:serverLog` Indexes: kafka. Sourcetypes: kafka:serverLog. Key fields: host, log_level. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Add-on for Kafka (`Splunk_TA_kafka`, Splunkbase 2935) file monitoring",
   "spl": "index=kafka sourcetype=\"kafka:serverLog\"\n| rex \"^\\[[^\\]]+\\]\\s+(?<log_level>\\w+)\"\n| where log_level IN (\"FATAL\",\"ERROR\") AND (match(_raw, \"(?i)shutting\\s+down\") OR match(_raw, \"(?i)fatal\") OR match(_raw, \"(?i)stopped\"))\n| stats count by host, log_level\n| where count >= 1",
-  "description": "FATAL/ERROR lines that include shutdown semantics indicate the broker process is exiting or an unrecoverable subsystem failed, which immediately impacts partition availability.",
-  "value": "Triggers rapid incident response for broker loss before controller metrics and lag alarms cascade across the cluster.",
+  "description": "Alerts on Shutdown Detection anomalies for UC-8.2.35 with window `the scheduled window` on `index=kafka` sourcetype `kafka:serverLog`. Combines `count` by `host`, `log_level` and compares against `count` >= 1. Mapped to keywords Kafka, Broker, Fatal, Shutdown, Detection for dashboard routing.",
+  "value": "Alerting on Kafka, Broker, Fatal, Shutdown, Detection through UC-8.2.35 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Enable `kafka:serverLog` collection from `$KAFKA_HOME/logs` on every broker. Tune the `match` filters to your log vocabulary; add host-based suppressions for planned maintenance windows.",
   "visualization": "Timeline (fatal/error shutdown events), Table (host, sample _time), Single value (brokers with events in window).",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "Source types for the Splunk Add-on for Kafka",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/Kafka/Sourcetypes"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/Kafka/Sourcetypes",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apache Kafka — broker configuration",
-      "url": "https://kafka.apache.org/documentation/#brokerconfigs"
+      "url": "https://kafka.apache.org/documentation/#brokerconfigs",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Queues and broker metrics swing during rebalancing, replay, or maintenance. We align with change windows.",
+  "knownFalsePositives": "1. **Maintenance window on `kafka` (UC-8.2.35)** — Planned work for 'Kafka Broker Fatal Shutdown Detection' shifts `count` over `span=1h` while `host`, `log_level` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `kafka:serverLog`** — Scheduled automation elevates `log_level` without crossing `count` >= 1 for UC-8.2.35. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `log_level`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:serverLog`** — First 48h baseline for UC-8.2.35 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka"
+  ],
+  "equipmentModels": [
+    "kafka_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -40,6 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to triggers rapid incident response for broker loss before controller metrics and lag alarms cascade across the cluster."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Kafka (`Splunk_TA_kafka`, Splunkbase 2935) file monitoring). Enable the modular input or HEC token that writes sourcetype=kafka:serverLog into kafka. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, log_level`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to triggers rapid incident response for broker loss before controller metrics and lag alarms cascade across the cluster.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

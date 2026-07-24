@@ -9,6 +9,8 @@
     "Audit"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Cisco ISE Restore Audit and Configuration-Drift Detection Post-Restore' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_cisco_ise_restore_audit_and_configuration_drift_` (UC-17.1.48), SOC dashboard panel \"Network — Cisco ISE Restore Audit and Configuration-Drift Detection Post-Restore\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -73,14 +75,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Initiate a restore on a lab ISE. ISE emits 51040 followed by 51041. UC-17.1.48 captures both events.",
-    "negativeScenario": "No restore activity. UC-17.1.48 returns no rows."
+    "positiveScenario": "UC-17.1.48 positive (Cisco, ISE, Restore, Audit, and): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `values` grouped by `restore_type`, `MessageCode` satisfies `count` > 0 for 'Cisco ISE Restore Audit and Configuration-Drift Detection Post-Restore'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.48 negative (Post Restore): ingest benign `nac` / `cisco:ise:syslog` events where `restore_type`, `MessageCode` stays below `count` > 0, or exclude the test entity via `network_exception_register.csv`. Variant 14 confirms zero alert rows for 'Cisco ISE Restore Audit and Configuration-Drift Detection Post-Restore'."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Administrative and Operational Audit* category — restore codes `51040` (restore initiated), `51041` (restore completed), `51042` (restore failed), `51043` (restore partial), `51044` (post-restore replication mismatch). Fields: `restore_source`, `triggered_by`, `restore_type` (config|operational|standalone). Combined with the ISE config-export feed: an OpenAPI poller dumps the active policy set (`/api/v1/authz-policy`, `/api/v1/identity-store`) every 1h and writes to `index=nac sourcetype=cisco:ise:config_export`.",
   "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
   "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (51040, 51041, 51042, 51043, 51044))\n  OR (index=nac sourcetype=\"cisco:ise:config_export\")\n| stats count latest(_time) as last_event values(triggered_by) as admins by restore_type, MessageCode\n| where count > 0",
-  "description": "Audits all ISE restore operations (rare but high-impact events) and detects config drift in the immediate post-restore window — symptoms of an incomplete restore or a configuration roll-back gone wrong.",
-  "value": "Restoring ISE from backup is a high-risk operation; it overwrites current policies with the policies from the backup snapshot. Any in-flight policy work between the backup time and the restore time is lost. This UC ensures every restore is audited in real time and triggers a config-drift comparison against pre-restore state to surface unexpected loss.",
+  "description": "Surfaces UC-17.1.48 — Cisco, ISE, Restore, Audit, and — using `index=nac` sourcetype `cisco:ise:syslog`, grouped by `restore_type`, `MessageCode`. Outputs `values` each `the scheduled window`; alert when `count` > 0. Primary focus: Post Restore. Purpose-built for 'Cisco ISE Restore Audit and Configuration-Drift Detection Post-Restore' in Network workflows.",
+  "value": "Alerting on Cisco, ISE, Restore, Audit, and through UC-17.1.48 reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing `activity` early.",
   "implementation": "Confirm *Administrative and Operational Audit* category at INFO. The config-export OpenAPI poller is required for the drift comparison. Schedule the search every 30 min, search window `-4h@h to @h`, trigger on count > 0 (any restore event is alert-worthy).",
   "visualization": "(1) Audit table: restore events last 365d. (2) Diff panel post-restore: count of authz rules changed, identity stores reconfigured, certs replaced.",
   "cimModels": [
@@ -90,10 +92,36 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 Admin Guide — Backup and Restore",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "PCI DSS Document Library",
+      "url": "https://www.pcisecuritystandards.org/document_library/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1915",
+      "url": "https://splunkbase.splunk.com/app/1915",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Security (Splunkbase 1352)",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **Lab restore drills** — Periodic restore exercises in lab environments will fire. Tag those nodes with `environment=lab` and exclude. (b) **Disaster-recovery exercise** — Annual DR exercise restores prod backup to DR; suppress within scheduled DR-exercise window.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'Cisco ISE Restore Audit and Configuration-Drift Detection Post-Restore'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (platform lifecycle — ISE restore drill validation, no adversary technique)"
   ],
@@ -111,7 +139,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Same as UC-17.1.47.\n• Config-export poller deployed.\n\nStep 1 — Configure data collection\nDouble-check *Administrative and Operational Audit* INFO. Deploy config-export poller.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 30 min.\n\nStep 3 — Validate\nProvoke a lab restore.\n\nStep 4 — Operationalize\nDashboard \"ISE — Restore Audit\":\n• 365-day audit log table.\n• Drift diff panel post-restore.\n\nNotification: Slack to `#ise-platform` on any restore event.\n\nStep 5 — Troubleshooting\n• **Restore initiated but no completion event** — Restore in progress; large operational-data restores can take 30–60 min.\n• **Drift panel shows huge diff** — Backup was significantly older than current state; coordinate with the change team to reapply lost changes.\n• **`triggered_by` empty** — Restore was triggered via CLI; admin user not captured in syslog. Cross-reference with shell login records.",
+  "detailedImplementation": "Prerequisites\n• Same as UC-17.1.47.\n• Config-export poller deployed.\n\nStep 1 — Configure data collection\nDouble-check *Administrative and Operational Audit* INFO. Deploy config-export poller.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 30 min.\n\nStep 3 — Validate\nProvoke a lab restore.\n\nStep 4 — Operationalize\nDashboard \"ISE — Restore Audit\":\n• 365-day audit log table.\n• Drift diff panel post-restore.\n\nNotification: Slack to `#ise-platform` on any restore event.\n\nStep 5 — Troubleshooting\n• **Restore initiated but no completion event** — Restore in progress; large operational-data restores can take 30–60 min.\n• **Drift panel shows huge diff** — Backup was significantly older than current state; coordinate with the change team to reapply lost changes.\n• **`triggered_by` empty** — Restore was triggered via CLI; admin user not captured in syslog. Cross-reference with shell login records.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog, cisco:ise:config_export into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`MessageCode, restore_type`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "If someone restores ISE from a safety copy — like rolling back to last week's notebook — we record exactly what happened so we know what was kept and what was lost.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

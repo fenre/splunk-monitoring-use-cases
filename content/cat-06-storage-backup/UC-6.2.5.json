@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "S3 replication metrics (ReplicationLatency, OperationsPendingReplication)",
-  "app": "Cloud provider TAs",
+  "exclusions": "Covers the detection logic documented for 'Cross-Region Replication Lag' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cross_region_replication_lag` (UC-6.2.5), SOC dashboard panel \"Operations — Cross-Region Replication Lag\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.5 positive (Cross, Region, Replication, Lag): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `replication_lag_sec` grouped by `bucket_name` satisfies `replication_lag_sec` > 3600 for 'Cross-Region Replication Lag'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.5 negative (Replication Lag): ingest benign `aws` / `aws:cloudwatch` events where `bucket_name` stays below `replication_lag_sec` > 3600, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Cross-Region Replication Lag'."
+  },
+  "dataSources": "S3 replication metrics (ReplicationLatency, OperationsPendingReplication) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cloud provider TAs — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" metric_name=\"ReplicationLatency\"\n| timechart span=1h avg(Average) as replication_lag_sec by bucket_name\n| where replication_lag_sec > 3600",
-  "description": "Replication lag affects DR readiness. Monitoring ensures geo-redundant data meets RPO requirements.",
-  "value": "Replication lag affects DR readiness. Monitoring ensures geo-redundant data meets RPO requirements.",
+  "description": "Surfaces when Replication Lag criteria fire for 'Cross-Region Replication Lag' (UC-6.2.5) in `index=aws` sourcetype `aws:cloudwatch`. Pipeline aggregates `replication_lag_sec` by `bucket_name` over `1h`. Alert logic enforces `replication_lag_sec` > 3600. Title terms: Cross, Region, Replication, Lag. Eliminates manual hunting for UC-6.2.5 conditions.",
+  "value": "UC-6.2.5 helps teams contain Cross, Region, Replication, Lag scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Enable S3 replication metrics in CloudWatch. Ingest and alert when replication latency or pending operations exceed thresholds. Correlate with data ingestion spikes that may cause temporary lag.",
   "visualization": "Line chart (replication lag over time), Single value (max lag), Table (buckets with lag exceeding SLA).",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1876",
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Lag may increase during initial baseline transfers, scheduled resyncs, large volume moves, or upstream throttling.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-6.2.5)** — Planned work for 'Cross-Region Replication Lag' shifts `replication_lag_sec` over `span=1h` while `bucket_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `aws:cloudwatch`** — Scheduled automation elevates `src` without crossing `replication_lag_sec` > 3600 for UC-6.2.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `bucket_name`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-6.2.5 on `bucket_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `bucket_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Cloud provider TAs.\n• Ensure the following data sources are available: S3 replication metrics (ReplicationLatency, OperationsPendingReplication).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable S3 replication metrics in CloudWatch. Ingest and alert when replication latency or pending operations exceed thresholds. Correlate with data ingestion spikes that may cause temporary lag.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" metric_name=\"ReplicationLatency\"\n| timechart span=1h avg(Average) as replication_lag_sec by bucket_name\n| where replication_lag_sec > 3600\n```\n\nUnderstanding this SPL\n\n**Cross-Region Replication Lag** — Replication lag affects DR readiness. Monitoring ensures geo-redundant data meets RPO requirements.\n\nDocumented **Data sources**: S3 replication metrics (ReplicationLatency, OperationsPendingReplication). **App/TA** (typical add-on context): Cloud provider TAs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1h** buckets with a separate series **by bucket_name** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where replication_lag_sec > 3600` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Include who owns the cloud account and the bucket lifecycle policy, because object alerts often need a finance or app owner, not only the storage team. Consider visualizations: Line chart (replication lag over time), Single value (max lag), Table (buckets with lag exceeding SLA).",
-  "grandmaExplanation": "We track how far behind cross-region copies fall so you know if you are still within your recovery time after link issues or big data moves."
+  "equipmentModels": [
+    "aws_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Cloud provider TAs.\n• Ensure the following data sources are available: S3 replication metrics (ReplicationLatency, OperationsPendingReplication).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable S3 replication metrics in CloudWatch. Ingest and alert when replication latency or pending operations exceed thresholds. Correlate with data ingestion spikes that may cause temporary lag.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" metric_name=\"ReplicationLatency\"\n| timechart span=1h avg(Average) as replication_lag_sec by bucket_name\n| where replication_lag_sec > 3600\n```\n\nUnderstanding this SPL\n\n**Cross-Region Replication Lag** — Replication lag affects DR readiness. Monitoring ensures geo-redundant data meets RPO requirements.\n\nDocumented **Data sources**: S3 replication metrics (ReplicationLatency, OperationsPendingReplication). **App/TA** (typical add-on context): Cloud provider TAs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1h** buckets with a separate series **by bucket_name** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where replication_lag_sec > 3600` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Include who owns the cloud account and the bucket lifecycle policy, because object alerts often need a finance or app owner, not only the storage team. Consider visualizations: Line chart (replication lag over time), Single value (max lag), Table (buckets with lag exceeding SLA).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cloud provider TAs — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:cloudwatch into aws. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`bucket_name, replication_lag_sec`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We track how far behind cross-region copies fall so you know if you are still within your recovery time after link issues or big data moves.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

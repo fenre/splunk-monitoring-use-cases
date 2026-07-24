@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Disable DNSSEC on a .sg zone. UC-22.57.11 MUST flag within 24h.",
-    "negativeScenario": "Re-enable DNSSEC with valid signing keys. UC-22.57.11 MUST NOT escalate."
+    "positiveScenario": "UC-22.57.11 positive (Cyber, Act, IDA, SGNIC, Domain): ingest synthetic events into `index=target_index` sourcetype='dns:authoritative' where `values` grouped by `zone` satisfies detection threshold for 'SG Cyber Act IDA / SGNIC Domain Name Registrar / Registry obligations + DNSSEC compliance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.57.11 negative (DNSSEC compliance): ingest benign `target_index` / `dns:authoritative` events where `zone` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv`. Variant 1 confirms zero alert rows for 'SG Cyber Act IDA / SGNIC Domain Name Registrar / Registry obligations + DNSSEC compliance'."
   },
   "dataSources": "DNS resolver telemetry (`dns:resolver`, `dns:authoritative`). Registrar audit logs. Abuse ticketing (`registrar:abuse`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for DNS (Splunkbase 4222).",
   "spl": "(sourcetype=dns:authoritative zone=*.sg)\n| stats latest(_time) as last_query values(rrtype) as rrtypes by zone\n| eval has_dnssec = if(in(rrtypes, \"DNSKEY\") AND in(rrtypes, \"RRSIG\"), \"true\", \"false\")\n| where has_dnssec=\"false\"\n| table zone last_query has_dnssec rrtypes",
-  "description": "Surveys .sg authoritative answers for DNSSEC presence.",
-  "value": "DNR-COP mandates DNSSEC; missing DNSSEC is a registrar enforcement finding.",
+  "description": "Identifies DNSSEC compliance activity in UC-22.57.11 ('SG Cyber Act IDA / SGNIC Domain Name Registrar / Registry obligations + DNSSEC compliance') from `index=target_index` sourcetype `dns:authoritative`. Rolls up `values` by `zone` across `the scheduled window` and pages when configured threshold. Covers Cyber, Act, IDA, SGNIC, Domain. Compliance operators treat UC-22.57.11 as the canonical signal.",
+  "value": "Operators running UC-22.57.11 on `dns:authoritative` feeds shorten triage for DNSSEC compliance tied to 'SG Cyber Act IDA / SGNIC Domain Name Registrar / Registry obligations + DNSSEC compliance', lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Ingest authoritative DNS feed. (2) Schedule UC-22.57.11 daily. (3) Build the `CSA DNR Health` dashboard.",
   "visualization": "(Panel 1) DNSSEC coverage. (Panel 2) Recent un-signed zones. (Panel 3) Registrar abuse-ticket SLA. (Panel 4) Registrar MFA coverage.",
   "cimModels": [
@@ -46,14 +46,26 @@
   "references": [
     {
       "title": "CSA / SGNIC DNR COP",
-      "url": "https://www.csa.gov.sg/legislation/code-of-practice"
+      "url": "https://www.csa.gov.sg/legislation/code-of-practice",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "SGNIC",
-      "url": "https://www.sgnic.sg/"
+      "url": "https://www.sgnic.sg/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **DS-record propagation lag**: TLD parent zone may take 24-48h to publish DS records; pin `propagation_until`.\n\n**Suppression mechanism**: KV Store `csa_22_57_11_exceptions`.",
+  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit exercises 'SG Cyber Act IDA / SGNIC Domain Name Registrar / Registry obligations + DNSSEC compliance' (UC-22.57.11) on `zone` during scheduled clause SG-CSA-COC-monitoring sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `dns:authoritative` without crossing evidence threshold. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `zone`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `zone` during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `zone`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1583.001",
     "T1071.004"
@@ -82,7 +94,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + DNS TA.\n- Authoritative DNS feed.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.57.11: CSA DNR Health]\ncron_schedule = 41 13 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.11,reg=SG-Cyber-Act,clause=CSA-DNR-COP\nalert.severity = 3\n```\n\n## Step 2 — Runbook\n\n**`has_dnssec=false`**: investigate signing pipeline; resign within 24h.\n\n**SG-specific failure modes**:\n- **Registrar account compromise**: pair with UC-22.57.10 (ESCI scope) if registrar is ESCI-designated.\n- **TLD DS-record latency**: monitor parent SGNIC propagation.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + DNS TA.\n- Authoritative DNS feed.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.57.11: CSA DNR Health]\ncron_schedule = 41 13 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.11,reg=SG-Cyber-Act,clause=CSA-DNR-COP\nalert.severity = 3\n```\n\n## Step 2 — Runbook\n\n**`has_dnssec=false`**: investigate signing pipeline; resign within 24h.\n\n**SG-specific failure modes**:\n- **Registrar account compromise**: pair with UC-22.57.10 (ESCI scope) if registrar is ESCI-designated.\n- **TLD DS-record latency**: monitor parent SGNIC propagation.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for DNS (Splunkbase 4222).). Enable the modular input or HEC token that writes sourcetype=dns:authoritative into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`has_dnssec, zone`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Singapore web addresses (.sg) must use a special 'tamper-proof' system called DNSSEC. We check every day to make sure it's working.",
   "prerequisiteUseCases": [
     "UC-22.57.3"

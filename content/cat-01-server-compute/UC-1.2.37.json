@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4769)",
-  "app": "`Splunk_TA_windows`",
+  "exclusions": "Covers the detection logic documented for 'Kerberoasting Detection (SPN Ticket Requests)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_kerberoasting_detection_spn_ticket_requests` (UC-1.2.37), SOC dashboard panel \"Linux — Kerberoasting Detection (SPN Ticket Requests)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.2.37 positive (Kerberoasting, Detection, (SPN, Ticket, Requests)): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4769 where `unique_spns` grouped by `TargetUserName`, `IpAddress` satisfies `unique_spns` > 3 for 'Kerberoasting Detection (SPN Ticket Requests)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.2.37 negative (Ticket Requests)): ingest benign `wineventlog` / `WinEventLog:Security` events where `TargetUserName`, `IpAddress` stays below `unique_spns` > 3, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 7 confirms zero alert rows for 'Kerberoasting Detection (SPN Ticket Requests)'."
+  },
+  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4769) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4769\n  TicketEncryptionType=0x17\n  ServiceName!=\"krbtgt\" ServiceName!=\"*$\"\n| stats count dc(ServiceName) as unique_spns by TargetUserName, IpAddress\n| where unique_spns > 3\n| sort -unique_spns",
-  "description": "Kerberoasting requests TGS tickets for service accounts with SPNs, then cracks them offline. Detecting anomalous TGS requests catches this before passwords are compromised.",
-  "value": "Kerberoasting is stealthy; statistical views on who asks for which service name separate noise from a hunt lead.",
+  "description": "Identifies UC-1.2.37 — Kerberoasting, Detection, (SPN, Ticket, Requests) — using `index=wineventlog` sourcetype `WinEventLog:Security`, grouped by `TargetUserName`, `IpAddress`. Outputs `unique_spns` each `the scheduled window`; alert when `unique_spns` > 3. Primary focus: Ticket Requests). Purpose-built for 'Kerberoasting Detection (SPN Ticket Requests)' in Linux workflows.",
+  "value": "UC-1.2.37 operationalises 'Kerberoasting Detection (SPN Ticket Requests)' against `WinEventLog:Security` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
   "implementation": "Collect Security logs from all DCs. EventCode 4769 = TGS ticket request. Encryption type 0x17 (RC4) is the Kerberoasting indicator — modern environments should use AES (0x12). Alert when a single user requests RC4 tickets for multiple service SPNs. Exclude machine accounts ($) and krbtgt. Remediation: enforce AES-only on service accounts and use Group Managed Service Accounts (gMSAs).",
   "visualization": "Table (suspicious requestors), Bar chart (TGS requests by encryption type), Timeline.",
   "cimModels": [
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Service accounts, legacy SPNs, and Tier-2 services request many TGS. Hunt on *new* SPN+user pairings, not volume alone.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `TargetUserName` metrics for 'Kerberoasting Detection (SPN Ticket Requests)'. Correlate with apt/yum logs in the same `WinEventLog:Security` window.\n\n2. **Nightly backup I/O on `TargetUserName`** — Predictable `dc` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Security`** — Nagios/Zabbix polls `TargetUserName` and mimics sustained load without crossing `unique_spns` > 3.\n\n4. **New host onboarding** — `TargetUserName` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `TargetUserName`, `valid_until`.",
   "equipment": [
     "windows"
   ],
+  "equipmentModels": [
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 4769).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect Security logs from all DCs. EventCode 4769 = TGS ticket request. Encryption type 0x17 (RC4) is the Kerberoasting indicator — modern environments should use AES (0x12). Alert when a single user requests RC4 tickets for multiple service SPNs. Exclude machine accounts ($) and krbtgt. Remediation: enforce AES-only on service accounts and use Group Managed Service Accounts (gMSAs).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4769\n  TicketEncryptionType=0x17\n  ServiceName!=\"krbtgt\" ServiceName!=\"*$\"\n| stats count dc(ServiceName) as unique_spns by TargetUserName, IpAddress\n| where unique_spns > 3\n| sort -unique_spns\n```\n\nUnderstanding this SPL\n\n**Kerberoasting Detection (SPN Ticket Requests)** — Kerberoasting requests TGS tickets for service accounts with SPNs, then cracks them offline. Detecting anomalous TGS requests catches this before passwords are compromised.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4769). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Security. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Security\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by TargetUserName, IpAddress** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where unique_spns > 3` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication where nodename=Authentication\n  by Authentication.user Authentication.src span=1h\n| where count>0\n```\n\nUnderstanding this CIM / accelerated SPL\n\nCIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.\n\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (suspicious requestors), Bar chart (TGS requests by encryption type), Timeline.",
-  "grandmaExplanation": "We look for a burst of ticket requests that can mean someone is trying to grab password hashes to crack offline later."
+  "grandmaExplanation": "We look for a burst of ticket requests that can mean someone is trying to grab password hashes to crack offline later.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

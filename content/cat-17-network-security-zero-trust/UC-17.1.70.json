@@ -9,6 +9,8 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'OCSP Responder and CRL Repository Reachability and Latency Monitoring' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ocsp_responder_and_crl_repository_reachability_a` (UC-17.1.70), SOC dashboard panel \"Network — OCSP Responder and CRL Repository Reachability and Latency Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -61,14 +63,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Block OCSP responder URL via firewall. ISE emits 35102. UC-17.1.70 fires.",
-    "negativeScenario": "OCSP/CRL reachable. No fires."
+    "positiveScenario": "UC-17.1.70 positive (OCSP, Responder, and, CRL, Repository): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `count` grouped by `ocsp_responder_url`, `crl_repository_url`, `MessageCode`, `failure_reason` satisfies `count` > 5, `count` > 1, or `count` > 0 for 'OCSP Responder and CRL Repository Reachability and Latency Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.70 negative (Latency Monitoring): ingest benign `nac` / `cisco:ise:syslog` events where `ocsp_responder_url`, `crl_repository_url`, `MessageCode`, `failure_reason` stays below `count` > 5, `count` > 1, or `count` > 0, or exclude the test entity via `network_exception_register.csv`. Variant 2 confirms zero alert rows for 'OCSP Responder and CRL Repository Reachability and Latency Monitoring'."
   },
-  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Certificate* category — codes `35100` (OCSP request sent), `35101` (OCSP responder reachable), `35102` (OCSP responder unreachable), `35103` (OCSP response latency), `35200` (CRL download successful), `35201` (CRL download failed). Field: `ocsp_responder_url`, `crl_repository_url`, `latency_ms`, `failure_reason`.",
-  "app": "`Splunk Add-on for Cisco Identity Services`.",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Certificate* category — codes `35100` (OCSP request sent), `35101` (OCSP responder reachable), `35102` (OCSP responder unreachable), `35103` (OCSP response latency), `35200` (CRL download successful), `35201` (CRL download failed). Field: `ocsp_responder_url`, `crl_repository_url`, `latency_ms`, `failure_reason`. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (35102, 35201, 35103)\n| stats count by ocsp_responder_url, crl_repository_url, MessageCode, failure_reason\n| where (MessageCode==\"35102\" AND count > 5) OR (MessageCode==\"35201\" AND count > 1) OR (MessageCode==\"35103\" AND count > 0)",
-  "description": "Tracks OCSP responder availability and latency, and CRL repository download success/failure. Alerts when OCSP becomes unreachable, OCSP latency exceeds 2 seconds, or CRL downloads fail.",
-  "value": "OCSP/CRL failures cause certificate revocation checks to fall back to a pre-configured behaviour (often 'allow' or 'use cached'). Either silently weakens authentication or causes mass auth failures depending on configuration. Visibility prevents both.",
+  "description": "Detects UC-17.1.70 for OCSP, Responder, and, CRL, Repository over `index=nac` sourcetype `cisco:ise:syslog` with thresholds `count` > 5, `count` > 1, or `count` > 0. Groups `count` by `ocsp_responder_url`, `crl_repository_url`, `MessageCode`, `failure_reason` each `the scheduled window`. Centered on Latency Monitoring indicators. Supports repeatable network triage for 'OCSP Responder and CRL Repository Reachability and Latency Monitoring'.",
+  "value": "For 'OCSP Responder and CRL Repository Reachability and Latency Monitoring', UC-17.1.70 converts `activity` on `cisco:ise:syslog` feeds into actionable rows and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Schedule every 15 min.",
   "visualization": "OCSP responder availability heatmap; CRL freshness by repository; latency distribution.",
   "cimModels": [],
@@ -76,10 +78,26 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 — Certificate Revocation",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "PCI DSS Document Library",
+      "url": "https://www.pcisecuritystandards.org/document_library/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) Brief OCSP responder maintenance windows.\n(b) Network blips affecting external OCSP responders.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'OCSP Responder and CRL Repository Reachability and Latency Monitoring'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "T1550.001"
   ],
@@ -97,7 +115,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Standard pattern.",
+  "detailedImplementation": "Standard pattern.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`MessageCode, crl_repository_url, failure_reason, ocsp_responder_url`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When a certificate is presented, ISE asks the issuing authority 'is this still valid?' over OCSP/CRL. If those services are down, ISE may silently approve or block everyone. We watch their health.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

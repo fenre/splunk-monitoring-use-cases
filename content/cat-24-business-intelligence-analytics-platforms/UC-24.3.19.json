@@ -9,30 +9,55 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Looker System Activity (`looker:system_activity`), Looker API (`looker:api`).",
-  "app": "Looker System Activity via DB Connect/API; Looker instance logs via UF; plan and query events via HEC.",
+  "exclusions": "Covers the detection logic documented for 'Looker Peak Concurrency Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_looker_peak_concurrency_tracking` (UC-24.3.19), SOC dashboard panel \"Operations — Looker Peak Concurrency Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.3.19 positive (Looker, Peak, Concurrency, Tracking): ingest synthetic events into `index=bi` sourcetype='looker:system_activity' where `concurrent`, `peak_concurrency`, `avg_concurrency` grouped by `_time` satisfies detection threshold for 'Looker Peak Concurrency Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.3.19 negative (Concurrency Tracking): ingest benign `bi` / `looker:system_activity` events where `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Looker Peak Concurrency Tracking'."
+  },
+  "dataSources": "Looker System Activity (`looker:system_activity`), Looker API (`looker:api`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Looker System Activity via DB Connect/API; Looker instance logs via UF; plan and query events via HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=looker:system_activity\n| bin _time span=5m\n| stats dc(session_id) as concurrent by _time\n| timechart span=1h max(concurrent) as peak_concurrency, avg(concurrent) as avg_concurrency",
-  "description": "Measures concurrent Looker sessions in five-minute buckets and rolls the peak up hourly, revealing the load peaks that drive sizing and licensing decisions.",
-  "value": "Peak concurrency, not average, determines whether Looker has enough capacity; tracking it prevents peak-hour slowdowns and right-sizes the platform.",
+  "description": "Monitors UC-24.3.19 — Looker, Peak, Concurrency, Tracking — using `index=bi` sourcetype `looker:system_activity`, grouped by `_time`. Outputs `concurrent`, `peak_concurrency`, `avg_concurrency` each `5m`; alert when configured threshold. Primary focus: Concurrency Tracking. Purpose-built for 'Looker Peak Concurrency Tracking' in Operations workflows.",
+  "value": "For 'Looker Peak Concurrency Tracking', UC-24.3.19 converts `concurrent`, `peak_concurrency`, `avg_concurrency` on `looker:system_activity` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Ingest Looker session events; schedule hourly and alert when peak concurrency approaches the licensed or engineered limit.",
   "visualization": "Timechart of Looker peak vs. average concurrency.",
   "cimModels": [],
   "references": [
     {
       "title": "Looker — System Activity",
-      "url": "https://cloud.google.com/looker/docs/system-activity-pages"
+      "url": "https://cloud.google.com/looker/docs/system-activity-pages",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Looker — API 4.0 reference",
-      "url": "https://cloud.google.com/looker/docs/reference/looker-api/latest"
+      "url": "https://cloud.google.com/looker/docs/reference/looker-api/latest",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.3.19)** — Planned work for 'Looker Peak Concurrency Tracking' shifts `concurrent`, `peak_concurrency`, `avg_concurrency` over `span=5m` while `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `looker:system_activity`** — Scheduled automation elevates `src` without crossing configured threshold for UC-24.3.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `looker:system_activity`** — First 48h baseline for UC-24.3.19 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],
-  "grandmaExplanation": "We watch how many people use Looker at the same time so it can be sized for the busy periods."
+  "equipmentModels": [
+    "db_connect_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Looker System Activity via DB Connect/API; Looker instance logs via UF; plan and query events via HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=looker:system_activity into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how many people use Looker at the same time so it can be sized for the busy periods.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

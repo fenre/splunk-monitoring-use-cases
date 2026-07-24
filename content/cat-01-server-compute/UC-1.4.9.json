@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`ipmitool sdr`, IPMI SEL (System Event Log)",
-  "app": "Custom scripted input (`ipmitool`), or Splunk Add-on for Unix and Linux to package similar poll scripts; IPMI to BMC",
+  "exclusions": "Covers the detection logic documented for 'Out-of-Band Sensor Threshold Breach (IPMI)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_out_of_band_sensor_threshold_breach_ipmi` (UC-1.4.9), SOC dashboard panel \"Linux — Out-of-Band Sensor Threshold Breach (IPMI)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.4.9 positive (Out, Band, Sensor, Threshold, Breach): ingest synthetic events into `index=hardware` sourcetype='ipmi_sdr' where `count` grouped by `entity` satisfies detection threshold for 'Out-of-Band Sensor Threshold Breach (IPMI)'. Validate filter `sensor_type=\"Temperature\" OR sensor_type=\"Voltage\" OR sensor`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.4.9 negative (Breach (IPMI)): ingest benign `hardware` / `ipmi_sdr` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 2 confirms zero alert rows for 'Out-of-Band Sensor Threshold Breach (IPMI)'."
+  },
+  "dataSources": "`ipmitool sdr`, IPMI SEL (System Event Log) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (`ipmitool`), or Splunk Add-on for Unix and Linux to package similar poll scripts; IPMI to BMC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=hardware sourcetype=ipmi_sdr host=*\n| search sensor_type=\"Temperature\" OR sensor_type=\"Voltage\" OR sensor_type=\"Fan\"\n| eval status=case(sensor_reading >= upper_critical, \"Critical\", sensor_reading >= upper_non_critical, \"Warning\", 1=1, \"OK\")\n| where status != \"OK\"\n| table _time host sensor_name sensor_reading upper_critical status",
-  "description": "IPMI sensor events (temperature, voltage, fan) indicate environmental or hardware problems before they cause crashes. Critical for datacenter and server health.",
-  "value": "Comparing each reading to its warning and critical cutoffs flags hot, weak power, and weak airflow before a server thermal-throttles or powers off, without waiting for the operating system to notice.",
+  "description": "Surfaces UC-1.4.9 for Out, Band, Sensor, Threshold, Breach over `index=hardware` sourcetype `ipmi_sdr` with thresholds configured threshold. Groups `count` by `entity` each `the scheduled window`. Differentiated by filter `sensor_type=\"Temperature\" OR sensor_type=\"Voltage\" OR sensor`. Supports repeatable linux triage for 'Out-of-Band Sensor Threshold Breach (IPMI)'.",
+  "value": "For 'Out-of-Band Sensor Threshold Breach (IPMI)', UC-1.4.9 converts `activity` on `ipmi_sdr` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Create scripted input: `ipmitool sdr type temperature` (and voltage, fan). Parse thresholds and current readings. Forward IPMI SEL for discrete events. Alert on Critical/Warning threshold breach.",
   "visualization": "Gauges per sensor, Table of breached sensors, Timeline of SEL events.",
   "cimModels": [],
@@ -20,16 +26,38 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Missing or misparsed `upper_non_critical` and `upper_critical` numbers will mis-classify. Seasonal data-hall changes, fan curves after dust cleaning, and sensors marked `na` in `ipmitool` output can add noise. Compare to facility monitoring before paging.",
+  "knownFalsePositives": "1. **Patch Tuesday on `hardware`** — Package managers spike `host` metrics for 'Out-of-Band Sensor Threshold Breach (IPMI)'. Correlate with apt/yum logs in the same `ipmi_sdr` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ipmi_sdr`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hardware_bmc"
   ],
   "equipmentModels": [
     "hardware_bmc_ipmi"
   ],
-  "detailedImplementation": "Prerequisites\n• Install `ipmitool` on a collector or the host, or use a vendor poll from the out-of-band network.\n• Parse `sourcetype=ipmi_sdr` with `sensor_type`, `sensor_reading`, `upper_critical`, and `upper_non_critical` (names must match the search or adjust the `eval`).\n• For app packaging, the add-on for Unix and Linux is often installed next to the forwarder; the IPMI work is still custom scripting into your sourcetype.\n\nStep 1 — Configure data collection\nRun `ipmitool sdr elist` or per-type SDR and normalize units. Ingest to `index=hardware` with a stable `host` value for the target server. Forward SEL in parallel if you also alert on discrete events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust the `case` logic to your vendor’s semantics):\n\n```spl\nindex=hardware sourcetype=ipmi_sdr host=*\n| search sensor_type=\"Temperature\" OR sensor_type=\"Voltage\" OR sensor_type=\"Fan\"\n| eval status=case(sensor_reading >= upper_critical, \"Critical\", sensor_reading >= upper_non_critical, \"Warning\", 1=1, \"OK\")\n| where status != \"OK\"\n| table _time host sensor_name sensor_reading upper_critical status\n```\n\nUnderstanding this SPL\n\n**Out-of-Band Sensor Threshold Breach (IPMI)** — IPMI sensor events (temperature, voltage, fan) indicate environmental or hardware problems before they cause crashes. Critical for datacenter and server health.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=ipmi_sdr`.\n• `search` and `eval` build a `status` from live reading vs. thresholds.\n• `table` shows breached sensors for triage.\n\n\nStep 3 — Validate\nOn a test server, compare `ipmitool sdr` to indexed fields. For full details, see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We compare each out-of-band temperature, voltage, and fan reading to the safe limits, so a room that is too hot or a fan that is too weak is caught before the server has to shut itself down."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install `ipmitool` on a collector or the host, or use a vendor poll from the out-of-band network.\n• Parse `sourcetype=ipmi_sdr` with `sensor_type`, `sensor_reading`, `upper_critical`, and `upper_non_critical` (names must match the search or adjust the `eval`).\n• For app packaging, the add-on for Unix and Linux is often installed next to the forwarder; the IPMI work is still custom scripting into your sourcetype.\n\nStep 1 — Configure data collection\nRun `ipmitool sdr elist` or per-type SDR and normalize units. Ingest to `index=hardware` with a stable `host` value for the target server. Forward SEL in parallel if you also alert on discrete events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust the `case` logic to your vendor’s semantics):\n\n```spl\nindex=hardware sourcetype=ipmi_sdr host=*\n| search sensor_type=\"Temperature\" OR sensor_type=\"Voltage\" OR sensor_type=\"Fan\"\n| eval status=case(sensor_reading >= upper_critical, \"Critical\", sensor_reading >= upper_non_critical, \"Warning\", 1=1, \"OK\")\n| where status != \"OK\"\n| table _time host sensor_name sensor_reading upper_critical status\n```\n\nUnderstanding this SPL\n\n**Out-of-Band Sensor Threshold Breach (IPMI)** — IPMI sensor events (temperature, voltage, fan) indicate environmental or hardware problems before they cause crashes. Critical for datacenter and server health.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=ipmi_sdr`.\n• `search` and `eval` build a `status` from live reading vs. thresholds.\n• `table` shows breached sensors for triage.\n\n\nStep 3 — Validate\nOn a test server, compare `ipmitool sdr` to indexed fields. For full details, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted input (`ipmitool`), or Splunk Add-on for Unix and Linux to package similar poll scripts; IPMI to BMC — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ipmi_sdr into hardware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We compare each out-of-band temperature, voltage, and fan reading to the safe limits, so a room that is too hot or a fan that is too weak is caught before the server has to shut itself down.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

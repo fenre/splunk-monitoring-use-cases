@@ -8,24 +8,42 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'ThousandEyes Data Collection Health Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_thousandeyes_data_collection_health_monitoring` (UC-5.9.49), SOC dashboard panel \"Operations — ThousandEyes Data Collection Health Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.9.49 positive (ThousandEyes, Data, Collection, Health, Monitoring): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `count` grouped by `entity` satisfies `event_count` < 10 for 'ThousandEyes Data Collection Health Monitoring'. Validate macro `stream_index`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.9.49 negative (Health Monitoring): ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `event_count` < 10, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'ThousandEyes Data Collection Health Monitoring'."
+  },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` and `index=_internal` from the Splunk internal logs. This UC monitors the health of the ThousandEyes → Splunk data pipeline itself — ensuring data is flowing, HEC is receiving events, and the OTel stream is active. Uses event volume trending and gap detection.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`stream_index` earliest=-2h\n| timechart span=5m count as event_count\n| where event_count < 10",
-  "description": "Monitors the health of the data pipeline from ThousandEyes to Splunk — detecting data gaps, HEC failures, OAuth token expiration, and integration outages. This is the \"monitoring for the monitoring\" UC that ensures all other ThousandEyes UCs (5.9.1–5.9.48) have data to work with.",
-  "value": "Every ThousandEyes UC depends on data flowing from ThousandEyes to Splunk. If the OTel stream stops, the HEC token expires, or the OAuth authentication fails, ALL ThousandEyes UCs silently stop working — no alerts fire, no dashboards update, and the team assumes \"no news is good news\" when in reality the monitoring system itself is broken. This UC detects that failure mode immediately. It's the foundation that all other ThousandEyes monitoring depends on.",
+  "description": "Detects UC-5.9.49 — ThousandEyes, Data, Collection, Health, Monitoring — using `index=target_index` sourcetype `configured sourcetype`, grouped by `entity`. Outputs `count` each `5m`; alert when `event_count` < 10. Filter chain includes macro `stream_index`. Purpose-built for 'ThousandEyes Data Collection Health Monitoring' in Operations workflows.",
+  "value": "Alerting on ThousandEyes, Data, Collection, Health, Monitoring through UC-5.9.49 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Monitor event volume in the ThousandEyes indexes and HEC health in _internal. Alert when volume drops below expected baseline.",
   "visualization": "(1) Timechart: event volume per 5 minutes (flat line = data gap). (2) Single value: events received in last hour (green > threshold, red < threshold). (3) Table: last event time per index/sourcetype. (4) HEC health from _internal logs.",
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HEC troubleshooting",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/TroubleshootHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/TroubleshootHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Low test volume environments.** If you have very few ThousandEyes tests (< 5), event volume may naturally be low. Adjust the threshold to match your expected data volume.\n\n**Off-hours data reduction.** If tests are scheduled only during business hours, data volume drops at night. Account for this in your baseline.\n\n**Splunk maintenance.** Splunk restarts or indexer maintenance may cause brief data gaps.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.9.49)** — Planned work for 'ThousandEyes Data Collection Health Monitoring' shifts `count` over `span=5m` while `host` remains in-scope. Applies macro `stream_index`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `src` without crossing `event_count` < 10 for UC-5.9.49. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.9.49 on `host` is unstable; join `stream_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

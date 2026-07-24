@@ -9,27 +9,48 @@
     "Availability"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "Perfmon `object=MSExchangeIS Mailbox` counter `RPC Average Latency`",
+  "exclusions": "Covers the detection logic documented for 'Exchange Information Store Mailbox RPC Average Latency (Perfmon)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_exchange_information_store_mailbox_rpc_average_l` (UC-11.1.15), SOC dashboard panel \"Operations — Exchange Information Store Mailbox RPC Average Latency (Perfmon)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.1.15 positive (Exchange, Information, Store, Mailbox, RPC): ingest synthetic events into `index=perfmon` sourcetype='target_sourcetype' where `avg_mapi_ms`, `peak_mapi_ms` grouped by `_time`, `host`, `instance` satisfies `ms` > 100 for 'Exchange Information Store Mailbox RPC Average Latency (Perfmon)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.1.15 negative (Latency (Perfmon)): ingest benign `perfmon` / `target_sourcetype` events where `_time`, `host`, `instance` stays below `ms` > 100, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Exchange Information Store Mailbox RPC Average Latency (Perfmon)'."
+  },
+  "dataSources": "Perfmon `object=MSExchangeIS Mailbox` counter `RPC Average Latency` Indexes: perfmon. Key fields: _time, host, instance, ms. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Add-on for Windows (perfmon) + Splunk Add-on for Microsoft Exchange (Splunkbase 3225) context",
   "spl": "index=perfmon object=\"MSExchangeIS Mailbox\" counter=\"RPC Average Latency\" earliest=-4h\n| eval ms=coalesce(Value, value)\n| where ms>100\n| bin _time span=5m\n| stats avg(ms) as avg_mapi_ms max(ms) as peak_mapi_ms by _time, host, instance\n| sort -peak_mapi_ms",
-  "description": "The Information Store RPC average latency counter tracks how quickly the mailbox database role serves RPC requests; sustained breaches of vendor guidance precede Outlook freezes, search failures, and database failovers.",
-  "value": "Isolates back-end mailbox performance issues from client-access front ends, shortening root-cause analysis during brownouts.",
+  "description": "Monitors UC-11.1.15 — Exchange, Information, Store, Mailbox, RPC — using `index=perfmon` sourcetype `configured sourcetype`, grouped by `_time`, `host`, `instance`. Outputs `avg_mapi_ms`, `peak_mapi_ms` each `5m`; alert when `ms` > 100. Primary focus: Latency (Perfmon). Purpose-built for 'Exchange Information Store Mailbox RPC Average Latency (Perfmon)' in Operations workflows.",
+  "value": "For 'Exchange Information Store Mailbox RPC Average Latency (Perfmon)', UC-11.1.15 converts `avg_mapi_ms`, `peak_mapi_ms` on UC-11.1.15 search results into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Collect perfmon with `_total` or per-database instances as your monitoring standard requires. Thresholds vary by Exchange version—validate against Microsoft guidance for your build. Investigate storage subsystems when latency rises without CPU saturation.",
   "visualization": "Timechart per host, table (instance × peak), heatmap.",
   "dataModelAcceleration": "Not applicable; primary SPL uses raw or vendor-normalized event fields.",
   "references": [
     {
       "title": "Splunk Add-on for Microsoft Exchange",
-      "url": "https://splunkbase.splunk.com/app/3225"
+      "url": "https://splunkbase.splunk.com/app/3225",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Mailbox RPC spikes during VSS backup, MAPI-heavy migrations, or archive batch jobs.",
+  "knownFalsePositives": "1. **Maintenance window on `perfmon` (UC-11.1.15)** — Planned work for 'Exchange Information Store Mailbox RPC Average Latency (Perfmon)' shifts `avg_mapi_ms`, `peak_mapi_ms` over `span=5m` while `_time`, `host`, `instance` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `host` without crossing `ms` > 100 for UC-11.1.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `host`, `instance`** — Health checks in `perfmon` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-11.1.15 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "exchange"
+  ],
+  "equipmentModels": [
+    "exchange_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -38,5 +59,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch Outlook and mailbox response times, so slow mail clients point to a host or storage issue we can fix early."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Windows (perfmon) + Splunk Add-on for Microsoft Exchange (Splunkbase 3225) context). Enable the modular input or HEC token that writes sourcetype=see SPL into perfmon. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, host, instance, ms`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch Outlook and mailbox response times, so slow mail clients point to a host or storage issue we can fix early.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

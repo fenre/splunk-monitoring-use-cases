@@ -9,30 +9,55 @@
     "Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`).",
-  "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Solar Clipping Detection at Noon' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_solar_clipping_detection_at_noon` (UC-25.6.13), SOC dashboard panel \"Personal — Solar Clipping Detection at Noon\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.6.13 positive (Solar, Clipping, Detection, Noon): ingest synthetic events into `index=personal` sourcetype='solaredge:power' where `avg_power`, `clipped_points` grouped by `inverter_serial`, `_time` satisfies `hour` >= 11, `hour` <= 14, `avg_power` > 0, or `clipped_points` > 12 for 'Solar Clipping Detection at Noon'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.6.13 negative (at Noon): ingest benign `personal` / `solaredge:power` events where `inverter_serial`, `_time` stays below `hour` >= 11, `hour` <= 14, `avg_power` > 0, or `clipped_points` > 12, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'Solar Clipping Detection at Noon'."
+  },
+  "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=solaredge:power\n| eval hour=strftime(_time,\"%H\")\n| where hour>=11 AND hour<=14\n| bin _time span=5m\n| stats avg(power_w) as avg_power by inverter_serial _time\n| streamstats current=f last(avg_power) as prev_power by inverter_serial\n| eval clipped=if(avg_power=prev_power AND avg_power>0,1,0)\n| stats sum(clipped) as clipped_points by inverter_serial\n| where clipped_points>12\n| sort - clipped_points",
-  "description": "Looks for long flat-topped midday output plateaus that suggest inverter clipping instead of weather or load variation.",
-  "value": "Clipping means your array is producing more than the inverter will pass through; knowing when it happens informs upgrade and expansion decisions.",
+  "description": "Identifies 'Solar Clipping Detection at Noon' (UC-25.6.13) using `index=personal` sourcetype `solaredge:power` by aggregating `avg_power`, `clipped_points` grouped by `inverter_serial`, `_time` over `5m` and alerting when `hour` >= 11, `hour` <= 14, `avg_power` > 0, or `clipped_points` > 12. Keywords: Solar, Clipping, Detection, Noon. Focuses on at Noon behaviour so personal teams can triage UC-25.6.13 without ad-hoc log review.",
+  "value": "UC-25.6.13 accelerates insight into at Noon ('Solar Clipping Detection at Noon') by tracking `avg_power`, `clipped_points` on `solaredge:power` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Ingest inverter power at a fine cadence; review midday plateaus and compare them against panel and inverter sizing assumptions.",
   "visualization": "Table of inverters by count of likely clipped intervals.",
   "cimModels": [],
   "references": [
     {
       "title": "SolarEdge Monitoring API",
-      "url": "https://developers.solaredge.com/docs/monitoring-api/"
+      "url": "https://developers.solaredge.com/docs/monitoring-api/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Enphase API",
-      "url": "https://developer-v4.enphase.com/"
+      "url": "https://developer-v4.enphase.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.6.13)** — Connector for 'Solar Clipping Detection at Noon' stops polling `solaredge:power`; stale `avg_power`, `clipped_points` on `inverter_serial`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_power`, `clipped_points` over `5m` is expected for UC-25.6.13, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `solaredge:power`. Dedup with `stats latest(*) by inverter_serial`.\n\n4. **Timezone bucket misalignment** — `5m` bins on UTC vs local schedule skew `hour` >= 11 for 'Solar Clipping Detection at Noon'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It logs when your solar system is hitting a ceiling at lunchtime instead of making all the power the panels could provide."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: SolarEdge — SolarEdge Monitoring API → HEC.\n• **Subcategory context**: Home Energy & Solar — typical feeds: SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Tesla Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue circuits (`emporia:circuit`), Sense .\n• **Sourcetypes in this search**: `solaredge:power`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **SolarEdge** events into `index=personal` with `sourcetype=solaredge:power`.\n\n**Collection method:** SolarEdge Monitoring API → HEC.\n\n**Reference endpoint / path:** `GET /site/{siteId}/overview`.\n\n**Suggested poll interval:** 900s.\n\n**Key fields to extract:** `currentPower, energyToday, energyLifetime`.\n\n**Typical connector stack:** Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC..\n\n**Author notes:** Ingest inverter power at a fine cadence; review midday plateaus and compare them against panel and inverter sizing assumptions.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"solaredge:power\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=solaredge:power earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Solar Clipping Detection at Noon** over `personal` data (primarily `sourcetype=solaredge:power`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `_time`, `avg_power`, `clipped`, `clipped_points`, `hour`, `inverter_serial`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=solaredge:power\n| eval hour=strftime(_time,\"%H\")\n| where hour>=11 AND hour<=14\n| bin _time span=5m\n| stats avg(power_w) as avg_power by inverter_serial _time\n| streamstats current=f last(avg_power) as prev_power by inverter_serial\n| eval clipped=if(avg_power=prev_power AND avg_power>0,1,0)\n| stats sum(clipped) as clipped_points by inverter_serial\n| where clipped_points>12\n| sort - clipped_points\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** SolarEdge app → Dashboard kWh today. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=solaredge:power earliest=-7d\n| head 50\n| table _time, avg_power, clipped, clipped_points, hour, inverter_serial\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=solaredge:power earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hour` before alerting:\n\n```spl\nindex=personal sourcetype=solaredge:power earliest=-30d\n| stats perc50(hour) AS p50 perc90(hour) AS p90 perc99(hour) AS p99 max(hour) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.6.13: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Inverters By Count Of Likely Clipped Intervals (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**SolarEdge — no SolarEdge events / missing fields:** If `solaredge:power` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the SolarEdge connector script is still running (`systemctl status` or cron log).\n\n**SolarEdge — NULL values in extracted fields:** The SolarEdge JSON export shape drifted — compare a raw event (`index=personal sourcetype=solaredge:power | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**SolarEdge — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**SolarEdge — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; SolarEdge APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=5m` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `5m` buckets.",
+  "grandmaExplanation": "It logs when your solar system is hitting a ceiling at lunchtime instead of making all the power the panels could provide.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

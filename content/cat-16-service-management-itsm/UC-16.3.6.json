@@ -8,6 +8,8 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Major Incident and Post-Mortem Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_major_incident_and_post_mortem_tracking` (UC-16.3.6), SOC dashboard panel \"Operations — Major Incident and Post-Mortem Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "compliance": [
     {
       "regulation": "apra-cps-234",
@@ -109,11 +111,15 @@
       "evidenceArtifact": "Saved search 'UC-16.3.6' running on Major incident flag, post-mortem due and completed dates, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
-  "dataSources": "Major incident flag, post-mortem due and completed dates",
-  "app": "ITSM major incident, post-mortem records",
+  "controlTest": {
+    "positiveScenario": "UC-16.3.6 positive (Major, Incident, and, Post, Mortem): ingest synthetic events into `index=itsm` sourcetype='incident' where `count` grouped by `entity` satisfies detection threshold for 'Major Incident and Post-Mortem Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.3.6 negative (Mortem Tracking): ingest benign `itsm` / `incident` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Major Incident and Post-Mortem Tracking'."
+  },
+  "dataSources": "Major incident flag, post-mortem due and completed dates Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "ITSM major incident, post-mortem records — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"incident\"\n| where major_incident=1 AND is_open=0\n| eval pm_due=closed_time + (7*86400)\n| where now() > pm_due AND post_mortem_completed=0\n| table number, short_description, closed_time, pm_due, post_mortem_completed",
-  "description": "Tracking major incidents and post-mortem completion ensures learning and accountability. Supports compliance and continuous improvement.",
-  "value": "Tracking major incidents and post-mortem completion ensures learning and accountability. Supports compliance and continuous improvement.",
+  "description": "Identifies UC-16.3.6 — Major, Incident, and, Post, Mortem — using `index=itsm` sourcetype `incident`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Mortem Tracking. Purpose-built for 'Major Incident and Post-Mortem Tracking' in Operations workflows.",
+  "value": "Alerting on Major, Incident, and, Post, Mortem through UC-16.3.6 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Ingest major incident and post-mortem status. Alert when post-mortem is overdue. Report on major incident count, MTTR, and post-mortem completion rate. Track root cause categories.",
   "visualization": "Table (overdue post-mortems), Single value (major incidents this month), Line chart (post-mortem completion rate).",
   "cimModels": [
@@ -123,11 +129,39 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Late completion when a major event is still open, legal review slows close-out, or a new runbook is not followed yet.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.3.6)** — Planned work for 'Major Incident and Post-Mortem Tracking' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `incident`** — Scheduled automation elevates `pm_due` without crossing configured threshold for UC-16.3.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `incident`** — First 48h baseline for UC-16.3.6 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
   "status": "verified",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: ITSM major incident, post-mortem records.\n• Ensure the following data sources are available: Major incident flag, post-mortem due and completed dates.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest major incident and post-mortem status. Alert when post-mortem is overdue. Report on major incident count, MTTR, and post-mortem completion rate. Track root cause categories.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"incident\"\n| where major_incident=1 AND is_open=0\n| eval pm_due=closed_time + (7*86400)\n| where now() > pm_due AND post_mortem_completed=0\n| table number, short_description, closed_time, pm_due, post_mortem_completed\n```\n\nUnderstanding this SPL\n\n**Major Incident and Post-Mortem Tracking** — Tracking major incidents and post-mortem completion ensures learning and accountability. Supports compliance and continuous improvement.\n\nDocumented **Data sources**: Major incident flag, post-mortem due and completed dates. **App/TA** (typical add-on context): ITSM major incident, post-mortem records. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: incident. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"incident\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where major_incident=1 AND is_open=0` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **pm_due** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where now() > pm_due AND post_mortem_completed=0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Major Incident and Post-Mortem Tracking**): table number, short_description, closed_time, pm_due, post_mortem_completed\n\n\nStep 3 — Validate\nCompare the same time range to your ITIL reporting dashboard or the primary view in your ticket and change system. Spot-check a few records, fields, and times in the source system, then confirm access and time zone for this search.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (overdue post-mortems), Single value (major incidents this month), Line chart (post-mortem completion rate).",
-  "grandmaExplanation": "We follow big incidents from start through the learning write-up, so the big ones do not close without a lesson."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: ITSM major incident, post-mortem records.\n• Ensure the following data sources are available: Major incident flag, post-mortem due and completed dates.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest major incident and post-mortem status. Alert when post-mortem is overdue. Report on major incident count, MTTR, and post-mortem completion rate. Track root cause categories.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"incident\"\n| where major_incident=1 AND is_open=0\n| eval pm_due=closed_time + (7*86400)\n| where now() > pm_due AND post_mortem_completed=0\n| table number, short_description, closed_time, pm_due, post_mortem_completed\n```\n\nUnderstanding this SPL\n\n**Major Incident and Post-Mortem Tracking** — Tracking major incidents and post-mortem completion ensures learning and accountability. Supports compliance and continuous improvement.\n\nDocumented **Data sources**: Major incident flag, post-mortem due and completed dates. **App/TA** (typical add-on context): ITSM major incident, post-mortem records. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: incident. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"incident\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where major_incident=1 AND is_open=0` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **pm_due** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where now() > pm_due AND post_mortem_completed=0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Major Incident and Post-Mortem Tracking**): table number, short_description, closed_time, pm_due, post_mortem_completed\n\n\nStep 3 — Validate\nCompare the same time range to your ITIL reporting dashboard or the primary view in your ticket and change system. Spot-check a few records, fields, and times in the source system, then confirm access and time zone for this search.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (overdue post-mortems), Single value (major incidents this month), Line chart (post-mortem completion rate).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (ITSM major incident, post-mortem records — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=incident into itsm. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We follow big incidents from start through the learning write-up, so the big ones do not close without a lesson.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

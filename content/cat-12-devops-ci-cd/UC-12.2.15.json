@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Stage start/end timestamps per pipeline run",
-  "app": "Jenkins Blue Ocean / GitLab job trace, GitHub Actions job logs",
+  "exclusions": "Covers the detection logic documented for 'Pipeline Stage Duration Regression' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_pipeline_stage_duration_regression` (UC-12.2.15), SOC dashboard panel \"Operations — Pipeline Stage Duration Regression\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.2.15 positive (Pipeline, Stage, Duration, Regression): ingest synthetic events into `index=cicd` sourcetype='cicd:stage' where `med` grouped by `stage_name`, `pipeline` satisfies `stage_duration_sec` > 60 for 'Pipeline Stage Duration Regression'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.2.15 negative (Duration Regression): ingest benign `cicd` / `cicd:stage` events where `stage_name`, `pipeline` stays below `stage_duration_sec` > 60, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Pipeline Stage Duration Regression'."
+  },
+  "dataSources": "Stage start/end timestamps per pipeline run Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Jenkins Blue Ocean / GitLab job trace, GitHub Actions job logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cicd sourcetype=\"cicd:stage\"\n| eval stage_duration_sec=duration_ms/1000\n| eventstats median(stage_duration_sec) as med by stage_name, pipeline\n| where stage_duration_sec > med*1.5 AND stage_duration_sec > 60\n| table _time, pipeline, stage_name, stage_duration_sec, med",
-  "description": "Stage-level regression (e.g., `test` stage) surfaces before overall job duration crosses SLA (UC-12.2.2).",
-  "value": "Stage-level regression (e.g., `test` stage) surfaces before overall job duration crosses SLA (UC-12.2.2).",
+  "description": "Alerts on UC-12.2.15 — Pipeline, Stage, Duration, Regression — using `index=cicd` sourcetype `cicd:stage`, grouped by `stage_name`, `pipeline`. Outputs `med` each `the scheduled window`; alert when `stage_duration_sec` > 60. Primary focus: Duration Regression. Purpose-built for 'Pipeline Stage Duration Regression' in Operations workflows.",
+  "value": "UC-12.2.15 operationalises 'Pipeline Stage Duration Regression' against `cicd:stage` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Emit structured stage events from CI. Baseline weekly medians. Alert on regression >50% vs median.",
   "visualization": "Line chart (stage duration trend), Table (regressions), Heatmap (stage × pipeline).",
   "cimModels": [
@@ -22,15 +28,42 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Build times vary with cache state, runner availability, or test suite expansion.",
+  "knownFalsePositives": "1. **Maintenance window on `cicd` (UC-12.2.15)** — Planned work for 'Pipeline Stage Duration Regression' shifts `med` over `span=1h` while `stage_name`, `pipeline` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `median` on `cicd:stage`** — Scheduled automation elevates `pipeline` without crossing `stage_duration_sec` > 60 for UC-12.2.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `stage_name`, `pipeline`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cicd:stage`** — First 48h baseline for UC-12.2.15 on `stage_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `stage_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "github",
     "gitlab",
     "jenkins"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Jenkins Blue Ocean / GitLab job trace, GitHub Actions job logs.\n• Ensure the following data sources are available: Stage start/end timestamps per pipeline run.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEmit structured stage events from CI. Baseline weekly medians. Alert on regression >50% vs median.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cicd sourcetype=\"cicd:stage\"\n| eval stage_duration_sec=duration_ms/1000\n| eventstats median(stage_duration_sec) as med by stage_name, pipeline\n| where stage_duration_sec > med*1.5 AND stage_duration_sec > 60\n| table _time, pipeline, stage_name, stage_duration_sec, med\n```\n\nUnderstanding this SPL\n\n**Pipeline Stage Duration Regression** — Stage-level regression (e.g., `test` stage) surfaces before overall job duration crosses SLA (UC-12.2.2).\n\nDocumented **Data sources**: Stage start/end timestamps per pipeline run. **App/TA** (typical add-on context): Jenkins Blue Ocean / GitLab job trace, GitHub Actions job logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cicd; **sourcetype**: cicd:stage. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cicd, sourcetype=\"cicd:stage\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **stage_duration_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eventstats` rolls up events into metrics; results are split **by stage_name, pipeline** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where stage_duration_sec > med*1.5 AND stage_duration_sec > 60` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Pipeline Stage Duration Regression**): table _time, pipeline, stage_name, stage_duration_sec, med\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the GitHub and GitLab audit or activity views for the same time range. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (stage duration trend), Table (regressions), Heatmap (stage × pipeline).",
-  "grandmaExplanation": "We watch this part of your delivery chain for risks and reliability so issues show up before they hit customers."
+  "equipmentModels": [
+    "github_generic",
+    "gitlab_generic",
+    "jenkins_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Jenkins Blue Ocean / GitLab job trace, GitHub Actions job logs.\n• Ensure the following data sources are available: Stage start/end timestamps per pipeline run.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEmit structured stage events from CI. Baseline weekly medians. Alert on regression >50% vs median.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cicd sourcetype=\"cicd:stage\"\n| eval stage_duration_sec=duration_ms/1000\n| eventstats median(stage_duration_sec) as med by stage_name, pipeline\n| where stage_duration_sec > med*1.5 AND stage_duration_sec > 60\n| table _time, pipeline, stage_name, stage_duration_sec, med\n```\n\nUnderstanding this SPL\n\n**Pipeline Stage Duration Regression** — Stage-level regression (e.g., `test` stage) surfaces before overall job duration crosses SLA (UC-12.2.2).\n\nDocumented **Data sources**: Stage start/end timestamps per pipeline run. **App/TA** (typical add-on context): Jenkins Blue Ocean / GitLab job trace, GitHub Actions job logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cicd; **sourcetype**: cicd:stage. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cicd, sourcetype=\"cicd:stage\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **stage_duration_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eventstats` rolls up events into metrics; results are split **by stage_name, pipeline** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where stage_duration_sec > med*1.5 AND stage_duration_sec > 60` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Pipeline Stage Duration Regression**): table _time, pipeline, stage_name, stage_duration_sec, med\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the GitHub and GitLab audit or activity views for the same time range. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (stage duration trend), Table (regressions), Heatmap (stage × pipeline).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Jenkins Blue Ocean / GitLab job trace, GitHub Actions job logs — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=cicd:stage into cicd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`pipeline, stage_duration_sec, stage_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch this part of your delivery chain for risks and reliability so issues show up before they hit customers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Smart PDU metrics (per-outlet, per-circuit power)",
-  "app": "SNMP TA, smart PDU API",
+  "exclusions": "Covers the detection logic documented for 'Power Consumption Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_power_consumption_trending` (UC-15.1.23), SOC dashboard panel \"Operations — Power Consumption Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-15.1.23 positive (Power, Consumption, Trending): ingest synthetic events into `index=power` sourcetype='snmp:pdu' where `avg_power` grouped by `rack_id` satisfies detection threshold for 'Power Consumption Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.1.23 negative (Consumption Trending): ingest benign `power` / `snmp:pdu` events where `rack_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Power Consumption Trending'."
+  },
+  "dataSources": "Smart PDU metrics (per-outlet, per-circuit power) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "SNMP TA, smart PDU API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=power sourcetype=\"snmp:pdu\"\n| timechart span=1h avg(power_watts) as avg_power by rack_id\n| predict avg_power as predicted future_timespan=30",
-  "description": "Power consumption trending supports capacity planning, cost management, and sustainability reporting. Anomalies indicate equipment issues.",
-  "value": "Power consumption trending supports capacity planning, cost management, and sustainability reporting. Anomalies indicate equipment issues.",
+  "description": "Identifies 'Power Consumption Trending' patterns (UC-15.1.23) sourced from `index=power` sourcetype `snmp:pdu`. Threshold bundle: configured threshold; aggregation grain: `rack_id`; metrics: `avg_power`. Watch terms: Power, Consumption, Trending.",
+  "value": "UC-15.1.23 gives Operations teams earlier visibility into Consumption Trending through `snmp:pdu` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Poll PDU power metrics via SNMP. Track per-rack and per-circuit consumption. Baseline normal patterns. Alert on unusual spikes (potential hardware issue) or drops (server failure). Use for PUE calculation.",
   "visualization": "Line chart (power per rack), Heatmap (rack × time power usage), Bar chart (top consumers), Stacked area (floor/room power).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Power spikes during equipment power cycling, scheduled load shifting, or DR drills.",
+  "knownFalsePositives": "1. **Maintenance window on `power` (UC-15.1.23)** — Planned work for 'Power Consumption Trending' shifts `avg_power` over `span=1h` while `rack_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `snmp:pdu`** — Scheduled automation elevates `src` without crossing configured threshold for UC-15.1.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `rack_id`** — Health checks in `power` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:pdu`** — First 48h baseline for UC-15.1.23 on `rack_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `rack_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "snmp"
   ],
@@ -33,6 +55,12 @@
     "snmp_generic",
     "snmp_pdu"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP TA, smart PDU API.\n• Ensure the following data sources are available: Smart PDU metrics (per-outlet, per-circuit power).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll PDU power metrics via SNMP. Track per-rack and per-circuit consumption. Baseline normal patterns. Alert on unusual spikes (potential hardware issue) or drops (server failure). Use for PUE calculation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=power sourcetype=\"snmp:pdu\"\n| timechart span=1h avg(power_watts) as avg_power by rack_id\n| predict avg_power as predicted future_timespan=30\n```\n\nUnderstanding this SPL\n\n**Power Consumption Trending** — Power consumption trending supports capacity planning, cost management, and sustainability reporting. Anomalies indicate equipment issues.\n\nDocumented **Data sources**: Smart PDU metrics (per-outlet, per-circuit power). **App/TA** (typical add-on context): SNMP TA, smart PDU API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: power; **sourcetype**: snmp:pdu. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=power, sourcetype=\"snmp:pdu\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1h** buckets with a separate series **by rack_id** — ideal for trending and alerting on this use case.\n• Pipeline stage (see **Power Consumption Trending**): predict avg_power as predicted future_timespan=30\n\n\nStep 3 — Validate\nCompare with the PDU UI or SNMP poll for the same devices, readings, and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (power per rack), Heatmap (rack × time power usage), Bar chart (top consumers), Stacked area (floor/room power).",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP TA, smart PDU API.\n• Ensure the following data sources are available: Smart PDU metrics (per-outlet, per-circuit power).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll PDU power metrics via SNMP. Track per-rack and per-circuit consumption. Baseline normal patterns. Alert on unusual spikes (potential hardware issue) or drops (server failure). Use for PUE calculation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=power sourcetype=\"snmp:pdu\"\n| timechart span=1h avg(power_watts) as avg_power by rack_id\n| predict avg_power as predicted future_timespan=30\n```\n\nUnderstanding this SPL\n\n**Power Consumption Trending** — Power consumption trending supports capacity planning, cost management, and sustainability reporting. Anomalies indicate equipment issues.\n\nDocumented **Data sources**: Smart PDU metrics (per-outlet, per-circuit power). **App/TA** (typical add-on context): SNMP TA, smart PDU API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: power; **sourcetype**: snmp:pdu. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=power, sourcetype=\"snmp:pdu\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1h** buckets with a separate series **by rack_id** — ideal for trending and alerting on this use case.\n• Pipeline stage (see **Power Consumption Trending**): predict avg_power as predicted future_timespan=30\n\n\nStep 3 — Validate\nCompare with the PDU UI or SNMP poll for the same devices, readings, and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (power per rack), Heatmap (rack × time power usage), Bar chart (top consumers), Stacked area (floor/room power).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (SNMP TA, smart PDU API — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=snmp:pdu into power. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`rack_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

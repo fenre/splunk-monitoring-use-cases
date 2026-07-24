@@ -9,32 +9,42 @@
     "Security"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=iot sourcetype=thread:gateway` or `sourcetype=matter:controller` or `index=network sourcetype=syslog` — IoT gateway health monitoring for 6LoWPAN/Thread/Matter networks. These protocols carry IPv6 over constrained wireless links (IEEE 802.15.4) and require border routers to bridge between the mesh and the enterprise IPv6 network.\n\n**Technology context:**\n\n1. **6LoWPAN (RFC 4944/RFC 6282).** Compresses IPv6 headers to fit 127-byte IEEE 802.15.4 frames. Devices have full IPv6 addresses but use compressed headers on the radio link. The border router reassembles and forwards standard IPv6.\n2. **Thread (IEEE 802.15.4 + 6LoWPAN).** A mesh networking protocol for IoT that uses 6LoWPAN for IPv6 transport. Thread border routers (TBRs) bridge the Thread mesh to the enterprise LAN and participate in NDP, DHCPv6-PD (prefix delegation), and mDNS/DNS-SD.\n3. **Matter.** A unified smart-home/building-automation standard running over Thread, Wi-Fi, and Ethernet. Matter devices use IPv6 exclusively. Matter controllers commission devices and manage the Thread network.\n4. **Border router role.** The TBR advertises IPv6 prefixes into the Thread mesh, manages device routing, and handles ND Proxy (RFC 4389) or DHCPv6-PD. If the border router fails, all mesh devices lose IPv6 connectivity.\n5. **Security.** Thread uses DTLS and MLE (Mesh Link Establishment) with pre-shared network keys. Compromised keys allow unauthorized devices to join the mesh. Monitor for commissioning events and unauthorized join attempts.",
-  "app": "Custom scripted input / Splunk Edge Hub",
+  "exclusions": "Covers the detection logic documented for '6LoWPAN and Thread/Matter IPv6 IoT Gateway Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_6lowpan_and_thread_matter_ipv6_iot_gateway_monit` (UC-5.20.97), SOC dashboard panel \"Operations — 6LoWPAN and Thread/Matter IPv6 IoT Gateway Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.97 positive (6LoWPAN, and, Thread, Matter, IPv6): ingest synthetic events into `index=iot` sourcetype='thread:gateway' where `count` grouped by `host`, `event_type` satisfies `events` > 50 for '6LoWPAN and Thread/Matter IPv6 IoT Gateway Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.97 negative (Gateway Monitoring): ingest benign `iot` / `thread:gateway` events where `host`, `event_type` stays below `events` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for '6LoWPAN and Thread/Matter IPv6 IoT Gateway Monitoring'."
+  },
+  "dataSources": "`index=iot sourcetype=thread:gateway` or `sourcetype=matter:controller` or `index=network sourcetype=syslog` — IoT gateway health monitoring for 6LoWPAN/Thread/Matter networks. These protocols carry IPv6 over constrained wireless links (IEEE 802.15.4) and require border routers to bridge between the mesh and the enterprise IPv6 network.\n\n**Technology context:**\n\n1. **6LoWPAN (RFC 4944/RFC 6282).** Compresses IPv6 headers to fit 127-byte IEEE 802.15.4 frames. Devices have full IPv6 addresses but use compressed headers on the radio link. The border router reassembles and forwards standard IPv6.\n2. **Thread (IEEE 802.15.4 + 6LoWPAN).** A mesh networking protocol for IoT that uses 6LoWPAN for IPv6 transport. Thread border routers (TBRs) bridge the Thread mesh to the enterprise LAN and participate in NDP, DHCPv6-PD (prefix delegation), and mDNS/DNS-SD.\n3. **Matter.** A unified smart-home/building-automation standard running over Thread, Wi-Fi, and Ethernet. Matter devices use IPv6 exclusively. Matter controllers commission devices and manage the Thread network.\n4. **Border router role.** The TBR advertises IPv6 prefixes into the Thread mesh, manages device routing, and handles ND Proxy (RFC 4389) or DHCPv6-PD. If the border router fails, all mesh devices lose IPv6 connectivity.\n5. **Security.** Thread uses DTLS and MLE (Mesh Link Establishment) with pre-shared network keys. Compromised keys allow unauthorized devices to join the mesh. Monitor for commissioning events and unauthorized join attempts. Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input / Splunk Edge Hub — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=iot (sourcetype=\"thread:gateway\" OR sourcetype=\"matter:controller\" OR sourcetype=\"6lowpan:border_router\") earliest=-24h\n| eval event_type=case(\n    match(_raw, \"(?i)commission|join|attach\"), \"DEVICE_JOIN\",\n    match(_raw, \"(?i)border.?router.*down|BR.*fail|leader.*lost\"), \"BR_FAILURE\",\n    match(_raw, \"(?i)prefix.*expired|dhcpv6.*fail|prefix.?delegation\"), \"PREFIX_ISSUE\",\n    match(_raw, \"(?i)fragment|reassembly|6lowpan.*drop\"), \"FRAGMENTATION\",\n    match(_raw, \"(?i)mesh.*partition|partition.?id\"), \"MESH_PARTITION\",\n    1=1, \"OTHER\")\n| stats count as events by host, event_type\n| eval severity=case(\n    event_type=\"BR_FAILURE\", \"CRITICAL — Thread Border Router failure — all mesh devices lose IPv6\",\n    event_type=\"MESH_PARTITION\", \"HIGH — Thread mesh partitioned — devices in separate partitions cannot communicate\",\n    event_type=\"PREFIX_ISSUE\", \"HIGH — IPv6 prefix delegation failed — new devices cannot get addresses\",\n    event_type=\"DEVICE_JOIN\" AND events > 50, \"WARNING — abnormal commissioning volume (\" . events . \" joins)\",\n    event_type=\"FRAGMENTATION\", \"INFO — 6LoWPAN fragmentation issues\",\n    1=1, \"INFO\")\n| sort -events",
-  "description": "Monitors IoT border routers for 6LoWPAN, Thread, and Matter networks that bridge constrained wireless devices to the enterprise IPv6 network. Tracks border router health, IPv6 prefix delegation, mesh partitioning, 6LoWPAN fragmentation, and device commissioning events. These protocols represent the fastest-growing segment of IPv6 deployment, with every Thread and Matter device using IPv6 exclusively.",
-  "value": "Thread and Matter are IPv6-native protocols that are becoming standard for building automation, smart buildings, and industrial IoT. When a Thread Border Router fails, every device on the mesh loses connectivity — potentially affecting hundreds of sensors, actuators, and controllers. Monitoring the health of the border router and the mesh-to-enterprise IPv6 bridge ensures reliability for IoT deployments that have no IPv4 fallback.",
+  "description": "Surfaces UC-5.20.97 — 6LoWPAN, and, Thread, Matter, IPv6 — using `index=iot` sourcetype `thread:gateway`, grouped by `host`, `event_type`. Outputs `count` each `the scheduled window`; alert when `events` > 50. Primary focus: Gateway Monitoring. Purpose-built for '6LoWPAN and Thread/Matter IPv6 IoT Gateway Monitoring' in Operations workflows.",
+  "value": "Tracking `activity` via UC-5.20.97 on `thread:gateway` feeds improves response to '6LoWPAN and Thread/Matter IPv6 IoT Gateway Monitoring' and reduces operational risk and delayed incident response.",
   "implementation": "Collect logs from Thread Border Routers and Matter controllers via syslog or REST API. Monitor border router availability, prefix delegation, mesh stability, and device join events. Alert on border router failures and mesh partitioning.",
   "visualization": "(1) Mesh topology: Thread network topology with border router status. (2) Timeline: device join/leave events. (3) Single-value: active border routers, mesh partitions. (4) Table: prefix delegation status.",
   "references": [
     {
       "title": "RFC 4944 — Transmission of IPv6 Packets over IEEE 802.15.4 Networks (6LoWPAN)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4944"
+      "url": "https://www.rfc-editor.org/rfc/rfc4944",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 6282 — Compression Format for IPv6 Datagrams over IEEE 802.15.4-Based Networks (6LoWPAN-HC)",
-      "url": "https://www.rfc-editor.org/rfc/rfc6282"
+      "url": "https://www.rfc-editor.org/rfc/rfc6282",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Thread Group — Thread protocol consortium",
-      "url": "https://www.threadgroup.org/"
+      "url": "https://www.threadgroup.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Connectivity Standards Alliance — Matter protocol specification",
-      "url": "https://csa-iot.org/all-solutions/matter/"
+      "url": "https://csa-iot.org/all-solutions/matter/",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Scheduled commissioning.** During planned device deployment (building fit-out, sensor rollout), high volumes of device join events are expected. Suppress alerts during planned commissioning windows.\n\n**Leader election.** Thread networks use a leader election protocol (RAFT-like). During leader transitions, brief mesh instability is normal. Alert only on prolonged partitioning (>5 minutes).\n\n**6LoWPAN fragmentation.** Some fragmentation is normal for payloads exceeding 127 bytes. Alert on high drop rates, not fragmentation itself.",
+  "knownFalsePositives": "1. **Maintenance window on `iot` (UC-5.20.97)** — Planned work for '6LoWPAN and Thread/Matter IPv6 IoT Gateway Monitoring' shifts `count` over `span=1h` while `host`, `event_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `thread:gateway`** — Scheduled automation elevates `event_type` without crossing `events` > 50 for UC-5.20.97. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `event_type`** — Health checks in `iot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `thread:gateway`** — First 48h baseline for UC-5.20.97 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apple",
     "cisco",

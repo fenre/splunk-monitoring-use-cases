@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=custom:ping_rtt` (scripted `ping` to fixed targets, emitting `rtt_ms` and `target`)",
-  "app": "`Splunk_TA_nix` with a custom scripted input",
+  "exclusions": "Covers the detection logic documented for 'Network Latency Monitoring (Ping RTT)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_network_latency_monitoring_ping_rtt` (UC-1.1.64), SOC dashboard panel \"Linux — Network Latency Monitoring (Ping RTT)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.64 positive (Network, Latency, Monitoring, (Ping, RTT)): ingest synthetic events into `index=os` sourcetype='custom:ping_rtt' where `avg_latency`, `max_latency`, `stddev` grouped by `host`, `target` satisfies detection threshold for 'Network Latency Monitoring (Ping RTT)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.64 negative ((Ping RTT)): ingest benign `os` / `custom:ping_rtt` events where `host`, `target` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 1 confirms zero alert rows for 'Network Latency Monitoring (Ping RTT)'."
+  },
+  "dataSources": "`sourcetype=custom:ping_rtt` (scripted `ping` to fixed targets, emitting `rtt_ms` and `target`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` with a custom scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:ping_rtt host=*\n| stats avg(rtt_ms) as avg_latency, max(rtt_ms) as max_latency, stdev(rtt_ms) as stddev by host, target\n| eval upper_bound=avg_latency+(2*stddev)\n| where max_latency > upper_bound",
-  "description": "Summarises round-trip time per host and ping target, then compares the maximum RTT in the window to a host+target local upper bound of mean + two standard deviations, catching unstable long tails.",
-  "value": "Average ping can look fine while a few very late replies spoil voice, replication, or leader election—this test surfaces tail behaviour without needing external synthetics in many shops.",
+  "description": "Surfaces (Ping RTT) activity in UC-1.1.64 ('Network Latency Monitoring (Ping RTT)') from `index=os` sourcetype `custom:ping_rtt`. Rolls up `avg_latency`, `max_latency`, `stddev` by `host`, `target` across `the scheduled window` and pages when configured threshold. Covers Network, Latency, Monitoring, (Ping, RTT). Linux operators treat UC-1.1.64 as the canonical signal.",
+  "value": "Operators running UC-1.1.64 on `custom:ping_rtt` feeds shorten triage for (Ping RTT) tied to 'Network Latency Monitoring (Ping RTT)', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Run `ping` or `fping` on a short cadence, parse **rtt_ms** and **target**, and keep **target** lists under version control. Add `| where stdev>0` if you need to avoid degenerate `upper_bound=avg` when there is a single sample.",
   "visualization": "Timechart, Gauge",
   "cimModels": [
@@ -21,17 +27,38 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Wi‑Fi test hosts; ICMP deprioritised on some routers; a single outlier `max` from one lost/replied packet pair—tighten with `| where count>20` on the stats or move to `perc95` for robustness.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Network Latency Monitoring (Ping RTT)'. Correlate with apt/yum logs in the same `custom:ping_rtt` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:ping_rtt`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• Cron or **systemd** timer that calls your script; Splunk user must be allowed to open raw ICMP sockets (often **root** or **cap_net_raw**).\n\nStep 1 — Configure data collection\nOne event per (host, target) per interval is easier to reason about than a single string with all targets—pick one pattern and stay consistent.\n\nStep 2 — Create the search and alert\nThe `spl` no longer references an undefined **baseline** field; the bound is per-row from the **stats** of the window. Increase lookback to smooth Wi‑Fi noise if needed.\n\n**CIM note** — There is no standard CIM dataset for ad-hoc ICMP; keep this UC on the **custom** sourcetype unless you import RTT into a metrics workspace.\n\n\nStep 3 — Validate\nFrom the same host, run `ping` / `mtr` manually for the same **target** and second; compare the Splunk `avg_latency` to what you see. Use path MTU work only for application-layer follow-up, not as the first ICMP proof.\n\nStep 4 — Operationalize\nPage network when multiple hosts shift together (fabric issue); page apps when a single `target` drifts (dependency issue).\n\n",
-  "grandmaExplanation": "We watch the little “how long did the answer take” test between servers, and we get worried when the worst answers are a lot later than the usual ones, not just when the average is off."
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cron or **systemd** timer that calls your script; Splunk user must be allowed to open raw ICMP sockets (often **root** or **cap_net_raw**).\n\nStep 1 — Configure data collection\nOne event per (host, target) per interval is easier to reason about than a single string with all targets—pick one pattern and stay consistent.\n\nStep 2 — Create the search and alert\nThe `spl` no longer references an undefined **baseline** field; the bound is per-row from the **stats** of the window. Increase lookback to smooth Wi‑Fi noise if needed.\n\n**CIM note** — There is no standard CIM dataset for ad-hoc ICMP; keep this UC on the **custom** sourcetype unless you import RTT into a metrics workspace.\n\n\nStep 3 — Validate\nFrom the same host, run `ping` / `mtr` manually for the same **target** and second; compare the Splunk `avg_latency` to what you see. Use path MTU work only for application-layer follow-up, not as the first ICMP proof.\n\nStep 4 — Operationalize\nPage network when multiple hosts shift together (fabric issue); page apps when a single `target` drifts (dependency issue).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` with a custom scripted input — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=custom:ping_rtt into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, target`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the little “how long did the answer take” test between servers, and we get worried when the worst answers are a lot later than the usual ones, not just when the average is off.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

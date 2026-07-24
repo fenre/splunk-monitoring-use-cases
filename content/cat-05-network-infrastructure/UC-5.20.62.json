@@ -9,24 +9,42 @@
     "Availability"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'IPv6 Firewall Session Table Utilization and Connection Rate Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_firewall_session_table_utilization_and_conn` (UC-5.20.62), SOC dashboard panel \"Operations — IPv6 Firewall Session Table Utilization and Connection Rate Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.62 positive (IPv6, Firewall, Session, Table, Utilization): ingest synthetic events into `index=network` sourcetype='pan:system' where `count` grouped by `host` satisfies `utilization_pct` > 95, `utilization_pct` > 85, or `utilization_pct` > 70 for 'IPv6 Firewall Session Table Utilization and Connection Rate Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.62 negative (Rate Monitoring): ingest benign `network` / `pan:system` events where `host` stays below `utilization_pct` > 95, `utilization_pct` > 85, or `utilization_pct` > 70, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'IPv6 Firewall Session Table Utilization and Connection Rate Monitoring'."
+  },
   "dataSources": "`index=network sourcetype=pan:system` or `sourcetype=cisco:asa` or `sourcetype=fortinet:fortigate` containing firewall session table metrics and connection rate counters. Stateful firewalls maintain a session table (connection table) that tracks every active connection passing through the firewall. IPv6 session table entries are larger than IPv4 entries because IPv6 addresses are 128 bits (vs 32 bits for IPv4), increasing memory consumption per session by approximately 24 bytes.\n\nIPv6-specific session table concerns:\n1. **Larger entries** — Each IPv6 session consumes more memory than IPv4 due to larger addresses. A firewall at 80% IPv4 session table capacity may hit 100% when IPv6 traffic is added.\n2. **NDP traffic** — NDP generates additional state entries for multicast listeners, router solicitations, and neighbour cache entries. These consume session table resources.\n3. **Privacy extensions** — Hosts with RFC 8981 privacy extensions use multiple IPv6 addresses simultaneously, each generating separate sessions. A single host may consume 3-5x more session table entries than an equivalent IPv4 host.\n4. **Extension header processing** — Firewall CPU time increases for packets with extension headers, reducing the maximum new-connection rate.\n5. **Dual-stack doubling** — In dual-stack environments, Happy Eyeballs sends both IPv4 and IPv6 connection attempts simultaneously, doubling the connection setup rate.",
   "app": "Splunk Add-on for Palo Alto (`Splunk_TA_paloalto`, Splunkbase 2757). Splunk Add-on for Cisco ASA.",
   "spl": "index=network (sourcetype=\"pan:system\" OR sourcetype=\"cisco:asa\" OR sourcetype=\"fortinet:fortigate\") earliest=-24h\n  (\"session\" AND (\"table\" OR \"count\" OR \"utilization\" OR \"max\"))\n| rex field=_raw \"(?:active|current)\\s*(?:sessions?|connections?)\\s*:?\\s*(?<active_sessions>\\d+)\"\n| rex field=_raw \"(?:max|maximum|limit)\\s*(?:sessions?|connections?)\\s*:?\\s*(?<max_sessions>\\d+)\"\n| eval utilization_pct=round(active_sessions / max_sessions * 100, 1)\n| eval severity=case(\n    utilization_pct > 95, \"CRITICAL — session table nearly full\",\n    utilization_pct > 85, \"HIGH — approaching capacity\",\n    utilization_pct > 70, \"WARNING — monitor growth\",\n    1=1, \"OK\")\n| stats latest(active_sessions) as current_sessions latest(max_sessions) as max_sessions latest(utilization_pct) as utilization latest(severity) as status by host\n| sort -utilization",
-  "description": "Monitors firewall session table utilization with specific attention to IPv6 session overhead. IPv6 sessions consume more memory per entry than IPv4 due to larger addresses. In dual-stack environments with Happy Eyeballs, the connection setup rate effectively doubles as clients attempt both IPv4 and IPv6 simultaneously. Privacy extension addresses multiply the session count per host. These factors can cause session table exhaustion faster than capacity planning based on IPv4 traffic alone would predict.",
-  "value": "Session table exhaustion is a cliff event — the firewall works perfectly until the table is full, then it starts dropping new connections. Users experience 'the network is down' symptoms while existing connections continue to work normally. Because IPv6 sessions are larger and dual-stack traffic doubles the connection rate, adding IPv6 to an existing firewall can push session table utilization over the edge without any increase in actual user count. Monitoring session table utilization proactively, with IPv6-specific capacity adjustments, prevents this surprise capacity failure.",
+  "description": "Alerts on UC-5.20.62 — IPv6, Firewall, Session, Table, Utilization — using `index=network` sourcetype `pan:system`, grouped by `host`. Outputs `count` each `the scheduled window`; alert when `utilization_pct` > 95, `utilization_pct` > 85, or `utilization_pct` > 70. Primary focus: Rate Monitoring. Purpose-built for 'IPv6 Firewall Session Table Utilization and Connection Rate Monitoring' in Operations workflows.",
+  "value": "UC-5.20.62 helps teams contain IPv6, Firewall, Session, Table, Utilization scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Poll firewall session table metrics via SNMP, API, or syslog. Track utilization percentage over time. Alert on high utilization. Separate IPv4 and IPv6 session counts where possible to understand the IPv6 contribution.",
   "visualization": "(1) Gauge: session table utilization per firewall. (2) Timechart: session count trending with IPv4/IPv6 breakdown. (3) Projection: session table growth forecast. (4) Alert panel: firewalls approaching capacity.",
   "references": [
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.4.1 — firewall session table considerations)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NIST SP 800-119 — Guidelines for the Secure Deployment of IPv6 (§4.3.2 — firewall capacity planning)",
-      "url": "https://csrc.nist.gov/publications/detail/sp/800-119/final"
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-119/final",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Legitimate traffic spikes.** Black Friday, product launches, or marketing campaigns cause legitimate session count spikes. Correlate with business events.\n\n**Long-lived connections.** WebSocket, SSH, and VPN connections persist for hours or days, accumulating in the session table. Adjust session timeouts for long-lived protocols.\n\n**Scanning and vulnerability assessment.** Legitimate vulnerability scans create many short-lived sessions simultaneously, spiking the session count temporarily.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.62)** — Planned work for 'IPv6 Firewall Session Table Utilization and Connection Rate Monitoring' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `pan:system`** — Scheduled automation elevates `utilization_pct` without crossing `utilization_pct` > 95 for UC-5.20.62. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pan:system`** — First 48h baseline for UC-5.20.62 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "checkpoint",
     "cisco",

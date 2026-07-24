@@ -9,30 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Looker System Activity Explores (`looker:system_activity`), Looker API (`looker:api`), and instance logs.",
-  "app": "Looker System Activity (i__looker) via DB Connect or the Looker API (`/api/4.0`); Looker instance logs via Universal Forwarder; scheduled plan and query events via HEC scripted inputs.",
+  "exclusions": "Covers the detection logic documented for 'Looker Unused Content Cleanup' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_looker_unused_content_cleanup` (UC-24.3.10), SOC dashboard panel \"Operations — Looker Unused Content Cleanup\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.3.10 positive (Looker, Unused, Content, Cleanup): ingest synthetic events into `index=bi` sourcetype='looker:system_activity' where `views`, `last_viewed` grouped by `content_type`, `title` satisfies `days_idle` > 90 for 'Looker Unused Content Cleanup'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.3.10 negative (Content Cleanup): ingest benign `bi` / `looker:system_activity` events where `content_type`, `title` stays below `days_idle` > 90, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Looker Unused Content Cleanup'."
+  },
+  "dataSources": "Looker System Activity Explores (`looker:system_activity`), Looker API (`looker:api`), and instance logs. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Looker System Activity (i__looker) via DB Connect or the Looker API (`/api/4.0`); Looker instance logs via Universal Forwarder; scheduled plan and query events via HEC scripted inputs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=looker:system_activity source=\"content_usage\"\n| stats sum(view_count) as views, max(last_viewed) as last_viewed by content_type, title\n| eval days_idle=round((now()-last_viewed)/86400)\n| where days_idle>90\n| sort - days_idle",
-  "description": "Lists Looker dashboards and Looks not viewed in over 90 days so administrators can archive dead content that still consumes PDT builds and clutters navigation.",
-  "value": "Unused content wastes PDT compute and confuses users; a periodic cleanup list keeps the instance fast and navigable.",
+  "description": "Alerts on Content Cleanup anomalies for UC-24.3.10 with window `the scheduled window` on `index=bi` sourcetype `looker:system_activity`. Combines `views`, `last_viewed` by `content_type`, `title` and compares against `days_idle` > 90. Mapped to keywords Looker, Unused, Content, Cleanup for dashboard routing.",
+  "value": "Alerting on Looker, Unused, Content, Cleanup through UC-24.3.10 reduces operational risk and delayed incident response by surfacing `views`, `last_viewed` early.",
   "implementation": "Query the content_usage Explore; schedule monthly and route the list to content owners for archival decisions.",
   "visualization": "Table of idle content by days idle, archival candidate list.",
   "cimModels": [],
   "references": [
     {
       "title": "Looker — System Activity dashboards",
-      "url": "https://cloud.google.com/looker/docs/system-activity-pages"
+      "url": "https://cloud.google.com/looker/docs/system-activity-pages",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Looker — API 4.0 reference",
-      "url": "https://cloud.google.com/looker/docs/reference/looker-api/latest"
+      "url": "https://cloud.google.com/looker/docs/reference/looker-api/latest",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.3.10)** — Planned work for 'Looker Unused Content Cleanup' shifts `views`, `last_viewed` over `span=1h` while `content_type`, `title` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `looker:system_activity`** — Scheduled automation elevates `title` without crossing `days_idle` > 90 for UC-24.3.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `content_type`, `title`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `looker:system_activity`** — First 48h baseline for UC-24.3.10 on `content_type` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `content_type`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],
-  "grandmaExplanation": "We find the Looker reports nobody looks at anymore so they can be tidied away and stop wasting resources."
+  "equipmentModels": [
+    "db_connect_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Looker System Activity (i__looker) via DB Connect or the Looker API (`/api/4.0`); Looker instance logs via Universal Forwarder; scheduled plan and query events via HEC scripted inputs. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=looker:system_activity into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`content_type, days_idle, title`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We find the Looker reports nobody looks at anymore so they can be tidied away and stop wasting resources.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

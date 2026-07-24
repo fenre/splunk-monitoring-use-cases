@@ -8,32 +8,59 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "dbt test results (`dbt:run_results`), warehouse metadata (`snowflake:query_history`, `bigquery:jobs`), and pipeline event logs.",
-  "app": "dbt test results (`run_results.json`) and cross-platform freshness signals from warehouse INFORMATION_SCHEMA via DB Connect and HEC.",
+  "exclusions": "Covers the detection logic documented for 'Referential Integrity Orphan-Key Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_referential_integrity_orphan_key_rate` (UC-24.9.18), SOC dashboard panel \"Operations — Referential Integrity Orphan-Key Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.9.18 positive (Referential, Integrity, Orphan, Key, Rate): ingest synthetic events into `index=bi` sourcetype='dbt:run_results' where `orphan_keys` grouped by `node` satisfies `orphan_keys` > 0 for 'Referential Integrity Orphan-Key Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.9.18 negative (Key Rate): ingest benign `bi` / `dbt:run_results` events where `node` stays below `orphan_keys` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Referential Integrity Orphan-Key Rate'."
+  },
+  "dataSources": "dbt test results (`dbt:run_results`), warehouse metadata (`snowflake:query_history`, `bigquery:jobs`), and pipeline event logs. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "dbt test results (`run_results.json`) and cross-platform freshness signals from warehouse INFORMATION_SCHEMA via DB Connect and HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=dbt:run_results\n| spath path=results{} output=results\n| mvexpand results\n| eval node=spath(results,\"unique_id\"), failures=spath(results,\"failures\")\n| where match(node,\"relationships_\") AND isnotnull(failures)\n| stats sum(failures) as orphan_keys by node\n| where orphan_keys>0\n| sort - orphan_keys",
-  "description": "Extracts failure row counts from dbt relationships tests to quantify orphaned foreign keys, a direct measure of joins that will silently drop rows.",
-  "value": "Orphan keys break fact-dimension joins and undercount metrics; quantifying them protects the accuracy of every downstream aggregate.",
+  "description": "Alerts on UC-24.9.18 — Referential, Integrity, Orphan, Key, Rate — using `index=bi` sourcetype `dbt:run_results`, grouped by `node`. Outputs `orphan_keys` each `the scheduled window`; alert when `orphan_keys` > 0. Primary focus: Key Rate. Purpose-built for 'Referential Integrity Orphan-Key Rate' in Operations workflows.",
+  "value": "UC-24.9.18 operationalises 'Referential Integrity Orphan-Key Rate' against `dbt:run_results` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ensure relationships tests are defined; forward run_results; schedule after each build and alert on rising orphan-key counts.",
   "visualization": "Table of relationship test by orphan-key count, trend line.",
   "cimModels": [],
   "references": [
     {
       "title": "dbt — Tests",
-      "url": "https://docs.getdbt.com/docs/build/data-tests"
+      "url": "https://docs.getdbt.com/docs/build/data-tests",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "dbt — Artifacts (run_results.json)",
-      "url": "https://docs.getdbt.com/reference/artifacts/run-results-json"
+      "url": "https://docs.getdbt.com/reference/artifacts/run-results-json",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.9.18)** — Planned work for 'Referential Integrity Orphan-Key Rate' shifts `orphan_keys` over `span=1h` while `node` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `dbt:run_results`** — Scheduled automation elevates `node` without crossing `orphan_keys` > 0 for UC-24.9.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `node`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbt:run_results`** — First 48h baseline for UC-24.9.18 on `node` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `node`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "servicenow",
     "snowflake"
   ],
-  "grandmaExplanation": "We count the records that point to something missing, which is a common reason report totals come out wrong."
+  "equipmentModels": [
+    "db_connect_generic",
+    "servicenow_generic",
+    "snowflake_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (dbt test results (`run_results.json`) and cross-platform freshness signals from warehouse INFORMATION_SCHEMA via DB Connect and HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=dbt:run_results into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`node, orphan_keys`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We count the records that point to something missing, which is a common reason report totals come out wrong.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

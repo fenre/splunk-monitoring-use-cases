@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Connector/gateway logs (certificate validation, trust list)",
-  "app": "Edge Hub OPC-UA connector, OPC-UA gateway",
+  "exclusions": "Covers the detection logic documented for 'OPC-UA Certificate Expiration and Trust' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_opc_ua_certificate_expiration_and_trust` (UC-14.5.9), SOC dashboard panel \"Operations — OPC-UA Certificate Expiration and Trust\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.5.9 positive (OPC, Certificate, Expiration, and, Trust): ingest synthetic events into `index=edge-hub-logs` sourcetype='splunk_edge_hub_log' where `count` grouped by `entity` satisfies detection threshold for 'OPC-UA Certificate Expiration and Trust'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.5.9 negative (and Trust): ingest benign `edge-hub-logs` / `splunk_edge_hub_log` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'OPC-UA Certificate Expiration and Trust'."
+  },
+  "dataSources": "Connector/gateway logs (certificate validation, trust list) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Edge Hub OPC-UA connector, OPC-UA gateway — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-logs sourcetype=splunk_edge_hub_log \"opcua\" (\"certificate\" OR \"trust\" OR \"expir\" OR \"reject\")\n| rex \"expir|reject|invalid|cert\"\n| table _time host message\n| sort -_time",
-  "description": "Expired or untrusted OPC-UA certificates break secure connections and prevent data collection. Proactive monitoring avoids blind spots after certificate rollover failures.",
-  "value": "Expired or untrusted OPC-UA certificates break secure connections and prevent data collection. Proactive monitoring avoids blind spots after certificate rollover failures.",
+  "description": "Alerts on 'OPC-UA Certificate Expiration and Trust' patterns (UC-14.5.9) sourced from `index=edge-hub-logs` sourcetype `splunk_edge_hub_log`. Threshold bundle: configured threshold; aggregation grain: `entity`; metrics: `count`. Watch terms: OPC, Certificate, Expiration, and, Trust.",
+  "value": "UC-14.5.9 gives Operations teams earlier visibility into and Trust through `splunk_edge_hub_log` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Forward OPC-UA connector and gateway logs. Parse certificate and trust-related messages. Maintain a script or lookup of cert expiry dates; alert when expiry is within 30 days or when log shows validation failure.",
   "visualization": "Table (cert expiry by endpoint), Timeline (cert events), Single value (certs expiring in 30d).",
   "cimModels": [
@@ -23,18 +29,45 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Certificate expiry during planned PKI rollover, vendor certificate refresh, or migration windows.",
+  "knownFalsePositives": "1. **Maintenance window on `edge-hub-logs` (UC-14.5.9)** — Planned work for 'OPC-UA Certificate Expiration and Trust' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `splunk_edge_hub_log`** — Scheduled automation elevates `src` without crossing configured threshold for UC-14.5.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `edge-hub-logs` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `splunk_edge_hub_log`** — First 48h baseline for UC-14.5.9 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cert_pki",
     "edge_hub",
     "opcua"
   ],
+  "equipmentModels": [
+    "cert_pki_generic",
+    "edge_hub_generic",
+    "opcua_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     "Splunk Edge Hub"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Edge Hub OPC-UA connector, OPC-UA gateway.\n• Ensure the following data sources are available: Connector/gateway logs (certificate validation, trust list).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward OPC-UA connector and gateway logs. Parse certificate and trust-related messages. Maintain a script or lookup of cert expiry dates; alert when expiry is within 30 days or when log shows validation failure.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-logs sourcetype=splunk_edge_hub_log \"opcua\" (\"certificate\" OR \"trust\" OR \"expir\" OR \"reject\")\n| rex \"expir|reject|invalid|cert\"\n| table _time host message\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**OPC-UA Certificate Expiration and Trust** — Expired or untrusted OPC-UA certificates break secure connections and prevent data collection. Proactive monitoring avoids blind spots after certificate rollover failures.\n\nDocumented **Data sources**: Connector/gateway logs (certificate validation, trust list). **App/TA** (typical add-on context): Edge Hub OPC-UA connector, OPC-UA gateway. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-logs; **sourcetype**: splunk_edge_hub_log. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-logs, sourcetype=splunk_edge_hub_log. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• Pipeline stage (see **OPC-UA Certificate Expiration and Trust**): table _time host message\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nRun the search for a time range where you know sessions were active, then compare the same nodes and clients in an industrial client such as UA Expert. Spot-check certificate and session fields against the server.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (cert expiry by endpoint), Timeline (cert events), Single value (certs expiring in 30d).",
-  "grandmaExplanation": "We watch certificates and trust on the industrial link so an expiry or trust break does not silently cut off secure plant data."
+  "grandmaExplanation": "We watch certificates and trust on the industrial link so an expiry or trust break does not silently cut off secure plant data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

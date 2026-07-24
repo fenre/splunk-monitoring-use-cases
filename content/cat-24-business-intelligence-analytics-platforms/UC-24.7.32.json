@@ -8,31 +8,57 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Control-M Automation API job status (`controlm:job`), Control-M/EM gateway and agent logs (`controlm:em`, `controlm:agent`).",
-  "app": "Control-M/EM logs and the Control-M Automation API (`/run/jobs/status`) via HEC scripted inputs; Control-M reporting database via Splunk DB Connect.",
+  "exclusions": "Covers the detection logic documented for 'Control-M Agent Connectivity Loss' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_control_m_agent_connectivity_loss` (UC-24.7.32), SOC dashboard panel \"Operations — Control-M Agent Connectivity Loss\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.7.32 positive (Control, Agent, Connectivity, Loss): ingest synthetic events into `index=bi` sourcetype='controlm:em' where `count` grouped by `agent` satisfies detection threshold for 'Control-M Agent Connectivity Loss'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.32 negative (Connectivity Loss): ingest benign `bi` / `controlm:em` events where `agent` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Control-M Agent Connectivity Loss'."
+  },
+  "dataSources": "Control-M Automation API job status (`controlm:job`), Control-M/EM gateway and agent logs (`controlm:em`, `controlm:agent`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Control-M/EM logs and the Control-M Automation API (`/run/jobs/status`) via HEC scripted inputs; Control-M reporting database via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=controlm:em (\"Agent\" AND (\"Unavailable\" OR \"Disconnected\" OR \"lost\"))\n| rex \"Agent (?<agent>\\S+)\"\n| stats count as events, latest(_time) as last_event by agent\n| sort - last_event",
-  "description": "Detects Control-M/EM messages reporting agents going unavailable or disconnected, which stop all jobs scheduled on the affected host.",
-  "value": "An offline agent halts every job on that server; immediate detection prevents a cascade of downstream batch failures.",
+  "description": "Surfaces UC-24.7.32 — Control, Agent, Connectivity, Loss — using `index=bi` sourcetype `controlm:em`, grouped by `agent`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Connectivity Loss. Purpose-built for 'Control-M Agent Connectivity Loss' in Operations workflows.",
+  "value": "UC-24.7.32 operationalises 'Control-M Agent Connectivity Loss' against `controlm:em` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest Control-M/EM gateway logs; schedule every 5 minutes and alert on any agent-unavailable event for a production host.",
   "visualization": "Table of agent by last event, status panel.",
   "cimModels": [],
   "references": [
     {
       "title": "BMC — Control-M Automation API",
-      "url": "https://docs.bmc.com/xwiki/bin/view/IT-Operations-Management/Control-M/ControlM-Automation-API/"
+      "url": "https://docs.bmc.com/xwiki/bin/view/IT-Operations-Management/Control-M/ControlM-Automation-API/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "BMC — Control-M documentation",
-      "url": "https://docs.bmc.com/xwiki/bin/view/IT-Operations-Management/Control-M/"
+      "url": "https://docs.bmc.com/xwiki/bin/view/IT-Operations-Management/Control-M/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.32)** — Planned work for 'Control-M Agent Connectivity Loss' shifts `count` over `span=1h` while `agent` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `controlm:em`** — Scheduled automation elevates `src` without crossing configured threshold for UC-24.7.32. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `agent`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `controlm:em`** — First 48h baseline for UC-24.7.32 on `agent` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `agent`, `exception_reason`, `valid_until`.",
   "equipment": [
     "controlm",
     "db_connect"
   ],
-  "grandmaExplanation": "We notice when a machine running scheduled jobs drops off the network so it can be reconnected before jobs pile up."
+  "equipmentModels": [
+    "controlm_generic",
+    "db_connect_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Control-M/EM logs and the Control-M Automation API (`/run/jobs/status`) via HEC scripted inputs; Control-M reporting database via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=controlm:em into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`agent`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We notice when a machine running scheduled jobs drops off the network so it can be reconnected before jobs pile up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

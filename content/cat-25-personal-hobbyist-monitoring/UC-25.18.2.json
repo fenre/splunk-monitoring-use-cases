@@ -8,27 +8,57 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "NVR object-detection (`frigate:event`), camera health (`camera:health`), alarm arm/disarm and life-safety (`alarm:event`), lock access (`lock:access`), plate recognition (`plate:detection`), doorbell (`doorbell:event`).",
-  "app": "Frigate / Blue Iris NVR object-detection events, camera health, alarm and smart-lock logs, and licence-plate recognition via MQTT and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Package Delivery and Porch-Pirate Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_package_delivery_and_porch_pirate_watch` (UC-25.18.2), SOC dashboard panel \"Personal — Package Delivery and Porch-Pirate Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.18.2 positive (Package, Delivery, and, Porch, Pirate): ingest synthetic events into `index=personal` sourcetype='frigate:event' where `count` grouped by `event_id` satisfies `dwell_min` > 0 for 'Package Delivery and Porch-Pirate Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.18.2 negative (Pirate Watch): ingest benign `personal` / `frigate:event` events where `event_id` stays below `dwell_min` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 9 confirms zero alert rows for 'Package Delivery and Porch-Pirate Watch'."
+  },
+  "dataSources": "NVR object-detection (`frigate:event`), camera health (`camera:health`), alarm arm/disarm and life-safety (`alarm:event`), lock access (`lock:access`), plate recognition (`plate:detection`), doorbell (`doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Frigate / Blue Iris NVR object-detection events, camera health, alarm and smart-lock logs, and licence-plate recognition via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=frigate:event camera=front_door label=package\n| stats earliest(_time) as appeared, latest(_time) as last_seen by event_id\n| eval dwell_min=round((last_seen-appeared)/60,0)\n| where dwell_min>0",
-  "description": "Detects when a package appears at the door and how long it sits there, so a parcel taken quickly by a stranger stands out.",
-  "value": "Porch theft happens in the gap between delivery and pickup; tracking a package's dwell time turns a camera into a theft alert.",
+  "description": "Identifies UC-25.18.2 — Package, Delivery, and, Porch, Pirate — using `index=personal` sourcetype `frigate:event`, grouped by `event_id`. Outputs `count` each `the scheduled window`; alert when `dwell_min` > 0. Primary focus: Pirate Watch. Purpose-built for 'Package Delivery and Porch-Pirate Watch' in Personal workflows.",
+  "value": "Operators running UC-25.18.2 on `frigate:event` feeds shorten triage for Pirate Watch tied to 'Package Delivery and Porch-Pirate Watch', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Detect the package object class at the door; alert on delivery and on unusually fast removal.",
   "visualization": "Timeline of package appearances with dwell time at the door.",
   "cimModels": [],
   "references": [
     {
       "title": "Frigate NVR — documentation",
-      "url": "https://docs.frigate.video/"
+      "url": "https://docs.frigate.video/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.18.2)** — Connector for 'Package Delivery and Porch-Pirate Watch' stops polling `frigate:event`; stale `count` on `event_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.18.2, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `frigate:event`. Dedup with `stats latest(*) by event_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `dwell_min` > 0 for 'Package Delivery and Porch-Pirate Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "cctv",
     "mqtt"
   ],
-  "grandmaExplanation": "It notices when a parcel arrives at your door and how long it stays, so you can spot if someone grabs it."
+  "equipmentModels": [
+    "cctv_generic",
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Security & Surveillance — typical feeds: NVR object-detection (`frigate:event`), camera health (`camera:health`), alarm arm/disarm and life-safety (`alarm:event`), lock access (`lock:access`), plate recognition (`plate:detection`), doorbell .\n• **Sourcetypes in this search**: `frigate:event`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=frigate:event`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Frigate / Blue Iris NVR object-detection events, camera health, alarm and smart-lock logs, and licence-plate recognition via MQTT and Splunk HEC..\n\n**Author notes:** Detect the package object class at the door; alert on delivery and on unusually fast removal.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"frigate:event\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=frigate:event earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Package Delivery and Porch-Pirate Watch** over `personal` data (primarily `sourcetype=frigate:event`) across the full search range. It applies numeric thresholds on `dwell_min` (> 0) after earliest, latest — tune these constants to your household baseline.\n\n**Fields this search depends on:** `dwell_min`, `event_id`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=frigate:event camera=front_door label=package\n| stats earliest(_time) as appeared, latest(_time) as last_seen by event_id\n| eval dwell_min=round((last_seen-appeared)/60,0)\n| where dwell_min>0\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=frigate:event earliest=-7d\n| head 50\n| table dwell_min, event_id\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=frigate:event earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `dwell_min` before alerting:\n\n```spl\nindex=personal sourcetype=frigate:event earliest=-30d\n| stats perc50(dwell_min) AS p50 perc90(dwell_min) AS p90 perc99(dwell_min) AS p99 max(dwell_min) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.18.2: Personal evidence` with the following panel layout:\n\n**Panel 1 — Timeline Of Package Appearances With Dwell Time At The Door (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `frigate:event` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=frigate:event | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It notices when a parcel arrives at your door and how long it stays, so you can spot if someone grabs it.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

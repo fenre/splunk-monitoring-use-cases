@@ -9,11 +9,17 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.TASK_HISTORY` as `snowflake:task_history`",
+  "exclusions": "Covers the detection logic documented for 'Snowflake Task Execution Failures and Retries' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_snowflake_task_execution_failures_and_retries` (UC-7.1.79), SOC dashboard panel \"Operations — Snowflake Task Execution Failures and Retries\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.79 positive (Snowflake, Task, Execution, Failures, and): ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:task_history' where `values` grouped by `NAME`, `SCHEMA_NAME`, `DATABASE_NAME`, `_time` satisfies `failures` >= 3 for 'Snowflake Task Execution Failures and Retries'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.79 negative (and Retries): ingest benign `datawarehouse` / `snowflake:task_history` events where `NAME`, `SCHEMA_NAME`, `DATABASE_NAME`, `_time` stays below `failures` >= 3, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Snowflake Task Execution Failures and Retries'."
+  },
+  "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.TASK_HISTORY` as `snowflake:task_history` Indexes: datawarehouse. Sourcetypes: snowflake:task_history. Key fields: DATABASE_NAME, NAME, SCHEMA_NAME, _time, failures. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Add-on for Snowflake (Splunkbase 5390)",
   "spl": "index=datawarehouse sourcetype=\"snowflake:task_history\"\n| where STATE=\"failed\" OR match(upper(coalesce(ERROR_MESSAGE,\"\")),\"ERROR\") OR RETURN_VALUE=\"FAILED\"\n| eval err=coalesce(ERROR_CODE, ERROR_MESSAGE)\n| bin _time span=1h\n| stats count as failures values(err) as errors latest(SCHEDULED_TIME) as last_sched by NAME, SCHEMA_NAME, DATABASE_NAME, _time\n| where failures >= 3",
-  "description": "Failed tasks silently break incremental pipelines—downstream tables stop updating while consumers assume freshness. Clustering failures by task name and schema speeds root-cause analysis across dbt/Snowflake orchestration stacks.",
-  "value": "Prevents stale executive metrics and broken downstream ML features when SQL tasks stop committing.",
+  "description": "Surfaces UC-7.1.79 — Snowflake, Task, Execution, Failures, and — using `index=datawarehouse` sourcetype `snowflake:task_history`, grouped by `NAME`, `SCHEMA_NAME`, `DATABASE_NAME`, `_time`. Outputs `values` each `1h`; alert when `failures` >= 3. Primary focus: and Retries. Purpose-built for 'Snowflake Task Execution Failures and Retries' in Operations workflows.",
+  "value": "Alerting on Snowflake, Task, Execution, Failures, and through UC-7.1.79 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Map TASK_HISTORY columns (`NAME`, `SCHEMA_NAME`, `DATABASE_NAME`, `STATE`, `ERROR_CODE`, `ERROR_MESSAGE`, `SCHEDULED_TIME`, `COMPLETED_TIME`). Handle retries: dedupe on `QUERY_ID` if present. Link to `snowflake:query_history` for the failing statement text. Maintenance windows via lookup on database/schema.",
   "visualization": "Timeline (failures), Table (task, errors), Sankey to query_id drilldown.",
   "cimModels": [
@@ -22,13 +28,33 @@
   "references": [
     {
       "title": "Snowflake TASK_HISTORY",
-      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/task_history"
+      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/task_history",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 5390",
+      "url": "https://splunkbase.splunk.com/app/5390",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Larger ETL or analyst workloads and seasonal reporting can raise warehouse credits or queueing without a fault; tune to business hours and team-specific baselines.",
+  "knownFalsePositives": "1. **Maintenance window on `datawarehouse` (UC-7.1.79)** — Planned work for 'Snowflake Task Execution Failures and Retries' shifts `values` over `span=1h` while `NAME`, `SCHEMA_NAME`, `DATABASE_NAME`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `snowflake:task_history`** — Scheduled automation elevates `SCHEMA_NAME` without crossing `failures` >= 3 for UC-7.1.79. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `NAME`, `SCHEMA_NAME`, `DATABASE_NAME`, `_time`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snowflake:task_history`** — First 48h baseline for UC-7.1.79 on `NAME` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `NAME`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow",
     "snowflake"
+  ],
+  "equipmentModels": [
+    "servicenow_generic",
+    "snowflake_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -37,5 +63,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch Snowflake Task Execution Failures and Retries so we can keep this part of the data platform within the capacity and quality targets our teams expect."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Snowflake (Splunkbase 5390)). Enable the modular input or HEC token that writes sourcetype=snowflake:task_history into datawarehouse. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`DATABASE_NAME, NAME, SCHEMA_NAME, _time`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch Snowflake Task Execution Failures and Retries so we can keep this part of the data platform within the capacity and quality targets our teams expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

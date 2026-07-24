@@ -9,26 +9,55 @@
     "Safety"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Tesla vehicle/charge state (`tesla:vehicle`, `tesla:charge`), TeslaMate MQTT, OBD-II PIDs (`obd:pid`), Smartcar API (`smartcar:vehicle`), charger sessions (`evcharger:session`).",
-  "app": "Tesla Fleet API / TeslaMate, Teslafi, and generic OBD-II / Smartcar / manufacturer APIs via HEC scripted inputs and MQTT bridges.",
+  "exclusions": "Covers personal hobby monitoring for 'Cabin Overheat and Climate Event Log' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_cabin_overheat_and_climate_event_log` (UC-25.3.9), SOC dashboard panel \"Personal — Cabin Overheat and Climate Event Log\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.3.9 positive (Cabin, Overheat, and, Climate, Event): ingest synthetic events into `index=personal` sourcetype='tesla:vehicle' where `peak_temp` grouped by `date_mday` satisfies `inside_temp_c` > 45 for 'Cabin Overheat and Climate Event Log'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.3.9 negative (Event Log): ingest benign `personal` / `tesla:vehicle` events where `date_mday` stays below `inside_temp_c` > 45, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Cabin Overheat and Climate Event Log'."
+  },
+  "dataSources": "Tesla vehicle/charge state (`tesla:vehicle`, `tesla:charge`), TeslaMate MQTT, OBD-II PIDs (`obd:pid`), Smartcar API (`smartcar:vehicle`), charger sessions (`evcharger:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Tesla Fleet API / TeslaMate, Teslafi, and generic OBD-II / Smartcar / manufacturer APIs via HEC scripted inputs and MQTT bridges. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tesla:vehicle inside_temp_c>45\n| stats max(inside_temp_c) as peak_temp, count as readings by date_mday\n| sort - peak_temp",
-  "description": "Logs the days your parked car's cabin got dangerously hot, useful if you carry pets, children, or heat-sensitive items.",
-  "value": "A hot cabin is a real safety issue; a log of peak temperatures shows whether cabin-overheat protection is doing its job.",
+  "description": "Surfaces UC-25.3.9 — Cabin, Overheat, and, Climate, Event — using `index=personal` sourcetype `tesla:vehicle`, grouped by `date_mday`. Outputs `peak_temp` each `the scheduled window`; alert when `inside_temp_c` > 45. Primary focus: Event Log. Purpose-built for 'Cabin Overheat and Climate Event Log' in Personal workflows.",
+  "value": "Alerting on Cabin, Overheat, and, Climate, Event through UC-25.3.9 reduces missed training goals, stale hobby data, and connector failures by surfacing `peak_temp` early.",
   "implementation": "Ingest inside-temperature readings; schedule daily and review peak cabin temperatures during summer.",
   "visualization": "Column chart of daily peak cabin temperature.",
   "cimModels": [],
   "references": [
     {
       "title": "TeslaMate — Documentation",
-      "url": "https://docs.teslamate.org/"
+      "url": "https://docs.teslamate.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.3.9)** — Connector for 'Cabin Overheat and Climate Event Log' stops polling `tesla:vehicle`; stale `peak_temp` on `date_mday` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `peak_temp` over `1w` is expected for UC-25.3.9, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tesla:vehicle`. Dedup with `stats latest(*) by date_mday`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `inside_temp_c` > 45 for 'Cabin Overheat and Climate Event Log'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It records the days your car got very hot inside while parked, which matters if you carry pets or children."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Tesla Fleet API / TeslaMate — TeslaMate MQTT/Postgres export or Fleet API poll → HEC.\n• **Subcategory context**: Connected Cars & EVs — typical feeds: Tesla vehicle/charge state (`tesla:vehicle`, `tesla:charge`), TeslaMate MQTT/Postgres, OBD-II PIDs (`obd:pid`), Smartcar API (`smartcar:vehicle`), EV charger sessions (`evcharger:session`)..\n• **Sourcetypes in this search**: `tesla:vehicle`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Tesla Fleet API / TeslaMate** events into `index=personal` with `sourcetype=tesla:vehicle`.\n\n**Collection method:** TeslaMate MQTT/Postgres export or Fleet API poll → HEC.\n\n**Reference endpoint / path:** `vehicle_data / charge_state endpoints`.\n\n**Suggested poll interval:** 300s while charging, 900s otherwise.\n\n**Key fields to extract:** `battery_level, charge_rate, charge_energy_added, latitude, longitude`.\n\n**Typical connector stack:** Tesla Fleet API / TeslaMate, Teslafi, and generic OBD-II / Smartcar / manufacturer APIs via HEC scripted inputs and MQTT..\n\n**Author notes:** Ingest inside-temperature readings; schedule daily and review peak cabin temperatures during summer.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"tesla:vehicle\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=tesla:vehicle earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Cabin Overheat and Climate Event Log** over `personal` data (primarily `sourcetype=tesla:vehicle`) across the full search range. It applies numeric thresholds on `inside_temp_c` (> 45) after max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `date_mday`, `inside_temp_c`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=tesla:vehicle inside_temp_c>45\n| stats max(inside_temp_c) as peak_temp, count as readings by date_mday\n| sort - peak_temp\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Tesla app → Energy / Charging screen. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=tesla:vehicle earliest=-7d\n| head 50\n| table date_mday, inside_temp_c\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=tesla:vehicle earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `inside_temp_c` before alerting:\n\n```spl\nindex=personal sourcetype=tesla:vehicle earliest=-30d\n| stats perc50(inside_temp_c) AS p50 perc90(inside_temp_c) AS p90 perc99(inside_temp_c) AS p99 max(inside_temp_c) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.3.9: Personal evidence` with the following panel layout:\n\n**Panel 1 — Column Chart Of Daily Peak Cabin Temperature (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Tesla Fleet API / TeslaMate — no Tesla Fleet API / TeslaMate events / missing fields:** If `tesla:vehicle` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Tesla Fleet API / TeslaMate connector script is still running (`systemctl status` or cron log).\n\n**Tesla Fleet API / TeslaMate — NULL values in extracted fields:** The Tesla Fleet API / TeslaMate JSON export shape drifted — compare a raw event (`index=personal sourcetype=tesla:vehicle | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Tesla Fleet API / TeslaMate — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Tesla Fleet API / TeslaMate — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Tesla Fleet API / TeslaMate APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It records the days your car got very hot inside while parked, which matters if you carry pets or children.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

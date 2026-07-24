@@ -8,11 +8,17 @@
     "Cost"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Budget alert SNS/email logs, `cost:daily`, CloudTrail",
-  "app": "Cloud billing TAs, CloudTrail",
+  "exclusions": "Covers the detection logic documented for 'FinOps Budget Alert Correlation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_finops_budget_alert_correlation` (UC-20.1.12), SOC dashboard panel \"Operations — FinOps Budget Alert Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-20.1.12 positive (FinOps, Budget, Alert, Correlation): ingest synthetic events into `index=finops` sourcetype='aws:budget:alert' where `daily_cost` grouped by `account_id`, `_time`, `]` satisfies -7d for 'FinOps Budget Alert Correlation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-20.1.12 negative (Alert Correlation): ingest benign `finops` / `aws:budget:alert` events where `account_id`, `_time`, `]` stays below -7d, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'FinOps Budget Alert Correlation'."
+  },
+  "dataSources": "Budget alert SNS/email logs, `cost:daily`, CloudTrail Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cloud billing TAs, CloudTrail — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=finops sourcetype=\"aws:budget:alert\" earliest=-7d\n| eval budget_name=coalesce(budget_name,BudgetName)\n| join type=left max=1 budget_name [ search index=cloud_cost sourcetype=\"cost:daily\" earliest=-7d | bin _time span=1d\n| stats sum(cost) as daily_cost by account_id, _time ]\n| table _time, budget_name, threshold_type, daily_cost",
-  "description": "Joins AWS Budgets / Azure budget notifications with resource change events and anomaly searches to explain **why** a threshold fired.",
-  "value": "Joins AWS Budgets / Azure budget notifications with resource change events and anomaly searches to explain **why** a threshold fired.",
+  "description": "Surfaces risk tied to FinOps, Budget, Alert, Correlation through UC-20.1.12 on `index=finops` sourcetype `aws:budget:alert`. Summarises `daily_cost` grouped by `account_id`, `_time`, `]` across `1d` before applying -7d. Operators tune 'FinOps Budget Alert Correlation' using UC-20.1.12 runbook steps.",
+  "value": "Tracking `daily_cost` via UC-20.1.12 on `aws:budget:alert` feeds improves response to 'FinOps Budget Alert Correlation' and reduces operational risk and delayed incident response.",
   "implementation": "Ingest budget notifications via HEC or Lambda. Drill down to service cost change same day. Link to change tickets.",
   "visualization": "Timeline (budget alerts overlaid with spend), Table (alert + cost delta), Sankey (alert → service).",
   "cimModels": [
@@ -22,14 +28,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1876",
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from autoscaling events, new workload deployments, batch jobs, or DR drill resources.",
+  "knownFalsePositives": "1. **Maintenance window on `finops` (UC-20.1.12)** — Planned work for 'FinOps Budget Alert Correlation' shifts `daily_cost` over `span=1d` while `account_id`, `_time`, `]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:budget:alert`** — Scheduled automation elevates `_time` without crossing configured threshold for UC-20.1.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `account_id`, `_time`, `]`** — Health checks in `finops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:budget:alert`** — First 48h baseline for UC-20.1.12 on `account_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `account_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "azure"
   ],
+  "equipmentModels": [
+    "aws_generic",
+    "azure_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Cloud billing TAs, CloudTrail.\n• Ensure the following data sources are available: Budget alert SNS/email logs, `cost:daily`, CloudTrail.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest budget notifications via HEC or Lambda. Drill down to service cost change same day. Link to change tickets.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=finops sourcetype=\"aws:budget:alert\" earliest=-7d\n| eval budget_name=coalesce(budget_name,BudgetName)\n| join type=left max=1 budget_name [ search index=cloud_cost sourcetype=\"cost:daily\" earliest=-7d | bin _time span=1d\n| stats sum(cost) as daily_cost by account_id, _time ]\n| table _time, budget_name, threshold_type, daily_cost\n```\n\nUnderstanding this SPL\n\n**FinOps Budget Alert Correlation** — Joins AWS Budgets / Azure budget notifications with resource change events and anomaly searches to explain **why** a threshold fired.\n\nDocumented **Data sources**: Budget alert SNS/email logs, `cost:daily`, CloudTrail. **App/TA** (typical add-on context): Cloud billing TAs, CloudTrail. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: finops; **sourcetype**: aws:budget:alert. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=finops, sourcetype=\"aws:budget:alert\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **budget_name** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Pipeline stage (see **FinOps Budget Alert Correlation**): table _time, budget_name, threshold_type, daily_cost\n\n\nStep 3 — Validate\ncompare with Cost Explorer; compare with the cloud billing console for the same scope, accounts, and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (budget alerts overlaid with spend), Table (alert + cost delta), Sankey (alert → service).",
-  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity."
+  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

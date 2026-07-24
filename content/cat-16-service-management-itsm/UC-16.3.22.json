@@ -9,11 +9,17 @@
     "Risk"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Jira Service Management change tickets with planned start/end",
-  "app": "Splunk Add-on for Jira Cloud (6211) + CMDB lookup `service_ci`",
+  "exclusions": "Covers the detection logic documented for 'Jira Change Calendar Collision — Overlapping CAB-Approved Windows' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_jira_change_calendar_collision_overlapping_cab_a` (UC-16.3.22), SOC dashboard panel \"Operations — Jira Change Calendar Collision — Overlapping CAB-Approved Windows\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-16.3.22 positive (Jira, Change, Calendar, Collision, Overlapping): ingest synthetic events into `index=itsm` sourcetype='jira:cloud:issues' where `count` grouped by `service_ci` satisfies detection threshold for 'Jira Change Calendar Collision — Overlapping CAB-Approved Windows'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.3.22 negative (Approved Windows): ingest benign `itsm` / `jira:cloud:issues` events where `service_ci` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Jira Change Calendar Collision — Overlapping CAB-Approved Windows'."
+  },
+  "dataSources": "Jira Service Management change tickets with planned start/end Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Jira Cloud (6211) + CMDB lookup `service_ci` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"jira:cloud:issues\" OR sourcetype=\"jira:issue\"\n| where issue_type=\"Change\" OR labels=\"change\"\n| eval start=start_epoch, end=end_epoch\n| where isnotnull(start) AND isnotnull(end)\n| sort 0 start\n| streamstats window=1 current=f latest(end) as prev_end latest(key) as prev_key by service_ci\n| where start < prev_end AND prev_key!=key\n| table key, prev_key, service_ci, start, end, prev_end",
-  "description": "Overlapping production changes increase rollback complexity and blast radius.",
-  "value": "Lets CAB reviewers cancel or sequence conflicting windows before approval.",
+  "description": "Detects UC-16.3.22 — Jira, Change, Calendar, Collision, Overlapping — using `index=itsm` sourcetype `jira:cloud:issues`, grouped by `service_ci`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Approved Windows. Purpose-built for 'Jira Change Calendar Collision — Overlapping CAB-Approved Windows' in Operations workflows.",
+  "value": "Operators running UC-16.3.22 on `jira:cloud:issues` feeds shorten triage for Approved Windows tied to 'Jira Change Calendar Collision — Overlapping CAB-Approved Windows', lowering operational risk and delayed incident response.",
   "implementation": "Require ISO timestamps in custom fields; normalize to epoch at ingest.",
   "visualization": "Gantt-style table, Alert email to CAB.",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "Splunk Add-on for Jira Cloud",
-      "url": "https://splunkbase.splunk.com/app/6211"
+      "url": "https://splunkbase.splunk.com/app/6211",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Source types — Splunk Add-on for Jira Cloud",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/JiraCloud/Sourcetypes"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/JiraCloud/Sourcetypes",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Overlapping change windows for coordinated deploys, blue-green work, or hotfixes the calendar still shows as two blocks.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.3.22)** — Planned work for 'Jira Change Calendar Collision — Overlapping CAB-Approved Windows' shifts `count` over `span=1h` while `service_ci` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `jira:cloud:issues`** — Scheduled automation elevates `start` without crossing configured threshold for UC-16.3.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `service_ci`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jira:cloud:issues`** — First 48h baseline for UC-16.3.22 on `service_ci` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `service_ci`, `exception_reason`, `valid_until`.",
   "equipment": [
     "jira"
+  ],
+  "equipmentModels": [
+    "jira_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,6 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure: Splunk Add-on for Jira Cloud (6211) + CMDB lookup `service_ci`.\n• Data: Jira Service Management change tickets with planned start/end.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nRequire ISO timestamps in custom fields; normalize to epoch at ingest.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=itsm sourcetype=\"jira:cloud:issues\" OR sourcetype=\"jira:issue\"\n| where issue_type=\"Change\" OR labels=\"change\"\n| eval start=start_epoch, end=end_epoch\n| where isnotnull(start) AND isnotnull(end)\n| sort 0 start\n| streamstats window=1 current=f latest(end) as prev_end latest(key) as prev_key by service_ci\n| where start < prev_end AND prev_key!=key\n| table key, prev_key, service_ci, start, end, prev_end\n```\n\nUnderstanding this search\nOverlapping production changes increase rollback complexity and blast radius.\n\nStep 3 — Validate\nCompare with the Jira issue page, board, or service project view for the same dates. Confirm issue keys, status, and assignment fields; reconcile timestamp fields you use in the report.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Gantt-style table, Alert email to CAB.",
-  "grandmaExplanation": "We look for two approved change windows on top of each other, so two teams are not doing risky work in the same minute."
+  "detailedImplementation": "Prerequisites\n• Install and configure: Splunk Add-on for Jira Cloud (6211) + CMDB lookup `service_ci`.\n• Data: Jira Service Management change tickets with planned start/end.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nRequire ISO timestamps in custom fields; normalize to epoch at ingest.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=itsm sourcetype=\"jira:cloud:issues\" OR sourcetype=\"jira:issue\"\n| where issue_type=\"Change\" OR labels=\"change\"\n| eval start=start_epoch, end=end_epoch\n| where isnotnull(start) AND isnotnull(end)\n| sort 0 start\n| streamstats window=1 current=f latest(end) as prev_end latest(key) as prev_key by service_ci\n| where start < prev_end AND prev_key!=key\n| table key, prev_key, service_ci, start, end, prev_end\n```\n\nUnderstanding this search\nOverlapping production changes increase rollback complexity and blast radius.\n\nStep 3 — Validate\nCompare with the Jira issue page, board, or service project view for the same dates. Confirm issue keys, status, and assignment fields; reconcile timestamp fields you use in the report.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Gantt-style table, Alert email to CAB.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Jira Cloud (6211) + CMDB lookup `service_ci` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=jira:cloud:issues, jira:issue into itsm. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`service_ci`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We look for two approved change windows on top of each other, so two teams are not doing risky work in the same minute.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

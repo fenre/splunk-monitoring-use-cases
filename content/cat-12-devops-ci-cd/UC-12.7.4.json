@@ -9,11 +9,17 @@
     "Audit"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=devops` `sourcetype=argocd:server` API audit lines (403/Forbidden, permission denied, RBAC decision)",
-  "app": "Splunk Add-on for Argo CD, Argo CD `--enable-grpc-web` audit middleware or proxy logs",
+  "exclusions": "Covers the detection logic documented for 'Argo CD API RBAC Violation Attempts — Unauthorized Sync and Delete' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_argo_cd_api_rbac_violation_attempts_unauthorized` (UC-12.7.4), SOC dashboard panel \"Operations — Argo CD API RBAC Violation Attempts — Unauthorized Sync and Delete\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.7.4 positive (Argo, API, RBAC, Violation, Attempts): ingest synthetic events into `index=devops` sourcetype='argocd:server' where `values` grouped by `app`, `verb` satisfies `count` >= 5 for 'Argo CD API RBAC Violation Attempts — Unauthorized Sync and Delete'. Validate filter `\"403\" OR \"Forbidden\" OR \"permission denied\" OR \"not allowed\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.7.4 negative (and Delete): ingest benign `devops` / `argocd:server` events where `app`, `verb` stays below `count` >= 5, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Argo CD API RBAC Violation Attempts — Unauthorized Sync and Delete'."
+  },
+  "dataSources": "`index=devops` `sourcetype=argocd:server` API audit lines (403/Forbidden, permission denied, RBAC decision) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Argo CD, Argo CD `--enable-grpc-web` audit middleware or proxy logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"argocd:server\"\n| search \"403\" OR \"Forbidden\" OR \"permission denied\" OR \"not allowed\" OR \"RBAC\"\n| rex field=_raw \"(?i)(?P<verb>sync|delete|update|patch|create).*application\\\\s+(?P<app>[^\\\\s]+)\"\n| stats count, values(user) as users, values(remote_ip) as src_ips by app, verb\n| where count >= 5\n| sort -count",
-  "description": "Repeated denied sync or delete attempts often precede insider misuse, stolen tokens, or automation using the wrong service account. Centralizing Argo CD API denials gives security teams a high-fidelity signal without waiting for Kubernetes audit noise.",
-  "value": "Supports least-privilege enforcement and proves detective control coverage for GitOps platforms under SOC2 or internal SRE policy.",
+  "description": "Detects UC-12.7.4 — Argo, API, RBAC, Violation, Attempts — using `index=devops` sourcetype `argocd:server`, grouped by `app`, `verb`. Outputs `values` each `the scheduled window`; alert when `count` >= 5. Filter chain includes filter `\"403\" OR \"Forbidden\" OR \"permission denied\" OR \"not allowed\"`. Purpose-built for 'Argo CD API RBAC Violation Attempts — Unauthorized Sync and Delete' in Operations workflows.",
+  "value": "Tracking `activity` via UC-12.7.4 on `argocd:server` feeds improves response to 'Argo CD API RBAC Violation Attempts — Unauthorized Sync and Delete' and reduces operational risk and delayed incident response.",
   "implementation": "Confirm API server logs include authenticated user or OIDC subject and source IP. Add allowlists for known CI service accounts. Forward to a security index with stricter retention; pair with SOAR for automatic ticket creation on novel user+app pairs.",
   "visualization": "Bar chart (denials by user), heatmap (user × application), timeline with drilldown to raw log lines.",
   "cimModels": [
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "Argo CD — RBAC",
-      "url": "https://argo-cd.readthedocs.io/en/stable/operator-manual/rbac/"
+      "url": "https://argo-cd.readthedocs.io/en/stable/operator-manual/rbac/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Transient errors during platform maintenance, network blips, or certificate renewals on shared services.",
+  "knownFalsePositives": "1. **Maintenance window on `devops` (UC-12.7.4)** — Planned work for 'Argo CD API RBAC Violation Attempts — Unauthorized Sync and Delete' shifts `values` over `span=1h` while `app`, `verb` remains in-scope. Applies filter `\"403\" OR \"Forbidden\" OR \"permission denied\" OR \"not allowed\"`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `argocd:server`** — Scheduled automation elevates `verb` without crossing `count` >= 5 for UC-12.7.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `app`, `verb`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `argocd:server`** — First 48h baseline for UC-12.7.4 on `app` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `app`, `exception_reason`, `valid_until`.",
   "equipment": [
     "argocd",
     "kubernetes",
@@ -47,5 +65,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch GitOps sync and Argo signals so clusters stay aligned with the desired configuration in Git."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Argo CD, Argo CD `--enable-grpc-web` audit middleware or proxy logs — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=argocd:server into devops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`app, verb`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch GitOps sync and Argo signals so clusters stay aligned with the desired configuration in Git.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:syslog\"` WAF log profile output — `violation_type`, `severity`, `policy_name`, `profile_name`, `url`, `learning` vs `enforcement` mode, geo block actions",
-  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)",
+  "exclusions": "Covers the detection logic documented for 'Citrix ADC Web Application Firewall (WAF) Violations' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_citrix_adc_web_application_firewall_waf_violatio` (UC-5.3.24), SOC dashboard panel \"Operations — Citrix ADC Web Application Firewall (WAF) Violations\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.3.24 positive (Citrix, ADC, Web, Application, Firewall): ingest synthetic events into `index=netscaler` sourcetype='citrix:netscaler:syslog' where `unique_urls` grouped by `policy_name`, `_time` satisfies `hits` > 0 for 'Citrix ADC Web Application Firewall (WAF) Violations'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.3.24 negative ((WAF) Violations): ingest benign `netscaler` / `citrix:netscaler:syslog` events where `policy_name`, `_time` stays below `hits` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Citrix ADC Web Application Firewall (WAF) Violations'."
+  },
+  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:syslog\"` WAF log profile output — `violation_type`, `severity`, `policy_name`, `profile_name`, `url`, `learning` vs `enforcement` mode, geo block actions Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler) — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=netscaler sourcetype=\"citrix:netscaler:syslog\" (WAF OR \"Application Firewall\" OR APPFW)\n| rex field=_raw \"(?i)(?<violation>SQL|XSS|JSON|XML|CSRF|OWASP)\"\n| eval is_learning=if(match(_raw, \"(?i)learning\"), 1, 0)\n| where NOT (is_learning=1 AND match(_raw, \"(?i)info\"))\n| bin _time span=15m\n| stats count as hits, values(violation) as violation_types, dc(url) as unique_urls, latest(host) as adc by policy_name, _time\n| where hits > 0\n| sort - hits\n| table _time, adc, policy_name, violation_types, unique_urls, hits",
-  "description": "Citrix ADC Web Application Firewall inspects HTTP traffic for common attacks (SQL injection, cross-site scripting, JSON/XML threats) and policy violations. Spikes in violations, or critical signatures firing in enforcement mode, indicate active attacks or misconfigured applications. Distinguishing learning mode noise from enforcement blocks, and monitoring geographic blocks, keeps incident response focused and reduces false positives.",
-  "value": "Security teams analyze Citrix ADC Application Firewall violations by attack category (SQLi, XSS, buffer overflow, data leak), identifying unblocked critical violations and targeted attacks.",
+  "description": "Identifies UC-5.3.24 — Citrix, ADC, Web, Application, Firewall — using `index=netscaler` sourcetype `citrix:netscaler:syslog`, grouped by `policy_name`, `_time`. Outputs `unique_urls` each `15m`; alert when `hits` > 0. Primary focus: (WAF) Violations. Purpose-built for 'Citrix ADC Web Application Firewall (WAF) Violations' in Operations workflows.",
+  "value": "UC-5.3.24 helps teams contain Citrix, ADC, Web, Application, Firewall scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Send WAF log profile output to syslog and index as `citrix:netscaler:syslog`. Parse violation type, action (block, learn, log), and policy. Build correlation searches for attack categories (SQL, XSS, JSON injection) and for geo-IP block actions if logged. Tune thresholds by application: public APIs may legitimately spike; internal apps should not. Use lookups for known scanner IPs and pen-test windows.",
   "visualization": "Stacked column chart of violations by type over time, treemap of policies, drilldown to sample URLs (sanitized).",
   "cimModels": [],
@@ -21,18 +27,26 @@
   "references": [
     {
       "title": "Splunk Documentation: Splunk Add-on for Citrix NetScaler",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Intrusion_Detection",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Citrix ADC — Web App Firewall",
-      "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/application-firewall.html"
+      "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/application-firewall.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Tuning, pen tests, and browser oddities can make web firewall logs noisy; partner with the app team on false rules.",
+  "knownFalsePositives": "1. **Maintenance window on `netscaler` (UC-5.3.24)** — Planned work for 'Citrix ADC Web Application Firewall (WAF) Violations' shifts `unique_urls` over `span=15m` while `policy_name`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `citrix:netscaler:syslog`** — Scheduled automation elevates `_time` without crossing `hits` > 0 for UC-5.3.24. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `policy_name`, `_time`** — Health checks in `netscaler` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `citrix:netscaler:syslog`** — First 48h baseline for UC-5.3.24 on `policy_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `policy_name`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1190"
   ],
@@ -44,6 +58,12 @@
     "citrix_netscaler"
   ],
   "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`, Splunkbase 2770). Citrix ADC Application Firewall (AppFW/WAF) logs in `index=netscaler` with `sourcetype=citrix:netscaler:syslog` or `sourcetype=citrix:netscaler:appfw`. Key fields: `appfw_violation`, `severity`, `source_ip`, `url`, `action` (block/log/transform), `signature_id`, `violation_category`.\n* Citrix ADC AppFW protections: SQL injection, XSS, buffer overflow, cookie tampering, form field consistency, credit card/SSN protection, XML DoS, JSON DoS, signature-based detection.\n\nStep 1 -- Configure data collection\nEnable AppFW logging:\n```\nset appfw settings -logEveryPolicyHit ON\nadd audit syslogAction appfw_log <splunk_ip> -logLevel ALL\nset appfw profile <profile> -logEveryPolicyHit ON\n```\nVerify:\n```spl\nindex=netscaler (sourcetype=\"citrix:netscaler:syslog\" OR sourcetype=\"citrix:netscaler:appfw\") (\"APPFW\" OR \"AppFirewall\" OR \"violation\") earliest=-4h\n| stats count by appfw_violation, action\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- WAF violation analysis:**\n```spl\nindex=netscaler (sourcetype=\"citrix:netscaler:syslog\" OR sourcetype=\"citrix:netscaler:appfw\") (\"APPFW\" OR \"AppFirewall\" OR \"violation\" OR \"appfw_\") earliest=-4h\n| eval violation=coalesce(appfw_violation, violation_type, violation_category)\n| eval act=coalesce(action, enforcement_action)\n| eval src=coalesce(source_ip, client_ip)\n| eval attack_class=case(match(violation, \"(?i)sql\"), \"SQL_INJECTION\", match(violation, \"(?i)xss|cross.site\"), \"XSS\", match(violation, \"(?i)buffer|overflow\"), \"BUFFER_OVERFLOW\", match(violation, \"(?i)cookie\"), \"COOKIE_TAMPERING\", match(violation, \"(?i)field|form\"), \"FORM_MANIPULATION\", match(violation, \"(?i)credit.card|ssn\"), \"DATA_LEAK\", match(violation, \"(?i)signature\"), \"SIGNATURE_MATCH\", 1==1, \"OTHER\")\n| stats count as violations dc(src) as unique_sources values(url) as target_urls by attack_class, act, severity\n| eval risk=case(act!=\"block\" AND severity=\"CRITICAL\", \"HIGH RISK -- critical violation NOT blocked\", act=\"block\" AND violations > 100, \"ACTIVE DEFENSE -- blocking attack\", violations > 50, \"ELEVATED -- high violation volume\", 1==1, \"INFO\")\n| sort risk, -violations\n```\n\nStep 3 -- Validate\n(a) Send a test SQLi payload and verify the violation appears (e.g., `curl \"https://app/?id=1 OR 1=1\"`).\n(b) On ADC CLI: `stat appfw profile <profile>` -- compare violation counts.\n(c) Verify blocking vs logging mode: `show appfw profile <profile>` for each protection.\n\nStep 4 -- Operationalize\nDashboard (\"Citrix ADC -- WAF\"):\n* Row 1 -- Single-value: \"Total violations\", \"Blocked\", \"Logged only\", \"Critical unblocked\".\n* Row 2 -- Attack classification with action and risk.\n* Row 3 -- Top attacking IPs.\n\nAlerting:\n* Critical (critical violation NOT blocked): WAF in learn/log mode -- review.\n* High (> 100 violations from single IP in 15 min): targeted attack.\n\nStep 5 -- Troubleshooting\n\n* **False positives** -- AppFW may flag legitimate requests. Check the learning engine: `show appfw learningdata <profile>`. Accept legitimate patterns to reduce false positives.\n\n* **Violations logged but not blocked** -- Profile is in \"log\" mode. To block: `set appfw profile <profile> -SQLInjectionAction block log stats`.\n\n* **Signature-based violations** -- Update signatures: `update appfw signatures`. Signatures are separate from the AppFW profile.",
-  "grandmaExplanation": "We count web application firewall style blocks on the same path so a noisy rule, a test, and a real attack are easier to separate."
+  "grandmaExplanation": "We count web application firewall style blocks on the same path so a noisy rule, a test, and a real attack are easier to separate.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

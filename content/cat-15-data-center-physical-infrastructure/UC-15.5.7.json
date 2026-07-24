@@ -9,11 +9,17 @@
     "Vulnerability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=physical` · `sourcetype=\"nvr:diagnostic\"`",
-  "app": "Custom TA (NVR REST/syslog), ONVIF pull, Hikvision ISAPI HEC, or Milestone connector mapped to listed sourcetypes",
+  "exclusions": "Covers the detection logic documented for 'CCTV Camera Firmware Version Inventory and Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cctv_camera_firmware_version_inventory_and_compl` (UC-15.5.7), SOC dashboard panel \"Operations — CCTV Camera Firmware Version Inventory and Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-15.5.7 positive (CCTV, Camera, Firmware, Version, Inventory): ingest synthetic events into `index=physical` sourcetype='nvr:diagnostic' where `fw_variants` grouped by `vendor`, `model` satisfies `fw_variants` > 1 for 'CCTV Camera Firmware Version Inventory and Compliance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.5.7 negative (and Compliance): ingest benign `physical` / `nvr:diagnostic` events where `vendor`, `model` stays below `fw_variants` > 1, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'CCTV Camera Firmware Version Inventory and Compliance'."
+  },
+  "dataSources": "`index=physical` · `sourcetype=\"nvr:diagnostic\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom TA (NVR REST/syslog), ONVIF pull, Hikvision ISAPI HEC, or Milestone connector mapped to listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=physical sourcetype=\"nvr:diagnostic\" earliest=-1d\n| eval fw=coalesce(firmware_version, sw_version, \"\")\n| eval model=coalesce(camera_model, vendor_model, \"\")\n| stats values(fw) as firmware dc(fw) as fw_variants by vendor model\n| where fw_variants>1 OR match(fw, \"(?i)2018|v1\\.0\")",
-  "description": "Stale firmware clusters cameras for CVE exposure; inventory proves patch cadence to auditors.",
-  "value": "Reduces exploit risk from default credentials bugs.",
+  "description": "Detects UC-15.5.7 — CCTV, Camera, Firmware, Version, Inventory — using `index=physical` sourcetype `nvr:diagnostic`, grouped by `vendor`, `model`. Outputs `fw_variants` each `the scheduled window`; alert when `fw_variants` > 1. Primary focus: and Compliance. Purpose-built for 'CCTV Camera Firmware Version Inventory and Compliance' in Operations workflows.",
+  "value": "UC-15.5.7 accelerates insight into and Compliance ('CCTV Camera Firmware Version Inventory and Compliance') by tracking `fw_variants` on `nvr:diagnostic` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "(1) Weekly poll VMS. (2) Join vendor advisory CSV. (3) Maintenance window automation.",
   "visualization": "Version pie; compliance bar.",
   "cimModels": [
@@ -23,17 +29,33 @@
   "references": [
     {
       "title": "ONVIF — Open Network Video Interface Forum",
-      "url": "https://www.onvif.org/"
+      "url": "https://www.onvif.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Hikvision OpenAPI / ISAPI",
-      "url": "https://www.hikvision.com/en/support/download/sdk/"
+      "url": "https://www.hikvision.com/en/support/download/sdk/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensor anomalies during cleaning, calibration, or planned environmental changes.",
+  "knownFalsePositives": "1. **Maintenance window on `physical` (UC-15.5.7)** — Planned work for 'CCTV Camera Firmware Version Inventory and Compliance' shifts `fw_variants` over `span=1h` while `vendor`, `model` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `nvr:diagnostic`** — Scheduled automation elevates `model` without crossing `fw_variants` > 1 for UC-15.5.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `vendor`, `model`** — Health checks in `physical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nvr:diagnostic`** — First 48h baseline for UC-15.5.7 on `vendor` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `vendor`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cctv",
     "syslog"
+  ],
+  "equipmentModels": [
+    "cctv_generic",
+    "syslog_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -42,6 +64,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom TA (NVR REST/syslog), ONVIF pull, Hikvision ISAPI HEC, or Milestone connector mapped to listed sourcetypes — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=nvr:diagnostic into physical. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`fw_variants, model, vendor`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

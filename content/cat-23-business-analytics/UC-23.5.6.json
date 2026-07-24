@@ -9,54 +9,73 @@
   ],
   "splunkPillar": "Platform",
   "industry": "Manufacturing, Industrial",
+  "exclusions": "Covers the detection logic documented for 'Production Throughput vs Forecast Capacity' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_production_throughput_vs_forecast_capacity` (UC-23.5.6), SOC dashboard panel \"Operations — Production Throughput vs Forecast Capacity\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-23.5.6 positive (Production, Throughput, Forecast, Capacity): ingest synthetic events into `index=manufacturing_ot` sourcetype='sparkplug_b:metric' where `avail_avg`, `perf_avg`, `qual_avg` grouped by `line_id`, `prod_hour` satisfies `planned_runtime_sec` > 0, `runtime_act` > 0, `ideal_cycle_sec` > 0, or `produced` > 0 for 'Production Throughput vs Forecast Capacity'. Validate lookup `sop_fc_line_week.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-23.5.6 negative (Forecast Capacity): ingest benign `manufacturing_ot` / `sparkplug_b:metric` events where `line_id`, `prod_hour` stays below `planned_runtime_sec` > 0, `runtime_act` > 0, `ideal_cycle_sec` > 0, or `produced` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Production Throughput vs Forecast Capacity'."
+  },
   "dataSources": "Primary `index=manufacturing_ot` spans `sourcetype=sparkplug_b:metric` (HiveMQ/EMQX/Mosquitto brokers implementing **Sparkplug B** topic paths `spBv1.0/{group}/NDATA/{edge}/{device}` with decoded `metric` tuples mirroring PLC counters), `sourcetype=factorytalk:production_event` (Rockwell FactoryTalk ProductionCentre REST `/api/factorytalk/v1/orders` plus historian shards emitting `Counter_Good`, `Counter_Reject`, `State_Code` aligned with ControlLogix tags via **OPC-UA** polling `opc.tcp://line-gateway:4840`), `sourcetype=siemens:opcenter:order_event` (Opcenter Execution Discrete REST Manufacturing Orders feed). `sourcetype=dbx:sap_afru` delivers JDBC rising-column extracts via Splunk DB Connect (**Splunkbase 2686**) from SAP `AFRU` confirmations (`LMNG`, `AUFNR`) tied to `AFKO` shop-floor orders — watermark **`CPUDT`/`LASTCHANGED`**. Forecast bridges land `dbx:sap_ibp_demand_plan` or CSV lookups refreshed from SAP Integrated Business Planning, **Anaplan**, **Blue Yonder**, **D365 SCM Master Planning**. Splunk HTTP Event Collector (**Settings → Data inputs → HTTP Event Collector**) receives OPC gateway JSON batches where Heavy Forwarders cannot sit inside VLAN jump hosts.",
   "app": "Splunk DB Connect (**Splunkbase [2686](https://splunkbase.splunk.com/app/2686)**) package `splunk_app_db_connect` on Heavy Forwarder or DB Connect worker nodes; Splunk Add-on Builder (**Splunkbase [2962](https://splunkbase.splunk.com/app/2962)**) for bespoke REST/MQTT modular inputs packaging ThingWorx, Plex, Tulip, Proficy connectors when SaaS endpoints exceed plain `curl`; Splunk Enterprise / Splunk Cloud HTTP Event Collector for OPC gateway JSON (**Splunk Docs — Use the HTTP Event Collector** ships core — no Splunkbase app id). Optional Splunk OT Security Add-on patterns referenced only when OT syslog taps duplicate MQTT broker audit trails.",
   "spl": "index=manufacturing_ot (sourcetype=\"sparkplug_b:metric\" OR sourcetype=\"factorytalk:production_event\" OR sourcetype=\"siemens:opcenter:order_event\") earliest=-168h@h\n| eval line_id=tostring(coalesce(line_id, production_line, werk_line, resource_id))\n| eval Counter_Good=tonumber(coalesce(Counter_Good, counter_good, parts_good, \"0\"))\n| eval Counter_Reject=tonumber(coalesce(Counter_Reject, counter_reject, parts_scrap, \"0\"))\n| eval State_Code=tostring(coalesce(State_Code, line_state_code, \"UNKNOWN\"))\n| eval planned_runtime_sec=tonumber(coalesce(planned_runtime_sec, scheduled_seconds, \"28800\"))\n| eval downtime_sec=tonumber(coalesce(downtime_sec, downtime_seconds, lost_seconds, \"0\"))\n| eval ideal_cycle_sec=tonumber(coalesce(ideal_cycle_sec, takt_ideal_sec, nominal_cycle_seconds, \"45\"))\n| eval runtime_act=max(planned_runtime_sec - downtime_sec, 1)\n| eval Availability=if(planned_runtime_sec>0 and downtime_sec<=planned_runtime_sec, (planned_runtime_sec-downtime_sec)/planned_runtime_sec, null())\n| eval produced=Counter_Good+Counter_Reject\n| eval Performance=if(runtime_act>0 and ideal_cycle_sec>0, min(1.25, produced*ideal_cycle_sec/runtime_act), null())\n| eval Quality=if(produced>0, Counter_Good/produced, null())\n| eval OEE=Availability*Performance*Quality\n| bin _time span=1h as prod_hour\n| stats avg(Availability) as avail_avg avg(Performance) as perf_avg avg(Quality) as qual_avg avg(OEE) as oee_avg sum(Counter_Good) as actual_good sum(produced) as actual_total max(State_Code) as last_state by line_id prod_hour\n| eval iso_week=strftime(prod_hour,\"%Y-%V\")\n| lookup sop_fc_line_week.csv line_id iso_week OUTPUT forecast_units fc_system_version AS fc_ver\n| eval variance_pct=if(isnotnull(forecast_units) AND forecast_units>0, round(100*(actual_good-forecast_units)/forecast_units, 2), null())\n| eval abs_variance_pct=abs(variance_pct)\n| eval fc_accuracy_proxy=if(isnotnull(forecast_units) AND forecast_units>0 AND forecast_units!=actual_good, round(100*(1-abs(actual_good-forecast_units)/forecast_units), 2), null())\n| eval bottleneck_hint=case(avail_avg<0.85,\"availability_loss\", perf_avg<0.95 AND avail_avg>=0.85,\"rate_loss\", qual_avg<0.95 AND avail_avg>=0.85 AND perf_avg>=0.95,\"quality_loss\", oee_avg>=0.60 AND abs(variance_pct)<15,\"within_band\", 1=1,\"multi_factor\")\n| where isnull(oee_avg) OR oee_avg < 0.60 OR abs(variance_pct) > 15 OR bottleneck_hint!=\"within_band\"\n| sort - abs_variance_pct\n| table prod_hour line_id avail_avg perf_avg qual_avg oee_avg forecast_units actual_good variance_pct bottleneck_hint fc_ver last_state",
-  "description": "Correlates hourly plant-floor throughput (**Counter_Good**, rejects, `State_Code`) against `planned_runtime_sec` and `downtime_sec` telemetry so Splunk derives **Availability**, **Performance**, and **Quality**, then multiplies into **OEE** before comparing `actual_good` units to `forecast_units` pulled from `sop_fc_line_week.csv` / `dbx:sap_ibp_demand_plan` bridges — exposing `variance_pct` band breaches plus bottleneck hints aligned with Nakajima **Six Big Losses** taxonomy rather than ERP-to-warehouse handoff timestamps studied elsewhere in cat-23.5.",
-  "value": "VP Manufacturing and SIOP leads cite **OEE × forecast-variance** overlays when Monthly Executive **S&OP** (**Day-20**) narratives reconcile Operations Truth versus Demand Plans frozen after Supply Review (**Day-10**) — shrinking `MAPE` misses referenced alongside **Gartner** industrial quartile spreads (**median ~60–65% OEE**) before EBITDA narratives fracture; Aberdeen productivity commentary tying multi-point **OEE** lifts to margin expansion informs CapEx debates referencing **Proficy**, **Opcenter**, or **SAP Digital Manufacturing Cloud** bets already underway.",
+  "description": "Surfaces UC-23.5.6 — Production, Throughput, Forecast, Capacity — using `index=manufacturing_ot` sourcetype `sparkplug_b:metric`, grouped by `line_id`, `prod_hour`. Outputs `avail_avg`, `perf_avg`, `qual_avg` each `1h`; alert when `planned_runtime_sec` > 0, `runtime_act` > 0, `ideal_cycle_sec` > 0, or `produced` > 0. Filter chain includes lookup `sop_fc_line_week.csv`. Purpose-built for 'Production Throughput vs Forecast Capacity' in Operations workflows.",
+  "value": "UC-23.5.6 operationalises 'Production Throughput vs Forecast Capacity' against `sparkplug_b:metric` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "(1) Land `sparkplug_b:metric`, `factorytalk:production_event`, `dbx:sap_afru` plus JDBC `dbx:sap_ibp_demand_plan` / nightly `sop_fc_line_week.csv` into `manufacturing_ot`; (2) normalize `Counter_*` aliases per PLC naming conventions using `props.conf`; (3) publish Dashboard Studio `BA-OEE-Forecast-Variance` tying waterfall **OEE**, line `actual_good` versus `forecast_units`, Pareto downtime overlays; (4) route `variance_pct` regressions to Planning while `oee_avg` crises escalate Plant Engineering before outbound logistics KPI siblings reinterpret throughput misses.",
   "visualization": "Dashboard Studio composition: stacked **OEE waterfall** panels separating `Availability`, `Performance`, `Quality` gap deltas; ranked **Pareto** bars fed by `factorytalk:downtime_event` `reason_code` aggregates when paired ingest exists; dual-series **line chart** plotting `actual_good` versus `forecast_units` across `prod_hour` with `fc_ver` overlay annotations; optional **sankey** diagram consuming `State_Code` transition `transaction` spans sampled every fifteen minutes for bottleneck storytelling alongside **splunk.singlevalue** gauges colouring `variance_pct` corridors (**±15%** tolerance typical mass-market discrete manufacturing guardrail unless SIOP publishes tighter envelopes).",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk DB Connect (Splunkbase 2686)",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on Builder (Splunkbase 2962)",
-      "url": "https://splunkbase.splunk.com/app/2962"
+      "url": "https://splunkbase.splunk.com/app/2962",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "OPC Foundation — OPC UA specification portal",
-      "url": "https://opcfoundation.org/developer-tools/specifications-unified-architecture"
+      "url": "https://opcfoundation.org/developer-tools/specifications-unified-architecture",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "MESA International — Models & resources",
-      "url": "https://www.mesa.org/"
+      "url": "https://www.mesa.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Wikipedia — Total productive maintenance (Nakajima heritage)",
-      "url": "https://en.wikipedia.org/wiki/Total_productive_maintenance"
+      "url": "https://en.wikipedia.org/wiki/Total_productive_maintenance",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "OASIS Sparkplug Working Group — Sparkplug B specification",
-      "url": "https://sparkplug.eclipse.org/specification/version/3.0/"
+      "url": "https://sparkplug.eclipse.org/specification/version/3.0/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Documentation — Use the HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Overall equipment effectiveness — contextual primer (Wikipedia)",
-      "url": "https://en.wikipedia.org/wiki/Overall_equipment_effectiveness"
+      "url": "https://en.wikipedia.org/wiki/Overall_equipment_effectiveness",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Authorized tooling changeovers logged inside CMMS under `SETUP` families occasionally inherit `UNCATEG` downtime buckets inside `factorytalk:downtime_event` extracts — Availability plunges despite planners approving forty-five-minute inserts aligned with Lean cadences until `reason_family` lookups reconcile coded `AFVV` routing strings from SAP `AFKO`. Micro-interruption classification macros flipping `<=120` versus `<=90` seconds thresholds materially rearrange `Performance` five-to-twelve percentage points because jitter near arbitrary boundaries separates `IDLE_STARVED` buckets — freeze thresholds alongside PLC ladder freeze tags published quarterly. `Counter_Good` OPC NodeIds renamed after Allen-Bradley firmware refreshes silently zero Splunk deltas until `FIELDALIAS` catch `PART_GOOD_ACCUM` synonyms OT programmers checked into GitLab weeks earlier — dashboards mimic starvation absent mechanical faults. Parallel historians (**Ignition Tag Historian** versus **FactoryTalk Metrics**) occasionally disagree **150 ms** on `State_Code` transitions causing `Performance` numerator denominators to lag `MES` pallet scans though conveyors stayed synchronous — widen `bin` buckets cautiously before accusing rate-loss clusters. MQTT `NBIRTH` certificate churn across HiveMQ clusters emits fifteen-to-thirty-second telemetry gaps resembling starvation despite uninterrupted spindle currents until `sparkplug` `seq` gaps flagged benign. Demand-plan snapshots referencing `scenario=W17_PREEXEC` mismatch Splunk `lookup` rows frozen at `scenario=W17_PUBLISHED` — `variance_pct` spikes purely Planning reconciliation artefact until nightly `fc_ver` watermark monitors succeed. Commercial `pull-forward` incentives inflate `forecast_units` temporarily separate from mechanical reliability yet `actual_good` falls short whenever distributors postpone pickups unrelated to shop-floor `OEE`. Quality supervisors mid-shift relabel `scrap` baskets into `rework` queues — `Quality` denominators oscillate unless nightly `parts_scrapped` reconciliations merge rework routers Saturday overtime bursts omitted from `planned_runtime_sec` defaults inflate `Availability` alarms absent supplemental `shift_calendar` overlays Facilities publishes Fridays. `Demand_Response` curtailment programmes deliberately throttle `State_Code` despite intact tooling — `Performance` dips benign absent Facilities `demand_response_active` annotation bridging SPL through `lookup`. Predictive `MAINT` windows counted identical to stochastic breakdown `DT` inflate `Availability` misses unless `planned_pm` booleans subtract numerator adjustments sourced from SAP `IW39` extracts Splunk optionally joins IT `MES` outages suppress `downtime_reason` altogether leaving Splunk `Availability` numerator reliant solely on PLC `Alarm` caches buffered offline until MQTT redundancy heals.",
+  "knownFalsePositives": "1. **Maintenance window on `manufacturing_ot` (UC-23.5.6)** — Planned work for 'Production Throughput vs Forecast Capacity' shifts `avail_avg`, `perf_avg`, `qual_avg` over `span=1h` while `line_id`, `prod_hour` remains in-scope. Applies lookup `sop_fc_line_week.csv`. Cross-check CMDB CHG.\n\n2. **Batch `max` on `sparkplug_b:metric`** — Scheduled automation elevates `prod_hour` without crossing `planned_runtime_sec` > 0 for UC-23.5.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `line_id`, `prod_hour`** — Health checks in `manufacturing_ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `sparkplug_b:metric`** — First 48h baseline for UC-23.5.6 on `line_id` is unstable; join `sop_fc_line_week.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `line_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mqtt",
     "opcua",
     "syslog"
+  ],
+  "equipmentModels": [
+    "db_connect_generic",
+    "mqtt_generic",
+    "opcua_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-28",

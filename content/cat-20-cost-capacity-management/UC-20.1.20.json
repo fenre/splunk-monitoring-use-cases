@@ -8,11 +8,17 @@
     "Cost"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Idle detection output, `lineItem_UsageAccountId`",
-  "app": "Cloud metrics, CUR, CMDB",
+  "exclusions": "Covers the detection logic documented for 'Idle Resource Identification by Account' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_idle_resource_identification_by_account` (UC-20.1.20), SOC dashboard panel \"Operations — Idle Resource Identification by Account\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-20.1.20 positive (Idle, Resource, Identification, Account): ingest synthetic events into `index=summary` sourcetype='cloud:idle_candidates' where `idle_dollars` grouped by `lineItem_UsageAccountId` satisfies -1d for 'Idle Resource Identification by Account'. Validate lookup `aws_account_owner`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-20.1.20 negative (by Account): ingest benign `summary` / `cloud:idle_candidates` events where `lineItem_UsageAccountId` stays below -1d, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Idle Resource Identification by Account'."
+  },
+  "dataSources": "Idle detection output, `lineItem_UsageAccountId` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cloud metrics, CUR, CMDB — Universal Forwarder (Splunkbase 617)",
   "spl": "index=summary sourcetype=\"cloud:idle_candidates\" earliest=-1d\n| stats sum(estimated_monthly_savings) as idle_dollars by lineItem_UsageAccountId\n| lookup aws_account_owner account_id AS lineItem_UsageAccountId OUTPUT owner_email\n| sort -idle_dollars\n| head 25",
-  "description": "Rolls up idle candidates (UC-20.1.4) to **account and owner** for FinOps accountability — same theme, executive view.",
-  "value": "Rolls up idle candidates (UC-20.1.4) to **account and owner** for FinOps accountability — same theme, executive view.",
+  "description": "Surfaces 'Idle Resource Identification by Account' patterns (UC-20.1.20) sourced from `index=summary` sourcetype `cloud:idle_candidates`. Threshold bundle: -1d; aggregation grain: `lineItem_UsageAccountId`; metrics: `idle_dollars`. Enrichment path: lookup `aws_account_owner`.",
+  "value": "UC-20.1.20 gives Operations teams earlier visibility into by Account through `cloud:idle_candidates` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Populate `cloud:idle_candidates` from scheduled UC-20.1.4 logic. Monthly email to top account owners.",
   "visualization": "Bar chart (idle $ by account), Table (owner, idle $), Single value (fleet idle $).",
   "cimModels": [
@@ -22,10 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Idle resources for DR standby capacity, scheduled batch processors, or planned future-use staging.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Cloud metrics, CUR, CMDB.\n• Ensure the following data sources are available: Idle detection output, `lineItem_UsageAccountId`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPopulate `cloud:idle_candidates` from scheduled UC-20.1.4 logic. Monthly email to top account owners.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=summary sourcetype=\"cloud:idle_candidates\" earliest=-1d\n| stats sum(estimated_monthly_savings) as idle_dollars by lineItem_UsageAccountId\n| lookup aws_account_owner account_id AS lineItem_UsageAccountId OUTPUT owner_email\n| sort -idle_dollars\n| head 25\n```\n\nUnderstanding this SPL\n\n**Idle Resource Identification by Account** — Rolls up idle candidates (UC-20.1.4) to **account and owner** for FinOps accountability — same theme, executive view.\n\nDocumented **Data sources**: Idle detection output, `lineItem_UsageAccountId`. **App/TA** (typical add-on context): Cloud metrics, CUR, CMDB. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: summary; **sourcetype**: cloud:idle_candidates. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=summary, sourcetype=\"cloud:idle_candidates\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by lineItem_UsageAccountId** so each row reflects one combination of those dimensions.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n\n\nStep 3 — Validate\ncompare with Cost Explorer; compare with the cloud billing console for the same scope, accounts, and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (idle $ by account), Table (owner, idle $), Single value (fleet idle $).",
-  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity."
+  "knownFalsePositives": "1. **Maintenance window on `summary` (UC-20.1.20)** — Planned work for 'Idle Resource Identification by Account' shifts `idle_dollars` over `span=1h` while `lineItem_UsageAccountId` remains in-scope. Applies lookup `aws_account_owner`. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cloud:idle_candidates`** — Scheduled automation elevates `src` without crossing configured threshold for UC-20.1.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `lineItem_UsageAccountId`** — Health checks in `summary` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cloud:idle_candidates`** — First 48h baseline for UC-20.1.20 on `lineItem_UsageAccountId` is unstable; join `aws_account_owner` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `lineItem_UsageAccountId`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Cloud metrics, CUR, CMDB.\n• Ensure the following data sources are available: Idle detection output, `lineItem_UsageAccountId`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPopulate `cloud:idle_candidates` from scheduled UC-20.1.4 logic. Monthly email to top account owners.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=summary sourcetype=\"cloud:idle_candidates\" earliest=-1d\n| stats sum(estimated_monthly_savings) as idle_dollars by lineItem_UsageAccountId\n| lookup aws_account_owner account_id AS lineItem_UsageAccountId OUTPUT owner_email\n| sort -idle_dollars\n| head 25\n```\n\nUnderstanding this SPL\n\n**Idle Resource Identification by Account** — Rolls up idle candidates (UC-20.1.4) to **account and owner** for FinOps accountability — same theme, executive view.\n\nDocumented **Data sources**: Idle detection output, `lineItem_UsageAccountId`. **App/TA** (typical add-on context): Cloud metrics, CUR, CMDB. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: summary; **sourcetype**: cloud:idle_candidates. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=summary, sourcetype=\"cloud:idle_candidates\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by lineItem_UsageAccountId** so each row reflects one combination of those dimensions.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n\n\nStep 3 — Validate\ncompare with Cost Explorer; compare with the cloud billing console for the same scope, accounts, and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (idle $ by account), Table (owner, idle $), Single value (fleet idle $).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cloud metrics, CUR, CMDB — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=cloud:idle_candidates into summary. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`account_id, lineItem_UsageAccountId, owner_email`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

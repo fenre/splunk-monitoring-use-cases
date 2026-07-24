@@ -9,24 +9,43 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "RescueTime activity (`rescuetime:activity`), screen-time exports (`screentime:usage`), GitHub events (`github:personal`), habit-tracker logs (`habit:entry`), calendar exports (`calendar:event`), email metadata (`email:metadata`), password-audit reports (`passwordmanager:audit`).",
-  "app": "Screen-time / RescueTime exports, GitHub personal activity, habit/journal trackers, password-audit exports, and calendar/email feeds via HEC scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Password Vault Stale Entries' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_password_vault_stale_entries` (UC-25.13.14), SOC dashboard panel \"Personal — Password Vault Stale Entries\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.13.14 positive (Password, Vault, Stale, Entries): ingest synthetic events into `index=personal` sourcetype='passwordmanager:audit' where `sum` grouped by `vault` satisfies `last_updated_days` > 365, or `stale_items` > 0 for 'Password Vault Stale Entries'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.13.14 negative (Stale Entries): ingest benign `personal` / `passwordmanager:audit` events where `vault` stays below `last_updated_days` > 365, or `stale_items` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Password Vault Stale Entries'."
+  },
+  "dataSources": "RescueTime activity (`rescuetime:activity`), screen-time exports (`screentime:usage`), GitHub events (`github:personal`), habit-tracker logs (`habit:entry`), calendar exports (`calendar:event`), email metadata (`email:metadata`), password-audit reports (`passwordmanager:audit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Screen-time / RescueTime exports, GitHub personal activity, habit/journal trackers, password-audit exports, and calendar/email feeds via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=passwordmanager:audit\n| stats sum(eval(last_updated_days>365)) as stale_items, count as total by vault\n| where stale_items>0\n| sort - stale_items",
-  "description": "Shows how many credentials in each vault have not been touched in over a year, which often means old services or poor account hygiene.",
-  "value": "Security debt is not only weak passwords; stale vault entries are a cleanup opportunity and an inventory of forgotten exposure.",
+  "description": "Detects UC-25.13.14 — Password, Vault, Stale, Entries — using `index=personal` sourcetype `passwordmanager:audit`, grouped by `vault`. Outputs `sum` each `the scheduled window`; alert when `last_updated_days` > 365, or `stale_items` > 0. Primary focus: Stale Entries. Purpose-built for 'Password Vault Stale Entries' in Personal workflows.",
+  "value": "Alerting on Password, Vault, Stale, Entries through UC-25.13.14 reduces missed training goals, stale hobby data, and connector failures by surfacing `activity` early.",
   "implementation": "Export audit metadata from your password manager; review stale entries periodically and close or rotate truly old accounts.",
   "visualization": "Table of vaults by stale credential count.",
   "cimModels": [],
   "references": [
     {
       "title": "Have I Been Pwned - API",
-      "url": "https://haveibeenpwned.com/API/v3"
+      "url": "https://haveibeenpwned.com/API/v3",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.13.14)** — Connector for 'Password Vault Stale Entries' stops polling `passwordmanager:audit`; stale `sum` on `vault` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected for UC-25.13.14, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `passwordmanager:audit`. Dedup with `stats latest(*) by vault`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `last_updated_days` > 365 for 'Password Vault Stale Entries'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "github",
     "hashicorp",
@@ -35,5 +54,12 @@
   "equipmentModels": [
     "hashicorp_vault"
   ],
-  "grandmaExplanation": "It ranks how many saved passwords are so old that they probably belong to accounts you should review or clean up."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Digital Life & Productivity — typical feeds: RescueTime activity (`rescuetime:activity`), Apple/Android screen-time exports (`screentime:usage`), GitHub events (`github:personal`), habit-tracker logs (`habit:entry`), calendar/todo exports..\n• **Sourcetypes in this search**: `passwordmanager:audit`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=passwordmanager:audit`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Screen-time / RescueTime exports, GitHub personal activity, habit/journal trackers, and calendar feeds via HEC scripted inputs..\n\n**Author notes:** Export audit metadata from your password manager; review stale entries periodically and close or rotate truly old accounts.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"passwordmanager:audit\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=passwordmanager:audit earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Password Vault Stale Entries** over `personal` data (primarily `sourcetype=passwordmanager:audit`) across the full search range. It applies numeric thresholds on `last_updated_days` (> 365) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `last_updated_days`, `stale_items`, `vault`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=passwordmanager:audit\n| stats sum(eval(last_updated_days>365)) as stale_items, count as total by vault\n| where stale_items>0\n| sort - stale_items\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=passwordmanager:audit earliest=-7d\n| head 50\n| table last_updated_days, stale_items, vault\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=passwordmanager:audit earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `last_updated_days` before alerting:\n\n```spl\nindex=personal sourcetype=passwordmanager:audit earliest=-30d\n| stats perc50(last_updated_days) AS p50 perc90(last_updated_days) AS p90 perc99(last_updated_days) AS p99 max(last_updated_days) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.13.14: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Vaults By Stale Credential Count (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `passwordmanager:audit` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=passwordmanager:audit | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It ranks how many saved passwords are so old that they probably belong to accounts you should review or clean up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

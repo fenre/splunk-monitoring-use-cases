@@ -9,28 +9,42 @@
     "Security"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'IPv6 Duplicate Address Detection (DAD) Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_duplicate_address_detection_dad_failures` (UC-5.20.11), SOC dashboard panel \"Operations — IPv6 Duplicate Address Detection (DAD) Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.11 positive (IPv6, Duplicate, Address, Detection, (DAD)): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `host`, `interface`, `dup_address` satisfies `count` > 10, or `count` > 3 for 'IPv6 Duplicate Address Detection (DAD) Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.11 negative ((DAD) Failures): ingest benign `network` / `cisco:ios` events where `host`, `interface`, `dup_address` stays below `count` > 10, or `count` > 3, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'IPv6 Duplicate Address Detection (DAD) Failures'."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` for DAD-related syslog messages. Key Cisco IOS/IOS-XE mnemonics:\n- `%IPV6-4-DUPLICATE` — DAD detected a duplicate address; the address is placed in TENTATIVE state and cannot be used.\n- `%SISF-4-PAK_DROP` with `Reason:DAD` — SISF dropped a packet due to DAD conflict.\n- `%IPV6_ND-6-DUPLICATE_ADDR` — duplicate address detected on an interface.\nOn Juniper: `rpd[]: RPD_IPV6_DAD_FAILED` or `dad-failed` in NDP traceoptions.\nOn Arista: `%IPV6-4-DUPLICATE`.\nOn Windows endpoints: Event ID 4227 in System log (\"The system detected an address conflict for IPv6 address\").\nVolume: DAD events should be rare (< 1/day on a healthy network). More than 5 DAD failures/hour on a single VLAN is anomalous.",
   "app": "Cisco Networks Add-on (`TA-cisco_ios`, Splunkbase 1352) for syslog, Splunk Add-on for Windows (`Splunk_TA_windows`, Splunkbase 742) for Windows event logs.",
   "spl": "index=network sourcetype=\"cisco:ios\" \"%IPV6-4-DUPLICATE\" OR \"%IPV6_ND-6-DUPLICATE\" OR (\"%SISF\" \"DAD\")\n| rex \"(?i)(?:duplicate|DAD).*?(?:address|addr)\\s+(?<dup_address>[0-9a-fA-F:]+)\"\n| rex \"(?i)(?:interface|intf)\\s+(?<interface>\\S+)\"\n| stats count as dad_failures earliest(_time) as first_seen latest(_time) as last_seen by host, interface, dup_address\n| eval first_seen=strftime(first_seen, \"%Y-%m-%d %H:%M:%S\")\n| eval last_seen=strftime(last_seen, \"%Y-%m-%d %H:%M:%S\")\n| eval severity=case(\n    count > 10, \"CRITICAL — possible DAD DoS attack\",\n    count > 3, \"HIGH — repeated DAD failures\",\n    1==1, \"MEDIUM — isolated DAD failure\")\n| sort -dad_failures",
-  "description": "Detects IPv6 Duplicate Address Detection (DAD) failures across the network. DAD is a mandatory IPv6 mechanism (RFC 4862) — before any IPv6 address can be used (SLAAC or DHCPv6-assigned), the host sends a Neighbor Solicitation to verify the address is unique on the link. If another device responds, the address is marked TENTATIVE and cannot be used, which means the host has no usable IPv6 address on that interface. A single DAD failure is an address conflict (operational issue). Multiple DAD failures in rapid succession on the same VLAN indicate either a systematic misconfiguration (overlapping address pools) or an active DAD denial-of-service attack (UC-5.20.87) where an attacker responds to ALL DAD probes, preventing any new host from acquiring an IPv6 address.",
-  "value": "A DAD failure silently prevents a device from communicating via IPv6. Unlike IPv4 where duplicate IP addresses produce visible ARP conflicts and gratuitous ARPs, IPv6 DAD failures often go unnoticed — the device simply has no working IPv6 address and falls back to IPv4 (if dual-stack) or has no connectivity at all (if IPv6-only). Users may not report the issue because their browser uses Happy Eyeballs (RFC 8305) to transparently fall back to IPv4, masking the IPv6 failure. This UC surfaces DAD failures that would otherwise be invisible, enabling proactive remediation of address conflicts and early detection of DAD-based denial-of-service attacks.",
+  "description": "Alerts on UC-5.20.11 for IPv6, Duplicate, Address, Detection, (DAD) over `index=network` sourcetype `cisco:ios` with thresholds `count` > 10, or `count` > 3. Groups `count` by `host`, `interface`, `dup_address` each `the scheduled window`. Centered on (DAD) Failures indicators. Supports repeatable operations triage for 'IPv6 Duplicate Address Detection (DAD) Failures'.",
+  "value": "For 'IPv6 Duplicate Address Detection (DAD) Failures', UC-5.20.11 converts `activity` on `cisco:ios` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Monitor syslog from all Layer 3 devices and endpoints for DAD failure messages. The search is simple — DAD failures are explicit syslog events with clear mnemonics. Alert on any occurrence (DAD failures should not happen in normal operation). Investigate immediately if count > 5/hour on a single VLAN.",
   "visualization": "(1) Single-value tile: total DAD failures in last 24h (red if > 0, green if 0). (2) Table: duplicate address, interface, router, failure count, first/last seen, severity. (3) Timechart: DAD failures over 7 days — any pattern (time of day, day of week) helps identify the cause. (4) Status grid by VLAN/interface: green (no failures) vs red (failures detected).",
   "references": [
     {
       "title": "RFC 4862 — IPv6 Stateless Address Autoconfiguration (§5.4 — Duplicate Address Detection)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4862"
+      "url": "https://www.rfc-editor.org/rfc/rfc4862",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.1.5 — DAD security)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 3971 — SEcure Neighbor Discovery (SEND) — cryptographic DAD protection",
-      "url": "https://www.rfc-editor.org/rfc/rfc3971"
+      "url": "https://www.rfc-editor.org/rfc/rfc3971",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**VRRP/HSRP virtual address DAD on failover.** When a VRRP/HSRP failover occurs, the new active router performs DAD for the virtual IPv6 address. If the old active router hasn't fully released the address, a brief DAD conflict may be logged. This resolves within seconds and is transient.\n\n**VM migration (vMotion/live migration).** When a virtual machine migrates between hosts, both the source and destination host may briefly have the same IPv6 address, triggering DAD on the destination. This is transient and resolves as the source releases the address.\n\n**Duplicate static assignments.** Two devices manually configured with the same static IPv6 address will produce persistent DAD failures. This is a real conflict (not a false positive), but the root cause is human error, not an attack. Remediate by fixing one device's address.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.11)** — Planned work for 'IPv6 Duplicate Address Detection (DAD) Failures' shifts `count` over `span=1h` while `host`, `interface`, `dup_address` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `interface` without crossing `count` > 10 for UC-5.20.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `interface`, `dup_address`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.11 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "arista",
     "cisco",

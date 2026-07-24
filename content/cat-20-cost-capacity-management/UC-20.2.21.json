@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`vmware:host:perf`",
-  "app": "`Splunk_TA_vmware`, `Splunk_TA_windows` (Hyper-V Perfmon)",
+  "exclusions": "Covers the detection logic documented for 'CPU and Memory Right-Sizing (Host and VM)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cpu_and_memory_right_sizing_host_and_vm` (UC-20.2.21), SOC dashboard panel \"Operations — CPU and Memory Right-Sizing (Host and VM)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-20.2.21 positive (CPU, and, Memory, Right, Sizing): ingest synthetic events into `index=virtualization` sourcetype='vmware:host:perf' where `cpu`, `mem` grouped by `host` satisfies `cpu` > 85, or `mem` > 90 for 'CPU and Memory Right-Sizing (Host and VM)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-20.2.21 negative (and VM)): ingest benign `virtualization` / `vmware:host:perf` events where `host` stays below `cpu` > 85, or `mem` > 90, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'CPU and Memory Right-Sizing (Host and VM)'."
+  },
+  "dataSources": "`vmware:host:perf` Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_vmware`, `Splunk_TA_windows` (Hyper-V Perfmon) — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
   "spl": "index=virtualization sourcetype=\"vmware:host:perf\" earliest=-7d\n| stats avg(cpu_used_pct) as cpu, avg(mem_used_pct) as mem by host\n| eval overcommit_risk=if(cpu>85 OR mem>90,1,0)\n| where overcommit_risk=1\n| table host, cpu, mem",
-  "description": "Host-level overcommit risk and VM-level downsize candidates — pairs with VM view (UC-20.2.5).",
-  "value": "Host-level overcommit risk and VM-level downsize candidates — pairs with VM view (UC-20.2.5).",
+  "description": "Identifies 'CPU and Memory Right-Sizing (Host and VM)' (UC-20.2.21) using `index=virtualization` sourcetype `vmware:host:perf` by aggregating `cpu`, `mem` grouped by `host` over `the scheduled window` and alerting when `cpu` > 85, or `mem` > 90. Keywords: CPU, and, Memory, Right, Sizing. Focuses on and VM) behaviour so operations teams can triage UC-20.2.21 without ad-hoc log review.",
+  "value": "UC-20.2.21 accelerates insight into and VM) ('CPU and Memory Right-Sizing (Host and VM)') by tracking `cpu`, `mem` on `vmware:host:perf` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Combine with cluster headroom (UC-20.2.18). Alert on chronic host saturation.",
   "visualization": "Table (hot hosts), Heatmap (host × day), Gauge.",
   "cimModels": [
@@ -22,18 +28,41 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 3684",
+      "url": "https://splunkbase.splunk.com/app/3684",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from autoscaling events, new workload deployments, batch jobs, or DR drill resources.",
+  "knownFalsePositives": "1. **Maintenance window on `virtualization` (UC-20.2.21)** — Planned work for 'CPU and Memory Right-Sizing (Host and VM)' shifts `cpu`, `mem` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `vmware:host:perf`** — Scheduled automation elevates `overcommit_risk` without crossing `cpu` > 85 for UC-20.2.21. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `virtualization` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `vmware:host:perf`** — First 48h baseline for UC-20.2.21 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "hyperv",
     "vmware",
     "windows"
   ],
   "equipmentModels": [
+    "vmware_esxi",
     "vmware_ta_vmware"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`, `Splunk_TA_windows` (Hyper-V Perfmon).\n• Ensure the following data sources are available: `vmware:host:perf`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCombine with cluster headroom (UC-20.2.18). Alert on chronic host saturation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=virtualization sourcetype=\"vmware:host:perf\" earliest=-7d\n| stats avg(cpu_used_pct) as cpu, avg(mem_used_pct) as mem by host\n| eval overcommit_risk=if(cpu>85 OR mem>90,1,0)\n| where overcommit_risk=1\n| table host, cpu, mem\n```\n\nUnderstanding this SPL\n\n**CPU and Memory Right-Sizing (Host and VM)** — Host-level overcommit risk and VM-level downsize candidates — pairs with VM view (UC-20.2.5).\n\nDocumented **Data sources**: `vmware:host:perf`. **App/TA** (typical add-on context): `Splunk_TA_vmware`, `Splunk_TA_windows` (Hyper-V Perfmon). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: virtualization; **sourcetype**: vmware:host:perf. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=virtualization, sourcetype=\"vmware:host:perf\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **overcommit_risk** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where overcommit_risk=1` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **CPU and Memory Right-Sizing (Host and VM)**): table host, cpu, mem\n\n\nStep 3 — Validate\ncompare with vROps capacity dashboard; compare with the cloud billing console for the same scope, accounts, and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (hot hosts), Heatmap (host × day), Gauge.",
-  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`, `Splunk_TA_windows` (Hyper-V Perfmon).\n• Ensure the following data sources are available: `vmware:host:perf`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCombine with cluster headroom (UC-20.2.18). Alert on chronic host saturation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=virtualization sourcetype=\"vmware:host:perf\" earliest=-7d\n| stats avg(cpu_used_pct) as cpu, avg(mem_used_pct) as mem by host\n| eval overcommit_risk=if(cpu>85 OR mem>90,1,0)\n| where overcommit_risk=1\n| table host, cpu, mem\n```\n\nUnderstanding this SPL\n\n**CPU and Memory Right-Sizing (Host and VM)** — Host-level overcommit risk and VM-level downsize candidates — pairs with VM view (UC-20.2.5).\n\nDocumented **Data sources**: `vmware:host:perf`. **App/TA** (typical add-on context): `Splunk_TA_vmware`, `Splunk_TA_windows` (Hyper-V Perfmon). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: virtualization; **sourcetype**: vmware:host:perf. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=virtualization, sourcetype=\"vmware:host:perf\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **overcommit_risk** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where overcommit_risk=1` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **CPU and Memory Right-Sizing (Host and VM)**): table host, cpu, mem\n\n\nStep 3 — Validate\ncompare with vROps capacity dashboard; compare with the cloud billing console for the same scope, accounts, and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (hot hosts), Heatmap (host × day), Gauge.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_vmware`, `Splunk_TA_windows` (Hyper-V Perfmon) — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)). Enable the modular input or HEC token that writes sourcetype=vmware:host:perf into virtualization. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cpu, host, mem, overcommit_risk`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

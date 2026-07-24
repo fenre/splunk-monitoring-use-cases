@@ -9,35 +9,60 @@
     "Data Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Renewal calendar events (`calendar:event`), Rocket Money subscriptions (`rocketmoney:subscription`), Stripe invoices (`stripe:invoice`), and Google Workspace licenses (`googleworkspace:license`).",
-  "app": "Renewal calendar exports, Rocket Money subscriptions, Stripe invoice history, and Google Workspace license data ingested into Splunk.",
+  "exclusions": "Covers personal hobby monitoring for 'Stripe Billing Invoice Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_stripe_billing_invoice_sync_gap_watch` (UC-25.68.18), SOC dashboard panel \"Personal — Stripe Billing Invoice Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.68.18 positive (Stripe, Billing, Invoice, Sync, Gap): ingest synthetic events into `index=personal` sourcetype='stripe:invoice' where `last_seen` grouped by `vendor_name` satisfies `hours_since` > 168 for 'Stripe Billing Invoice Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.68.18 negative (Gap Watch): ingest benign `personal` / `stripe:invoice` events where `vendor_name` stays below `hours_since` > 168, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Stripe Billing Invoice Sync Gap Watch'."
+  },
+  "dataSources": "Renewal calendar events (`calendar:event`), Rocket Money subscriptions (`rocketmoney:subscription`), Stripe invoices (`stripe:invoice`), and Google Workspace licenses (`googleworkspace:license`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Renewal calendar exports, Rocket Money subscriptions, Stripe invoice history, and Google Workspace license data ingested into Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=stripe:invoice\n| stats max(_time) as last_seen by vendor_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>168\n| sort - hours_since",
-  "description": "Detects when Stripe Billing invoice data has stopped arriving for a given vendor name.",
-  "value": "Personal telemetry is only useful when it is current; sync-gap alerts catch failed exports and broken credentials early.",
+  "description": "Detects UC-25.68.18 — Stripe, Billing, Invoice, Sync, Gap — using `index=personal` sourcetype `stripe:invoice`, grouped by `vendor_name`. Outputs `last_seen` each `the scheduled window`; alert when `hours_since` > 168. Primary focus: Gap Watch. Purpose-built for 'Stripe Billing Invoice Sync Gap Watch' in Personal workflows.",
+  "value": "For 'Stripe Billing Invoice Sync Gap Watch', UC-25.68.18 converts `last_seen` on `stripe:invoice` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Track the latest event time per vendor name and alert when the feed is older than 168 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
   "references": [
     {
       "title": "Google Calendar API",
-      "url": "https://developers.google.com/workspace/calendar/api/guides/overview"
+      "url": "https://developers.google.com/workspace/calendar/api/guides/overview",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Rocket Money",
-      "url": "https://www.rocketmoney.com/"
+      "url": "https://www.rocketmoney.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Stripe Billing API",
-      "url": "https://docs.stripe.com/api/invoices"
+      "url": "https://docs.stripe.com/api/invoices",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Google Workspace Admin SDK",
-      "url": "https://developers.google.com/admin-sdk/licensing"
+      "url": "https://developers.google.com/admin-sdk/licensing",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It monitors when one part of your Stripe Billing invoice feed has stopped checking in and probably needs fixing."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.68.18)** — Connector for 'Stripe Billing Invoice Sync Gap Watch' stops polling `stripe:invoice`; stale `last_seen` on `vendor_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.68.18, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `stripe:invoice`. Dedup with `stats latest(*) by vendor_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 168 for 'Stripe Billing Invoice Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: SaaS Subscriptions & Renewals — typical feeds: Renewal calendar events (`calendar:event`), Rocket Money subscriptions (`rocketmoney:subscription`), Stripe invoices (`stripe:invoice`), and Google Workspace licenses (`googleworkspace:license`)..\n• **Sourcetypes in this search**: `stripe:invoice`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=stripe:invoice`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Renewal calendar exports, Rocket Money subscriptions, Stripe invoice history, and Google Workspace license data ingested into Splunk..\n\n**Author notes:** Track the latest event time per vendor name and alert when the feed is older than 168 hours.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"stripe:invoice\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=stripe:invoice earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Stripe Billing Invoice Sync Gap Watch** over `personal` data (primarily `sourcetype=stripe:invoice`) across the full search range. It applies numeric thresholds on `hours_since` (> 168) after max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `hours_since`, `vendor_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=stripe:invoice\n| stats max(_time) as last_seen by vendor_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>168\n| sort - hours_since\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=stripe:invoice earliest=-7d\n| head 50\n| table hours_since, vendor_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=stripe:invoice earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hours_since` before alerting:\n\n```spl\nindex=personal sourcetype=stripe:invoice earliest=-30d\n| stats perc50(hours_since) AS p50 perc90(hours_since) AS p90 perc99(hours_since) AS p99 max(hours_since) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.68.18: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Entities By Hours Since Last Event (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `stripe:invoice` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=stripe:invoice | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It monitors when one part of your Stripe Billing invoice feed has stopped checking in and probably needs fixing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

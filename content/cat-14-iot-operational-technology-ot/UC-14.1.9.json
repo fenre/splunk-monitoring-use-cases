@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "OPC-UA server diagnostics node (ServerDiagnosticsSummary)",
-  "app": "Splunk Edge Hub, custom (OPC-UA server diagnostics)",
+  "exclusions": "Covers the detection logic documented for 'OPC-UA Server Session Count and Subscription Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_opc_ua_server_session_count_and_subscription_hea` (UC-14.1.9), SOC dashboard panel \"Operations — OPC-UA Server Session Count and Subscription Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.1.9 positive (OPC, Server, Session, Count, and): ingest synthetic events into `index=ot` sourcetype='opcua:diagnostics' where `count` grouped by `entity` satisfies `session_limit` > 0, `session_pct` > 85, or `subscription_failures` > 0 for 'OPC-UA Server Session Count and Subscription Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.1.9 negative (Subscription Health): ingest benign `ot` / `opcua:diagnostics` events where `entity` stays below `session_limit` > 0, `session_pct` > 85, or `subscription_failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'OPC-UA Server Session Count and Subscription Health'."
+  },
+  "dataSources": "OPC-UA server diagnostics node (ServerDiagnosticsSummary) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub, custom (OPC-UA server diagnostics) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"opcua:diagnostics\" OR sourcetype=\"opcua:server\"\n| eval session_pct=if(session_limit>0, (current_sessions/session_limit)*100, null), subscription_ok=if(subscription_failures==0 OR isnull(subscription_failures), 1, 0)\n| where session_pct > 85 OR current_sessions >= session_limit OR subscription_failures > 0\n| table _time, server_endpoint, current_sessions, session_limit, session_pct, subscription_count, subscription_failures, rejected_session_count",
-  "description": "Session limits and subscription keep-alive failures indicate OPC-UA server capacity and client connectivity. Exceeding session limits or subscription failures cause data gaps and break real-time monitoring.",
-  "value": "Session limits and subscription keep-alive failures indicate OPC-UA server capacity and client connectivity. Exceeding session limits or subscription failures cause data gaps and break real-time monitoring.",
+  "description": "Alerts on risk tied to OPC, Server, Session, Count, and through UC-14.1.9 on `index=ot` sourcetype `opcua:diagnostics`. Summarises `count` grouped by `entity` across `the scheduled window` before applying `session_limit` > 0, `session_pct` > 85, or `subscription_failures` > 0. Operators tune 'OPC-UA Server Session Count and Subscription Health' using UC-14.1.9 runbook steps.",
+  "value": "Tracking `activity` via UC-14.1.9 on `opcua:diagnostics` feeds improves response to 'OPC-UA Server Session Count and Subscription Health' and reduces operational risk and delayed incident response.",
   "implementation": "Read OPC-UA ServerDiagnosticsSummary node (standard diagnostics object) via Edge Hub OPC-UA connector or custom client. Ingest current session count, session limit, subscription count, and subscription failure metrics. Poll every 1–5 minutes. Alert when session count exceeds 85% of limit, subscription failures occur, or rejected session count increases. Track trends for capacity planning.",
   "visualization": "Gauge (session utilization %), Table (servers with subscription failures), Line chart (session count and subscription health trend), Single value (OPC-UA servers healthy).",
   "cimModels": [
@@ -23,17 +29,43 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Benign events during building tests, after-hours schedules, and vendor work—confirm against the BMS console before urgent response.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.1.9)** — Planned work for 'OPC-UA Server Session Count and Subscription Health' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `opcua:diagnostics`** — Scheduled automation elevates `session_pct` without crossing `session_limit` > 0 for UC-14.1.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `opcua:diagnostics`** — First 48h baseline for UC-14.1.9 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub",
     "opcua"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic",
+    "opcua_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Edge Hub"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub, custom (OPC-UA server diagnostics).\n• Ensure the following data sources are available: OPC-UA server diagnostics node (ServerDiagnosticsSummary).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRead OPC-UA ServerDiagnosticsSummary node (standard diagnostics object) via Edge Hub OPC-UA connector or custom client. Ingest current session count, session limit, subscription count, and subscription failure metrics. Poll every 1–5 minutes. Alert when session count exceeds 85% of limit, subscription failures occur, or rejected session count increases. Track trends for capacity planning.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"opcua:diagnostics\" OR sourcetype=\"opcua:server\"\n| eval session_pct=if(session_limit>0, (current_sessions/session_limit)*100, null), subscription_ok=if(subscription_failures==0 OR isnull(subscription_failures), 1, 0)\n| where session_pct > 85 OR current_sessions >= session_limit OR subscription_failures > 0\n| table _time, server_endpoint, current_sessions, session_limit, session_pct, subscription_count, subscription_failures, rejected_session_count\n```\n\nUnderstanding this SPL\n\n**OPC-UA Server Session Count and Subscription Health** — Session limits and subscription keep-alive failures indicate OPC-UA server capacity and client connectivity. Exceeding session limits or subscription failures cause data gaps and break real-time monitoring.\n\nDocumented **Data sources**: OPC-UA server diagnostics node (ServerDiagnosticsSummary). **App/TA** (typical add-on context): Splunk Edge Hub, custom (OPC-UA server diagnostics). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: opcua:diagnostics, opcua:server. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"opcua:diagnostics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **session_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where session_pct > 85 OR current_sessions >= session_limit OR subscription_failures > 0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **OPC-UA Server Session Count and Subscription Health**): table _time, server_endpoint, current_sessions, session_limit, session_pct, subscription_count, subscription_failures, rejected_session_c…\n\n\nStep 3 — Validate\nRun the search in a known window. Spot-check a few events against the BMS console (for example Niagara, Tridium, or Honeywell) and confirm zones, values, and alarms line up. Verify field names and that the right roles can search the index.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (session utilization %), Table (servers with subscription failures), Line chart (session count and subscription health trend), Single value (OPC-UA servers healthy).",
-  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with controllers and the data links the building team relies on before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with controllers and the data links the building team relies on before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

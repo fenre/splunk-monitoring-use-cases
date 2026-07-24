@@ -79,85 +79,85 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 - **UC-10.11.62** — Zscaler Data Protection Policy Effectiveness
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-10-security-infrastructure/UC-10.11.62.json`](../../content/cat-10-security-infrastructure/UC-10.11.62.json)
 <a id='uc-10-3-89'></a>
 - **UC-10.3.89** — Disable Defender Submit Samples Consent Feature
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-10-security-infrastructure/UC-10.3.89.json`](../../content/cat-10-security-infrastructure/UC-10.3.89.json)
 <a id='uc-10-4-111'></a>
 - **UC-10.4.111** — O365 Tenant Wide Admin Consent Granted
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-10-security-infrastructure/UC-10.4.111.json`](../../content/cat-10-security-infrastructure/UC-10.4.111.json)
 <a id='uc-10-4-114'></a>
 - **UC-10.4.114** — O365 User Consent Blocked for Risky Application
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-10-security-infrastructure/UC-10.4.114.json`](../../content/cat-10-security-infrastructure/UC-10.4.114.json)
 <a id='uc-10-4-115'></a>
 - **UC-10.4.115** — O365 User Consent Denied for OAuth Application
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-10-security-infrastructure/UC-10.4.115.json`](../../content/cat-10-security-infrastructure/UC-10.4.115.json)
 <a id='uc-10-4-24'></a>
 - **UC-10.4.24** — Azure AD Block User Consent For Risky Apps Disabled
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-10-security-infrastructure/UC-10.4.24.json`](../../content/cat-10-security-infrastructure/UC-10.4.24.json)
 <a id='uc-10-4-39'></a>
 - **UC-10.4.39** — O365 Admin Consent Bypassed by Service Principal
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-10-security-infrastructure/UC-10.4.39.json`](../../content/cat-10-security-infrastructure/UC-10.4.39.json)
 <a id='uc-10-4-45'></a>
 - **UC-10.4.45** — O365 Block User Consent For Risky Apps Disabled
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-10-security-infrastructure/UC-10.4.45.json`](../../content/cat-10-security-infrastructure/UC-10.4.45.json)
 <a id='uc-10-4-75'></a>
 - **UC-10.4.75** — O365 File Permissioned Application Consent Granted by User
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-10-security-infrastructure/UC-10.4.75.json`](../../content/cat-10-security-infrastructure/UC-10.4.75.json)
 <a id='uc-10-4-79'></a>
 - **UC-10.4.79** — O365 Mail Permissioned Application Consent Granted by User
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-10-security-infrastructure/UC-10.4.79.json`](../../content/cat-10-security-infrastructure/UC-10.4.79.json)
 <a id='uc-10-7-137'></a>
 - **UC-10.7.137** — Azure AD Admin Consent Bypassed by Service Principal
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-10-security-infrastructure/UC-10.7.137.json`](../../content/cat-10-security-infrastructure/UC-10.7.137.json)
 <a id='uc-10-7-154'></a>
 - **UC-10.7.154** — Azure AD OAuth Application Consent Granted By User
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-10-security-infrastructure/UC-10.7.154.json`](../../content/cat-10-security-infrastructure/UC-10.7.154.json)
 <a id='uc-10-7-166'></a>
 - **UC-10.7.166** — Azure AD Tenant Wide Admin Consent Granted
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-10-security-infrastructure/UC-10.7.166.json`](../../content/cat-10-security-infrastructure/UC-10.7.166.json)
 <a id='uc-11-3-11'></a>
 - **UC-11.3.11** — Collaboration App Permission and Consent Audit
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-11-email-collaboration/UC-11.3.11.json`](../../content/cat-11-email-collaboration/UC-11.3.11.json)
 <a id='uc-22-1-1'></a>
 - **UC-22.1.1** — GDPR PII Detection in Application Log Data
@@ -516,7 +516,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.19.0
+catalogue_version: 8.23.0
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
 ```

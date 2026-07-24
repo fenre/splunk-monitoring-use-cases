@@ -9,24 +9,43 @@
     "Analytics"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Analytics Platform Reliability Scorecard' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_analytics_platform_reliability_scorecard` (UC-24.13.5), SOC dashboard panel \"Operations — Analytics Platform Reliability Scorecard\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.13.5 positive (Analytics, Platform, Reliability, Scorecard): ingest synthetic events into `index=bi` sourcetype='target_sourcetype' where `sum` grouped by `entity` satisfies detection threshold for 'Analytics Platform Reliability Scorecard'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.13.5 negative (Reliability Scorecard): ingest benign `bi` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Analytics Platform Reliability Scorecard'."
+  },
   "dataSources": "Aggregated cat-24 indexes (BI usage, refresh/pipeline outcomes, data-quality incidents, cost/capacity metrics) summarised via `tstats`, `stats`, and summary indexing for adoption, SLA, and spend trends.",
   "app": "Cross-platform rollups over the indexes populated by the other cat-24 subcategories; Splunk ITSI (Splunkbase 1841) for service-level trending where available.",
   "spl": "index=bi OR index=dataops\n| bin _time span=1d\n| eval domain=case(index=\"bi\",\"BI tools\",index=\"dataops\",\"Data pipelines\")\n| stats count as events, sum(eval(match(status,\"(?i)fail|error\") OR state=\"failed\")) as failures by domain, _time\n| eval reliability_pct=round(100*(events-failures)/events,1)\n| sort _time",
-  "description": "Combines BI-tool and data-pipeline signals into a single daily reliability scorecard split by domain, giving leadership one health view of the analytics estate.",
-  "value": "A board-level scorecard turns dozens of technical signals into one trusted reliability number for the analytics platform, supporting governance and investment.",
+  "description": "Identifies UC-24.13.5 — Analytics, Platform, Reliability, Scorecard — using `index=bi` sourcetype `configured sourcetype`, grouped by `entity`. Outputs `sum` each `1d`; alert when configured threshold. Primary focus: Reliability Scorecard. Purpose-built for 'Analytics Platform Reliability Scorecard' in Operations workflows.",
+  "value": "Tracking `activity` via UC-24.13.5 on UC-24.13.5 search results improves response to 'Analytics Platform Reliability Scorecard' and reduces operational risk and delayed incident response.",
   "implementation": "Roll up events and failures across both domains; schedule daily; present the scorecard in operational and governance reviews.",
   "visualization": "Scorecard single-values per domain, reliability trend.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk — Use summary indexing for increased search efficiency",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesummaryindexing"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesummaryindexing",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk IT Service Intelligence",
-      "url": "https://splunkbase.splunk.com/app/1841"
+      "url": "https://splunkbase.splunk.com/app/1841",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.13.5)** — Planned work for 'Analytics Platform Reliability Scorecard' shifts `sum` over `span=1d` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `domain` without crossing configured threshold for UC-24.13.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-24.13.5 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "itsi",
     "snmp"
@@ -34,5 +53,12 @@
   "equipmentModels": [
     "snmp_ups"
   ],
-  "grandmaExplanation": "We combine everything we watch into one simple health score for your analytics platforms, updated every day for leadership."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cross-platform rollups over the indexes populated by the other cat-24 subcategories; Splunk ITSI (Splunkbase 1841) for service-level trending where available.). Enable the modular input or HEC token that writes sourcetype=see SPL into bi, dataops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`domain`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We combine everything we watch into one simple health score for your analytics platforms, updated every day for leadership.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

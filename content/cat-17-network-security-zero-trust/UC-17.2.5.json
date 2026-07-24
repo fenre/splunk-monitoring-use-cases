@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "VPN session logs (connect/disconnect events)",
-  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`",
+  "exclusions": "Covers the detection logic documented for 'VPN Tunnel Stability' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_vpn_tunnel_stability` (UC-17.2.5), SOC dashboard panel \"Network — VPN Tunnel Stability\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.2.5 positive (VPN, Tunnel, Stability): ingest synthetic events into `index=vpn` sourcetype='cisco:asa' where `count` grouped by `entity` satisfies `eventcount` > 4 for 'VPN Tunnel Stability'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.2.5 negative (Tunnel Stability): ingest benign `vpn` / `cisco:asa` events where `entity` stays below `eventcount` > 4, or exclude the test entity via `network_exception_register.csv`. Variant 9 confirms zero alert rows for 'VPN Tunnel Stability'."
+  },
+  "dataSources": "VPN session logs (connect/disconnect events) Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper` — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=vpn sourcetype=\"cisco:asa\"\n| where action IN (\"session_connect\",\"session_disconnect\")\n| transaction user maxspan=1h\n| where eventcount > 4\n| table user, eventcount, duration\n| sort -eventcount",
-  "description": "Frequent disconnects indicate network issues, client problems, or infrastructure instability affecting user productivity.",
-  "value": "Network operations and helpdesk teams identify users experiencing VPN tunnel instability (frequent reconnections), distinguishing between endpoint issues, network problems, and concentrator-side failures to reduce ticket resolution time.",
+  "description": "Alerts on UC-17.2.5 — VPN, Tunnel, Stability — using `index=vpn` sourcetype `cisco:asa`, grouped by `entity`. Outputs `count` each `1h`; alert when `eventcount` > 4. Primary focus: Tunnel Stability. Purpose-built for 'VPN Tunnel Stability' in Network workflows.",
+  "value": "Operators running UC-17.2.5 on `cisco:asa` feeds shorten triage for Tunnel Stability tied to 'VPN Tunnel Stability', lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Track connect/disconnect patterns per user. Identify users with >4 reconnections per hour. Correlate with network quality metrics. Alert on widespread instability (multiple users affected simultaneously). Report for helpdesk.",
   "visualization": "Table (unstable connections), Bar chart (reconnects by user), Line chart (reconnection rate trend).",
   "cimModels": [
@@ -25,14 +31,26 @@
   "references": [
     {
       "title": "Splunk_TA_paloalto",
-      "url": "https://splunkbase.splunk.com/app/2757"
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Remote workforce login storm** — Morning VPN/ZTNA session spike for 'VPN Tunnel Stability'. Compare with historical same-hour baseline.\n\n2. **IdP or SAML metadata refresh** — Brief auth failures during federation cert rotation.\n\n3. **Split-tunnel policy change** — New route advertisements shift traffic patterns.\n\n4. **Synthetic ZTNA health checks** — Monitoring probes from known appliance IPs.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `src`, `valid_until`.",
   "mitreAttack": [
     "T1133"
   ],
@@ -47,7 +65,13 @@
     "paloalto_globalprotect",
     "paloalto_pan_firewall"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA (`sourcetype=cisco:asa`). Data in `index=vpn`.\n• Key fields: `action` (session_connect/session_disconnect), `user`, `src`, `duration` (session duration in seconds at disconnect).\n• Tunnel instability manifests as rapid connect-disconnect cycles (flapping). This degrades user productivity and may indicate network issues, endpoint software conflicts, or VPN client bugs.\n\nStep 1 — Configure data collection\nVerify connect/disconnect pairs:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" earliest=-24h\n| where action IN (\"session_connect\", \"session_disconnect\")\n| stats count by action, user\n| where count > 4\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Tunnel flapping detection:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" earliest=-4h\n| where action IN (\"session_connect\", \"session_disconnect\")\n| transaction user maxspan=4h\n| where eventcount > 6\n| eval reconnects=floor(eventcount/2)\n| eval avg_session_sec=if(isnotnull(duration), round(duration/reconnects, 0), null())\n| stats count as flap_episodes max(reconnects) as max_reconnects values(src) as source_ips by user\n| where max_reconnects > 3\n| sort - max_reconnects\n```\n\nUnderstanding this SPL: The `transaction` command groups connect/disconnect events per user. More than 6 events (3+ reconnect cycles) in 4 hours indicates instability. Very short average session durations (under 60 seconds) suggest the tunnel is dropping immediately after connecting — often a routing conflict, MTU issue, or endpoint software conflict. Multiple source IPs for the same user may indicate they are switching between networks (Wi-Fi to cellular).\n\nShort session detection:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" action=\"session_disconnect\" earliest=-24h\n| where duration < 60\n| stats count as short_sessions dc(user) as affected_users by host\n```\n\nStep 3 — Validate\n(a) Ask a user experiencing VPN instability to check their AnyConnect event log: it records disconnect reasons.\n(b) On ASA: `show vpn-sessiondb | grep <user>` during an active session, then check again after a reported disconnect.\n\nStep 4 — Operationalize\nDashboard: Row 1 — \"Users experiencing flapping (4h)\", \"Short sessions (<60s)\". Row 2 — Table: flapping users. Row 3 — Timechart: reconnects over 24h.\nAlert: Trigger when any user reconnects >5 times in 1h.\n\nRunbook:\n1. **Widespread flapping across many users** — Network-side issue. Check the VPN concentrator for resource exhaustion, IP pool depletion, or certificate expiry.\n2. **Single user flapping** — Endpoint issue. Check for conflicting VPN clients, firewall software, or unstable internet connection.\n3. **Short sessions after client update** — AnyConnect update may have introduced a bug. Roll back or patch.\n\nStep 5 — Troubleshooting\n• **`duration` field missing** — ASA may not include duration in disconnect events for all tunnel types. Calculate from connect-disconnect timestamps.\n• **Transaction too large** — For very active users, `maxspan=4h` may capture too many events. Reduce to `maxspan=1h`.",
   "grandmaExplanation": "We detect when someone's secure connection keeps dropping and reconnecting, which disrupts their work, and we figure out whether the problem is on their end or ours.",
-  "hardware": "Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN"
+  "hardware": "Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

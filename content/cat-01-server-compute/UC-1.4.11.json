@@ -8,11 +8,17 @@
     "Configuration"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`dmidecode -t bios`, vendor REST/CLI (iDRAC, iLO) for boot order",
-  "app": "Custom scripted input (vendor tools, `dmidecode` on Linux, Redfish/CLI for iDRAC or iLO)",
+  "exclusions": "Covers the detection logic documented for 'Boot Order and UEFI/BIOS Configuration Drift' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_boot_order_and_uefi_bios_configuration_drift` (UC-1.4.11), SOC dashboard panel \"Linux — Boot Order and UEFI/BIOS Configuration Drift\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.4.11 positive (Boot, Order, and, UEFI, BIOS): ingest synthetic events into `index=hardware` sourcetype='boot_config' where `count` grouped by `host` satisfies detection threshold for 'Boot Order and UEFI/BIOS Configuration Drift'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.4.11 negative (Configuration Drift): ingest benign `hardware` / `boot_config` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 0 confirms zero alert rows for 'Boot Order and UEFI/BIOS Configuration Drift'."
+  },
+  "dataSources": "`dmidecode -t bios`, vendor REST/CLI (iDRAC, iLO) for boot order Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (vendor tools, `dmidecode` on Linux, Redfish/CLI for iDRAC or iLO) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=hardware sourcetype=boot_config host=*\n| stats latest(boot_order) as current_order, latest(secure_boot) as secure_boot by host\n| inputlookup expected_boot_config append=t\n| eval match=if('current_order'='expected_order', \"Match\", \"Drift\")\n| where match=\"Drift\"\n| table host current_order expected_order secure_boot",
-  "description": "Unauthorized or accidental boot order changes can prevent systems from booting from the correct disk or PXE. Tracking supports change audit and recovery.",
-  "value": "If someone or something changes which disk or network path the server boots from, you can catch it before the next reboot leaves a system stuck at a wrong image or a surprise installer.",
+  "description": "Monitors 'Boot Order and UEFI/BIOS Configuration Drift' (UC-1.4.11) using `index=hardware` sourcetype `boot_config` by aggregating `count` grouped by `host` over `the scheduled window` and alerting when configured threshold. Keywords: Boot, Order, and, UEFI, BIOS. Focuses on Configuration Drift behaviour so linux teams can triage UC-1.4.11 without ad-hoc log review.",
+  "value": "UC-1.4.11 accelerates insight into Configuration Drift ('Boot Order and UEFI/BIOS Configuration Drift') by tracking `activity` on `boot_config` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Use vendor APIs or scripts to export boot order and Secure Boot state. Compare to a lookup of expected configuration. Alert on drift. Run after changes or daily.",
   "visualization": "Table (host, current vs. expected boot order), Compliance percentage.",
   "cimModels": [],
@@ -20,10 +26,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "OS reinstalls, UEFI/firmware updates, and temporary one-time network boots can change `boot_order` legitimately. Update the `expected_boot_config` lookup the same day as change tickets. The sample `if('current_order'='expected_order'...)` is fragile for multivalue or formatted strings; normalize in your script before index time.",
+  "knownFalsePositives": "1. **Patch Tuesday on `hardware`** — Package managers spike `host` metrics for 'Boot Order and UEFI/BIOS Configuration Drift'. Correlate with apt/yum logs in the same `boot_config` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `boot_config`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hardware_bmc"
   ],
@@ -32,6 +54,12 @@
     "hardware_bmc_idrac",
     "hardware_bmc_ilo"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (Redfish, iDRAC, iLO, or `dmidecode` where that is sufficient).\n• Ensure the following data sources are available: `dmidecode -t bios` (Linux) and out-of-band boot-order exports from the BMC.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOn Linux, `dmidecode` can backfill basic firmware info, but out-of-band boot order and Secure Boot are usually from Redfish, racadm, or the vendor’s REST API. Ingest a single `boot_order` string per `host` and a `lookup` of `expected_order` and optional `expected_secure_boot`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; fix `inputlookup` pattern to your lookup shape):\n\n```spl\nindex=hardware sourcetype=boot_config host=*\n| stats latest(boot_order) as current_order, latest(secure_boot) as secure_boot by host\n| inputlookup expected_boot_config append=t\n| eval match=if('current_order'='expected_order', \"Match\", \"Drift\")\n| where match=\"Drift\"\n| table host current_order expected_order secure_boot\n```\n\nProduction use usually joins on `host` to the lookup with `| lookup` instead of a broad `append`—adjust to your data.\n\nUnderstanding this SPL\n\n**Boot Order and UEFI/BIOS Configuration Drift** — Unauthorized or accidental boot order changes can prevent systems from booting from the correct disk or PXE. Tracking supports change audit and recovery.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=boot_config`.\n• `stats` keeps the latest `boot_order` and `secure_boot` per **host**.\n• The lookup and `match` test detect drift; `table` lists offenders.\n\n\nStep 3 — Validate\nAfter a change window, read boot order in the out-of-band UI and align the lookup. For full details, see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We remember how each server is supposed to start up and compare that to what it would do today, so a surprise change to the boot order does not leave you with a system that will not start the right way after a reboot."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (Redfish, iDRAC, iLO, or `dmidecode` where that is sufficient).\n• Ensure the following data sources are available: `dmidecode -t bios` (Linux) and out-of-band boot-order exports from the BMC.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOn Linux, `dmidecode` can backfill basic firmware info, but out-of-band boot order and Secure Boot are usually from Redfish, racadm, or the vendor’s REST API. Ingest a single `boot_order` string per `host` and a `lookup` of `expected_order` and optional `expected_secure_boot`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; fix `inputlookup` pattern to your lookup shape):\n\n```spl\nindex=hardware sourcetype=boot_config host=*\n| stats latest(boot_order) as current_order, latest(secure_boot) as secure_boot by host\n| inputlookup expected_boot_config append=t\n| eval match=if('current_order'='expected_order', \"Match\", \"Drift\")\n| where match=\"Drift\"\n| table host current_order expected_order secure_boot\n```\n\nProduction use usually joins on `host` to the lookup with `| lookup` instead of a broad `append`—adjust to your data.\n\nUnderstanding this SPL\n\n**Boot Order and UEFI/BIOS Configuration Drift** — Unauthorized or accidental boot order changes can prevent systems from booting from the correct disk or PXE. Tracking supports change audit and recovery.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=boot_config`.\n• `stats` keeps the latest `boot_order` and `secure_boot` per **host**.\n• The lookup and `match` test detect drift; `table` lists offenders.\n\n\nStep 3 — Validate\nAfter a change window, read boot order in the out-of-band UI and align the lookup. For full details, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted input (vendor tools, `dmidecode` on Linux, Redfish/CLI for iDRAC or iLO) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=boot_config into hardware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, match`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We remember how each server is supposed to start up and compare that to what it would do today, so a surprise change to the boot order does not leave you with a system that will not start the right way after a reboot.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,28 +8,43 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "MicroStrategy DSSErrors/statistics, Cognos audit database via DB Connect, BusinessObjects Auditing/CMS logs, Oracle Analytics usage tracking, ThoughtSpot audit logs, QuickSight CloudTrail and SPICE CloudWatch metrics.",
-  "app": "MicroStrategy / IBM Cognos / SAP BusinessObjects / Oracle Analytics / ThoughtSpot / Amazon QuickSight logs via Universal Forwarder, vendor admin APIs, and cloud provider TAs (`Splunk_TA_aws` for QuickSight).",
+  "exclusions": "Covers the detection logic documented for 'BusinessObjects Scheduled Job Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_businessobjects_scheduled_job_failures` (UC-24.6.3), SOC dashboard panel \"Operations — BusinessObjects Scheduled Job Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.6.3 positive (BusinessObjects, Scheduled, Job, Failures): ingest synthetic events into `index=bi` sourcetype='businessobjects:audit' where `sum` grouped by `object_name` satisfies `failures` > 0 for 'BusinessObjects Scheduled Job Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.6.3 negative (Job Failures): ingest benign `bi` / `businessobjects:audit` events where `object_name` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'BusinessObjects Scheduled Job Failures'."
+  },
+  "dataSources": "MicroStrategy DSSErrors/statistics, Cognos audit database via DB Connect, BusinessObjects Auditing/CMS logs, Oracle Analytics usage tracking, ThoughtSpot audit logs, QuickSight CloudTrail and SPICE CloudWatch metrics. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "MicroStrategy / IBM Cognos / SAP BusinessObjects / Oracle Analytics / ThoughtSpot / Amazon QuickSight logs via Universal Forwarder, vendor admin APIs, and cloud provider TAs (`Splunk_TA_aws` for QuickSight). — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=businessobjects:audit event_type=Schedule\n| stats count as jobs, sum(eval(status IN (\"Failed\",\"Error\"))) as failures by object_name\n| where failures>0\n| sort - failures",
-  "description": "Tracks SAP BusinessObjects scheduled instances (Webi/Crystal) and flags failed jobs so recurring reports keep delivering.",
-  "value": "Failed scheduled instances silently stop recurring reports; catching them keeps distributions reliable.",
+  "description": "Identifies 'BusinessObjects Scheduled Job Failures' patterns (UC-24.6.3) sourced from `index=bi` sourcetype `businessobjects:audit`. Threshold bundle: `failures` > 0; aggregation grain: `object_name`; metrics: `sum`. Watch terms: BusinessObjects, Scheduled, Job, Failures.",
+  "value": "UC-24.6.3 gives Operations teams earlier visibility into Job Failures through `businessobjects:audit` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest BO Auditing events or query the audit DB; schedule hourly; alert on failures.",
   "visualization": "Table of failing objects, timechart of job failures.",
   "cimModels": [],
   "references": [
     {
       "title": "IBM Cognos Analytics — Audit reporting",
-      "url": "https://www.ibm.com/docs/en/cognos-analytics"
+      "url": "https://www.ibm.com/docs/en/cognos-analytics",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Amazon QuickSight — CloudTrail logging",
-      "url": "https://docs.aws.amazon.com/quicksight/latest/user/logging-using-cloudtrail.html"
+      "url": "https://docs.aws.amazon.com/quicksight/latest/user/logging-using-cloudtrail.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk DB Connect",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.6.3)** — Planned work for 'BusinessObjects Scheduled Job Failures' shifts `sum` over `span=1h` while `object_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `businessobjects:audit`** — Scheduled automation elevates `src` without crossing `failures` > 0 for UC-24.6.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `object_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `businessobjects:audit`** — First 48h baseline for UC-24.6.3 on `object_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `object_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "db_connect",
@@ -38,5 +53,12 @@
   "equipmentModels": [
     "oracle_oracle_db"
   ],
-  "grandmaExplanation": "We make sure scheduled BusinessObjects reports actually run and deliver, and flag the ones that fail."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (MicroStrategy / IBM Cognos / SAP BusinessObjects / Oracle Analytics / ThoughtSpot / Amazon QuickSight logs via Universal Forwarder, vendor admin APIs, and cloud provider TAs (`Splunk_TA_aws` for QuickSight). — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=businessobjects:audit into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`failures, object_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We make sure scheduled BusinessObjects reports actually run and deliver, and flag the ones that fail.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,31 +9,55 @@
     "Business"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Golf rounds (`golf:round`), Garmin golf telemetry (`garmin:golf`), UDisc rounds (`udisc:round`), launch-monitor shots (`launchmonitor:shot`), handicap-index updates (`handicap:index`).",
-  "app": "Arccos and Garmin S62 round telemetry, UDisc round exports, launch-monitor CSVs, and handicap-index updates streamed to Splunk HEC via APIs and scripted imports.",
+  "exclusions": "Covers personal hobby monitoring for 'Handicap Index Goal Adherence by Season' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_handicap_index_goal_adherence_by_season` (UC-25.77.24), SOC dashboard panel \"Personal — Handicap Index Goal Adherence by Season\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.77.24 positive (Handicap, Index, Goal, Adherence, Season): ingest synthetic events into `index=personal` sourcetype='handicap:index' where `actual` grouped by `season` satisfies detection threshold for 'Handicap Index Goal Adherence by Season'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.77.24 negative (by Season): ingest benign `personal` / `handicap:index` events where `season` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Handicap Index Goal Adherence by Season'."
+  },
+  "dataSources": "Golf rounds (`golf:round`), Garmin golf telemetry (`garmin:golf`), UDisc rounds (`udisc:round`), launch-monitor shots (`launchmonitor:shot`), handicap-index updates (`handicap:index`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Arccos and Garmin S62 round telemetry, UDisc round exports, launch-monitor CSVs, and handicap-index updates streamed to Splunk HEC via APIs and scripted imports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=handicap:index\n| stats avg(handicap_index) as actual count as sessions by season\n| eval pct_of_goal=round(100*12.0/actual,1), goal_label=\"12\"\n| sort pct_of_goal",
-  "description": "Compares average handicap index with a simple target for each season, showing where handicap index is meeting plan and where it is lagging.",
-  "value": "Splitting target adherence by season shows which contexts are helping you hit the plan and which ones need adjustment.",
+  "description": "Alerts on by Season activity in UC-25.77.24 ('Handicap Index Goal Adherence by Season') from `index=personal` sourcetype `handicap:index`. Rolls up `actual` by `season` across `the scheduled window` and pages when configured threshold. Covers Handicap, Index, Goal, Adherence, Season. Personal operators treat UC-25.77.24 as the canonical signal.",
+  "value": "Operators running UC-25.77.24 on `handicap:index` feeds shorten triage for by Season tied to 'Handicap Index Goal Adherence by Season', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Set the target value in the query to match your routine, then review low-adherence season values before the next session block.",
   "visualization": "Table of season values with average handicap index and percent of goal.",
   "cimModels": [],
   "references": [
     {
       "title": "Arccos Golf",
-      "url": "https://www.arccosgolf.com/"
+      "url": "https://www.arccosgolf.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "UDisc",
-      "url": "https://udisc.com/"
+      "url": "https://udisc.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Garmin Golf",
-      "url": "https://www.garmin.com/en-US/c/sports-fitness/golf-gps-devices-smartwatches/"
+      "url": "https://www.garmin.com/en-US/c/sports-fitness/golf-gps-devices-smartwatches/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It gathers which season settings help you hit your target for handicap index and which ones fall short."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.77.24)** — Connector for 'Handicap Index Goal Adherence by Season' stops polling `handicap:index`; stale `actual` on `season` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `actual` over `1w` is expected for UC-25.77.24, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `handicap:index`. Dedup with `stats latest(*) by season`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Handicap Index Goal Adherence by Season'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Golf & Disc Golf — typical feeds: Golf rounds (`golf:round`), Garmin golf telemetry (`garmin:golf`), UDisc rounds (`udisc:round`), launch-monitor shots (`launchmonitor:shot`), handicap-index updates (`handicap:index`)..\n• **Sourcetypes in this search**: `handicap:index`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=handicap:index`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Arccos and Garmin S62 round telemetry, UDisc round exports, launch-monitor CSVs, and handicap-index updates streamed to Splunk HEC via APIs and scripted imports..\n\n**Author notes:** Set the target value in the query to match your routine, then review low-adherence season values before the next session block.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"handicap:index\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=handicap:index earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Handicap Index Goal Adherence by Season** over `personal` data (primarily `sourcetype=handicap:index`) across the full search range. The `avg` aggregation groups by `season`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `season`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=handicap:index\n| stats avg(handicap_index) as actual count as sessions by season\n| eval pct_of_goal=round(100*12.0/actual,1), goal_label=\"12\"\n| sort pct_of_goal\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=handicap:index earliest=-7d\n| head 50\n| table season\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=handicap:index earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.77.24: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Season Values With Average Handicap Index And Percent Of Goal (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `handicap:index` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=handicap:index | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It gathers which season settings help you hit your target for handicap index and which ones fall short.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

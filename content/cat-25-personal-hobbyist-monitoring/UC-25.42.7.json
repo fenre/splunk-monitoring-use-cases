@@ -8,29 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Pilot logbook (`flightlog:entry`), avionics telemetry (`avionics:telemetry`), flight-sim sessions (`flightsim:session`), pre-flight checklists (`preflight:check`).",
-  "app": "Pilot and flight-sim telemetry — electronic logbooks (ForeFlight, LogTen Pro), Stratux / GDL90 avionics receivers, and Microsoft Flight Simulator / X-Plane SimConnect sessions — streamed to Splunk HEC via scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Sim vs Real Approach Consistency' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_sim_vs_real_approach_consistency` (UC-25.42.7), SOC dashboard panel \"Personal — Sim vs Real Approach Consistency\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.42.7 positive (Sim, Real, Approach, Consistency): ingest synthetic events into `index=personal` sourcetype='flightsim:session' where `avg_dev`, `consistency` grouped by `src` satisfies detection threshold for 'Sim vs Real Approach Consistency'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.42.7 negative (Approach Consistency): ingest benign `personal` / `flightsim:session` events where `src` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 4 confirms zero alert rows for 'Sim vs Real Approach Consistency'."
+  },
+  "dataSources": "Pilot logbook (`flightlog:entry`), avionics telemetry (`avionics:telemetry`), flight-sim sessions (`flightsim:session`), pre-flight checklists (`preflight:check`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Pilot and flight-sim telemetry — electronic logbooks (ForeFlight, LogTen Pro), Stratux / GDL90 avionics receivers, and Microsoft Flight Simulator / X-Plane SimConnect sessions — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal (sourcetype=flightsim:session OR sourcetype=avionics:telemetry) event=approach\n| eval src=if(sourcetype==\"flightsim:session\",\"sim\",\"real\")\n| stats avg(glideslope_dev) as avg_dev, stdev(glideslope_dev) as consistency by src\n| sort src",
-  "description": "Compares how consistently you fly the approach glideslope in the simulator versus real flights.",
-  "value": "Seeing sim and real approach precision side by side shows whether sim practice is sharpening the real thing.",
+  "description": "Monitors risk tied to Sim, Real, Approach, Consistency through UC-25.42.7 on `index=personal` sourcetype `flightsim:session`. Summarises `avg_dev`, `consistency` grouped by `src` across `the scheduled window` before applying configured threshold. Operators tune 'Sim vs Real Approach Consistency' using UC-25.42.7 runbook steps.",
+  "value": "Tracking `avg_dev`, `consistency` via UC-25.42.7 on `flightsim:session` feeds improves response to 'Sim vs Real Approach Consistency' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest approach data from both sources into `index=personal`; compare glideslope deviation.",
   "visualization": "Bar chart of approach consistency, sim versus real.",
   "cimModels": [],
   "references": [
     {
       "title": "MSFS — SimConnect SDK",
-      "url": "https://docs.flightsimulator.com/"
+      "url": "https://docs.flightsimulator.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.42.7)** — Connector for 'Sim vs Real Approach Consistency' stops polling `flightsim:session`; stale `avg_dev`, `consistency` on `src` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_dev`, `consistency` over `1w` is expected for UC-25.42.7, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flightsim:session`. Dedup with `stats latest(*) by src`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Sim vs Real Approach Consistency'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hardware_bmc"
   ],
   "equipmentModels": [
     "hardware_bmc_ilo"
   ],
-  "grandmaExplanation": "It compares how steadily you fly the approach in the sim versus real flights, testing whether practice helps."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Aviation & Flight Simulation — typical feeds: Pilot logbook (`flightlog:entry`), avionics telemetry (`avionics:telemetry`), flight-sim sessions (`flightsim:session`), pre-flight checklists (`preflight:check`)..\n• **Sourcetypes in this search**: `flightsim:session`, `avionics:telemetry`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=flightsim:session`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Pilot and flight-sim telemetry — electronic logbooks (ForeFlight, LogTen Pro), Stratux / GDL90 avionics receivers, and Microsoft Flight Simulator / X-Plane SimConnect sessions — streamed to Splunk HEC via scripted inputs..\n\n**Author notes:** Ingest approach data from both sources into `index=personal`; compare glideslope deviation.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"flightsim:session\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=flightsim:session earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Sim vs Real Approach Consistency** over `personal` data (primarily `sourcetype=flightsim:session`) across the full search range. The `avg, stdev` aggregation groups by `src`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `src`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal (sourcetype=flightsim:session OR sourcetype=avionics:telemetry) event=approach\n| eval src=if(sourcetype==\"flightsim:session\",\"sim\",\"real\")\n| stats avg(glideslope_dev) as avg_dev, stdev(glideslope_dev) as consistency by src\n| sort src\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=flightsim:session earliest=-7d\n| head 50\n| table src\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=flightsim:session earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.42.7: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Approach Consistency (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n**Panel 2 — Sim Versus Real (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `flightsim:session` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=flightsim:session | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It compares how steadily you fly the approach in the sim versus real flights, testing whether practice helps.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

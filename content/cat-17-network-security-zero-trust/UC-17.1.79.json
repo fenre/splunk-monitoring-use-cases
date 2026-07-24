@@ -9,6 +9,8 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'ISE Authorization-Policy Funnel — From Match to Final Authorization Result' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ise_authorization_policy_funnel_from_match_to_fi` (UC-17.1.79), SOC dashboard panel \"Network — ISE Authorization-Policy Funnel — From Match to Final Authorization Result\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -48,14 +50,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Disable a policy rule (or set conditions impossible). Funnel shows zero match volume after change.",
-    "negativeScenario": "Active policies. Funnel shows expected distribution."
+    "positiveScenario": "UC-17.1.79 positive (ISE, Authorization, Policy, Funnel, From): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `users` grouped by `MatchedPolicyName`, `MatchedRuleName`, `AuthorizationProfile` satisfies detection threshold for 'ISE Authorization-Policy Funnel — From Match to Final Authorization Result'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.79 negative (Authorization Result): ingest benign `nac` / `cisco:ise:syslog` events where `MatchedPolicyName`, `MatchedRuleName`, `AuthorizationProfile` stays below detection threshold, or exclude the test entity via `network_exception_register.csv`. Variant 9 confirms zero alert rows for 'ISE Authorization-Policy Funnel — From Match to Final Authorization Result'."
   },
-  "dataSources": "ISE syslog *Authorization* — events showing the policy stack: `MatchedPolicyName`, `MatchedRuleName`, `AuthorizationProfile`, `SecurityGroup`, `dACL`, `VLAN`. ISE evaluates policies top-down; the first match wins.",
-  "app": "`Splunk Add-on for Cisco Identity Services`.",
+  "dataSources": "ISE syslog *Authorization* — events showing the policy stack: `MatchedPolicyName`, `MatchedRuleName`, `AuthorizationProfile`, `SecurityGroup`, `dACL`, `VLAN`. ISE evaluates policies top-down; the first match wins. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (5200, 5236)\n| stats count, dc(user) as users by MatchedPolicyName, MatchedRuleName, AuthorizationProfile\n| sort -count",
-  "description": "Tracks how authentications flow through the policy stack. Identifies (a) policy rules that never match (dead rules), (b) catch-all rules that match too often (suggesting more specific rules are missed), (c) authorization profiles that are configured but never assigned.",
-  "value": "Authorization policies grow over time and accumulate dead rules and catch-all over-grants. Funnel visualization gives policy-engineering teams data-driven input to prune rules and tighten access.",
+  "description": "Monitors UC-17.1.79 — ISE, Authorization, Policy, Funnel, From — using `index=nac` sourcetype `cisco:ise:syslog`, grouped by `MatchedPolicyName`, `MatchedRuleName`, `AuthorizationProfile`. Outputs `users` each `the scheduled window`; alert when configured threshold. Primary focus: Authorization Result. Purpose-built for 'ISE Authorization-Policy Funnel — From Match to Final Authorization Result' in Network workflows.",
+  "value": "Operators running UC-17.1.79 on `cisco:ise:syslog` feeds shorten triage for Authorization Result tied to 'ISE Authorization-Policy Funnel — From Match to Final Authorization Result', lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Schedule the search daily over the last 7 days; review the funnel-drop chart in the ISE Authorization Funnel dashboard.",
   "visualization": "Sankey diagram: rules → profiles → SGTs/dACLs/VLANs. Dead-rule list. Catch-all rule top-N.",
   "cimModels": [
@@ -65,10 +67,31 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 — Authorization Policies",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "PCI DSS Document Library",
+      "url": "https://www.pcisecuritystandards.org/document_library/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) Newly added rules — match volume builds up over weeks.\n(b) Disaster-recovery catch-all rules legitimately match in failure modes.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'ISE Authorization-Policy Funnel — From Match to Final Authorization Result'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (SLO monitoring — measures user enrollment funnel completion, no adversary technique)"
   ],
@@ -86,7 +109,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Standard pattern.",
+  "detailedImplementation": "Standard pattern.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`AuthorizationProfile, MatchedPolicyName, MatchedRuleName`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When users connect, ISE checks a long list of rules to decide what they're allowed to do. We map out which rules are used and which aren't — so the team can clean up unused rules and tighten access.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

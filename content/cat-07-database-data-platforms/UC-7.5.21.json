@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=elasticsearch:ingest_stats`",
-  "app": "Custom REST scripted input (`_nodes/stats/ingest`)",
+  "exclusions": "Covers the detection logic documented for 'Elasticsearch Ingest Pipeline Error Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_elasticsearch_ingest_pipeline_error_rate` (UC-7.5.21), SOC dashboard panel \"Operations — Elasticsearch Ingest Pipeline Error Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.5.21 positive (Elasticsearch, Ingest, Pipeline, Error, Rate): ingest synthetic events into `index=database` sourcetype='elasticsearch:ingest_stats' where `failures` grouped by `pipeline_name` satisfies `fail_rate` > 1, or `failed` > 0 for 'Elasticsearch Ingest Pipeline Error Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.5.21 negative (Error Rate): ingest benign `database` / `elasticsearch:ingest_stats` events where `pipeline_name` stays below `fail_rate` > 1, or `failed` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Elasticsearch Ingest Pipeline Error Rate'."
+  },
+  "dataSources": "`sourcetype=elasticsearch:ingest_stats` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom REST scripted input (`_nodes/stats/ingest`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"elasticsearch:ingest_stats\"\n| eval fail_rate=round(ingest.pipelines.failed/max(1,ingest.pipelines.count)*100,2)\n| where fail_rate > 1 OR ingest.pipelines.failed > 0\n| timechart span=5m sum(ingest.pipelines.failed) as failures by pipeline_name",
-  "description": "Ingest pipeline failures silently drop or corrupt documents before indexing. Monitoring error rates per pipeline ensures data quality and completeness.",
-  "value": "Ingest pipeline failures silently drop or corrupt documents before indexing. Monitoring error rates per pipeline ensures data quality and completeness.",
+  "description": "Identifies 'Elasticsearch Ingest Pipeline Error Rate' patterns (UC-7.5.21) sourced from `index=database` sourcetype `elasticsearch:ingest_stats`. Threshold bundle: `fail_rate` > 1, or `failed` > 0; aggregation grain: `pipeline_name`; metrics: `failures`. Watch terms: Elasticsearch, Ingest, Pipeline, Error, Rate.",
+  "value": "UC-7.5.21 gives Operations teams earlier visibility into Error Rate through `elasticsearch:ingest_stats` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Poll `GET _nodes/stats/ingest` and extract per-pipeline `count` and `failed` counters. Compute deltas between samples. Alert when any pipeline shows a non-zero failure rate. Investigate pipeline processor errors in Elasticsearch logs. Common causes include grok pattern mismatches, script errors, and date parsing failures.",
   "visualization": "Line chart (failures per pipeline), Table (pipeline error details), Single value (total ingest failures).",
   "cimModels": [
@@ -21,16 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned index rollovers, rebalancing, and cluster restarts can move shard counts and health states briefly; correlate with Elasticsearch or OpenSearch change records.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.5.21)** — Planned work for 'Elasticsearch Ingest Pipeline Error Rate' shifts `failures` over `span=5m` while `pipeline_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `elasticsearch:ingest_stats`** — Scheduled automation elevates `fail_rate` without crossing `fail_rate` > 1 for UC-7.5.21. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pipeline_name`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `elasticsearch:ingest_stats`** — First 48h baseline for UC-7.5.21 on `pipeline_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pipeline_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "elasticsearch"
   ],
   "equipmentModels": [
     "elasticsearch_es"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we confirm in Kibana or OpenSearch Dashboards and the `_cat` / cluster APIs for that stack.\n• Install and configure the required add-on or app: Custom REST scripted input (`_nodes/stats/ingest`).\n• Ensure the following data sources are available: `sourcetype=elasticsearch:ingest_stats`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll `GET _nodes/stats/ingest` and extract per-pipeline `count` and `failed` counters. Compute deltas between samples. Alert when any pipeline shows a non-zero failure rate. Investigate pipeline processor errors in Elasticsearch logs. Common causes include grok pattern mismatches, script errors, and date parsing failures.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"elasticsearch:ingest_stats\"\n| eval fail_rate=round(ingest.pipelines.failed/max(1,ingest.pipelines.count)*100,2)\n| where fail_rate > 1 OR ingest.pipelines.failed > 0\n| timechart span=5m sum(ingest.pipelines.failed) as failures by pipeline_name\n```\n\nUnderstanding this SPL\n\n**Elasticsearch Ingest Pipeline Error Rate** — Ingest pipeline failures silently drop or corrupt documents before indexing. Monitoring error rates per pipeline ensures data quality and completeness.\n\nDocumented **Data sources**: `sourcetype=elasticsearch:ingest_stats`. **App/TA** (typical add-on context): Custom REST scripted input (`_nodes/stats/ingest`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: elasticsearch:ingest_stats. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"elasticsearch:ingest_stats\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **fail_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where fail_rate > 1 OR ingest.pipelines.failed > 0` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by pipeline_name** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (failures per pipeline), Table (pipeline error details), Single value (total ingest failures).",
-  "grandmaExplanation": "We follow search cluster health, indexing, and query latency so we can keep log and search services responsive when load or mapping changes."
+  "grandmaExplanation": "We follow search cluster health, indexing, and query latency so we can keep log and search services responsive when load or mapping changes.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

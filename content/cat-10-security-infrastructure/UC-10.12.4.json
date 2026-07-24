@@ -9,11 +9,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Financial Services",
-  "dataSources": "`sourcetype=\"okta:systemlog\"`, `sourcetype=\"banking:session\"`",
-  "app": "IdP logs, mobile banking SDK, SIEM correlation",
+  "exclusions": "Covers the detection logic documented for 'Account Takeover Indicators' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_account_takeover_indicators` (UC-10.12.4), SOC dashboard panel \"Security Infra — Account Takeover Indicators\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.12.4 positive (Account, Takeover, Indicators): ingest synthetic events into `index=identity` sourcetype='okta:systemlog' where `count` grouped by `entity` satisfies `risk_score` > 70 for 'Account Takeover Indicators'. Validate filter `(eventType=\"user.session.start\" OR event=\"new_device\") OR (r`, eventType `user.session.start`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.12.4 negative (Takeover Indicators): ingest benign `identity` / `okta:systemlog` events where `entity` stays below `risk_score` > 70, or exclude the test entity via `soc_exception_register.csv`. Variant 6 confirms zero alert rows for 'Account Takeover Indicators'."
+  },
+  "dataSources": "`sourcetype=\"okta:systemlog\"`, `sourcetype=\"banking:session\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "IdP logs, mobile banking SDK, SIEM correlation — Universal Forwarder (Splunkbase 617)",
   "spl": "index=identity OR index=banking (sourcetype=\"okta:systemlog\" OR sourcetype=\"banking:session\")\n| search (eventType=\"user.session.start\" OR event=\"new_device\") OR (risk_score>70)\n| transaction user_id maxspan=1h maxpause=10m\n| where mvcount(device_id)>2 OR mvcount(geo_country)>2\n| table _time, user_id, device_id, geo_country, risk_score",
-  "description": "Combines login, device, and session signals to catch ATO before fraudulent transfers.",
-  "value": "Combines login, device, and session signals to catch ATO before fraudulent transfers.",
+  "description": "Monitors Takeover Indicators anomalies for UC-10.12.4 with window `1h` on `index=identity` sourcetype `okta:systemlog`. Combines `count` by `entity` and compares against `risk_score` > 70. Mapped to keywords Account, Takeover, Indicators for dashboard routing.",
+  "value": "Alerting on Account, Takeover, Indicators through UC-10.12.4 reduces missed threat campaigns, control regressions, and SOC SLA breaches by surfacing `activity` early.",
   "implementation": "Require device fingerprint and step-up auth on risk score. Correlate password reset + wire initiation within short windows.",
   "visualization": "Timeline (user journey), Table (risky sessions), Sankey (device → action).",
   "cimModels": [
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Account activity from new devices after phone upgrades, travel, or self-service password resets; pair with Okta and fraud scores before hard blocks.",
+  "knownFalsePositives": "1. **Maintenance window on `identity` (UC-10.12.4)** — Planned work for 'Account Takeover Indicators' shifts `count` over `span=1h` while `host` remains in-scope. eventType=user.session.start Applies filter `(eventType=\"user.session.start\" OR event=\"new_device\") OR (r`, eventType `user.session.start`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `okta:systemlog`** — Scheduled automation elevates `src` without crossing `risk_score` > 70 for UC-10.12.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `identity` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `okta:systemlog`** — First 48h baseline for UC-10.12.4 on `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "okta"
   ],
+  "equipmentModels": [
+    "okta_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: IdP logs, mobile banking SDK, SIEM correlation.\n• Ensure the following data sources are available: `sourcetype=\"okta:systemlog\"`, `sourcetype=\"banking:session\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRequire device fingerprint and step-up auth on risk score. Correlate password reset + wire initiation within short windows.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=identity OR index=banking (sourcetype=\"okta:systemlog\" OR sourcetype=\"banking:session\")\n| search (eventType=\"user.session.start\" OR event=\"new_device\") OR (risk_score>70)\n| transaction user_id maxspan=1h maxpause=10m\n| where mvcount(device_id)>2 OR mvcount(geo_country)>2\n| table _time, user_id, device_id, geo_country, risk_score\n```\n\nUnderstanding this SPL\n\n**Account Takeover Indicators** — Combines login, device, and session signals to catch ATO before fraudulent transfers.\n\nDocumented **Data sources**: `sourcetype=\"okta:systemlog\"`, `sourcetype=\"banking:session\"`. **App/TA** (typical add-on context): IdP logs, mobile banking SDK, SIEM correlation. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: identity, banking; **sourcetype**: okta:systemlog, banking:session. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=identity, index=banking, sourcetype=\"okta:systemlog\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Groups related events into transactions — prefer `maxspan`/`maxpause`/`maxevents` for bounded memory.\n• Filters the current rows with `where mvcount(device_id)>2 OR mvcount(geo_country)>2` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Account Takeover Indicators**): table _time, user_id, device_id, geo_country, risk_score\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (user journey), Table (risky sessions), Sankey (device → action).",
-  "grandmaExplanation": "In Financial Services, we pay close attention to \"Account Takeover Indicators\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data."
+  "grandmaExplanation": "In Financial Services, we pay close attention to \"Account Takeover Indicators\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

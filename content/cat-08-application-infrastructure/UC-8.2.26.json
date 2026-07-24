@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=proxy` `sourcetype=squid:cache` (cache.log warnings/errors)",
-  "app": "Custom (Squid `cache.log` forwarding)",
+  "exclusions": "Covers the detection logic documented for 'Squid Upstream and Peer Connection Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_squid_upstream_and_peer_connection_failures` (UC-8.2.26), SOC dashboard panel \"Operations — Squid Upstream and Peer Connection Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.2.26 positive (Squid, Upstream, and, Peer, Connection): ingest synthetic events into `index=proxy` sourcetype='squid:cache' where `count` grouped by `peer` satisfies detection threshold for 'Squid Upstream and Peer Connection Failures'. Validate filter `(\"Connection to\" AND failed) OR \"CONNECT tunnel error\" OR \"N`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.2.26 negative (Connection Failures): ingest benign `proxy` / `squid:cache` events where `peer` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Squid Upstream and Peer Connection Failures'."
+  },
+  "dataSources": "`index=proxy` `sourcetype=squid:cache` (cache.log warnings/errors) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom (Squid `cache.log` forwarding) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"squid:cache\"\n| search (\"Connection to\" AND failed) OR \"CONNECT tunnel error\" OR \"Network unreachable\"\n| rex field=_raw \"(?<peer>\\d+\\.\\d+\\.\\d+\\.\\d+|\\S+:\\d+)\"\n| stats count by peer\n| sort -count",
-  "description": "cache.log records parent/peer connect failures, TLS issues, and routing errors that may not appear as 5xx in access logs yet.",
-  "value": "Explains intermittent proxy failures during upstream maintenance or path MTU issues.",
+  "description": "Monitors UC-8.2.26 — Squid, Upstream, and, Peer, Connection — using `index=proxy` sourcetype `squid:cache`, grouped by `peer`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `(\"Connection to\" AND failed) OR \"CONNECT tunnel error\" OR \"N`. Purpose-built for 'Squid Upstream and Peer Connection Failures' in Operations workflows.",
+  "value": "Alerting on Squid, Upstream, and, Peer, Connection through UC-8.2.26 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Enable informative logging; rotate and forward cache.log. Tune noise from benign peer flaps.",
   "visualization": "Table (peer × count), timeline of failures, link to network change calendar.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "Squid Configuration Manual — Access Log",
-      "url": "http://www.squid-cache.org/Doc/config/access_log/"
+      "url": "http://www.squid-cache.org/Doc/config/access_log/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "5xx errors spike during deployment rollouts, restart sequences, or backend service maintenance. Health-check noise and synthetic traffic can add false volume if not filtered.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy` (UC-8.2.26)** — Planned work for 'Squid Upstream and Peer Connection Failures' shifts `count` over `span=1h` while `peer` remains in-scope. Applies filter `(\"Connection to\" AND failed) OR \"CONNECT tunnel error\" OR \"N`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `squid:cache`** — Scheduled automation elevates `src` without crossing configured threshold for UC-8.2.26. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `peer`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `squid:cache`** — First 48h baseline for UC-8.2.26 on `peer` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `peer`, `exception_reason`, `valid_until`.",
   "equipment": [
     "squid"
+  ],
+  "equipmentModels": [
+    "squid_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -36,6 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Squid `cache.log` forwarding).\n• Ensure the following data sources are available: `index=proxy` `sourcetype=squid:cache` (cache.log warnings/errors).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nValidate search terms against your Squid major version; adjust phrases for your locale.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"squid:cache\"\n| search (\"Connection to\" AND failed) OR \"CONNECT tunnel error\" OR \"Network unreachable\"\n| rex field=_raw \"(?<peer>\\d+\\.\\d+\\.\\d+\\.\\d+|\\S+:\\d+)\"\n| stats count by peer\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Squid Upstream and Peer Connection Failures** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=proxy` `sourcetype=squid:cache` (cache.log warnings/errors). **App/TA**: Custom (Squid `cache.log` forwarding). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with JBoss, WebLogic, or Tomcat admin consoles, or `catalina` / server logs on the host, for the same window. Confirm hostnames and fields match the vendor UI.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Table (peer × count), timeline of failures, link to network change calendar..",
-  "grandmaExplanation": "We watch for signs that explains intermittent proxy failures during upstream maintenance or path MTU issues."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Squid `cache.log` forwarding).\n• Ensure the following data sources are available: `index=proxy` `sourcetype=squid:cache` (cache.log warnings/errors).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nValidate search terms against your Squid major version; adjust phrases for your locale.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"squid:cache\"\n| search (\"Connection to\" AND failed) OR \"CONNECT tunnel error\" OR \"Network unreachable\"\n| rex field=_raw \"(?<peer>\\d+\\.\\d+\\.\\d+\\.\\d+|\\S+:\\d+)\"\n| stats count by peer\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Squid Upstream and Peer Connection Failures** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=proxy` `sourcetype=squid:cache` (cache.log warnings/errors). **App/TA**: Custom (Squid `cache.log` forwarding). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with JBoss, WebLogic, or Tomcat admin consoles, or `catalina` / server logs on the host, for the same window. Confirm hostnames and fields match the vendor UI.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Table (peer × count), timeline of failures, link to network change calendar..\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom (Squid `cache.log` forwarding) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=squid:cache into proxy. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`peer`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for signs that explains intermittent proxy failures during upstream maintenance or path MTU issues.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

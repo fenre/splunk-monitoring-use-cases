@@ -9,26 +9,55 @@
     "Operations"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), kombucha brew (`kombucha:reading`).",
-  "app": "ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC.",
-  "spl": "index=personal sourcetype=chefsteps:cook\nstats avg(cook_min) as actual, avg(planned_min) as planned by recipe_name\nwhere actual>planned*1.15",
-  "description": "Compares ChefSteps actual cook time to planned duration.",
-  "value": "Surfacing chefsteps sous vide duration drift helps you act before small issues become habits.",
+  "exclusions": "Covers personal hobby monitoring for 'ChefSteps Sous Vide Duration Drift' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_chefsteps_sous_vide_duration_drift` (UC-25.15.35), SOC dashboard panel \"Personal — ChefSteps Sous Vide Duration Drift\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.15.35 positive (ChefSteps, Sous, Vide, Duration, Drift): ingest synthetic events into `index=personal` sourcetype='chefsteps:cook' where `actual`, `planned` grouped by `recipe_name` satisfies detection threshold for 'ChefSteps Sous Vide Duration Drift'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.15.35 negative (Duration Drift): ingest benign `personal` / `chefsteps:cook` events where `recipe_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'ChefSteps Sous Vide Duration Drift'."
+  },
+  "dataSources": "Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), kombucha brew (`kombucha:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=chefsteps:cook\n| stats avg(cook_min) as actual, avg(planned_min) as planned by recipe_name\n| where actual>planned*1.15",
+  "description": "Identifies when Duration Drift criteria fire for 'ChefSteps Sous Vide Duration Drift' (UC-25.15.35) in `index=personal` sourcetype `chefsteps:cook`. Pipeline aggregates `actual`, `planned` by `recipe_name` over `the scheduled window`. Alert logic enforces configured threshold. Title terms: ChefSteps, Sous, Vide, Duration, Drift. Eliminates manual hunting for UC-25.15.35 conditions.",
+  "value": "UC-25.15.35 helps teams contain ChefSteps, Sous, Vide, Duration, Drift scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Ingest the relevant kitchen, cooking & fermentation export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.15.35)** — Connector for 'ChefSteps Sous Vide Duration Drift' stops polling `chefsteps:cook`; stale `actual`, `planned` on `recipe_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `actual`, `planned` over `1w` is expected for UC-25.15.35, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `chefsteps:cook`. Dedup with `stats latest(*) by recipe_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'ChefSteps Sous Vide Duration Drift'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It keeps when chefsteps sous vide duration drift matters for your routine."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Kitchen, Cooking & Fermentation — typical feeds: Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), .\n• **Sourcetypes in this search**: `chefsteps:cook`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=chefsteps:cook`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC..\n\n**Author notes:** Ingest the relevant kitchen, cooking & fermentation export into `index=personal` and schedule this search weekly.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"chefsteps:cook\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=chefsteps:cook earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **ChefSteps Sous Vide Duration Drift** over `personal` data (primarily `sourcetype=chefsteps:cook`) across the full search range. The `avg` aggregation groups by `recipe_name`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `recipe_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=chefsteps:cook\n| stats avg(cook_min) as actual, avg(planned_min) as planned by recipe_name\n| where actual>planned*1.15\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=chefsteps:cook earliest=-7d\n| head 50\n| table recipe_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=chefsteps:cook earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.15.35: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Or Chart Of Key Fields (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `chefsteps:cook` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=chefsteps:cook | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It keeps when chefsteps sous vide duration drift matters for your routine.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

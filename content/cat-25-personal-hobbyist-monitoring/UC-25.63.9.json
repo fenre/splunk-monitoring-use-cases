@@ -9,35 +9,60 @@
     "Business"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Lightroom photo exports (`lightroom:photo`), Flickr photo metadata (`flickr:photo`), ShutterCount body audits (`shuttercount:camera`), and F3 card tests (`f3:card`).",
-  "app": "Adobe Lightroom exports, Flickr API metadata, ShutterCount camera audits, and F3 SD-card health checks sent to Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Lightroom Export Photo File Size Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_lightroom_export_photo_file_size_leaderboard` (UC-25.63.9), SOC dashboard panel \"Personal — Lightroom Export Photo File Size Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.63.9 positive (Lightroom, Export, Photo, File, Size): ingest synthetic events into `index=personal` sourcetype='lightroom:photo' where `total_value`, `avg_value` grouped by `collection_name` satisfies detection threshold for 'Lightroom Export Photo File Size Leaderboard'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.63.9 negative (Size Leaderboard): ingest benign `personal` / `lightroom:photo` events where `collection_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Lightroom Export Photo File Size Leaderboard'."
+  },
+  "dataSources": "Lightroom photo exports (`lightroom:photo`), Flickr photo metadata (`flickr:photo`), ShutterCount body audits (`shuttercount:camera`), and F3 card tests (`f3:card`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Adobe Lightroom exports, Flickr API metadata, ShutterCount camera audits, and F3 SD-card health checks sent to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=lightroom:photo file_size_mb=*\n| stats sum(file_size_mb) as total_value, avg(file_size_mb) as avg_value by collection_name\n| sort - total_value",
-  "description": "Ranks collection name values by total and average file size across Lightroom export photo events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Alerts on Size Leaderboard anomalies for UC-25.63.9 with window `the scheduled window` on `index=personal` sourcetype `lightroom:photo`. Combines `total_value`, `avg_value` by `collection_name` and compares against configured threshold. Mapped to keywords Lightroom, Export, Photo, File, Size for dashboard routing.",
+  "value": "Alerting on Lightroom, Export, Photo, File, Size through UC-25.63.9 reduces missed training goals, stale hobby data, and connector failures by surfacing `total_value`, `avg_value` early.",
   "implementation": "Ingest numeric `file_size_mb` values for each Lightroom export photo event and review total and average file size by collection name.",
   "visualization": "Table of entities ranked by total file size.",
   "cimModels": [],
   "references": [
     {
       "title": "Adobe Lightroom Classic",
-      "url": "https://www.adobe.com/products/photoshop-lightroom-classic.html"
+      "url": "https://www.adobe.com/products/photoshop-lightroom-classic.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Flickr API Services",
-      "url": "https://www.flickr.com/services/api/"
+      "url": "https://www.flickr.com/services/api/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ShutterCount",
-      "url": "https://shuttercount.com/"
+      "url": "https://shuttercount.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "F3 - Fight Flash Fraud",
-      "url": "https://fight-flash-fraud.readthedocs.io/"
+      "url": "https://fight-flash-fraud.readthedocs.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It compares which collection name shows the biggest file size numbers in your Lightroom export photo data."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.63.9)** — Connector for 'Lightroom Export Photo File Size Leaderboard' stops polling `lightroom:photo`; stale `total_value`, `avg_value` on `collection_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `total_value`, `avg_value` over `1w` is expected for UC-25.63.9, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lightroom:photo`. Dedup with `stats latest(*) by collection_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Lightroom Export Photo File Size Leaderboard'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Photography & Camera Gear — typical feeds: Lightroom photo exports (`lightroom:photo`), Flickr photo metadata (`flickr:photo`), ShutterCount body audits (`shuttercount:camera`), and F3 card tests (`f3:card`)..\n• **Sourcetypes in this search**: `lightroom:photo`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=lightroom:photo`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Adobe Lightroom exports, Flickr API metadata, ShutterCount camera audits, and F3 SD-card health checks sent to Splunk HEC..\n\n**Author notes:** Ingest numeric `file_size_mb` values for each Lightroom export photo event and review total and average file size by collection name.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"lightroom:photo\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=lightroom:photo earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Lightroom Export Photo File Size Leaderboard** over `personal` data (primarily `sourcetype=lightroom:photo`) across the full search range. The `sum, avg` aggregation groups by `collection_name`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `collection_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=lightroom:photo file_size_mb=*\n| stats sum(file_size_mb) as total_value, avg(file_size_mb) as avg_value by collection_name\n| sort - total_value\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=lightroom:photo earliest=-7d\n| head 50\n| table collection_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=lightroom:photo earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.63.9: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Entities Ranked By Total File Size (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `lightroom:photo` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=lightroom:photo | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It compares which collection name shows the biggest file size numbers in your Lightroom export photo data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

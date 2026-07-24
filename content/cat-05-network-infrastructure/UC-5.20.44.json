@@ -9,28 +9,42 @@
     "Performance"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'BGP IPv6 (MP-BGP AFI/SAFI 2/1) Session and Prefix Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_bgp_ipv6_mp_bgp_afi_safi_2_1_session_and_prefix_` (UC-5.20.44), SOC dashboard panel \"Operations — BGP IPv6 (MP-BGP AFI/SAFI 2/1) Session and Prefix Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.44 positive (BGP, IPv6, (MP, BGP, AFI): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `entity` satisfies -24h for 'BGP IPv6 (MP-BGP AFI/SAFI 2/1) Session and Prefix Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.44 negative (Prefix Monitoring): ingest benign `network` / `cisco:ios` events where `entity` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'BGP IPv6 (MP-BGP AFI/SAFI 2/1) Session and Prefix Monitoring'."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` containing MP-BGP session state changes and prefix count events for the IPv6 unicast address family (AFI 2, SAFI 1). Multiprotocol BGP (MP-BGP, RFC 4760) extends BGP-4 to carry IPv6 prefixes using the `ipv6 unicast` address family. Unlike OSPFv3 which is a separate protocol, MP-BGP is the same BGP-4 protocol with additional capabilities negotiated during session establishment:\n\n1. **AFI/SAFI** — Address Family Identifier (AFI=2 for IPv6) and Subsequent AFI (SAFI=1 for unicast). IPv4 is AFI=1, SAFI=1.\n2. **Next-hop** — MP-BGP IPv6 uses IPv6 global addresses as next-hops, but can use IPv4-mapped IPv6 addresses or link-local addresses depending on the peering configuration.\n3. **Route Distinguisher** — For VPNv6 (AFI=2, SAFI=128), route distinguishers separate customer routes.\n4. **Session independence** — A single BGP session can carry both IPv4 and IPv6 address families. A BGP session reset affects ALL address families on that session.\n\nCritical monitoring points:\n- Session state changes (Established → Idle/Active/Connect)\n- IPv6 prefix count changes (withdrawals, route leaks, full table size)\n- Maximum prefix limit violations (peer sending more prefixes than configured limit)\n- Route oscillation (prefix appears and disappears rapidly)\n- IPv6 default route (::0/0) presence and stability",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812).",
   "spl": "index=network sourcetype=\"cisco:ios\" \"%BGP\" earliest=-24h\n| eval bgp_event=case(\n    match(_raw, \"(?i)neighbor.*(?:down|up|established|idle|active|connect)\"), \"session_change\",\n    match(_raw, \"(?i)max.?prefix|maxprefix\"), \"max_prefix_violation\",\n    match(_raw, \"(?i)ipv6.*(?:withdraw|update|announce)\"), \"prefix_event\",\n    1=1, null())\n| where isnotnull(bgp_event)\n| rex field=_raw \"(?:neighbor|Neighbor|peer|Peer)\\s+(?<peer_addr>[0-9a-fA-F:.]+)\"\n| rex field=_raw \"(?:vrf|VRF)\\s+(?<vrf_name>\\S+)\"\n| rex field=_raw \"(?:state|State).*?(?:to|->)\\s*(?<new_state>\\S+)\"\n| eval severity=case(\n    match(new_state, \"(?i)idle|down\"), \"CRITICAL\",\n    match(_raw, \"max.?prefix\"), \"HIGH\",\n    match(new_state, \"(?i)established\"), \"INFO\",\n    1=1, \"WARNING\")\n| table _time, host, peer_addr, vrf_name, bgp_event, new_state, severity",
-  "description": "Monitors MP-BGP IPv6 unicast (AFI 2/SAFI 1) session state and prefix stability across all BGP peerings — both eBGP (internet/transit providers) and iBGP (internal route distribution). A BGP session reset in the IPv6 address family can withdraw thousands of IPv6 prefixes in seconds, causing widespread connectivity loss. Unlike IPv4 BGP which has decades of operational maturity, IPv6 BGP is still being deployed in many enterprises, and misconfiguration is common — especially around next-hop resolution, address family activation, and maximum prefix limits.",
-  "value": "BGP is the backbone routing protocol for IPv6 internet connectivity and increasingly for enterprise WAN (SD-WAN underlay, EVPN-VXLAN). A single BGP session carrying the IPv6 full table (200,000+ prefixes as of 2026) that resets withdraws all those prefixes simultaneously, causing a traffic black hole until the session re-establishes and the routes are re-advertised. Monitoring BGP IPv6 sessions provides the earliest possible warning of internet connectivity loss — typically 30-90 seconds before users report 'IPv6 internet is down'. Maximum prefix limit monitoring catches route leaks and hijacks before they impact production.",
+  "description": "Detects UC-5.20.44 — BGP, IPv6, (MP, BGP, AFI — using `index=network` sourcetype `cisco:ios`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when -24h. Primary focus: Prefix Monitoring. Purpose-built for 'BGP IPv6 (MP-BGP AFI/SAFI 2/1) Session and Prefix Monitoring' in Operations workflows.",
+  "value": "UC-5.20.44 gives Operations teams earlier visibility into Prefix Monitoring through `cisco:ios` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Collect BGP session state changes and prefix events from syslog. Track IPv6 address family specifically (AFI 2). Alert on session drops, max prefix violations, and prefix count anomalies. Correlate with peer AS information for external peering.",
   "visualization": "(1) Status table: all BGP IPv6 sessions with current state. (2) Timechart: session events over 24 hours. (3) Single-value: sessions in Established state vs total configured. (4) Prefix trending: IPv6 prefix count over time per peer.",
   "references": [
     {
       "title": "RFC 4760 — Multiprotocol Extensions for BGP-4 (MP-BGP specification)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4760"
+      "url": "https://www.rfc-editor.org/rfc/rfc4760",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 2545 — Use of BGP-4 Multiprotocol Extensions for IPv6 Inter-Domain Routing",
-      "url": "https://www.rfc-editor.org/rfc/rfc2545"
+      "url": "https://www.rfc-editor.org/rfc/rfc2545",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.2 — routing security)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Planned maintenance.** Peer router reboots or circuit maintenance cause expected session resets. Correlate with change windows.\n\n**BGP graceful restart.** Peers with graceful restart (RFC 4724) maintain routes during a session reset. The session goes DOWN but routes are preserved for the restart timer duration. This is by design.\n\n**Soft reconfiguration.** `clear bgp ipv6 unicast * soft` refreshes routes without resetting the session. Route refresh (RFC 2918) does the same. These generate prefix events but no session events.\n\n**Route policy changes.** Applying a new route-map or prefix-list to a BGP peer may change the number of accepted/advertised prefixes. This is expected after configuration changes.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.44)** — Planned work for 'BGP IPv6 (MP-BGP AFI/SAFI 2/1) Session and Prefix Monitoring' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `bgp_event` without crossing configured threshold for UC-5.20.44. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.44 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "arista",
     "cisco",

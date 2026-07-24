@@ -9,11 +9,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Healthcare",
-  "dataSources": "`sourcetype=\"epic:alert\"`",
-  "app": "EHR alerting, middleware",
+  "exclusions": "Covers the detection logic documented for 'Clinical Alert Fatigue Analysis' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_clinical_alert_fatigue_analysis` (UC-10.12.29), SOC dashboard panel \"Security Infra — Clinical Alert Fatigue Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.12.29 positive (Clinical, Alert, Fatigue, Analysis): ingest synthetic events into `index=clinical` sourcetype='epic:alert' where `med_ack`, `rules` grouped by `unit` satisfies detection threshold for 'Clinical Alert Fatigue Analysis'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.12.29 negative (Fatigue Analysis): ingest benign `clinical` / `epic:alert` events where `unit` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 10 confirms zero alert rows for 'Clinical Alert Fatigue Analysis'."
+  },
+  "dataSources": "`sourcetype=\"epic:alert\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "EHR alerting, middleware — Universal Forwarder (Splunkbase 617)",
   "spl": "index=clinical sourcetype=\"epic:alert\"\n| eval ack_sec=ack_time-_time\n| stats median(ack_sec) as med_ack, count as fires, dc(alert_id) as rules by unit\n| eval fires_per_bed=fires/bed_count\n| sort -fires",
-  "description": "Quantifies alert acknowledgement times and duplicate fires to guide CDS tuning and Joint Commission alarm safety.",
-  "value": "Quantifies alert acknowledgement times and duplicate fires to guide CDS tuning and Joint Commission alarm safety.",
+  "description": "Detects UC-10.12.29 — Clinical, Alert, Fatigue, Analysis — using `index=clinical` sourcetype `epic:alert`, grouped by `unit`. Outputs `med_ack`, `rules` each `the scheduled window`; alert when configured threshold. Primary focus: Fatigue Analysis. Purpose-built for 'Clinical Alert Fatigue Analysis' in Security Infra workflows.",
+  "value": "For 'Clinical Alert Fatigue Analysis', UC-10.12.29 converts `med_ack`, `rules` on `epic:alert` feeds into actionable rows and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Deprecate low-value rules; correlate with nurse staffing ratios from census feeds.",
   "visualization": "Bar chart (fires per bed), Box plot (ack times), Table (top noisy rules).",
   "cimModels": [
@@ -23,10 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Clinical alert fatigue from new order sets, EHR version upgrades, and QI projects that temporarily duplicate notifications; treat as workflow tuning.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: EHR alerting, middleware.\n• Ensure the following data sources are available: `sourcetype=\"epic:alert\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeprecate low-value rules; correlate with nurse staffing ratios from census feeds.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=clinical sourcetype=\"epic:alert\"\n| eval ack_sec=ack_time-_time\n| stats median(ack_sec) as med_ack, count as fires, dc(alert_id) as rules by unit\n| eval fires_per_bed=fires/bed_count\n| sort -fires\n```\n\nUnderstanding this SPL\n\n**Clinical Alert Fatigue Analysis** — Quantifies alert acknowledgement times and duplicate fires to guide CDS tuning and Joint Commission alarm safety.\n\nDocumented **Data sources**: `sourcetype=\"epic:alert\"`. **App/TA** (typical add-on context): EHR alerting, middleware. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: clinical; **sourcetype**: epic:alert. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=clinical, sourcetype=\"epic:alert\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **ack_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by unit** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **fires_per_bed** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (fires per bed), Box plot (ack times), Table (top noisy rules).",
-  "grandmaExplanation": "In Healthcare, we pay close attention to \"Clinical Alert Fatigue Analysis\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data."
+  "knownFalsePositives": "1. **Maintenance window on `clinical` (UC-10.12.29)** — Planned work for 'Clinical Alert Fatigue Analysis' shifts `med_ack`, `rules` over `span=1h` while `unit` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `median` on `epic:alert`** — Scheduled automation elevates `ack_sec` without crossing configured threshold for UC-10.12.29. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `unit`** — Health checks in `clinical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `epic:alert`** — First 48h baseline for UC-10.12.29 on `unit` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `unit`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: EHR alerting, middleware.\n• Ensure the following data sources are available: `sourcetype=\"epic:alert\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeprecate low-value rules; correlate with nurse staffing ratios from census feeds.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=clinical sourcetype=\"epic:alert\"\n| eval ack_sec=ack_time-_time\n| stats median(ack_sec) as med_ack, count as fires, dc(alert_id) as rules by unit\n| eval fires_per_bed=fires/bed_count\n| sort -fires\n```\n\nUnderstanding this SPL\n\n**Clinical Alert Fatigue Analysis** — Quantifies alert acknowledgement times and duplicate fires to guide CDS tuning and Joint Commission alarm safety.\n\nDocumented **Data sources**: `sourcetype=\"epic:alert\"`. **App/TA** (typical add-on context): EHR alerting, middleware. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: clinical; **sourcetype**: epic:alert. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=clinical, sourcetype=\"epic:alert\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **ack_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by unit** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **fires_per_bed** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (fires per bed), Box plot (ack times), Table (top noisy rules).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (EHR alerting, middleware — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=epic:alert into clinical. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`unit`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "In Healthcare, we pay close attention to \"Clinical Alert Fatigue Analysis\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

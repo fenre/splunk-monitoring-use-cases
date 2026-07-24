@@ -9,26 +9,55 @@
     "Data Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Hubitat/openHAB logs, Node-RED flow events (`nodered:event`).",
-  "app": "Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'openHAB Item Update Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_openhab_item_update_sync_gap_watch` (UC-25.4.49), SOC dashboard panel \"Personal — openHAB Item Update Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.4.49 positive (openHAB, Item, Update, Sync, Gap): ingest synthetic events into `index=personal` sourcetype='openhab:event' where `last_seen` grouped by `item_name` satisfies `hours_since` > 1 for 'openHAB Item Update Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.4.49 negative (Gap Watch): ingest benign `personal` / `openhab:event` events where `item_name` stays below `hours_since` > 1, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 7 confirms zero alert rows for 'openHAB Item Update Sync Gap Watch'."
+  },
+  "dataSources": "Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Hubitat/openHAB logs, Node-RED flow events (`nodered:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=openhab:event\n| stats max(_time) as last_seen by item_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>1\n| sort - hours_since",
-  "description": "Detects when openHAB item update data has stopped arriving for a given item.",
-  "value": "Personal telemetry is only useful when it is current; sync-gap alerts catch failed exports and broken credentials early.",
+  "description": "Alerts on UC-25.4.49 — openHAB, Item, Update, Sync, Gap — using `index=personal` sourcetype `openhab:event`, grouped by `item_name`. Outputs `last_seen` each `the scheduled window`; alert when `hours_since` > 1. Primary focus: Gap Watch. Purpose-built for 'openHAB Item Update Sync Gap Watch' in Personal workflows.",
+  "value": "UC-25.4.49 operationalises 'openHAB Item Update Sync Gap Watch' against `openhab:event` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Track the latest event time per item and alert when the feed is older than 1 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.4.49)** — Connector for 'openHAB Item Update Sync Gap Watch' stops polling `openhab:event`; stale `last_seen` on `item_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.4.49, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `openhab:event`. Dedup with `stats latest(*) by item_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 1 for 'openHAB Item Update Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It rates when one part of your openHAB item update feed has stopped checking in and probably needs fixing."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Smart Home Platforms & Automation — typical feeds: Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Hubitat/openHAB logs, Node-RED flow events (`nodered:event`)..\n• **Sourcetypes in this search**: `openhab:event`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=openhab:event`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC..\n\n**Author notes:** Track the latest event time per item and alert when the feed is older than 1 hours.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"openhab:event\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=openhab:event earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **openHAB Item Update Sync Gap Watch** over `personal` data (primarily `sourcetype=openhab:event`) across the full search range. It applies numeric thresholds on `hours_since` (> 1) after max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `hours_since`, `item_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=openhab:event\n| stats max(_time) as last_seen by item_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>1\n| sort - hours_since\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=openhab:event earliest=-7d\n| head 50\n| table hours_since, item_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=openhab:event earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hours_since` before alerting:\n\n```spl\nindex=personal sourcetype=openhab:event earliest=-30d\n| stats perc50(hours_since) AS p50 perc90(hours_since) AS p90 perc99(hours_since) AS p99 max(hours_since) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.4.49: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Entities By Hours Since Last Event (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `openhab:event` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=openhab:event | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It rates when one part of your openHAB item update feed has stopped checking in and probably needs fixing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

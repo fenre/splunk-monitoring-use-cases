@@ -9,11 +9,17 @@
     "Analytics"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Infoblox DHCP Lease Rate Trending and Scope Exhaustion Forecasting (Infoblox)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_infoblox_dhcp_lease_rate_trending_and_scope_exha` (UC-5.15.5), SOC dashboard panel \"Operations — Infoblox DHCP Lease Rate Trending and Scope Exhaustion Forecasting (Infoblox)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.15.5 positive (Infoblox, DHCP, Lease, Rate, Trending): ingest synthetic events into `index=dhcp` sourcetype='infoblox:dhcp' where `daily_leases`, `baseline7` grouped by `scope_id`, `pool_size`, `network`, `_time` satisfies `daily_growth` > 0, `free_addrs` > 0, `projected_fill_days` <= 45, or `projected_fill_days` > 0 for 'Infoblox DHCP Lease Rate Trending and Scope Exhaustion Forecasting (Infoblox)'. Validate lookup `infoblox_scopes.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.15.5 negative (Forecasting (Infoblox)): ingest benign `dhcp` / `infoblox:dhcp` events where `scope_id`, `pool_size`, `network`, `_time` stays below `daily_growth` > 0, `free_addrs` > 0, `projected_fill_days` <= 45, or `projected_fill_days` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Infoblox DHCP Lease Rate Trending and Scope Exhaustion Forecasting (Infoblox)'."
+  },
   "dataSources": "`index=dhcp` `sourcetype=infoblox:dhcp` DHCPACK/DHCPREQUEST streams; optional `infoblox_scopes.csv` with columns scope_id (network CIDR string matching lookup key), pool_size, lease_time_hours for normalization; Heavy Forwarder or SC4S routing `infoblox_nios_dhcp` to the DHCP index.",
   "app": "Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)",
   "spl": "index=dhcp sourcetype=\"infoblox:dhcp\" earliest=-14d@d latest=now\n| where match(_raw,\"(?i)DHCPACK\")\n| rex field=_raw \"(?i)(?:on|for|ip[\\\\s:=]+)(?<lease_ip>\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3})\"\n| rex field=_raw \"(?i)scope[\\\\s:=]+(?<scope_id>[^,\\\\s]+)\"\n| lookup infoblox_scopes.csv scope_id OUTPUT pool_size network\n| bin _time span=1d\n| stats dc(lease_ip) as daily_leases by scope_id pool_size network _time\n| sort scope_id _time\n| streamstats window=7 global=f avg(daily_leases) as baseline7 by scope_id\n| eval daily_growth=daily_leases-baseline7\n| eval free_addrs=pool_size-daily_leases\n| eval projected_fill_days=if(daily_growth>0 AND free_addrs>0, round(free_addrs/daily_growth,1), null())\n| where _time >= relative_time(now(), \"-1d@d\")\n| where projected_fill_days<=45 AND projected_fill_days>0 AND pool_size>0\n| sort projected_fill_days",
-  "description": "This use case tracks how fast DHCP leases are granted per scope using sliding hourly lease rates, then forecasts how many days remain until the numeric pool is consumed if the recent growth trend continues.",
-  "value": "Operators gain a forward-looking metric—distinct from static utilization snapshots—that captures bursty onboarding, conference Wi‑Fi, or IoT bursts so expansions are funded before DHCPNAK storms flood the service desk.",
+  "description": "Detects UC-5.15.5 — Infoblox, DHCP, Lease, Rate, Trending — using `index=dhcp` sourcetype `infoblox:dhcp`, grouped by `scope_id`, `pool_size`, `network`, `_time`. Outputs `daily_leases`, `baseline7` each `1d`; alert when `daily_growth` > 0, `free_addrs` > 0, `projected_fill_days` <= 45, or `projected_fill_days` > 0. Filter chain includes lookup `infoblox_scopes.csv`. Purpose-built for 'Infoblox DHCP Lease Rate Trending and Scope Exhaustion Forecasting (Infoblox)' in Operations workflows.",
+  "value": "UC-5.15.5 operationalises 'Infoblox DHCP Lease Rate Trending and Scope Exhaustion Forecasting (Infoblox)' against `infoblox:dhcp` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Normalize DHCPACK events per scope, compute rolling moving averages, join authoritative pool sizes, schedule hourly summaries, and alert when projected_fill_days falls inside your risk window (for example 14 days).",
   "visualization": "Top-N scope forecast table, hourly lease-rate timechart with reference bands, single-value alert badge for scopes under 7-day runway.",
   "cimModels": [],
@@ -22,19 +28,32 @@
   "references": [
     {
       "title": "Splunk Documentation — Sourcetypes for the Splunk Add-on for Infoblox",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/Infoblox/Sourcetypes"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/Infoblox/Sourcetypes",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase — Splunk Add-on for Infoblox",
-      "url": "https://splunkbase.splunk.com/app/2934"
+      "url": "https://splunkbase.splunk.com/app/2934",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Renewal bursts:** Heavy ACK counts during mass renewals can resemble growth—blend DISCOVER/BOUND ratios before reacting.**Lab VLAN noise:** Ephemeral labs inflate forecasts; exclude scopes tagged `environment=lab` via lookup.**Incorrect pool_size:** Wrong totals instantly skew days-to-full projections.",
+  "knownFalsePositives": "1. **Maintenance window on `dhcp` (UC-5.15.5)** — Planned work for 'Infoblox DHCP Lease Rate Trending and Scope Exhaustion Forecasting (Infoblox)' shifts `daily_leases`, `baseline7` over `span=1d` while `scope_id`, `pool_size`, `network`, `_time` remains in-scope. Applies lookup `infoblox_scopes.csv`. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `infoblox:dhcp`** — Scheduled automation elevates `pool_size` without crossing `daily_growth` > 0 for UC-5.15.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `scope_id`, `pool_size`, `network`, `_time`** — Health checks in `dhcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `infoblox:dhcp`** — First 48h baseline for UC-5.15.5 on `scope_id` is unstable; join `infoblox_scopes.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `scope_id`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "infoblox"
   ],
   "equipmentModels": [
+    "infoblox_dhcp",
     "infoblox_nios"
   ],
   "status": "verified",
@@ -44,7 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• `Splunk_TA_infoblox` installed and DHCP syslog flowing with DHCPACK lines retaining scope or IP address.\n• Lookup table `infoblox_scopes.csv` maintained whenever subnets change.\n• Familiarity with lease timers—short leases amplify ACK noise; optionally divide counts by renewal probability when tuning forecasts.\n\nStep 1 — Configure data collection\nVerify ACK volume (`index=dhcp sourcetype=\"infoblox:dhcp\" DHCPACK earliest=-1h | stats count`). Capture scope identifiers—some appliances embed scope name only in OFFER; if missing, map IPs to scopes via the same CIDR lookup pattern used in UC‑5.15.4.\n\nStep 2 — Create the search and alert\nRun the primary SPL hourly. Add `predict` on daily aggregates as an alternate model (`| predict lease_rate algorithm=LLP future_timespan=7`). Alert when two consecutive runs show `projected_fill_days` below threshold.\n\nStep 3 — Validate\nCompare projected lease velocity against Grid Manager lease histogram for a pilot subnet over 48 hours; reconcile differences caused by BOOTP relays or duplicate syslog paths.\n\nStep 4 — Operationalize\nDashboard panels: scope leaderboard by projected_fill_days, ribbon chart of hourly_leases, annotations for change tickets. Integrate with CMDB site codes via lookup.\n\nStep 5 — Troubleshooting\n**Missing scope_id:** fall back to IP→CIDR lookup.**Forecast spikes:** holiday traffic may distort moving averages—use `seasonality` or weekly baselines.**IPv6:** extend logic when DHCPv6 prefixes replace IPv4 pools.",
+  "detailedImplementation": "Prerequisites\n• `Splunk_TA_infoblox` installed and DHCP syslog flowing with DHCPACK lines retaining scope or IP address.\n• Lookup table `infoblox_scopes.csv` maintained whenever subnets change.\n• Familiarity with lease timers—short leases amplify ACK noise; optionally divide counts by renewal probability when tuning forecasts.\n\nStep 1 — Configure data collection\nVerify ACK volume (`index=dhcp sourcetype=\"infoblox:dhcp\" DHCPACK earliest=-1h | stats count`). Capture scope identifiers—some appliances embed scope name only in OFFER; if missing, map IPs to scopes via the same CIDR lookup pattern used in UC‑5.15.4.\n\nStep 2 — Create the search and alert\nRun the primary SPL hourly. Add `predict` on daily aggregates as an alternate model (`| predict lease_rate algorithm=LLP future_timespan=7`). Alert when two consecutive runs show `projected_fill_days` below threshold.\n\nStep 3 — Validate\nCompare projected lease velocity against Grid Manager lease histogram for a pilot subnet over 48 hours; reconcile differences caused by BOOTP relays or duplicate syslog paths.\n\nStep 4 — Operationalize\nDashboard panels: scope leaderboard by projected_fill_days, ribbon chart of hourly_leases, annotations for change tickets. Integrate with CMDB site codes via lookup.\n\nStep 5 — Troubleshooting\n**Missing scope_id:** fall back to IP→CIDR lookup.**Forecast spikes:** holiday traffic may distort moving averages—use `seasonality` or weekly baselines.**IPv6:** extend logic when DHCPv6 prefixes replace IPv4 pools.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)). Enable the modular input or HEC token that writes sourcetype=infoblox:dhcp into dhcp. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, daily_growth, free_addrs, network`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We measure how quickly computers grab temporary addresses and estimate how soon the pool runs dry, so building Wi‑Fi never hits a surprise busy hour with no room left.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

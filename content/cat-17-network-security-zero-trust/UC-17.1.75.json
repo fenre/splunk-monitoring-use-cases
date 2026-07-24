@@ -9,6 +9,8 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'ISE Downloadable ACL (dACL) Push Failures and ACL-Length Truncation Detection' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ise_downloadable_acl_dacl_push_failures_and_acl_` (UC-17.1.75), SOC dashboard panel \"Network — ISE Downloadable ACL (dACL) Push Failures and ACL-Length Truncation Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -48,14 +50,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Push an oversized dACL to an old switch. UC-17.1.75 detects 5438 truncation.",
-    "negativeScenario": "Reasonable dACLs to current switches. No fires."
+    "positiveScenario": "UC-17.1.75 positive (ISE, Downloadable, ACL, (dACL), Push): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `count` grouped by `dacl_name`, `nas_ip`, `MessageCode`, `failure_reason` satisfies `count` > 5 for 'ISE Downloadable ACL (dACL) Push Failures and ACL-Length Truncation Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.75 negative (Truncation Detection): ingest benign `nac` / `cisco:ise:syslog` events where `dacl_name`, `nas_ip`, `MessageCode`, `failure_reason` stays below `count` > 5, or exclude the test entity via `network_exception_register.csv`. Variant 13 confirms zero alert rows for 'ISE Downloadable ACL (dACL) Push Failures and ACL-Length Truncation Detection'."
   },
-  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Authorization* + *Failed-Attempts* — codes `5436` (dACL push successful), `5437` (dACL push failed), `5438` (dACL too long for switch). Field: `dacl_name`, `dacl_size_bytes`, `nas_ip`, `failure_reason`.",
-  "app": "`Splunk Add-on for Cisco Identity Services`.",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Authorization* + *Failed-Attempts* — codes `5436` (dACL push successful), `5437` (dACL push failed), `5438` (dACL too long for switch). Field: `dacl_name`, `dacl_size_bytes`, `nas_ip`, `failure_reason`. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (5437, 5438)\n| stats count by dacl_name, nas_ip, MessageCode, failure_reason\n| where count > 5",
-  "description": "Detects: (a) dACLs that fail to push to switches (incompatible IOS, ACL syntax errors). (b) dACLs that are truncated by switches with limited TCAM (older Catalyst with shallow ACL TCAM).",
-  "value": "Truncated dACLs silently weaken access control — the policy in ISE may allow X but the switch enforces Y. Catching dACL push failures lets policy engineering correct ACL design.",
+  "description": "Monitors UC-17.1.75 — ISE, Downloadable, ACL, (dACL), Push — using `index=nac` sourcetype `cisco:ise:syslog`, grouped by `dacl_name`, `nas_ip`, `MessageCode`, `failure_reason`. Outputs `count` each `the scheduled window`; alert when `count` > 5. Primary focus: Truncation Detection. Purpose-built for 'ISE Downloadable ACL (dACL) Push Failures and ACL-Length Truncation Detection' in Network workflows.",
+  "value": "UC-17.1.75 gives Network teams earlier visibility into Truncation Detection through `cisco:ise:syslog` feeds, lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Schedule the search every 1 hour over the last 24 hours; trigger when dACL drift is observed; throttle by `dacl_name` for 24 hours.",
   "visualization": "dACL push failure trend; per-dACL failure heatmap.",
   "cimModels": [],
@@ -63,10 +65,26 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 — Downloadable ACLs",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "PCI DSS Document Library",
+      "url": "https://www.pcisecuritystandards.org/document_library/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) Intermittent push failures during NAD reboot.\n(b) Older Catalyst 2960 series have known ACL-length limits.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'ISE Downloadable ACL (dACL) Push Failures and ACL-Length Truncation Detection'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (policy hygiene — measures dACL/AuthZ profile drift, no adversary technique)"
   ],
@@ -84,7 +102,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Standard pattern.",
+  "detailedImplementation": "Standard pattern.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`MessageCode, dacl_name, failure_reason, nas_ip`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "ISE pushes access rules to switches when a user connects. If the rule is too big or the switch can't accept it, the rule may be cut short — and the user gets less restricted than intended. We watch for these silent rule failures.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=netskope:events` (web transactions)",
+  "exclusions": "Covers the detection logic documented for 'Netskope SWG Web Category Blocking' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_netskope_swg_web_category_blocking` (UC-17.3.35), SOC dashboard panel \"Network — Netskope SWG Web Category Blocking\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.35 positive (Netskope, SWG, Web, Category, Blocking): ingest synthetic events into `index=proxy` sourcetype='netskope:events' where `count` grouped by `category`, `user`, `policy_name` satisfies -7d for 'Netskope SWG Web Category Blocking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.35 negative (Category Blocking): ingest benign `proxy` / `netskope:events` events where `category`, `user`, `policy_name` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 4 confirms zero alert rows for 'Netskope SWG Web Category Blocking'."
+  },
+  "dataSources": "`sourcetype=netskope:events` (web transactions) Indexes: proxy. Sourcetypes: netskope:events. Key fields: category, policy_name, user. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Netskope Add-on for Splunk (Splunkbase 3808)",
   "spl": "index=proxy sourcetype=\"netskope:events\" earliest=-7d\n| where action=\"blocked\"\n| stats count by category, user, policy_name\n| sort -count",
-  "description": "Tracks blocked web requests by URL category across the Netskope SWG — tunes real-time policy and validates acceptable-use enforcement for remote and office users alike.",
-  "value": "Security teams trend Netskope SWG URL category blocks to detect active phishing campaigns, identify miscategorized domains causing user friction, and measure web policy enforcement effectiveness across the organization.",
+  "description": "Detects risk tied to Netskope, SWG, Web, Category, Blocking through UC-17.3.35 on `index=proxy` sourcetype `netskope:events`. Summarises `count` grouped by `category`, `user`, `policy_name` across `the scheduled window` before applying -7d. Operators tune 'Netskope SWG Web Category Blocking' using UC-17.3.35 runbook steps.",
+  "value": "Tracking `activity` via UC-17.3.35 on `netskope:events` feeds improves response to 'Netskope SWG Web Category Blocking' and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Map Netskope URL categories to your acceptable-use policy. Alert when blocks spike for a category after a policy change. Report on top blocked categories weekly for policy review.",
   "visualization": "Bar chart (blocks by category), Table (top blocked users), Line chart (daily blocks trend), Pie chart (category distribution).",
   "cimModels": [
@@ -25,21 +31,42 @@
   "references": [
     {
       "title": "Netskope Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3808"
+      "url": "https://splunkbase.splunk.com/app/3808",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Access denied for users in mid-onboarding, role changes pending propagation, or VDI sessions with new device IDs.",
+  "knownFalsePositives": "1. **Vulnerability scanner signature matches** — Qualys/Tenable traffic triggers IPS/threat signatures for 'Netskope SWG Web Category Blocking'. Compare `src` against `scanner_ips` lookup.\n\n2. **Policy push during change window** — New deny rule generates expected blocks. Match firewall commit timestamp in change calendar.\n\n3. **Encrypted traffic inspection gap** — TLS-heavy apps bypass deep inspection; volume drop is operational, not a sensor failure.\n\n4. **Red-team C2 simulation** — Approved exercise from `pen_test_hosts.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src`, `signature_id`, `valid_until`.",
   "mitreAttack": [
     "T1071.001"
   ],
   "equipment": [
     "netskope"
   ],
-  "detailedImplementation": "Prerequisites\n• Netskope web transaction events in `index=netskope` with `sourcetype=netskope:events`. Key fields: `category` (URL category), `action` (Allowed/Blocked/Alerted), `user`, `url`, `domain`, `traffic_type` (CloudApp/Web), `page_site`, `bytes_uploaded`, `bytes_downloaded`.\n• Netskope SWG applies URL categorization and filtering inline. Categories include: Adult Content, Gambling, Malware, Phishing, Social Media, Streaming Media, and custom categories.\n\nStep 1 — Configure data collection\nVerify web category data:\n```spl\nindex=netskope sourcetype=\"netskope:events\" action=Blocked earliest=-24h\n| stats count by category\n| sort - count\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Category blocking trends:\n```spl\nindex=netskope sourcetype=\"netskope:events\" action=Blocked earliest=-7d\n| timechart span=1d count by category limit=10\n```\n\nUnderstanding this SPL: Trends blocked web categories over time. Spikes in 'Malware' or 'Phishing' indicate active threat campaigns. Steady 'Adult' or 'Gambling' blocks indicate policy enforcement. Spikes in custom categories indicate specific policy changes. A sudden drop in blocks may mean the policy was accidentally relaxed.\n\nTop blocked domains:\n```spl\nindex=netskope sourcetype=\"netskope:events\" action=Blocked earliest=-24h\n| stats count dc(user) as users by domain, category\n| sort - count\n| head 20\n```\n\nStep 3 — Validate\n(a) Visit a known-blocked category URL. Verify the block event.\n(b) In Netskope: SkopeIT > Page Events > filter by Blocked.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Block trend by category. Row 2 — Top blocked domains. Row 3 — Users with most blocks.\nAlert: When Malware/Phishing blocks exceed 2x the weekly average.\n\nRunbook:\n1. **Phishing spike** — Active campaign. Check the phishing domain and alert users.\n2. **Same domain, many users** — May be a miscategorized domain. Verify and request re-categorization.\n3. **One user, many blocks** — Investigate for malware infection or policy bypass attempts.\n\nStep 5 — Troubleshooting\n• **No block events** — Web policy may be in alert-only mode. Check Netskope Real-time Protection.\n• **Category = 'Uncategorized'** — New or obscure domains. May need manual categorization.",
+  "equipmentModels": [
+    "netskope_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Netskope web transaction events in `index=netskope` with `sourcetype=netskope:events`. Key fields: `category` (URL category), `action` (Allowed/Blocked/Alerted), `user`, `url`, `domain`, `traffic_type` (CloudApp/Web), `page_site`, `bytes_uploaded`, `bytes_downloaded`.\n• Netskope SWG applies URL categorization and filtering inline. Categories include: Adult Content, Gambling, Malware, Phishing, Social Media, Streaming Media, and custom categories.\n\nStep 1 — Configure data collection\nVerify web category data:\n```spl\nindex=netskope sourcetype=\"netskope:events\" action=Blocked earliest=-24h\n| stats count by category\n| sort - count\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Category blocking trends:\n```spl\nindex=netskope sourcetype=\"netskope:events\" action=Blocked earliest=-7d\n| timechart span=1d count by category limit=10\n```\n\nUnderstanding this SPL: Trends blocked web categories over time. Spikes in 'Malware' or 'Phishing' indicate active threat campaigns. Steady 'Adult' or 'Gambling' blocks indicate policy enforcement. Spikes in custom categories indicate specific policy changes. A sudden drop in blocks may mean the policy was accidentally relaxed.\n\nTop blocked domains:\n```spl\nindex=netskope sourcetype=\"netskope:events\" action=Blocked earliest=-24h\n| stats count dc(user) as users by domain, category\n| sort - count\n| head 20\n```\n\nStep 3 — Validate\n(a) Visit a known-blocked category URL. Verify the block event.\n(b) In Netskope: SkopeIT > Page Events > filter by Blocked.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Block trend by category. Row 2 — Top blocked domains. Row 3 — Users with most blocks.\nAlert: When Malware/Phishing blocks exceed 2x the weekly average.\n\nRunbook:\n1. **Phishing spike** — Active campaign. Check the phishing domain and alert users.\n2. **Same domain, many users** — May be a miscategorized domain. Verify and request re-categorization.\n3. **One user, many blocks** — Investigate for malware infection or policy bypass attempts.\n\nStep 5 — Troubleshooting\n• **No block events** — Web policy may be in alert-only mode. Check Netskope Real-time Protection.\n• **Category = 'Uncategorized'** — New or obscure domains. May need manual categorization.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Netskope Add-on for Splunk (Splunkbase 3808)). Enable the modular input or HEC token that writes sourcetype=netskope:events into proxy. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`category, policy_name, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Our web security filter blocks dangerous and inappropriate websites. We track which categories get blocked most often, and when phishing or malware blocks suddenly spike, we know there is an active attack and can warn everyone before more people click on dangerous links.",
-  "hardware": "Netskope Security Cloud, Netskope Client"
+  "hardware": "Netskope Security Cloud, Netskope Client",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

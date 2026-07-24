@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=physical` · `sourcetype=\"cctv:analytics\"`",
-  "app": "Custom TA (NVR REST/syslog), ONVIF pull, Hikvision ISAPI HEC, or Milestone connector mapped to listed sourcetypes",
+  "exclusions": "Covers the detection logic documented for 'CCTV Infrared Night Mode Activation Versus Local Sunset Window' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cctv_infrared_night_mode_activation_versus_local` (UC-15.5.10), SOC dashboard panel \"Operations — CCTV Infrared Night Mode Activation Versus Local Sunset Window\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-15.5.10 positive (CCTV, Infrared, Night, Mode, Activation): ingest synthetic events into `index=physical` sourcetype='cctv:analytics' where `count` grouped by `camera_id`, `hour` satisfies -7d for 'CCTV Infrared Night Mode Activation Versus Local Sunset Window'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.5.10 negative (Sunset Window): ingest benign `physical` / `cctv:analytics` events where `camera_id`, `hour` stays below -7d, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'CCTV Infrared Night Mode Activation Versus Local Sunset Window'."
+  },
+  "dataSources": "`index=physical` · `sourcetype=\"cctv:analytics\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom TA (NVR REST/syslog), ONVIF pull, Hikvision ISAPI HEC, or Milestone connector mapped to listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=physical sourcetype=\"cctv:analytics\" earliest=-7d\n| where match(lower(mode), \"(?i)ir|night|mono\")\n| eval hour=strftime(_time,\"%H\")\n| stats count by camera_id hour",
-  "description": "IR stuck on suggests faulty photocells; never switching hints blocked filters hurting low-light quality.",
-  "value": "Reduces noisy night video tickets and IR LED wear.",
+  "description": "Surfaces UC-15.5.10 — CCTV, Infrared, Night, Mode, Activation — using `index=physical` sourcetype `cctv:analytics`, grouped by `camera_id`, `hour`. Outputs `count` each `the scheduled window`; alert when -7d. Primary focus: Sunset Window. Purpose-built for 'CCTV Infrared Night Mode Activation Versus Local Sunset Window' in Operations workflows.",
+  "value": "UC-15.5.10 accelerates insight into Sunset Window ('CCTV Infrared Night Mode Activation Versus Local Sunset Window') by tracking `activity` on `cctv:analytics` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "(1) Ingest day/night mode changes. (2) Compare to astronomical twilight table.",
   "visualization": "Heatmap hour × camera.",
   "cimModels": [
@@ -23,17 +29,33 @@
   "references": [
     {
       "title": "ONVIF — Open Network Video Interface Forum",
-      "url": "https://www.onvif.org/"
+      "url": "https://www.onvif.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Hikvision OpenAPI / ISAPI",
-      "url": "https://www.hikvision.com/en/support/download/sdk/"
+      "url": "https://www.hikvision.com/en/support/download/sdk/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensor anomalies during cleaning, calibration, or planned environmental changes.",
+  "knownFalsePositives": "1. **Maintenance window on `physical` (UC-15.5.10)** — Planned work for 'CCTV Infrared Night Mode Activation Versus Local Sunset Window' shifts `count` over `span=1h` while `camera_id`, `hour` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cctv:analytics`** — Scheduled automation elevates `hour` without crossing configured threshold for UC-15.5.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `camera_id`, `hour`** — Health checks in `physical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cctv:analytics`** — First 48h baseline for UC-15.5.10 on `camera_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `camera_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cctv",
     "syslog"
+  ],
+  "equipmentModels": [
+    "cctv_generic",
+    "syslog_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -42,6 +64,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom TA (NVR REST/syslog), ONVIF pull, Hikvision ISAPI HEC, or Milestone connector mapped to listed sourcetypes — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=cctv:analytics into physical. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`camera_id, hour`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

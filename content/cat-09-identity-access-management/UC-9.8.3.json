@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "`sourcetype=beyondtrust:audit` Jump Client health, disconnect, or tunnel audit events",
-  "app": "Splunk Add-on for BeyondTrust PRA or API export to `beyondtrust:audit`",
+  "exclusions": "Covers the detection logic documented for 'BeyondTrust Jump Client Offline Status and Connectivity Loss' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `iam_beyondtrust_jump_client_offline_status_and_conne` (UC-9.8.3), SOC dashboard panel \"IAM — BeyondTrust Jump Client Offline Status and Connectivity Loss\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-9.8.3 positive (BeyondTrust, Jump, Client, Offline, Status): ingest synthetic events into `index=pam` sourcetype='beyondtrust:audit' where `count` grouped by `jc`, `site` satisfies -24h for 'BeyondTrust Jump Client Offline Status and Connectivity Loss'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.8.3 negative (Connectivity Loss): ingest benign `pam` / `beyondtrust:audit` events where `jc`, `site` stays below -24h, or exclude the test entity via `iam_exception_register.csv`. Variant 12 confirms zero alert rows for 'BeyondTrust Jump Client Offline Status and Connectivity Loss'."
+  },
+  "dataSources": "`sourcetype=beyondtrust:audit` Jump Client health, disconnect, or tunnel audit events Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for BeyondTrust PRA or API export to `beyondtrust:audit` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pam sourcetype=\"beyondtrust:audit\" earliest=-24h\n| eval jc=coalesce(jump_client, JumpClient, client_name, host, \"\")\n| eval msg=coalesce(message, Message, event, Event, _raw)\n| where match(lower(msg), \"(?i)offline|unreachable|disconnect|tunnel.*down|heartbeat.*miss|agent.*stop\")\n| eval site=coalesce(site_name, Site, location, \"\")\n| stats latest(_time) as last_event count by jc site\n| eval mins_ago=round((now()-last_event)/60,1)\n| sort -count",
-  "description": "Jump Clients extend PRA into segmented networks; when they go dark, support and incident responders lose path diversity. Clustered offline signals may indicate maintenance—or targeted disruption.",
-  "value": "Improves operational resilience of remote access and helps distinguish planned outages from potential security events affecting OT or DMZ enclaves.",
+  "description": "Alerts on UC-9.8.3 — BeyondTrust, Jump, Client, Offline, Status — using `index=pam` sourcetype `beyondtrust:audit`, grouped by `jc`, `site`. Outputs `count` each `the scheduled window`; alert when -24h. Primary focus: Connectivity Loss. Purpose-built for 'BeyondTrust Jump Client Offline Status and Connectivity Loss' in IAM workflows.",
+  "value": "Tracking `activity` via UC-9.8.3 on `beyondtrust:audit` feeds improves response to 'BeyondTrust Jump Client Offline Status and Connectivity Loss' and reduces account takeover risk, help-desk load, and audit findings.",
   "implementation": "(1) Classify Jump Clients by criticality in a lookup. (2) Correlate with network change windows. (3) Alert when more than N clients in a site drop within minutes. (4) Integrate with NMS ICMP where available. (5) Track MTTR for reconnect.",
   "visualization": "Map or site-based status panel, table (Jump Client, last event age), single-value (offline count).",
   "cimModels": [
@@ -23,17 +29,32 @@
   "references": [
     {
       "title": "BeyondTrust — Jump Technology overview",
-      "url": "https://www.beyondtrust.com/resources/videos/"
+      "url": "https://www.beyondtrust.com/resources/videos/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned change windows, maintenance, approved automation, and known good service accounts; correlate with change tickets and identity team communication.",
+  "knownFalsePositives": "1. **Maintenance window on `pam` (UC-9.8.3)** — Planned work for 'BeyondTrust Jump Client Offline Status and Connectivity Loss' shifts `count` over `span=1h` while `jc`, `site` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `beyondtrust:audit`** — Scheduled automation elevates `site` without crossing configured threshold for UC-9.8.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `jc`, `site`** — Health checks in `pam` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `beyondtrust:audit`** — First 48h baseline for UC-9.8.3 on `jc` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `jc`, `exception_reason`, `valid_until`.",
   "securityDomain": "access",
   "equipment": [
     "beyondtrust"
+  ],
+  "equipmentModels": [
+    "beyondtrust_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -42,5 +63,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — BeyondTrust Jump Client Offline Status and Connectivity Loss"
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for BeyondTrust PRA or API export to `beyondtrust:audit` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=beyondtrust:audit into pam. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`jc, site`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — BeyondTrust Jump Client Offline Status and Connectivity Loss",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

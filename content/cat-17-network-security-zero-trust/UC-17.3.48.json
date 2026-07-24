@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=cp_log` (DLP blade logs)",
+  "exclusions": "Covers the detection logic documented for 'Check Point Harmony SASE DLP Events (Check Point)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_check_point_harmony_sase_dlp_events_check_point` (UC-17.3.48), SOC dashboard panel \"Network — Check Point Harmony SASE DLP Events (Check Point)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.48 positive (Check, Point, Harmony, SASE, DLP): ingest synthetic events into `index=dlp` sourcetype='cp_log' where `count` grouped by `dlp_rule_name`, `data_type`, `src_user_name`, `action` satisfies -7d for 'Check Point Harmony SASE DLP Events (Check Point)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.48 negative ((Check Point)): ingest benign `dlp` / `cp_log` events where `dlp_rule_name`, `data_type`, `src_user_name`, `action` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 7 confirms zero alert rows for 'Check Point Harmony SASE DLP Events (Check Point)'."
+  },
+  "dataSources": "`sourcetype=cp_log` (DLP blade logs) Indexes: dlp. Sourcetypes: cp_log. Key fields: action, data_type, dlp_rule_name, dst, src_user_name. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)",
   "spl": "index=dlp sourcetype=\"cp_log\" product=\"DLP\" earliest=-7d\n| stats count by dlp_rule_name, data_type, src_user_name, action, dst\n| sort -count",
-  "description": "Harmony SASE inline DLP inspects uploads and downloads for sensitive data patterns (credit cards, SSNs, health records, source code). Detection events identify data exposure risks across cloud and private application access.",
-  "value": "Data protection teams analyze Check Point Harmony SASE DLP events by data type and action, tracking the unique 'Ask User' feature to measure whether users are making conscious data handling decisions or just clicking through DLP prompts.",
+  "description": "Surfaces UC-17.3.48 — Check, Point, Harmony, SASE, DLP — using `index=dlp` sourcetype `cp_log`, grouped by `dlp_rule_name`, `data_type`, `src_user_name`, `action`. Outputs `count` each `the scheduled window`; alert when -7d. Primary focus: (Check Point). Purpose-built for 'Check Point Harmony SASE DLP Events (Check Point)' in Network workflows.",
+  "value": "UC-17.3.48 operationalises 'Check Point Harmony SASE DLP Events (Check Point)' against `cp_log` feeds so operators reduce unauthorized access, segmentation drift, and NAC policy failures without manual correlation.",
   "implementation": "Map `data_type` to your data classification scheme. Alert on any DLP blocks for PCI/PHI data. Report on repeat offenders. Correlate with CASB events if using Harmony Email & Collaboration.",
   "visualization": "Bar chart (violations by rule), Table (top users), Stacked bar (actions), Line chart (violations/day).",
   "cimModels": [],
@@ -22,18 +28,26 @@
   "references": [
     {
       "title": "Check Point App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4293"
+      "url": "https://splunkbase.splunk.com/app/4293",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CCX Add-on for Checkpoint Smart-1 Cloud",
-      "url": "https://splunkbase.splunk.com/app/7259"
+      "url": "https://splunkbase.splunk.com/app/7259",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: DLP",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/DLP"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/DLP",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "DLP hits from authorized data exports, finance reports, contracts with PII content sent to vendors.",
+  "knownFalsePositives": "1. **Maintenance window on `dlp` (UC-17.3.48)** — Planned work for 'Check Point Harmony SASE DLP Events (Check Point)' shifts `count` over `span=1h` while `dlp_rule_name`, `data_type`, `src_user_name`, `action` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cp_log`** — Scheduled automation elevates `data_type` without crossing configured threshold for UC-17.3.48. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dlp_rule_name`, `data_type`, `src_user_name`, `action`** — Health checks in `dlp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cp_log`** — First 48h baseline for UC-17.3.48 on `dlp_rule_name` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `dlp_rule_name`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1048",
     "T1048.001"
@@ -41,7 +55,16 @@
   "equipment": [
     "checkpoint"
   ],
-  "detailedImplementation": "Prerequisites\n• Check Point Harmony SASE DLP events in `index=checkpoint` with `sourcetype=checkpoint:harmony`. Key fields: `blade=DLP`, `action` (Prevent/Detect/Ask User), `dlp_rule_name`, `data_type_name` (PII/PCI/HIPAA/Custom), `user_name`, `file_name`, `destination`, `severity`.\n• Check Point DLP uses data types (predefined patterns for PII, credit cards, HIPAA) and custom patterns. 'Ask User' is a unique Check Point feature that presents the user with an explanation and asks them to confirm or cancel the action.\n\nStep 1 — Configure data collection\nVerify DLP events:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" blade=DLP earliest=-7d\n| stats count by action, data_type_name\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — DLP event analysis:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" blade=DLP earliest=-7d\n| stats count dc(user_name) as users by dlp_rule_name, data_type_name, action, severity\n| sort severity, - count\n```\n\nUnderstanding this SPL: Groups DLP events by rule, data type, and action. 'Prevent' events are data exfiltration attempts that were blocked. 'Detect' events are logged but allowed. 'Ask User' events show how users responded to the DLP prompt — did they proceed (intentional) or cancel (accidental).\n\nUser decision tracking (Ask User):\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" blade=DLP action=\"Ask User\" earliest=-30d\n| stats count(eval(match(details, \"(?i)proceed\"))) as proceeded count(eval(match(details, \"(?i)cancel\"))) as cancelled by data_type_name\n| eval proceed_rate=round(proceeded/(proceeded+cancelled)*100, 1)\n```\n\nStep 3 — Validate\n(a) Upload a test file with dummy PCI data. Verify DLP detection.\n(b) In SmartConsole: Logs & Monitor > DLP.\n\nStep 4 — Operationalize\nDashboard: Row 1 — DLP events by data type. Row 2 — Prevent vs Detect ratio. Row 3 — Ask User decisions.\nAlert: Immediate on Prevent events with high severity.\n\nRunbook:\n1. **Prevent on PII** — Blocked exfiltration. Investigate user intent.\n2. **High 'proceed' rate on Ask User** — Users may be clicking through. Upgrade to Prevent.\n3. **Detect-only on sensitive data** — Review for upgrade to Prevent.\n\nStep 5 — Troubleshooting\n• **No DLP events** — DLP blade may not be enabled. Check Harmony SASE policy.\n• **`data_type_name` generic** — Custom data types may not be named descriptively. Review DLP policy names.",
+  "equipmentModels": [
+    "checkpoint_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Check Point Harmony SASE DLP events in `index=checkpoint` with `sourcetype=checkpoint:harmony`. Key fields: `blade=DLP`, `action` (Prevent/Detect/Ask User), `dlp_rule_name`, `data_type_name` (PII/PCI/HIPAA/Custom), `user_name`, `file_name`, `destination`, `severity`.\n• Check Point DLP uses data types (predefined patterns for PII, credit cards, HIPAA) and custom patterns. 'Ask User' is a unique Check Point feature that presents the user with an explanation and asks them to confirm or cancel the action.\n\nStep 1 — Configure data collection\nVerify DLP events:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" blade=DLP earliest=-7d\n| stats count by action, data_type_name\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — DLP event analysis:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" blade=DLP earliest=-7d\n| stats count dc(user_name) as users by dlp_rule_name, data_type_name, action, severity\n| sort severity, - count\n```\n\nUnderstanding this SPL: Groups DLP events by rule, data type, and action. 'Prevent' events are data exfiltration attempts that were blocked. 'Detect' events are logged but allowed. 'Ask User' events show how users responded to the DLP prompt — did they proceed (intentional) or cancel (accidental).\n\nUser decision tracking (Ask User):\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" blade=DLP action=\"Ask User\" earliest=-30d\n| stats count(eval(match(details, \"(?i)proceed\"))) as proceeded count(eval(match(details, \"(?i)cancel\"))) as cancelled by data_type_name\n| eval proceed_rate=round(proceeded/(proceeded+cancelled)*100, 1)\n```\n\nStep 3 — Validate\n(a) Upload a test file with dummy PCI data. Verify DLP detection.\n(b) In SmartConsole: Logs & Monitor > DLP.\n\nStep 4 — Operationalize\nDashboard: Row 1 — DLP events by data type. Row 2 — Prevent vs Detect ratio. Row 3 — Ask User decisions.\nAlert: Immediate on Prevent events with high severity.\n\nRunbook:\n1. **Prevent on PII** — Blocked exfiltration. Investigate user intent.\n2. **High 'proceed' rate on Ask User** — Users may be clicking through. Upgrade to Prevent.\n3. **Detect-only on sensitive data** — Review for upgrade to Prevent.\n\nStep 5 — Troubleshooting\n• **No DLP events** — DLP blade may not be enabled. Check Harmony SASE policy.\n• **`data_type_name` generic** — Custom data types may not be named descriptively. Review DLP policy names.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)). Enable the modular input or HEC token that writes sourcetype=cp_log into dlp. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action, data_type, dlp_rule_name, dst`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Our Check Point security scans for sensitive data like credit cards and personal information leaving our network. It can block the transfer or ask the employee to confirm they really mean to send it. We track whether people are thinking about these prompts or just clicking 'proceed' without reading — because if they are, we need to make the block automatic.",
-  "hardware": "Check Point Harmony SASE (cloud), Harmony Connect Client"
+  "hardware": "Check Point Harmony SASE (cloud), Harmony Connect Client",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

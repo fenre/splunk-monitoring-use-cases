@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=environment` `sourcetype=aranet:sensor` JSON from Aranet Cloud API, Aranet PRO MQTT, or LoRa gateway bridge with `rssi_dbm` / `signal_quality_pct`",
-  "app": "MQTT Modular Input (Splunkbase #1890) or MQTT Topics Ingestor (Splunkbase #7575), HTTP Event Collector for Aranet Cloud REST, optional Splunk Edge Hub MQTT",
+  "exclusions": "Covers the detection logic documented for 'Aranet Wireless Sensor RSSI Degradation and Mesh Margin' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_aranet_wireless_sensor_rssi_degradation_and_mesh` (UC-14.3.58), SOC dashboard panel \"Operations — Aranet Wireless Sensor RSSI Degradation and Mesh Margin\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.3.58 positive (Aranet, Wireless, Sensor, RSSI, Degradation): ingest synthetic events into `index=environment` sourcetype='aranet:sensor' where `count` grouped by `sensor_id`, `location` satisfies `rssi` < -115, or `sigq` < 30 for 'Aranet Wireless Sensor RSSI Degradation and Mesh Margin'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.3.58 negative (Mesh Margin): ingest benign `environment` / `aranet:sensor` events where `sensor_id`, `location` stays below `rssi` < -115, or `sigq` < 30, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Aranet Wireless Sensor RSSI Degradation and Mesh Margin'."
+  },
+  "dataSources": "`index=environment` `sourcetype=aranet:sensor` JSON from Aranet Cloud API, Aranet PRO MQTT, or LoRa gateway bridge with `rssi_dbm` / `signal_quality_pct` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "MQTT Modular Input (Splunkbase #1890) or MQTT Topics Ingestor (Splunkbase #7575), HTTP Event Collector for Aranet Cloud REST, optional Splunk Edge Hub MQTT — Universal Forwarder (Splunkbase 617)",
   "spl": "index=environment sourcetype=aranet:sensor sensor_id=*\n| stats latest(rssi_dbm) as rssi, latest(signal_quality_pct) as sigq by sensor_id, location\n| where rssi < -115 OR sigq < 30\n| table sensor_id, location, rssi, sigq\n| sort rssi",
-  "description": "Aranet LoRa sensors at the edge of RF coverage produce intermittent gaps before they go fully offline. Tracking RSSI or vendor signal quality percentage predicts dropped CO₂/temperature samples in cleanrooms, labs, and cold chains.",
-  "value": "Stops blind spots in regulated environmental monitoring by moving or repeating gateways before sensors mute.",
+  "description": "Detects UC-14.3.58 — Aranet, Wireless, Sensor, RSSI, Degradation — using `index=environment` sourcetype `aranet:sensor`, grouped by `sensor_id`, `location`. Outputs `count` each `the scheduled window`; alert when `rssi` < -115, or `sigq` < 30. Primary focus: Mesh Margin. Purpose-built for 'Aranet Wireless Sensor RSSI Degradation and Mesh Margin' in Operations workflows.",
+  "value": "Tracking `activity` via UC-14.3.58 on `aranet:sensor` feeds improves response to 'Aranet Wireless Sensor RSSI Degradation and Mesh Margin' and reduces operational risk and delayed incident response.",
   "implementation": "When ingesting Aranet JSON, map `rssi` from the gateway payload (dBm) or compute `signal_quality_pct` if the broker exposes a 0–100 score. Poll at the same cadence as telemetry (5–15 min). Alert when RSSI is weaker than −115 dBm (tune per antenna) or `signal_quality_pct` < 30 for two consecutive intervals. Correlate with new metal racking or relocated chillers.",
   "visualization": "Choropleth or floorplan heatmap (RSSI), Table (worst sensors), Line chart (RSSI trend).",
   "cimModels": [
@@ -23,18 +29,35 @@
   "references": [
     {
       "title": "Aranet — technical documentation (sensor data export)",
-      "url": "https://aranet.com/"
+      "url": "https://aranet.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "MQTT Modular Input (Splunkbase 1890)",
-      "url": "https://splunkbase.splunk.com/app/1890"
+      "url": "https://splunkbase.splunk.com/app/1890",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Compliance breaches during planned excursions for cleaning, filter changes, or controlled commissioning.",
+  "knownFalsePositives": "1. **Maintenance window on `environment` (UC-14.3.58)** — Planned work for 'Aranet Wireless Sensor RSSI Degradation and Mesh Margin' shifts `count` over `span=1h` while `sensor_id`, `location` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aranet:sensor`** — Scheduled automation elevates `location` without crossing `rssi` < -115 for UC-14.3.58. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sensor_id`, `location`** — Health checks in `environment` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aranet:sensor`** — First 48h baseline for UC-14.3.58 on `sensor_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sensor_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aranet",
     "edge_hub",
     "mqtt"
+  ],
+  "equipmentModels": [
+    "aranet_generic",
+    "edge_hub_generic",
+    "mqtt_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -43,6 +66,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Stable `sensor_id` key shared with CMMS.\n• If only CSV export exists, use `inputcsv` batch jobs until streaming lands.\n\nStep 1 — Normalize RSSI field name across Aranet4 vs PRO lines.\n\nStep 2 — Baseline winter vs summer RF noise.\n\nStep 3 — Validate by walking sensors away from gateway in lab.\n\nStep 4 — Auto-task facilities when >5 sensors breach.",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with the situation around: aranet wireless sensor rssi degradation and mesh margin before harm, damage, or wasted effort piles up."
+  "detailedImplementation": "Prerequisites\n• Stable `sensor_id` key shared with CMMS.\n• If only CSV export exists, use `inputcsv` batch jobs until streaming lands.\n\nStep 1 — Normalize RSSI field name across Aranet4 vs PRO lines.\n\nStep 2 — Baseline winter vs summer RF noise.\n\nStep 3 — Validate by walking sensors away from gateway in lab.\n\nStep 4 — Auto-task facilities when >5 sensors breach.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (MQTT Modular Input (Splunkbase #1890) or MQTT Topics Ingestor (Splunkbase #7575), HTTP Event Collector for Aranet Cloud REST, optional Splunk Edge Hub MQTT — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=aranet:sensor into environment. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`location, rssi, sensor_id, sigq`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with the situation around: aranet wireless sensor rssi degradation and mesh margin before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

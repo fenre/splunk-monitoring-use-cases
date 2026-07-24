@@ -9,39 +9,65 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "NINA sequences (`nina:sequence`), NINA autofocus runs (`nina:autofocus`), Ekos scheduler and device events (`ekos:scheduler`, `ekos:device`), PHD2 guiding telemetry (`phd2:guide`), plate solves (`platesolve:run`), filter wheel events (`filterwheel:event`), and flat frames (`flatlib:frame`).",
-  "app": "Astrophotography session telemetry from N.I.N.A., KStars/Ekos, PHD2, plate-solving tools, ASCOM gear, and filter-wheel controllers sent to Splunk HEC via logs and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Plate Solve Failure by Sky Region' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_plate_solve_failure_by_sky_region` (UC-25.22.28), SOC dashboard panel \"Personal — Plate Solve Failure by Sky Region\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.22.28 positive (Plate, Solve, Failure, Sky, Region): ingest synthetic events into `index=personal` sourcetype='platesolve:run' where `count` grouped by `_time`, `sky_region` satisfies `attempts` > 0 for 'Plate Solve Failure by Sky Region'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.22.28 negative (Sky Region): ingest benign `personal` / `platesolve:run` events where `_time`, `sky_region` stays below `attempts` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'Plate Solve Failure by Sky Region'."
+  },
+  "dataSources": "NINA sequences (`nina:sequence`), NINA autofocus runs (`nina:autofocus`), Ekos scheduler and device events (`ekos:scheduler`, `ekos:device`), PHD2 guiding telemetry (`phd2:guide`), plate solves (`platesolve:run`), filter wheel events (`filterwheel:event`), and flat frames (`flatlib:frame`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Astrophotography session telemetry from N.I.N.A., KStars/Ekos, PHD2, plate-solving tools, ASCOM gear, and filter-wheel controllers sent to Splunk HEC via logs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=platesolve:run\n| bin _time span=1w\n| stats count as attempts count(eval(status=\"solved\")) as successful by _time sky_region\n| eval success_pct=if(attempts>0,round(100*successful/attempts,1),0)\n| sort - _time",
-  "description": "Tracks success rate for plate solves by sky region.",
-  "value": "Failure rate by region can expose poor metadata, star-starved fields, or horizon obstructions.",
+  "description": "Monitors 'Plate Solve Failure by Sky Region' patterns (UC-25.22.28) sourced from `index=personal` sourcetype `platesolve:run`. Threshold bundle: `attempts` > 0; aggregation grain: `_time`, `sky_region`; metrics: `count`. Watch terms: Plate, Solve, Failure, Sky, Region.",
+  "value": "UC-25.22.28 gives Personal teams earlier visibility into Sky Region through `platesolve:run` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Capture explicit outcome states for plate solves events in `index=personal` and review both attempts and success percentage over time.",
   "visualization": "Time chart of success percentage for plate solves by sky region.",
   "cimModels": [],
   "references": [
     {
       "title": "N.I.N.A.",
-      "url": "https://nighttime-imaging.eu/"
+      "url": "https://nighttime-imaging.eu/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "KStars / Ekos",
-      "url": "https://edu.kde.org/kstars/"
+      "url": "https://edu.kde.org/kstars/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "PHD2 Guiding",
-      "url": "https://openphdguiding.org/"
+      "url": "https://openphdguiding.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Astrometry.net",
-      "url": "https://astrometry.net/"
+      "url": "https://astrometry.net/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ASCOM",
-      "url": "https://ascom-standards.org/"
+      "url": "https://ascom-standards.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It gathers how often plate solves works the way you expect instead of quietly failing."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.22.28)** — Connector for 'Plate Solve Failure by Sky Region' stops polling `platesolve:run`; stale `count` on `_time`, `sky_region` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.22.28, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `platesolve:run`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `attempts` > 0 for 'Plate Solve Failure by Sky Region'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Backyard Astronomy & Observatory — typical feeds: Observatory environment (`observatory:env`), sky-quality meter (`skyquality:reading`), imaging sessions (`imaging:session`), telescope mount (`mount:status`), cloud sensor (`allsky:cloud`)..\n• **Sourcetypes in this search**: `platesolve:run`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=platesolve:run`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Backyard observatory automation — roll-off-roof/dome controller, sky-quality meter, cloud sensor, telescope mount, and astrophotography software (N.I.N.A./Ekos) — via MQTT and scripted inputs..\n\n**Author notes:** Capture explicit outcome states for plate solves events in `index=personal` and review both attempts and success percentage over time.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"platesolve:run\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=platesolve:run earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Plate Solve Failure by Sky Region** over `personal` data (primarily `sourcetype=platesolve:run`) across the full search range. It applies numeric thresholds on `attempts` (> 0) after count — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `attempts`, `sky_region`, `success_pct`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=platesolve:run\n| bin _time span=1w\n| stats count as attempts count(eval(status=\"solved\")) as successful by _time sky_region\n| eval success_pct=if(attempts>0,round(100*successful/attempts,1),0)\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=platesolve:run earliest=-7d\n| head 50\n| table _time, attempts, sky_region, success_pct\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=platesolve:run earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `attempts` before alerting:\n\n```spl\nindex=personal sourcetype=platesolve:run earliest=-30d\n| stats perc50(attempts) AS p50 perc90(attempts) AS p90 perc99(attempts) AS p99 max(attempts) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.22.28: Personal evidence` with the following panel layout:\n\n**Panel 1 — Time Chart Of Success Percentage For Plate Solves By Sky Region (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `platesolve:run` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=platesolve:run | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It gathers how often plate solves works the way you expect instead of quietly failing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

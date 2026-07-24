@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Weak Encryption Detection in OT Communications' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_weak_encryption_detection_in_ot_communications` (UC-14.9.17), SOC dashboard panel \"Operations — Weak Encryption Detection in OT Communications\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.9.17 positive (Weak, Encryption, Detection, Communications): ingest synthetic events into `index=nozomi` sourcetype='nozomi:alert' where `affected_targets` grouped by `src_ip`, `name`, `zone` satisfies detection threshold for 'Weak Encryption Detection in OT Communications'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.9.17 negative (OT Communications): ingest benign `nozomi` / `nozomi:alert` events where `src_ip`, `name`, `zone` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Weak Encryption Detection in OT Communications'."
+  },
   "dataSources": "`sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"PROTOCOL-CIPHER\")",
   "app": "`Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)",
   "spl": "index=nozomi sourcetype=\"nozomi:alert\" type_id=\"PROTOCOL-CIPHER*\"\n| stats count as occurrences, dc(dst_ip) as affected_targets by src_ip, name, zone\n| sort -occurrences\n| table src_ip, name, occurrences, affected_targets, zone",
-  "description": "Many OT protocols use weak or no encryption. OT security platforms identify flows using deprecated TLS versions, weak ciphers, or unencrypted protocols where encryption should be used. This supports IEC 62443 compliance and prioritizes protocol hardening efforts.",
-  "value": "Many OT protocols use weak or no encryption. OT security platforms identify flows using deprecated TLS versions, weak ciphers, or unencrypted protocols where encryption should be used. This supports IEC 62443 compliance and prioritizes protocol hardening efforts.",
+  "description": "Monitors UC-14.9.17 — Weak, Encryption, Detection, Communications — using `index=nozomi` sourcetype `nozomi:alert`, grouped by `src_ip`, `name`, `zone`. Outputs `affected_targets` each `the scheduled window`; alert when configured threshold. Primary focus: OT Communications. Purpose-built for 'Weak Encryption Detection in OT Communications' in Operations workflows.",
+  "value": "UC-14.9.17 operationalises 'Weak Encryption Detection in OT Communications' against `nozomi:alert` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Both platforms detect weak encryption in OT communications. Inventory all findings. Prioritize remediation by criticality of affected assets. Track progress toward encryption upgrade milestones. Report on IEC 62443 encryption compliance per zone.",
   "visualization": "Weak encryption finding table; affected asset count; compliance progress gauge; protocol breakdown.",
   "cimModels": [
@@ -22,18 +28,40 @@
   "references": [
     {
       "title": "Splunkbase app 5748",
-      "url": "https://splunkbase.splunk.com/app/5748"
+      "url": "https://splunkbase.splunk.com/app/5748",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 6905",
-      "url": "https://splunkbase.splunk.com/app/6905"
+      "url": "https://splunkbase.splunk.com/app/6905",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Weak or legacy encryption from long-lived HMI links, old drives, and documented migration plans.",
+  "knownFalsePositives": "1. **Maintenance window on `nozomi` (UC-14.9.17)** — Planned work for 'Weak Encryption Detection in OT Communications' shifts `affected_targets` over `span=1h` while `src_ip`, `name`, `zone` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `nozomi:alert`** — Scheduled automation elevates `name` without crossing configured threshold for UC-14.9.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_ip`, `name`, `zone`** — Health checks in `nozomi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nozomi:alert`** — First 48h baseline for UC-14.9.17 on `src_ip` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src_ip`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
   ],
+  "equipmentModels": [
+    "cisco_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905).\n• Ensure the following data sources are available: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"PROTOCOL-CIPHER\").\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBoth platforms detect weak encryption in OT communications. Inventory all findings. Prioritize remediation by criticality of affected assets. Track progress toward encryption upgrade milestones. Report on IEC 62443 encryption compliance per zone.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nozomi sourcetype=\"nozomi:alert\" type_id=\"PROTOCOL-CIPHER*\"\n| stats count as occurrences, dc(dst_ip) as affected_targets by src_ip, name, zone\n| sort -occurrences\n| table src_ip, name, occurrences, affected_targets, zone\n```\n\nUnderstanding this SPL\n\n**Weak Encryption Detection in OT Communications** — Many OT protocols use weak or no encryption. OT security platforms identify flows using deprecated TLS versions, weak ciphers, or unencrypted protocols where encryption should be used. This supports IEC 62443 compliance and prioritizes protocol hardening efforts.\n\nDocumented **Data sources**: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"PROTOCOL-CIPHER\"). **App/TA** (typical add-on context): `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nozomi; **sourcetype**: nozomi:alert. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nozomi, sourcetype=\"nozomi:alert\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by src_ip, name, zone** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Weak Encryption Detection in OT Communications**): table src_ip, name, occurrences, affected_targets, zone\n\nStep 3 — Validate\nRun the search for a time range that should include both routine and change activity, then compare the same assets, flows, and alerts in the Cisco Cyber Vision UI and in Nozomi Guardian or CMC, matching whichever source the event came from. Reconcile severities, counts, and key fields in both tools.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Weak encryption finding table; affected asset count; compliance progress gauge; protocol breakdown.",
-  "grandmaExplanation": "We catch weak or legacy encryption in OT so migration plans can be grounded in what is actually on the wire."
+  "grandmaExplanation": "We catch weak or legacy encryption in OT so migration plans can be grounded in what is actually on the wire.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

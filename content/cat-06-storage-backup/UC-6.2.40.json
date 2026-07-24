@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "TrueNAS REST pool status indexed as `truenas:pool`",
-  "app": "Custom scripted input or TrueNAS community TA; HEC from `/api/v2.0/pool`",
+  "exclusions": "Covers the detection logic documented for 'TrueNAS SCALE ZFS pool vdev degraded faulted or removed disk state' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_truenas_scale_zfs_pool_vdev_degraded_faulted_or_` (UC-6.2.40), SOC dashboard panel \"Operations — TrueNAS SCALE ZFS pool vdev degraded faulted or removed disk state\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.40 positive (TrueNAS, SCALE, ZFS, pool, vdev): ingest synthetic events into `index=storage` sourcetype='truenas:pool' where `count` grouped by `entity` satisfies -15m for 'TrueNAS SCALE ZFS pool vdev degraded faulted or removed disk state'. Validate filter `degraded OR faulted OR removed OR offline OR UNAVAIL`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.40 negative (disk state): ingest benign `storage` / `truenas:pool` events where `entity` stays below -15m, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'TrueNAS SCALE ZFS pool vdev degraded faulted or removed disk state'."
+  },
+  "dataSources": "TrueNAS REST pool status indexed as `truenas:pool` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input or TrueNAS community TA; HEC from `/api/v2.0/pool` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"truenas:pool\" earliest=-15m\n| eval st=coalesce(status, state, health)\n| search degraded OR faulted OR removed OR offline OR UNAVAIL\n| eval pool=coalesce(pool_name, name)\n| table _time, hostname, pool, st, scan_state, topology_summary",
-  "description": "Degraded vdevs mean single-disk failure away from pool loss. Immediate visibility into `FAULTED` or `REMOVED` topology nodes drives faster disk swap and sparing decisions.",
-  "value": "Protects NAS and VM stores from silent escalation to unrecoverable RAID-Z loss.",
+  "description": "Detects UC-6.2.40 — TrueNAS, SCALE, ZFS, pool, vdev — using `index=storage` sourcetype `truenas:pool`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when -15m. Filter chain includes filter `degraded OR faulted OR removed OR offline OR UNAVAIL`. Purpose-built for 'TrueNAS SCALE ZFS pool vdev degraded faulted or removed disk state' in Operations workflows.",
+  "value": "Operators running UC-6.2.40 on `truenas:pool` feeds shorten triage for disk state tied to 'TrueNAS SCALE ZFS pool vdev degraded faulted or removed disk state', lowering operational risk and delayed incident response.",
   "implementation": "Poll `/api/v2.0/pool` every 60s during incidents, 5 minutes steady state. Map `topology` JSON to a short `topology_summary` field at ingest. Authenticate with API keys in `passwords.conf`.",
   "visualization": "Table (pool, status), single value (degraded count).",
   "cimModels": [
@@ -22,17 +28,33 @@
   "references": [
     {
       "title": "TrueNAS SCALE API documentation",
-      "url": "https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/"
+      "url": "https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TrueNAS CORE/SCALE docs — alerts",
-      "url": "https://www.truenas.com/docs/"
+      "url": "https://www.truenas.com/docs/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.40)** — Planned work for 'TrueNAS SCALE ZFS pool vdev degraded faulted or removed disk state' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `degraded OR faulted OR removed OR offline OR UNAVAIL`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `truenas:pool`** — Scheduled automation elevates `st` without crossing configured threshold for UC-6.2.40. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:pool`** — First 48h baseline for UC-6.2.40 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "dell_emc",
     "truenas"
+  ],
+  "equipmentModels": [
+    "dell_emc_generic",
+    "truenas_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,5 +64,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted input or TrueNAS community TA; HEC from `/api/v2.0/pool` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=truenas:pool into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

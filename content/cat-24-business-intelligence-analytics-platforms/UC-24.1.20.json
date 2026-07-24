@@ -8,28 +8,43 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Tableau logs (`tableau:httpd`, `tableau:vizportal`, `tableau:backgrounder`), REST API, and `workgroup` repository tables via DB Connect.",
-  "app": "Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC; `workgroup` repository via Splunk DB Connect.",
+  "exclusions": "Covers the detection logic documented for 'Tableau Failures by Workbook' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_tableau_failures_by_workbook` (UC-24.1.20), SOC dashboard panel \"Operations — Tableau Failures by Workbook\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.1.20 positive (Tableau, Failures, Workbook): ingest synthetic events into `index=bi` sourcetype='tableau:httpd' where `count` grouped by `workbook` satisfies `status` >= 500, or `failures` > 0 for 'Tableau Failures by Workbook'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.1.20 negative (by Workbook): ingest benign `bi` / `tableau:httpd` events where `workbook` stays below `status` >= 500, or `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Tableau Failures by Workbook'."
+  },
+  "dataSources": "Tableau logs (`tableau:httpd`, `tableau:vizportal`, `tableau:backgrounder`), REST API, and `workgroup` repository tables via DB Connect. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC; `workgroup` repository via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=tableau:httpd status>=500\n| stats count as failures, latest(_time) as last_failure by workbook\n| where failures>0\n| sort - failures",
-  "description": "Counts Tableau failures grouped by workbook so operators immediately see which specific workbooks are broken rather than a single global failure number.",
-  "value": "Object-level failure attribution turns a vague 'Tableau is failing' alert into an actionable list of exactly what to fix first.",
+  "description": "Surfaces UC-24.1.20 — Tableau, Failures, Workbook — using `index=bi` sourcetype `tableau:httpd`, grouped by `workbook`. Outputs `count` each `the scheduled window`; alert when `status` >= 500, or `failures` > 0. Primary focus: by Workbook. Purpose-built for 'Tableau Failures by Workbook' in Operations workflows.",
+  "value": "UC-24.1.20 helps teams contain Tableau, Failures, Workbook scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ingest Tableau failure events; schedule every 15 minutes and alert on failures for business-critical workbooks.",
   "visualization": "Table of workbook by failure count and last failure time.",
   "cimModels": [],
   "references": [
     {
       "title": "Tableau — View server logs",
-      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Tableau — REST API reference",
-      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm"
+      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.1.20)** — Planned work for 'Tableau Failures by Workbook' shifts `count` over `span=1h` while `workbook` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `tableau:httpd`** — Scheduled automation elevates `src` without crossing `status` >= 500 for UC-24.1.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `workbook`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tableau:httpd`** — First 48h baseline for UC-24.1.20 on `workbook` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `workbook`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "db_connect"
@@ -37,5 +52,12 @@
   "equipmentModels": [
     "apache_httpd"
   ],
-  "grandmaExplanation": "We tell you exactly which parts of Tableau are failing, not just that something is wrong, so the right thing gets fixed first."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC; `workgroup` repository via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=tableau:httpd into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`failures, status, workbook`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We tell you exactly which parts of Tableau are failing, not just that something is wrong, so the right thing gets fixed first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

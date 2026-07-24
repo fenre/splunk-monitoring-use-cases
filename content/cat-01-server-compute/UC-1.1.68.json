@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=custom:aide` (AIDE scan output ingested to Splunk)",
-  "app": "`Splunk_TA_nix` with a custom scripted post-scan ingest",
+  "exclusions": "Covers the detection logic documented for 'Rootkit Detection via File Integrity' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_rootkit_detection_via_file_integrity` (UC-1.1.68), SOC dashboard panel \"Linux — Rootkit Detection via File Integrity\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.68 positive (Rootkit, Detection, via, File, Integrity): ingest synthetic events into `index=os` sourcetype='custom:aide' where `count` grouped by `host`, `file_path`, `change_type` satisfies `count` > 0 for 'Rootkit Detection via File Integrity'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.68 negative (File Integrity): ingest benign `os` / `custom:aide` events where `host`, `file_path`, `change_type` stays below `count` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 8 confirms zero alert rows for 'Rootkit Detection via File Integrity'."
+  },
+  "dataSources": "`sourcetype=custom:aide` (AIDE scan output ingested to Splunk) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` with a custom scripted post-scan ingest — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:aide host=*\n| where change_type IN (\"added\", \"changed\", \"removed\")\n| stats count by host, file_path, change_type\n| where count>0",
-  "description": "Surfaces AIDE file-integrity **added/changed/removed** rows for review. **count>0** is a guard so empty buckets drop out once you add windowing; most teams alert on the first new **file_path** not in a lookup.",
-  "value": "Unexpected changes in **/bin**, **/sbin**, or other protected trees are a fast path to find dropped binaries or config drift before you rely on slower AV-only signals on servers.",
+  "description": "Alerts on UC-1.1.68 — Rootkit, Detection, via, File, Integrity — using `index=os` sourcetype `custom:aide`, grouped by `host`, `file_path`, `change_type`. Outputs `count` each `the scheduled window`; alert when `count` > 0. Primary focus: File Integrity. Purpose-built for 'Rootkit Detection via File Integrity' in Linux workflows.",
+  "value": "UC-1.1.68 accelerates insight into File Integrity ('Rootkit Detection via File Integrity') by tracking `activity` on `custom:aide` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Have AIDE print stable **change_type** and **file_path** fields. In production, add `| lookup aide_expected_changes file_path OUTPUT reason | where isnull(reason)` to suppress packager noise.",
   "visualization": "Alert, Table",
   "cimModels": [
@@ -21,17 +27,38 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Monthly patch Tuesday churn; containers bind-mounting over paths AIDE also scans; a scanner that rewrites the same library twice in one run—use **first**-seen dedupe if needed.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Rootkit Detection via File Integrity'. Correlate with apt/yum logs in the same `custom:aide` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:aide`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• Nightly AIDE and a non-interactive way to **scp** or **HEC** results to Splunk. Large outputs should be one **event** per file change, not a giant **multiline** event without **LINE_BREAKER** help.\n\n**CIM** — File integrity to **Change** is possible after CIM add-on + tags; until then, **N/A**.\n\n\nStep 3 — Validate\n`aide --check` exit status and the local AIDE log should match the rows Splunk shows for the run id / timestamp. Use `rpm -V` / `dpkg` verify selectively for a second opinion on a hot path.\n\nStep 4 — Operationalize\nFor each hit, first ask **change management**; only then run deeper host forensics.\n\n",
-  "grandmaExplanation": "We help you get a list when a strict file checker notices new, changed, or missing important files, so the right people can see if a patch, a person, or a problem caused it."
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Nightly AIDE and a non-interactive way to **scp** or **HEC** results to Splunk. Large outputs should be one **event** per file change, not a giant **multiline** event without **LINE_BREAKER** help.\n\n**CIM** — File integrity to **Change** is possible after CIM add-on + tags; until then, **N/A**.\n\n\nStep 3 — Validate\n`aide --check` exit status and the local AIDE log should match the rows Splunk shows for the run id / timestamp. Use `rpm -V` / `dpkg` verify selectively for a second opinion on a hot path.\n\nStep 4 — Operationalize\nFor each hit, first ask **change management**; only then run deeper host forensics.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` with a custom scripted post-scan ingest — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=custom:aide into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`change_type, file_path, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you get a list when a strict file checker notices new, changed, or missing important files, so the right people can see if a patch, a person, or a problem caused it.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

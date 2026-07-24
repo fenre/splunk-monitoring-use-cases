@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Schedule a quarterly BCP exercise in the exercise tracker but do not record its execution by the scheduled date. UC-22.51.20 MUST flag the exercise with `overdue_flag=true` within 24 hours of the scheduled date.",
-    "negativeScenario": "A completed quarterly exercise with all evidence fields populated and observed RTO/RPO within target MUST NOT be flagged."
+    "positiveScenario": "UC-22.51.20 positive (Business, Continuity, Exercise, Programme, Evidence): ingest synthetic events into `index=bcp` sourcetype='servicenow:bcp:exercise' where `count` grouped by `entity` satisfies -13m for 'OT Business Continuity Exercise Programme Evidence'. Validate lookup `otcc_exercise_rto_targets.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.51.20 negative (Programme Evidence): ingest benign `bcp` / `servicenow:bcp:exercise` events where `entity` stays below -13m, or exclude the test entity via `compliance_exception_register.csv`. Variant 8 confirms zero alert rows for 'OT Business Continuity Exercise Programme Evidence'."
   },
   "dataSources": "`index=bcp sourcetype=\"servicenow:bcp:exercise\"` (BCP exercise tracker, typically ServiceNow BCM module). Document-management system URLs for post-exercise reports (`sharepoint:document`, `confluence:page`). Lookups: `ot_bcp_exercise_calendar.csv`, `otcc_exercise_rto_targets.csv`.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
   "spl": "| inputlookup ot_bcp_exercise_calendar.csv\n| eval scheduled_for_epoch = strptime(scheduled_for, \"%Y-%m-%d\")\n| eval overdue_threshold_epoch = scheduled_for_epoch + 86400\n| join exercise_id type=left [search index=bcp sourcetype=\"servicenow:bcp:exercise\" earliest=-13mon | dedup exercise_id | table exercise_id executed_at participants observed_rto_minutes observed_rpo_minutes post_exercise_report_url deviation_reasons]\n| eval executed_at_epoch = strptime(executed_at, \"%Y-%m-%dT%H:%M:%S%z\")\n| lookup otcc_exercise_rto_targets.csv exercise_type OUTPUT target_rto_minutes target_rpo_minutes\n| eval deviation_flag = case(\n    isnotnull(observed_rto_minutes) AND observed_rto_minutes > target_rto_minutes, \"true\",\n    isnotnull(observed_rpo_minutes) AND observed_rpo_minutes > target_rpo_minutes, \"true\",\n    1=1, \"false\")\n| eval overdue_flag = case(\n    isnotnull(executed_at_epoch), \"false\",\n    now() > overdue_threshold_epoch, \"true\",\n    1=1, \"false\")\n| eval missing_report_flag = case(\n    isnotnull(executed_at_epoch) AND (isnull(post_exercise_report_url) OR post_exercise_report_url=\"\"), \"true\",\n    1=1, \"false\")\n| where overdue_flag=\"true\" OR deviation_flag=\"true\" OR missing_report_flag=\"true\"\n| table exercise_id exercise_type scenario_summary scheduled_for executed_at participants observed_rto_minutes observed_rpo_minutes target_rto_minutes target_rpo_minutes deviation_reasons post_exercise_report_url overdue_flag deviation_flag missing_report_flag\n| sort - overdue_flag deviation_flag scheduled_for",
-  "description": "Reconciles the OT BCP exercise calendar against the BCP-tracker's execution records, surfaces overdue exercises, flags those that deviated from RTO/RPO targets, and flags missing post-exercise reports.",
-  "value": "BCP exercise theatre is the audit pitfall: organisations schedule the exercise, never execute it, then claim coverage in the audit. NCA OTCC inspectors want evidence the exercise actually happened, who attended, and what the observed RTO/RPO was. This UC produces all three continuously.",
+  "description": "Detects UC-22.51.20 — Business, Continuity, Exercise, Programme, Evidence — using `index=bcp` sourcetype `servicenow:bcp:exercise`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when -13m. Filter chain includes lookup `otcc_exercise_rto_targets.csv`. Purpose-built for 'OT Business Continuity Exercise Programme Evidence' in Compliance workflows.",
+  "value": "UC-22.51.20 accelerates insight into Programme Evidence ('OT Business Continuity Exercise Programme Evidence') by tracking `activity` on `servicenow:bcp:exercise` feeds, reducing audit findings, regulatory gaps, and attestation delays before spreadsheet checks hide regressions.",
   "implementation": "(1) Build `ot_bcp_exercise_calendar.csv` from the annual OT cybersecurity programme plan, with one row per scheduled exercise per quarter. (2) Onboard ServiceNow BCM exercise events into `index=bcp`. (3) Maintain `otcc_exercise_rto_targets.csv` defining the target RTO/RPO per exercise type. (4) Schedule UC-22.51.20 daily at 09:00 local.",
   "visualization": "(Panel 1) Single-value 'Overdue exercises now', 'Deviating exercises 12mon'. (Panel 2) Exercise calendar Gantt or heatmap. (Panel 3) Sortable table of flagged exercises. (Panel 4) Per-quarter observed-vs-target RTO/RPO trend.",
   "cimModels": [
@@ -46,14 +46,26 @@
   "references": [
     {
       "title": "NCA OTCC — control list portal",
-      "url": "https://nca.gov.sa/en/regulatory-documents/controls-list/3"
+      "url": "https://nca.gov.sa/en/regulatory-documents/controls-list/3",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ISO 22301:2019 — Business continuity management systems — Requirements",
-      "url": "https://www.iso.org/standard/75106.html"
+      "url": "https://www.iso.org/standard/75106.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Exercise rescheduled with proper documentation** — schedule slips happen. Suppression: maintain a per-exercise `reschedule_log.csv` with the new scheduled_for date; the alert clears once the calendar is updated.\n\n2. **Multi-day exercises with split execution timestamps** — some exercises run over a week. Suppression: ServiceNow can carry a `start_at` and `end_at`; the UC uses `executed_at` as the start date.\n\n3. **Vendor-led exercise tracking outside the corporate BCP tracker** — some exercises are run by vendors and tracked in their systems. Suppression: ingest the vendor's exercise reports into `audit_evidence` as a parallel source.\n\n**Suppression mechanism**: KV Store `otcc_22_51_20_exceptions`.",
+  "knownFalsePositives": "1. **Authorised NCA OTCC control testing** — Internal audit exercises 'OT Business Continuity Exercise Programme Evidence' (UC-22.51.20) on `entity` during scheduled clause OTCC-3-1-1-1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=bcp` `servicenow:bcp:exercise` without crossing evidence threshold. Cross-check engagement letter in `nca_otcc_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `bcp` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `nca_otcc_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (compliance-tracking UC, not a detection)"
   ],

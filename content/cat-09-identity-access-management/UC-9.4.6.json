@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "PAM vault system logs, component health APIs",
-  "app": "PAM infrastructure monitoring, SNMP",
+  "exclusions": "Covers the detection logic documented for 'Vault Health Monitoring' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `iam_vault_health_monitoring` (UC-9.4.6), SOC dashboard panel \"IAM — Vault Health Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-9.4.6 positive (Vault, Health, Monitoring): ingest synthetic events into `index=pam` sourcetype='cyberark:vault_health' where `count` grouped by `vault_server`, `component` satisfies `lag` > 300 for 'Vault Health Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.4.6 negative (Health Monitoring): ingest benign `pam` / `cyberark:vault_health` events where `vault_server`, `component` stays below `lag` > 300, or exclude the test entity via `iam_exception_register.csv`. Variant 13 confirms zero alert rows for 'Vault Health Monitoring'."
+  },
+  "dataSources": "PAM vault system logs, component health APIs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "PAM infrastructure monitoring, SNMP — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pam sourcetype=\"cyberark:vault_health\"\n| stats latest(status) as status, latest(replication_lag) as lag by vault_server, component\n| where status!=\"Running\" OR lag > 300",
-  "description": "PAM vault downtime prevents all privileged access, blocking critical operations. Health monitoring ensures continuous availability.",
-  "value": "PAM vault downtime prevents all privileged access, blocking critical operations. Health monitoring ensures continuous availability.",
+  "description": "Alerts on UC-9.4.6 — Vault, Health, Monitoring — using `index=pam` sourcetype `cyberark:vault_health`, grouped by `vault_server`, `component`. Outputs `count` each `the scheduled window`; alert when `lag` > 300. Primary focus: Health Monitoring. Purpose-built for 'Vault Health Monitoring' in IAM workflows.",
+  "value": "UC-9.4.6 gives IAM teams earlier visibility into Health Monitoring through `cyberark:vault_health` feeds, lowering account takeover risk, help-desk load, and audit findings.",
   "implementation": "Monitor PAM vault components (vault server, PVWA, PSM, CPM). Track service availability, replication between primary/DR vault, and component health. Alert on any component failure or replication lag >5 minutes.",
   "visualization": "Status grid (component × health), Single value (vault uptime %), Table (unhealthy components), Line chart (replication lag).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Routine privileged access from approved change windows, scheduled maintenance, ITSM-tied tickets, or break-glass exercises documented in your runbook.",
+  "knownFalsePositives": "1. **Maintenance window on `pam` (UC-9.4.6)** — Planned work for 'Vault Health Monitoring' shifts `count` over `span=1h` while `vault_server`, `component` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cyberark:vault_health`** — Scheduled automation elevates `component` without crossing `lag` > 300 for UC-9.4.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `vault_server`, `component`** — Health checks in `pam` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cyberark:vault_health`** — First 48h baseline for UC-9.4.6 on `vault_server` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `vault_server`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cyberark",
     "hashicorp",
@@ -35,6 +57,12 @@
     "hashicorp_vault",
     "snmp_generic"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: PAM infrastructure monitoring, SNMP.\n• Ensure the following data sources are available: PAM vault system logs, component health APIs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor PAM vault components (vault server, PVWA, PSM, CPM). Track service availability, replication between primary/DR vault, and component health. Alert on any component failure or replication lag >5 minutes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=pam sourcetype=\"cyberark:vault_health\"\n| stats latest(status) as status, latest(replication_lag) as lag by vault_server, component\n| where status!=\"Running\" OR lag > 300\n```\n\nUnderstanding this SPL\n\n**Vault Health Monitoring** — PAM vault downtime prevents all privileged access, blocking critical operations. Health monitoring ensures continuous availability.\n\nDocumented **Data sources**: PAM vault system logs, component health APIs. **App/TA** (typical add-on context): PAM infrastructure monitoring, SNMP. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: pam; **sourcetype**: cyberark:vault_health. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=pam, sourcetype=\"cyberark:vault_health\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by vault_server, component** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where status!=\"Running\" OR lag > 300` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare with CyberArk PrivateArk/Password Vault Web Access (or BeyondTrust / vendor console) for the same sessions, vault activity, and alerts.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (component × health), Single value (vault uptime %), Table (unhealthy components), Line chart (replication lag).",
-  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — Vault Health Monitoring"
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: PAM infrastructure monitoring, SNMP.\n• Ensure the following data sources are available: PAM vault system logs, component health APIs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor PAM vault components (vault server, PVWA, PSM, CPM). Track service availability, replication between primary/DR vault, and component health. Alert on any component failure or replication lag >5 minutes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=pam sourcetype=\"cyberark:vault_health\"\n| stats latest(status) as status, latest(replication_lag) as lag by vault_server, component\n| where status!=\"Running\" OR lag > 300\n```\n\nUnderstanding this SPL\n\n**Vault Health Monitoring** — PAM vault downtime prevents all privileged access, blocking critical operations. Health monitoring ensures continuous availability.\n\nDocumented **Data sources**: PAM vault system logs, component health APIs. **App/TA** (typical add-on context): PAM infrastructure monitoring, SNMP. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: pam; **sourcetype**: cyberark:vault_health. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=pam, sourcetype=\"cyberark:vault_health\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by vault_server, component** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where status!=\"Running\" OR lag > 300` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare with CyberArk PrivateArk/Password Vault Web Access (or BeyondTrust / vendor console) for the same sessions, vault activity, and alerts.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (component × health), Single value (vault uptime %), Table (unhealthy components), Line chart (replication lag).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (PAM infrastructure monitoring, SNMP — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=cyberark:vault_health into pam. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`component, lag, vault_server`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — Vault Health Monitoring",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

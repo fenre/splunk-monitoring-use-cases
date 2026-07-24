@@ -9,21 +9,43 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "SNMP IF-MIB (ifHCInOctets, ifHCOutOctets, ifSpeed)",
-  "app": "SNMP Modular Input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
+  "exclusions": "Covers the detection logic documented for 'Interface Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_interface_utilization` (UC-5.1.3), SOC dashboard panel \"Operations — Interface Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.3 positive (Interface, Utilization): ingest synthetic events into `index=network` sourcetype='snmp:interface' where `count` grouped by `host`, `ifDescr` satisfies `util_pct` > 80 for 'Interface Utilization'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.3 negative (Interface Utilization): ingest benign `network` / `snmp:interface` events where `host`, `ifDescr` stays below `util_pct` > 80, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Interface Utilization'."
+  },
+  "dataSources": "SNMP IF-MIB (ifHCInOctets, ifHCOutOctets, ifSpeed) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "SNMP Modular Input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"snmp:interface\"\n| streamstats current=f last(ifHCInOctets) as prev_in, last(_time) as prev_time by host, ifDescr\n| eval in_bps=((ifHCInOctets-prev_in)*8)/(_time-prev_time)\n| eval util_pct=round(in_bps/ifSpeed*100,1) | where util_pct>80",
-  "description": "Saturated links cause drops and congestion. Trending enables proactive upgrades.",
-  "value": "Network engineers monitor interface utilization percentage across routers and switches, identifying bandwidth saturation and trending capacity for proactive planning.",
+  "description": "Identifies risk tied to Interface, Utilization through UC-5.1.3 on `index=network` sourcetype `snmp:interface`. Summarises `count` grouped by `host`, `ifDescr` across `the scheduled window` before applying `util_pct` > 80. Operators tune 'Interface Utilization' using UC-5.1.3 runbook steps.",
+  "value": "Tracking `activity` via UC-5.1.3 on `snmp:interface` feeds improves response to 'Interface Utilization' and reduces operational risk and delayed incident response.",
   "implementation": "Poll 64-bit counters every 300s. Alert at 80% sustained. Use `predict` for capacity planning.",
   "visualization": "Line chart, Gauge per critical link, Table sorted by utilization.",
   "cimModels": [],
   "references": [
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short bursts during backups, patch pushes, or video calls can approach thresholds without an outage. Match alerts to business hours and known batch jobs.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.3)** — Planned work for 'Interface Utilization' shifts `count` over `span=1h` while `host`, `ifDescr` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:interface`** — Scheduled automation elevates `ifDescr` without crossing `util_pct` > 80 for UC-5.1.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `ifDescr`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:interface`** — First 48h baseline for UC-5.1.3 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp",
@@ -32,6 +54,10 @@
   "equipmentModels": [
     "cisco_ios",
     "snmp_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -42,5 +68,7 @@
   ],
   "detailedImplementation": "Prerequisites\n* SNMP polling data with interface utilization counters. Data in `index=network` with `sourcetype=snmp:interface` or SNMP MIB data. Key fields: `ifHCInOctets`, `ifHCOutOctets`, `ifSpeed`, `ifName`, `host`.\n* Interface utilization: percentage of available bandwidth consumed in each direction. Calculated from delta of octet counters divided by polling interval and interface speed. High utilization causes packet loss and latency; sustained >80% typically requires capacity planning.\n\nStep 1 -- Configure data collection\n```\n# SNMP polling via SC4SNMP or Splunk Add-on for SNMP\n# Poll IF-MIB HC counters every 5 minutes:\n# ifHCInOctets (.1.3.6.1.2.1.31.1.1.1.6) -- 64-bit counters\n# ifHCOutOctets (.1.3.6.1.2.1.31.1.1.1.10)\n# ifSpeed (.1.3.6.1.2.1.2.2.1.5) or ifHighSpeed (.1.3.6.1.2.1.31.1.1.1.15)\n\n[snmp_interface_util]\ninterval = 300\nsourcetype = snmp:interface\nindex = network\n```\nVerify:\n```spl\nindex=network sourcetype=\"snmp:interface\" earliest=-1h\n| stats latest(ifHCInOctets) latest(ifHCOutOctets) latest(ifSpeed) by host, ifName\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Interface utilization monitoring:**\n```spl\nindex=network earliest=-4h\n| eval in_octets=tonumber(coalesce(ifHCInOctets, ifInOctets))\n| eval out_octets=tonumber(coalesce(ifHCOutOctets, ifOutOctets))\n| eval speed_bps=tonumber(coalesce(ifHighSpeed, ifSpeed))*if(isnotnull(ifHighSpeed), 1000000, 1)\n| eval interface=coalesce(ifName, interface, port)\n| eval device=coalesce(host, device_name)\n| bin _time span=5m\n| stats latest(in_octets) as in_oct latest(out_octets) as out_oct latest(speed_bps) as speed by _time, device, interface\n| sort device, interface, _time\n| streamstats current=f last(in_oct) as prev_in last(out_oct) as prev_out last(_time) as prev_time by device, interface\n| eval interval_sec=_time - prev_time\n| where interval_sec > 0 AND isnotnull(prev_in)\n| eval in_bps=round(8*(in_oct - prev_in)/interval_sec, 0)\n| eval out_bps=round(8*(out_oct - prev_out)/interval_sec, 0)\n| eval in_util_pct=if(speed > 0, round(100*in_bps/speed, 1), 0)\n| eval out_util_pct=if(speed > 0, round(100*out_bps/speed, 1), 0)\n| eval max_util=max(in_util_pct, out_util_pct)\n| eval in_mbps=round(in_bps/1000000, 1)\n| eval out_mbps=round(out_bps/1000000, 1)\n| eval severity=case(\n    max_util > 90, \"CRITICAL -- interface near saturation (\".max_util.\"%)\",\n    max_util > 80, \"WARNING -- high utilization (\".max_util.\"%)\",\n    max_util > 70, \"INFO -- elevated utilization\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| table _time, device, interface, in_mbps, out_mbps, in_util_pct, out_util_pct, severity\n| sort severity, -max_util\n```\n\nStep 3 -- Validate\n(a) CLI: `show interface <intf>` -- check 5-minute input/output rate.\n(b) Cross-reference with application traffic (NetFlow/sFlow) to identify top talkers.\n(c) Verify interface speed is correctly reported (no speed/duplex mismatch).\n\nStep 4 -- Operationalize\nDashboard (\"Network -- Interface Utilization\"):\n* Row 1 -- Single-value: \"Interfaces > 80%\", \"Peak utilization\", \"Avg utilization\".\n* Row 2 -- Utilization timechart (top interfaces by peak).\n* Row 3 -- High-utilization interface table.\n\nAlert: Warning (sustained >80% for 30+ min): capacity planning trigger.\n\nStep 5 -- Troubleshooting\n\n* **Counter wrap** -- 32-bit counters (ifInOctets) wrap on high-speed interfaces. Always use 64-bit HC counters (ifHCInOctets). If negative delta detected, discard that sample.\n\n* **Sustained high utilization** -- Identify top talkers via NetFlow/sFlow. Consider: QoS traffic shaping, link aggregation, or capacity upgrade.\n\n* **Utilization spikes at specific times** -- Correlate with backup schedules, patch distribution, or business activity patterns. Schedule bandwidth-heavy operations during off-peak.",
   "grandmaExplanation": "We help you know early when something looks wrong with interface utilization so the team can act before it grows into a bigger outage.",
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

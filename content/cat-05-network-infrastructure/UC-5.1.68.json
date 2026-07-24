@@ -9,25 +9,43 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'BFD Session State for IGP Fast Failure Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_bfd_session_state_for_igp_fast_failure_detection` (UC-5.1.68), SOC dashboard panel \"Operations — BFD Session State for IGP Fast Failure Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.68 positive (BFD, Session, State, for, IGP): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `host`, `bfd_peer`, `bfd_state` satisfies detection threshold for 'BFD Session State for IGP Fast Failure Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.68 negative (Failure Detection): ingest benign `network` / `cisco:ios` events where `host`, `bfd_peer`, `bfd_state` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'BFD Session State for IGP Fast Failure Detection'."
+  },
   "dataSources": "Cisco IOS / IOS-XE / IOS-XR (`sourcetype=cisco:ios`) and Juniper Junos (`sourcetype=junos:syslog`) BFD syslog. Key mnemonics: `%BFD-6-BFD_SESS_DOWN` on Cisco, `BFD_STATE_CHANGE` on Junos. Each event identifies the BFD-paired neighbour and the state transition (UP / DOWN / ADMINDOWN).",
   "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352), Splunk Add-on for Juniper (`Splunk_TA_juniper`, Splunkbase 2847)",
   "spl": "index=network (sourcetype=\"cisco:ios\" \"%BFD-6-BFD_SESS_DOWN\") OR (sourcetype=\"junos:syslog\" \"BFD_STATE_CHANGE\")\n| rex \"neighbor (?<bfd_peer>\\S+).*(?<bfd_state>UP|DOWN|ADMINDOWN)\"\n| stats count by host, bfd_peer, bfd_state\n| where bfd_state=\"DOWN\"\n| sort - count",
-  "description": "Surfaces Bidirectional Forwarding Detection (BFD) session-down events across the routed network. BFD is the sub-second failure-detection mechanism that runs alongside IGP (OSPF / IS-IS / EIGRP) and BGP — when a BFD session drops, the routing protocol gets to react faster than its own hello timers can.",
-  "value": "BFD is invisible until it fails — that is its job. The whole point of BFD is to detect a forwarding-path failure in 50–300 ms, faster than any routing-protocol hello timer can. When BFD itself is the thing failing, the IGP and BGP fall back to their own hello timers and convergence slows from sub-second to tens of seconds, which is plenty of time for VoIP calls to drop and TCP sessions to time out. Catching BFD session drops in Splunk is therefore the canonical monitoring pattern for fast-converging networks: BFD flapping more than three times in five minutes warrants immediate investigation of optics or cabling because the path that BFD is supposed to be keeping fast is in fact the slow path right now.",
+  "description": "Detects UC-5.1.68 — BFD, Session, State, for, IGP — using `index=network` sourcetype `cisco:ios`, grouped by `host`, `bfd_peer`, `bfd_state`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Failure Detection. Purpose-built for 'BFD Session State for IGP Fast Failure Detection' in Operations workflows.",
+  "value": "UC-5.1.68 helps teams contain BFD, Session, State, for, IGP scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Enable BFD for every IGP / BGP peer on core and distribution routers. Forward BFD syslog at severity 6 or lower to Splunk. Alert on BFD session DOWN events; correlate with IGP adjacency changes and interface status to distinguish BFD-only failures from underlying link failures. BFD flapping (more than three transitions in five minutes) warrants immediate optics / cabling investigation — see UC-5.1.6 (interface error counters).",
   "visualization": "Status grid (BFD session state per peer pair, coloured by latest state), Table (down sessions sorted by event count), Timeline (state changes over time, useful for spotting concurrent flap events).",
   "cimModels": [],
   "references": [
     {
       "title": "RFC 5880 — Bidirectional Forwarding Detection",
-      "url": "https://www.rfc-editor.org/rfc/rfc5880"
+      "url": "https://www.rfc-editor.org/rfc/rfc5880",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco BFD Configuration Guide",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_bfd/configuration/15-mt/irb-15-mt-book.html"
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_bfd/configuration/15-mt/irb-15-mt-book.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Optics replacement window.** When an SFP / QSFP is being swapped, BFD will flap during the cable / module insertion. Suppress alerts during announced optics-swap windows.\n\n**ECMP load-balancing across asymmetric paths.** Some platforms run BFD per-path on ECMP bundles; one path failing while the other stays UP looks like a BFD flap but the data plane continues to forward fine. Treat repeated single-path drops as a transport-layer alarm rather than a network-wide one.\n\n**BFD-over-LAG state machine quirks.** A few platforms had software bugs where the BFD-over-LAG state machine would mis-report DOWN on rapid LACP renegotiation. Where this is known, suppress for known-buggy code and prioritise the upgrade.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.68)** — Planned work for 'BFD Session State for IGP Fast Failure Detection' shifts `count` over `span=1h` while `host`, `bfd_peer`, `bfd_state` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `bfd_peer` without crossing configured threshold for UC-5.1.68. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `bfd_peer`, `bfd_state`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.1.68 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "juniper",
@@ -50,6 +68,12 @@
     "juniper_qfx_5120"
   ],
   "status": "community",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352), Splunk Add-on for Juniper (`Splunk_TA_juniper`, Splunkbase 2847)). Enable the modular input or HEC token that writes sourcetype=cisco:ios, junos:syslog into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`bfd_peer, bfd_state, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch the heartbeat that runs between routers — if either side stops hearing the heartbeat, traffic immediately reroutes through a different path. When the heartbeat itself fails, the rerouting becomes much slower and users lose voice calls or stalled web pages. We alert when a heartbeat drops so the team can fix the underlying cable or transceiver before traffic actually breaks.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

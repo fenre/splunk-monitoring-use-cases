@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`cisco:asa` session events",
-  "app": "Splunk_TA_cisco-asa",
+  "exclusions": "Covers the detection logic documented for 'Concurrent VPN Session Limits' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_concurrent_vpn_session_limits` (UC-17.2.13), SOC dashboard panel \"Network — Concurrent VPN Session Limits\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.2.13 positive (Concurrent, VPN, Session, Limits): ingest synthetic events into `index=vpn` sourcetype='cisco:asa' where `concurrent`, `peak_concurrent` grouped by `host` satisfies `concurrent` > 0 for 'Concurrent VPN Session Limits'. Validate lookup `vpn_license_limits.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.2.13 negative (Session Limits): ingest benign `vpn` / `cisco:asa` events where `host` stays below `concurrent` > 0, or exclude the test entity via `network_exception_register.csv`. Variant 4 confirms zero alert rows for 'Concurrent VPN Session Limits'."
+  },
+  "dataSources": "`cisco:asa` session events Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk_TA_cisco-asa — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=vpn sourcetype=\"cisco:asa\" earliest=-4h\n| where action=\"session_connect\" OR action=\"session_disconnect\"\n| eval delta=if(action=\"session_connect\",1,-1)\n| sort 0 _time\n| streamstats global=f sum(delta) as concurrent by host\n| where concurrent > 0\n| stats max(concurrent) as peak_concurrent by host\n| lookup vpn_license_limits.csv host OUTPUT max_sessions\n| where peak_concurrent > max_sessions*0.85",
-  "description": "Alerts when simultaneous sessions approach licensed or configured caps — same user or aggregate.",
-  "value": "Network teams monitor how close VPN concentrators are to their licensed session limits, providing early warning to purchase licenses or redirect users before connections are actively refused.",
+  "description": "Detects risk tied to Concurrent, VPN, Session, Limits through UC-17.2.13 on `index=vpn` sourcetype `cisco:asa`. Summarises `concurrent`, `peak_concurrent` grouped by `host` across `the scheduled window` before applying `concurrent` > 0. Operators tune 'Concurrent VPN Session Limits' using UC-17.2.13 runbook steps.",
+  "value": "Tracking `concurrent`, `peak_concurrent` via UC-17.2.13 on `cisco:asa` feeds improves response to 'Concurrent VPN Session Limits' and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "If connect/disconnect deltas are incomplete, use vendor “show vpn-sessiondb summary” scripted input for authoritative count. Tune `max_sessions` from license CSV.",
   "visualization": "Single value (peak vs cap %), Line chart (concurrent sessions), Table (headends near limit).",
   "cimModels": [
@@ -25,10 +31,31 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Remote workforce login storm** — Morning VPN/ZTNA session spike for 'Concurrent VPN Session Limits'. Compare with historical same-hour baseline.\n\n2. **IdP or SAML metadata refresh** — Brief auth failures during federation cert rotation.\n\n3. **Split-tunnel policy change** — New route advertisements shift traffic patterns.\n\n4. **Synthetic ZTNA health checks** — Monitoring probes from known appliance IPs.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `src`, `valid_until`.",
   "mitreAttack": [
     "T1021"
   ],
@@ -38,7 +65,13 @@
   "equipmentModels": [
     "cisco_asa"
   ],
-  "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA (`sourcetype=cisco:asa`). Data in `index=vpn`.\n• Key fields: `user`, `action` (session_connect/session_disconnect), `tunnel_group`, `assigned_ip`, `session_id`.\n• Cisco ASA allows configuring `vpn-simultaneous-logins` per group policy. Default is 3. Exceeding the limit causes the oldest session to terminate.\n• This UC specifically monitors the license-level concurrent session limit (platform capacity), distinct from per-user limits.\n\nStep 1 — Configure data collection\nVerify session tracking:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" earliest=-4h\n| where action IN (\"session_connect\", \"session_disconnect\")\n| eval delta=if(action=\"session_connect\", 1, -1)\n| sort _time\n| streamstats sum(delta) as running_total\n| stats max(running_total) as peak_sessions\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Session limit approach:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" earliest=-24h\n| where action IN (\"session_connect\", \"session_disconnect\")\n| eval delta=if(action=\"session_connect\", 1, -1)\n| sort _time\n| streamstats sum(delta) as concurrent by host\n| lookup vpn_capacity.csv concentrator_host as host OUTPUT max_sessions\n| eval headroom=max_sessions - concurrent\n| where headroom < max_sessions*0.1\n| stats min(headroom) as min_headroom max(concurrent) as peak_concurrent by host, max_sessions\n| eval pct_used=round(peak_concurrent/max_sessions*100, 1)\n```\n\nUnderstanding this SPL: Tracks the headroom (remaining sessions before license limit) and alerts when it drops below 10% of capacity. This is forward-looking — by the time sessions hit 100%, new users are rejected. The 10% buffer gives time to react.\n\nLicense rejection detection:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" earliest=-24h\n| search \"session limit\" OR \"maximum sessions\" OR \"license\" AND \"exceeded\"\n| stats count by host\n```\n\nStep 3 — Validate\n(a) On ASA: `show vpn-sessiondb summary` and `show vpn license`.\n\nStep 4 — Operationalize\nDashboard: Gauge tiles for session utilization %. Timechart of concurrent sessions.\nAlert: Warning at 80%, critical at 95%.\n\nRunbook:\n1. **Approaching limit** — Purchase additional VPN platform licenses. Redirect to secondary concentrator.\n2. **Limit exceeded** — Emergency: some users are being rejected. Identify idle sessions to disconnect.\n\nStep 5 — Troubleshooting\n• **Concurrent count inaccurate** — Accumulation drift. Reset with periodic snapshots from `show vpn-sessiondb summary`.",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA (`sourcetype=cisco:asa`). Data in `index=vpn`.\n• Key fields: `user`, `action` (session_connect/session_disconnect), `tunnel_group`, `assigned_ip`, `session_id`.\n• Cisco ASA allows configuring `vpn-simultaneous-logins` per group policy. Default is 3. Exceeding the limit causes the oldest session to terminate.\n• This UC specifically monitors the license-level concurrent session limit (platform capacity), distinct from per-user limits.\n\nStep 1 — Configure data collection\nVerify session tracking:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" earliest=-4h\n| where action IN (\"session_connect\", \"session_disconnect\")\n| eval delta=if(action=\"session_connect\", 1, -1)\n| sort _time\n| streamstats sum(delta) as running_total\n| stats max(running_total) as peak_sessions\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Session limit approach:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" earliest=-24h\n| where action IN (\"session_connect\", \"session_disconnect\")\n| eval delta=if(action=\"session_connect\", 1, -1)\n| sort _time\n| streamstats sum(delta) as concurrent by host\n| lookup vpn_capacity.csv concentrator_host as host OUTPUT max_sessions\n| eval headroom=max_sessions - concurrent\n| where headroom < max_sessions*0.1\n| stats min(headroom) as min_headroom max(concurrent) as peak_concurrent by host, max_sessions\n| eval pct_used=round(peak_concurrent/max_sessions*100, 1)\n```\n\nUnderstanding this SPL: Tracks the headroom (remaining sessions before license limit) and alerts when it drops below 10% of capacity. This is forward-looking — by the time sessions hit 100%, new users are rejected. The 10% buffer gives time to react.\n\nLicense rejection detection:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" earliest=-24h\n| search \"session limit\" OR \"maximum sessions\" OR \"license\" AND \"exceeded\"\n| stats count by host\n```\n\nStep 3 — Validate\n(a) On ASA: `show vpn-sessiondb summary` and `show vpn license`.\n\nStep 4 — Operationalize\nDashboard: Gauge tiles for session utilization %. Timechart of concurrent sessions.\nAlert: Warning at 80%, critical at 95%.\n\nRunbook:\n1. **Approaching limit** — Purchase additional VPN platform licenses. Redirect to secondary concentrator.\n2. **Limit exceeded** — Emergency: some users are being rejected. Identify idle sessions to disconnect.\n\nStep 5 — Troubleshooting\n• **Concurrent count inaccurate** — Accumulation drift. Reset with periodic snapshots from `show vpn-sessiondb summary`.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk_TA_cisco-asa — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:asa into vpn. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`concurrent, delta, host, max_sessions`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We keep track of how many remote connections we are using compared to how many our system allows, so we can add more capacity before anyone gets turned away.",
-  "hardware": "Cisco ASA"
+  "hardware": "Cisco ASA",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

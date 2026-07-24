@@ -8,23 +8,55 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`).",
-  "app": "Home ADS-B receiver (dump1090 / readsb / tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Passport and Visa Expiry Countdown' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_passport_and_visa_expiry_countdown` (UC-25.14.10), SOC dashboard panel \"Personal — Passport and Visa Expiry Countdown\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.14.10 positive (Passport, and, Visa, Expiry, Countdown): ingest synthetic events into `index=personal` sourcetype='travel:document' where `count` grouped by `holder`, `doc_type` satisfies `days_left` < 270 for 'Passport and Visa Expiry Countdown'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.14.10 negative (Expiry Countdown): ingest benign `personal` / `travel:document` events where `holder`, `doc_type` stays below `days_left` < 270, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 8 confirms zero alert rows for 'Passport and Visa Expiry Countdown'."
+  },
+  "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Home ADS-B receiver (dump1090 / readsb / tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=travel:document\n| stats latest(expiry_epoch) as expiry by holder doc_type\n| eval days_left=round((expiry_epoch-now())/86400,0)\n| where days_left<270\n| sort days_left",
-  "description": "Counts down the days until each passport, visa, or travel-authorisation expires and warns you while there is still time to renew.",
-  "value": "Many countries refuse entry within six months of passport expiry; an early countdown avoids a cancelled trip and a panic renewal.",
+  "description": "Monitors UC-25.14.10 — Passport, and, Visa, Expiry, Countdown — using `index=personal` sourcetype `travel:document`, grouped by `holder`, `doc_type`. Outputs `count` each `the scheduled window`; alert when `days_left` < 270. Primary focus: Expiry Countdown. Purpose-built for 'Passport and Visa Expiry Countdown' in Personal workflows.",
+  "value": "UC-25.14.10 accelerates insight into Expiry Countdown ('Passport and Visa Expiry Countdown') by tracking `activity` on `travel:document` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Store document expiry dates in `index=personal`; schedule weekly and alert when any document drops below your renewal threshold.",
   "visualization": "Table of documents sorted by days remaining with a red warning band.",
   "cimModels": [],
   "references": [
     {
       "title": "ICAO — Machine Readable Travel Documents",
-      "url": "https://www.icao.int/publications/pages/publication.aspx?docnum=9303"
+      "url": "https://www.icao.int/publications/pages/publication.aspx?docnum=9303",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It counts down to when your passport or visa runs out and warns you early, so a trip is never ruined by an expired document."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.14.10)** — Connector for 'Passport and Visa Expiry Countdown' stops polling `travel:document`; stale `count` on `holder`, `doc_type` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.14.10, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `travel:document`. Dedup with `stats latest(*) by holder`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_left` < 270 for 'Passport and Visa Expiry Countdown'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Travel, Commute & Flight-Spotting — typical feeds: ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel doc.\n• **Sourcetypes in this search**: `travel:document`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=travel:document`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Home ADS-B receiver (dump1090/readsb/tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC..\n\n**Author notes:** Store document expiry dates in `index=personal`; schedule weekly and alert when any document drops below your renewal threshold.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"travel:document\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=travel:document earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Passport and Visa Expiry Countdown** over `personal` data (primarily `sourcetype=travel:document`) across the full search range. It applies numeric thresholds on `days_left` (< 270) after latest — tune these constants to your household baseline.\n\n**Fields this search depends on:** `days_left`, `doc_type`, `holder`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=travel:document\n| stats latest(expiry_epoch) as expiry by holder doc_type\n| eval days_left=round((expiry_epoch-now())/86400,0)\n| where days_left<270\n| sort days_left\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=travel:document earliest=-7d\n| head 50\n| table days_left, doc_type, holder\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=travel:document earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `days_left` before alerting:\n\n```spl\nindex=personal sourcetype=travel:document earliest=-30d\n| stats perc50(days_left) AS p50 perc90(days_left) AS p90 perc99(days_left) AS p99 max(days_left) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.14.10: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Documents Sorted By Days Remaining With A Red Warning Band (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `travel:document` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=travel:document | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It counts down to when your passport or visa runs out and warns you early, so a trip is never ruined by an expired document.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

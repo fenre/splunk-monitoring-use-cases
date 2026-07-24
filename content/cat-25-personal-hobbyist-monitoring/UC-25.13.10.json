@@ -9,27 +9,57 @@
     "Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "RescueTime activity (`rescuetime:activity`), screen-time exports (`screentime:usage`), GitHub events (`github:personal`), habit-tracker logs (`habit:entry`), calendar exports (`calendar:event`), email metadata (`email:metadata`), password-audit reports (`passwordmanager:audit`).",
-  "app": "Screen-time / RescueTime exports, GitHub personal activity, habit/journal trackers, password-audit exports, and calendar/email feeds via HEC scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'GitHub Review Latency for Personal Repos' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_github_review_latency_for_personal_repos` (UC-25.13.10), SOC dashboard panel \"Personal — GitHub Review Latency for Personal Repos\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.13.10 positive (GitHub, Review, Latency, for, Personal): ingest synthetic events into `index=personal` sourcetype='github:personal' where `avg_hours` grouped by `repo` satisfies `p95_hours` > 48 for 'GitHub Review Latency for Personal Repos'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.13.10 negative (Personal Repos): ingest benign `personal` / `github:personal` events where `repo` stays below `p95_hours` > 48, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'GitHub Review Latency for Personal Repos'."
+  },
+  "dataSources": "RescueTime activity (`rescuetime:activity`), screen-time exports (`screentime:usage`), GitHub events (`github:personal`), habit-tracker logs (`habit:entry`), calendar exports (`calendar:event`), email metadata (`email:metadata`), password-audit reports (`passwordmanager:audit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Screen-time / RescueTime exports, GitHub personal activity, habit/journal trackers, password-audit exports, and calendar/email feeds via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=github:personal event_type=pull_request_review\n| stats avg(review_latency_hours) as avg_hours, p95(review_latency_hours) as p95_hours by repo\n| where p95_hours>48\n| sort - p95_hours",
-  "description": "Measures how long pull requests sit before getting reviewed in your personal projects, useful for solo and small-team workflow hygiene.",
-  "value": "Even hobby repos develop hidden queueing delays; review latency reveals whether you are finishing loops or just opening them.",
+  "description": "Identifies UC-25.13.10 for GitHub, Review, Latency, for, Personal over `index=personal` sourcetype `github:personal` with thresholds `p95_hours` > 48. Groups `avg_hours` by `repo` each `the scheduled window`. Centered on Personal Repos indicators. Supports repeatable personal triage for 'GitHub Review Latency for Personal Repos'.",
+  "value": "For 'GitHub Review Latency for Personal Repos', UC-25.13.10 converts `avg_hours` on `github:personal` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Forward GitHub events or enriched review timestamps; review repositories with sluggish feedback cycles and tighten your own process.",
   "visualization": "Repo table of average and 95th-percentile review latency.",
   "cimModels": [],
   "references": [
     {
       "title": "GitHub REST API",
-      "url": "https://docs.github.com/en/rest"
+      "url": "https://docs.github.com/en/rest",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.13.10)** — Connector for 'GitHub Review Latency for Personal Repos' stops polling `github:personal`; stale `avg_hours` on `repo` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_hours` over `1w` is expected for UC-25.13.10, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `github:personal`. Dedup with `stats latest(*) by repo`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `p95_hours` > 48 for 'GitHub Review Latency for Personal Repos'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "github",
     "security_essentials"
   ],
-  "grandmaExplanation": "It spots which personal code projects leave pull requests waiting around too long before anyone reviews them."
+  "equipmentModels": [
+    "github_generic",
+    "security_essentials_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Digital Life & Productivity — typical feeds: RescueTime activity (`rescuetime:activity`), Apple/Android screen-time exports (`screentime:usage`), GitHub events (`github:personal`), habit-tracker logs (`habit:entry`), calendar/todo exports..\n• **Sourcetypes in this search**: `github:personal`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=github:personal`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Screen-time / RescueTime exports, GitHub personal activity, habit/journal trackers, and calendar feeds via HEC scripted inputs..\n\n**Author notes:** Forward GitHub events or enriched review timestamps; review repositories with sluggish feedback cycles and tighten your own process.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"github:personal\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=github:personal earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **GitHub Review Latency for Personal Repos** over `personal` data (primarily `sourcetype=github:personal`) across the full search range. It applies numeric thresholds on `p95_hours` (> 48) after avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `p95_hours`, `repo`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=github:personal event_type=pull_request_review\n| stats avg(review_latency_hours) as avg_hours, p95(review_latency_hours) as p95_hours by repo\n| where p95_hours>48\n| sort - p95_hours\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=github:personal earliest=-7d\n| head 50\n| table p95_hours, repo\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=github:personal earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `p95_hours` before alerting:\n\n```spl\nindex=personal sourcetype=github:personal earliest=-30d\n| stats perc50(p95_hours) AS p50 perc90(p95_hours) AS p90 perc99(p95_hours) AS p99 max(p95_hours) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.13.10: Personal evidence` with the following panel layout:\n\n**Panel 1 — Repo Table Of Average And 95Th-Percentile Review Latency (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `github:personal` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=github:personal | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It spots which personal code projects leave pull requests waiting around too long before anyone reviews them.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

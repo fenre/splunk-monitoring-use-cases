@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=elasticsearch:search_stats`, `sourcetype=elasticsearch:slow_log`",
-  "app": "Custom REST scripted input (`_nodes/stats`), Elasticsearch slow logs forwarded to Splunk",
+  "exclusions": "Covers the detection logic documented for 'Elasticsearch Search Latency and Slow Queries' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_elasticsearch_search_latency_and_slow_queries` (UC-7.5.13), SOC dashboard panel \"Operations — Elasticsearch Search Latency and Slow Queries\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.5.13 positive (Elasticsearch, Search, Latency, and, Slow): ingest synthetic events into `index=database` sourcetype='elasticsearch:search_stats' where `avg_latency_ms`, `p100_latency_ms` grouped by `node_name` satisfies `avg_latency_ms` > 500 for 'Elasticsearch Search Latency and Slow Queries'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.5.13 negative (Slow Queries): ingest benign `database` / `elasticsearch:search_stats` events where `node_name` stays below `avg_latency_ms` > 500, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Elasticsearch Search Latency and Slow Queries'."
+  },
+  "dataSources": "`sourcetype=elasticsearch:search_stats`, `sourcetype=elasticsearch:slow_log` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom REST scripted input (`_nodes/stats`), Elasticsearch slow logs forwarded to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"elasticsearch:search_stats\"\n| eval query_latency_ms=search.query_time_in_millis/search.query_total\n| timechart span=5m avg(query_latency_ms) as avg_latency_ms, max(query_latency_ms) as p100_latency_ms by node_name\n| where avg_latency_ms > 500",
-  "description": "Search latency trending detects degradation before users notice. Slow log analysis identifies expensive queries for optimization.",
-  "value": "Search latency trending detects degradation before users notice. Slow log analysis identifies expensive queries for optimization.",
+  "description": "Detects 'Elasticsearch Search Latency and Slow Queries' (UC-7.5.13) using `index=database` sourcetype `elasticsearch:search_stats` by aggregating `avg_latency_ms`, `p100_latency_ms` grouped by `node_name` over `5m` and alerting when `avg_latency_ms` > 500. Keywords: Elasticsearch, Search, Latency, and, Slow. Focuses on Slow Queries behaviour so operations teams can triage UC-7.5.13 without ad-hoc log review.",
+  "value": "UC-7.5.13 accelerates insight into Slow Queries ('Elasticsearch Search Latency and Slow Queries') by tracking `avg_latency_ms`, `p100_latency_ms` on `elasticsearch:search_stats` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Poll `GET _nodes/stats/indices/search` to compute per-node average query latency from cumulative counters. Enable slow logs (`index.search.slowlog.threshold.query.warn: 5s`) and forward to Splunk. Correlate slow queries with specific indices and query patterns. Alert on sustained average latency above baseline or frequent slow log entries.",
   "visualization": "Line chart (query latency p50/p95/p100), Table (slow queries by index), Single value (current avg latency).",
   "cimModels": [
@@ -21,16 +27,38 @@
   "references": [
     {
       "title": "Splunk — DB Connect",
-      "url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/WhatisDBX"
+      "url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/WhatisDBX",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned index rollovers, rebalancing, and cluster restarts can move shard counts and health states briefly; correlate with Elasticsearch or OpenSearch change records.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.5.13)** — Planned work for 'Elasticsearch Search Latency and Slow Queries' shifts `avg_latency_ms`, `p100_latency_ms` over `span=5m` while `node_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `elasticsearch:search_stats`** — Scheduled automation elevates `query_latency_ms` without crossing `avg_latency_ms` > 500 for UC-7.5.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `node_name`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `elasticsearch:search_stats`** — First 48h baseline for UC-7.5.13 on `node_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `node_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "elasticsearch"
   ],
   "equipmentModels": [
     "elasticsearch_es"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we confirm in Kibana or OpenSearch Dashboards and the `_cat` / cluster APIs for that stack.\n• Install and configure the required add-on or app: Custom REST scripted input (`_nodes/stats`), Elasticsearch slow logs forwarded to Splunk.\n• Ensure the following data sources are available: `sourcetype=elasticsearch:search_stats`, `sourcetype=elasticsearch:slow_log`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll `GET _nodes/stats/indices/search` to compute per-node average query latency from cumulative counters. Enable slow logs (`index.search.slowlog.threshold.query.warn: 5s`) and forward to Splunk. Correlate slow queries with specific indices and query patterns. Alert on sustained average latency above baseline or frequent slow log entries.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"elasticsearch:search_stats\"\n| eval query_latency_ms=search.query_time_in_millis/search.query_total\n| timechart span=5m avg(query_latency_ms) as avg_latency_ms, max(query_latency_ms) as p100_latency_ms by node_name\n| where avg_latency_ms > 500\n```\n\nUnderstanding this SPL\n\n**Elasticsearch Search Latency and Slow Queries** — Search latency trending detects degradation before users notice. Slow log analysis identifies expensive queries for optimization.\n\nDocumented **Data sources**: `sourcetype=elasticsearch:search_stats`, `sourcetype=elasticsearch:slow_log`. **App/TA** (typical add-on context): Custom REST scripted input (`_nodes/stats`), Elasticsearch slow logs forwarded to Splunk. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: elasticsearch:search_stats. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"elasticsearch:search_stats\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **query_latency_ms** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by node_name** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where avg_latency_ms > 500` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (query latency p50/p95/p100), Table (slow queries by index), Single value (current avg latency).",
-  "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise."
+  "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

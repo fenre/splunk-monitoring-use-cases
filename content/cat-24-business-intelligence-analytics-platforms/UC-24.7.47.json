@@ -8,30 +8,55 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Databricks job runs (`databricks:jobs`).",
-  "app": "Databricks Jobs API and system.lakeflow tables via HEC/DB Connect.",
+  "exclusions": "Covers the detection logic documented for 'Databricks Workflows Job Job Run Duration p95' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_databricks_workflows_job_job_run_duration_p95` (UC-24.7.47), SOC dashboard panel \"Operations — Databricks Workflows Job Job Run Duration p95\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.7.47 positive (Databricks, Workflows, Job, Job, Run): ingest synthetic events into `index=bi` sourcetype='databricks:jobs' where `avg_min` grouped by `job_name` satisfies `p95_min` > 30 for 'Databricks Workflows Job Job Run Duration p95'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.47 negative (Duration p95): ingest benign `bi` / `databricks:jobs` events where `job_name` stays below `p95_min` > 30, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Databricks Workflows Job Job Run Duration p95'."
+  },
+  "dataSources": "Databricks job runs (`databricks:jobs`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Databricks Jobs API and system.lakeflow tables via HEC/DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=databricks:jobs result_state=\"SUCCESS\"\n| eval dur_min=round(execution_duration/60000,2)\n| stats avg(dur_min) as avg_min, p95(dur_min) as p95_min, count as runs by job_name\n| where p95_min>30\n| sort - p95_min",
-  "description": "Computes the 95th-percentile job run duration for each job in Databricks Workflows and flags the slowest, pointing owners at the specific content or jobs that need optimisation.",
-  "value": "Tail latency, not the average, is what users feel; ranking Databricks Workflows jobs by p95 focuses tuning effort where it removes the most pain.",
+  "description": "Detects risk tied to Databricks, Workflows, Job, Job, Run through UC-24.7.47 on `index=bi` sourcetype `databricks:jobs`. Summarises `avg_min` grouped by `job_name` across `the scheduled window` before applying `p95_min` > 30. Operators tune 'Databricks Workflows Job Job Run Duration p95' using UC-24.7.47 runbook steps.",
+  "value": "Tracking `avg_min` via UC-24.7.47 on `databricks:jobs` feeds improves response to 'Databricks Workflows Job Job Run Duration p95' and reduces operational risk and delayed incident response.",
   "implementation": "Ingest Databricks Workflows timing data; schedule daily over a trailing week and review the slowest jobs with their owners.",
   "visualization": "Table of job by p95 job run duration, trend line.",
   "cimModels": [],
   "references": [
     {
       "title": "Databricks — Jobs & orchestration",
-      "url": "https://docs.databricks.com/aws/en/jobs/"
+      "url": "https://docs.databricks.com/aws/en/jobs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Databricks — Monitor jobs",
-      "url": "https://docs.databricks.com/aws/en/jobs/monitor"
+      "url": "https://docs.databricks.com/aws/en/jobs/monitor",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.47)** — Planned work for 'Databricks Workflows Job Job Run Duration p95' shifts `avg_min` over `span=1h` while `job_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `databricks:jobs`** — Scheduled automation elevates `dur_min` without crossing `p95_min` > 30 for UC-24.7.47. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `databricks:jobs`** — First 48h baseline for UC-24.7.47 on `job_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],
-  "grandmaExplanation": "We measure how slow the worst cases are in Databricks Workflows so the sluggish ones get fixed before people give up on them."
+  "equipmentModels": [
+    "db_connect_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Databricks Jobs API and system.lakeflow tables via HEC/DB Connect. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=databricks:jobs into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`job_name, p95_min`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We measure how slow the worst cases are in Databricks Workflows so the sluggish ones get fixed before people give up on them.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -10,24 +10,42 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'IPFIX Application-ID Mapping (Cisco NBAR / App-ID)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipfix_application_id_mapping_cisco_nbar_app_id` (UC-5.7.12), SOC dashboard panel \"Operations — IPFIX Application-ID Mapping (Cisco NBAR / App-ID)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.7.12 positive (IPFIX, Application, Mapping, (Cisco, NBAR): ingest synthetic events into `index=netflow` sourcetype='stream:ipfix' where `total_bytes`, `total_packets`, `sources` grouped by `application_id`, `app_key` satisfies detection threshold for 'IPFIX Application-ID Mapping (Cisco NBAR / App-ID)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.7.12 negative (App ID)): ingest benign `netflow` / `stream:ipfix` events where `application_id`, `app_key` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'IPFIX Application-ID Mapping (Cisco NBAR / App-ID)'."
+  },
   "dataSources": "`index=netflow` with Flexible NetFlow or IPFIX records carrying Cisco Network-Based Application Recognition export (`application_id`, `application_name`) from IOS-XE / ASR / ISR via Splunk Add-on for NetFlow (Splunkbase 1838); normalize sourcetype such as `stream:ipfix` or `netflow`; join with optional CSV mapping `nbar_appid_to_category.csv` when names are numeric only.",
   "app": "Splunk Add-on for NetFlow (Splunkbase 1838)",
   "spl": "index=netflow (sourcetype=\"stream:ipfix\" OR sourcetype=\"netflow\")\n| eval app_key=coalesce(application_name, \"app_id_\".application_id)\n| stats sum(bytes) as total_bytes sum(packets) as total_packets dc(src) as sources dc(dest) as destinations last(application_name) as last_app_name\n  by application_id app_key\n| eval gb=round(total_bytes/1073741824, 3)\n| sort -total_bytes\n| head 50",
-  "description": "Summarizes bytes and endpoints keyed on exporter-reported application identifiers so teams can verify classification coverage, spot unnamed or stale numeric identifiers, and reconcile policy labels with observed flows.",
-  "value": "Application owners and network operators prioritize troubleshooting and capacity decisions using vendor-native application labels instead of port guesses, catch misclassification after routing changes, and give security teams consistent names for allowlists and investigations.",
+  "description": "Monitors UC-5.7.12 for IPFIX, Application, Mapping, (Cisco, NBAR over `index=netflow` sourcetype `stream:ipfix` with thresholds configured threshold. Groups `total_bytes`, `total_packets`, `sources` by `application_id`, `app_key` each `the scheduled window`. Centered on App ID) indicators. Supports repeatable operations triage for 'IPFIX Application-ID Mapping (Cisco NBAR / App-ID)'.",
+  "value": "For 'IPFIX Application-ID Mapping (Cisco NBAR / App-ID)', UC-5.7.12 converts `total_bytes`, `total_packets`, `sources` on `stream:ipfix` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Export NBAR App-ID in IPFIX templates; ingest with NetFlow TA; maintain a supplemental lookup for vendor IDs; build top-application panels and alerts for unknown IDs.",
   "visualization": "Bar chart of gb by app_key; drilldown table with sources, destinations, application_id; treemap when category lookup exists.",
   "references": [
     {
       "title": "Cisco IOS XE — Flexible NetFlow Configuration Guide",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/fnetflow/configuration/xe-16/fnf-xe-16-book.pdf"
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/fnetflow/configuration/xe-16/fnf-xe-16-book.pdf",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IANA IPFIX Information Elements",
-      "url": "https://www.iana.org/assignments/ipfix/ipfix.xhtml"
+      "url": "https://www.iana.org/assignments/ipfix/ipfix.xhtml",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Midnight software updates rotate protocol packs and temporarily skew counts. Split tunnels and Secure Web Gateway hairpins can duplicate flows. Some records show aggregate \"web\" labels that hide fine-grained SaaS usage.",
+  "knownFalsePositives": "1. **Maintenance window on `netflow` (UC-5.7.12)** — Planned work for 'IPFIX Application-ID Mapping (Cisco NBAR / App-ID)' shifts `total_bytes`, `total_packets`, `sources` over `span=1h` while `application_id`, `app_key` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `stream:ipfix`** — Scheduled automation elevates `app_key` without crossing configured threshold for UC-5.7.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `application_id`, `app_key`** — Health checks in `netflow` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `stream:ipfix`** — First 48h baseline for UC-5.7.12 on `application_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `application_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "netflow"
@@ -44,7 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Cisco platforms with NBAR2 enabled and Flexible NetFlow monitors referencing application-performance or optimized-application-monitors where supported.\n• Splunk Add-on for NetFlow receiving IPFIX with information elements for `applicationId` mapped into `application_id` and textual names into `application_name` fields.\n• Optional spreadsheet maintained by the application governance team listing business-critical labels and risk tiers.\n\nStep 1 — Configure data collection\nOn the exporter, confirm `show flow exporter template` includes application fields. Increase template refresh modestly during rollout so Splunk learns new IEs quickly. Document timezone alignment between flow timestamps and change windows.\n\nStep 2 — Create the search\nSchedule the primary SPL hourly. Add `| where match(last_app_name, \"^app_id_\")` as an alert for unresolved numeric IDs. Enrich with `| lookup nbar_appid_to_category.csv application_id OUTPUT category risk` for SOC views.\n\nStep 3 — Validate\nCompare Splunk’s top five apps for a site against Cisco DNA Center or Catalyst Center QoS reports for the same hour; variances above twenty percent warrant template checks.\n\nStep 4 — Operationalize\nEmbed results in a Dashboard Studio tab beside traditional port-based charts; route unknown-ID alerts to the networking queue with attached interface and exporter metadata.\n\nStep 5 — Troubleshooting\nIf `application_name` disappears after an IOS upgrade, reload the NBAR protocol pack and verify Flexible NetFlow records still reference NBAR attributes. Encrypted traffic may fall back to generic web labels—pair with metadata from dedicated encrypted-traffic analytics feeds when needed.",
+  "detailedImplementation": "Prerequisites\n• Cisco platforms with NBAR2 enabled and Flexible NetFlow monitors referencing application-performance or optimized-application-monitors where supported.\n• Splunk Add-on for NetFlow receiving IPFIX with information elements for `applicationId` mapped into `application_id` and textual names into `application_name` fields.\n• Optional spreadsheet maintained by the application governance team listing business-critical labels and risk tiers.\n\nStep 1 — Configure data collection\nOn the exporter, confirm `show flow exporter template` includes application fields. Increase template refresh modestly during rollout so Splunk learns new IEs quickly. Document timezone alignment between flow timestamps and change windows.\n\nStep 2 — Create the search\nSchedule the primary SPL hourly. Add `| where match(last_app_name, \"^app_id_\")` as an alert for unresolved numeric IDs. Enrich with `| lookup nbar_appid_to_category.csv application_id OUTPUT category risk` for SOC views.\n\nStep 3 — Validate\nCompare Splunk’s top five apps for a site against Cisco DNA Center or Catalyst Center QoS reports for the same hour; variances above twenty percent warrant template checks.\n\nStep 4 — Operationalize\nEmbed results in a Dashboard Studio tab beside traditional port-based charts; route unknown-ID alerts to the networking queue with attached interface and exporter metadata.\n\nStep 5 — Troubleshooting\nIf `application_name` disappears after an IOS upgrade, reload the NBAR protocol pack and verify Flexible NetFlow records still reference NBAR attributes. Encrypted traffic may fall back to generic web labels—pair with metadata from dedicated encrypted-traffic analytics feeds when needed.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for NetFlow (Splunkbase 1838)). Enable the modular input or HEC token that writes sourcetype=stream:ipfix, netflow into netflow. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`app_key, application_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We read the network equipment’s own labels for what each conversation is for. That helps us rank heavy uses fairly and spot mystery labels that need a human name before we trust the picture.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

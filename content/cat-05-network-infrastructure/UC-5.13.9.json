@@ -9,32 +9,42 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Client Health Score Overview (Wired vs Wireless)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_client_health_score_overview_wired_vs_wireless` (UC-5.13.9), SOC dashboard panel \"Operations — Client Health Score Overview (Wired vs Wireless)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.13.9 positive (Client, Health, Score, Overview, (Wired): ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:clienthealth' where `count` grouped by `category` satisfies detection threshold for 'Client Health Score Overview (Wired vs Wireless)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.13.9 negative (vs Wireless)): ingest benign `catalyst` / `cisco:dnac:clienthealth` events where `category` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Client Health Score Overview (Wired vs Wireless)'."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:clienthealth` from the `clienthealth` modular input in `TA_cisco_catalyst` (Splunkbase 7538). The TA polls `GET /dna/intent/api/v1/client-health` using token auth. Default poll interval: 900s (15m). Volume: ~3 summary events per poll (one each for ALL, WIRED, WIRELESS score categories) × ~1.2 KB each ≈ 3.6 KB/poll ≈ 350 KB/day. This is an *aggregate* feed — one event per category, not one per client MAC. Auto-extracted top-level fields: `scoreCategory`, `value` (health score 0–100), `clientCount`. Nested JSON: `scoreDetail{}` array containing per-band breakdowns with `healthyClientsPercentage`, `clientCount`, and sub-score categories. Requires `spath | mvexpand | spath` to flatten. No native CIM mapping.",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+. Install on Search Heads (knowledge objects) AND the Heavy Forwarder or single-instance running the modular inputs.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:clienthealth\"\n| spath output=categories path=scoreDetail{}\n| mvexpand categories\n| spath input=categories\n| eval category=mvindex(split(spath(categories, \"scoreCategory.scoreCategory\"), \",\"), 0)\n| stats latest(clientCount) as clients latest(healthyClientsPercentage) as healthy_pct by category\n| eval client_type=case(category==\"ALL\",\"All Clients\", category==\"WIRED\",\"Wired\", category==\"WIRELESS\",\"Wireless\", 1==1, category)\n| table client_type, clients, healthy_pct\n| sort client_type",
-  "description": "Breaks down Catalyst Center's client health score into wired and wireless segments, showing how many clients are connected and what percentage are healthy in each category, so operations can tell at a glance whether a user-experience problem is campus-wide, Wi-Fi-only, or wired-only.",
-  "value": "Client experience is the metric that executives and help-desk managers actually feel. A wireless healthy percentage below 80% during business hours means dropped VoIP calls, failed Webex joins, and frustrated employees — and you need to know whether to investigate the RF layer, the DHCP/DNS infrastructure, or the wired backhaul. This overview separates wired from wireless in one view so you route the right engineer to the right problem within minutes, not hours. Over weeks the trend also reveals whether a campus renovation, AP firmware push, or SSID change made things better or worse.",
+  "description": "Identifies UC-5.13.9 for Client, Health, Score, Overview, (Wired over `index=catalyst` sourcetype `cisco:dnac:clienthealth` with thresholds configured threshold. Groups `count` by `category` each `the scheduled window`. Centered on vs Wireless) indicators. Supports repeatable operations triage for 'Client Health Score Overview (Wired vs Wireless)'.",
+  "value": "For 'Client Health Score Overview (Wired vs Wireless)', UC-5.13.9 converts `activity` on `cisco:dnac:clienthealth` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Install `TA_cisco_catalyst` (Splunkbase 7538) on the Search Head and Heavy Forwarder. Configure a Catalyst Center account (Configuration → Account → Add). Enable the `clienthealth` input (Inputs → Create → Client Health: account `catcenter-prod`, index `catalyst`, interval `900`). The nested JSON requires `spath | mvexpand | spath` to flatten — validate field extraction with one raw event before building dashboards.",
   "visualization": "(1) Three single-value tiles: ALL client count + healthy %, WIRED client count + healthy %, WIRELESS client count + healthy % — colour-coded green ≥ 80%, yellow 60–80%, red < 60%. (2) Stacked bar: client count by health band (Good/Fair/Poor/Idle/New) split by wired vs wireless. (3) Timechart overlay of healthy_pct for WIRED and WIRELESS over 24h from UC-5.13.10, to spot diverging trends. (4) Optional trellis by siteId if the API returns site-scoped categories.",
   "references": [
     {
       "title": "Cisco Catalyst Add-on for Splunk (Splunkbase 7538)",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Intent API — Client Health endpoint",
-      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-overall-client-health"
+      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-overall-client-health",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Integration Guide (this repo)",
-      "url": "docs/guides/catalyst-center.md"
+      "url": "docs/guides/catalyst-center.md",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Client Health nested JSON — sample event",
-      "url": "docs/guides/catalyst-center.md#sample-events"
+      "url": "docs/guides/catalyst-center.md#sample-events",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Mass DHCP renewal event causing temporary client disconnections.** A scheduled DHCP scope renewal can cause many clients to temporarily disconnect and reconnect, dropping the wired or wireless client count and health score for one poll cycle. Distinguish by correlating with DHCP server logs (`index=dhcp` or `index=ise sourcetype=cisco:ise:syslog DHCP`) for renewal events in the same 15-minute window. Suppress by requiring the health drop to persist across 2+ polls before alerting.\n\n**Radio Resource Management (RRM) channel or power adjustment affecting wireless client health.** When Catalyst Center's RRM engine changes AP channels or power levels, wireless clients may temporarily reassociate, causing a dip in WIRELESS health while WIRED remains stable. Distinguish by correlating with `index=catalyst sourcetype=\"cisco:dnac:wireless:rf\"` for channel or power changes in the same time window. Suppress by requiring the WIRELESS health dip to persist for 2+ consecutive polls.\n\n**Guest SSID onboarding surge during large meetings or campus events.** A conference, orientation, or large gathering can spike guest wireless client count while depressing the average wireless health score (guest devices typically have lower health). Distinguish by checking whether `clientCount` increased significantly in the same window and whether the dip is concentrated on guest SSIDs. Suppress by filtering guest SSIDs from health alerting using a `guest_ssid_list` lookup, or by monitoring guest and corporate SSIDs separately.\n\n**Catalyst Center client health data delayed during high-client-count environments.** In environments with thousands of connected clients, the client health API response may be delayed or paginated, causing apparent gaps in the health score trend. Distinguish by checking `index=_internal sourcetype=splunkd component=ExecProcessor \"TA_cisco_catalyst\"` for timeout or pagination errors. Do not suppress — this indicates the poll interval may need to be increased for the clienthealth input.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst` (UC-5.13.9)** — Planned work for 'Client Health Score Overview (Wired vs Wireless)' shifts `count` over `span=1h` while `category` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:clienthealth`** — Scheduled automation elevates `category` without crossing configured threshold for UC-5.13.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `category`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:clienthealth`** — First 48h baseline for UC-5.13.9 on `category` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `category`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

@@ -10,11 +10,17 @@
   ],
   "splunkPillar": "Security",
   "controlFamily": "break-glass-access",
-  "dataSources": "`sourcetype=beyondtrust:pam` emergency elevation, break-glass, or firecall group usage with approver metadata",
-  "app": "Splunk Add-on for BeyondTrust Privilege Management / Password Safe emergency workflow",
+  "exclusions": "Covers the detection logic documented for 'BeyondTrust Emergency Access Break-Glass Account Usage Audit' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `iam_beyondtrust_emergency_access_break_glass_account` (UC-9.8.6), SOC dashboard panel \"IAM — BeyondTrust Emergency Access Break-Glass Account Usage Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-9.8.6 positive (BeyondTrust, Emergency, Access, Break, Glass): ingest synthetic events into `index=pam` sourcetype='beyondtrust:pam' where `values` grouped by `user`, `target` satisfies -90d for 'BeyondTrust Emergency Access Break-Glass Account Usage Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.8.6 negative (Usage Audit): ingest benign `pam` / `beyondtrust:pam` events where `user`, `target` stays below -90d, or exclude the test entity via `iam_exception_register.csv`. Variant 7 confirms zero alert rows for 'BeyondTrust Emergency Access Break-Glass Account Usage Audit'."
+  },
+  "dataSources": "`sourcetype=beyondtrust:pam` emergency elevation, break-glass, or firecall group usage with approver metadata Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for BeyondTrust Privilege Management / Password Safe emergency workflow — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pam sourcetype=\"beyondtrust:pam\" earliest=-90d\n| eval raw=lower(_raw)\n| where match(raw, \"(?i)emergency|break.glass|firecall|egress|crisis\")\n| eval user=coalesce(user, UserName, operator, \"\")\n| eval approver=coalesce(approver, Approver, ticket_id, TicketID, \"\")\n| eval target=coalesce(target_host, TargetHost, system, \"\")\n| stats count earliest(_time) as first_use latest(_time) as last_use values(approver) as approvals by user target\n| sort -count",
-  "description": "Break-glass paths are powerful and rarely used; each invocation should be deliberate, approved, and reconciled. Centralizing BeyondTrust emergency events supports insider-threat reviews and proves governance to auditors.",
-  "value": "Reduces abuse of standing emergency accounts and speeds post-incident attestation when adrenaline-driven access was granted.",
+  "description": "Monitors UC-9.8.6 — BeyondTrust, Emergency, Access, Break, Glass — using `index=pam` sourcetype `beyondtrust:pam`, grouped by `user`, `target`. Outputs `values` each `the scheduled window`; alert when -90d. Primary focus: Usage Audit. Purpose-built for 'BeyondTrust Emergency Access Break-Glass Account Usage Audit' in IAM workflows.",
+  "value": "UC-9.8.6 operationalises 'BeyondTrust Emergency Access Break-Glass Account Usage Audit' against `beyondtrust:pam` feeds so operators reduce account takeover risk, help-desk load, and audit findings without manual correlation.",
   "implementation": "(1) Tag emergency policies in BeyondTrust and ensure distinct log signatures. (2) Require ticket or MFA approval IDs in the event payload. (3) Alert if emergency access fires outside IR windows. (4) Monthly IAM review with signed checklist. (5) Integrate with SOAR for automatic case creation.",
   "visualization": "Table (user, target, uses, approvals), timeline, bar chart (monthly break-glass count).",
   "cimModels": [
@@ -24,18 +30,34 @@
   "references": [
     {
       "title": "NIST SP 800-53 — AC-2 (account management) supplementary discussion",
-      "url": "https://csrc.nist.gov/publications/detail/sp/800-53/rev-5/final"
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-53/rev-5/final",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "BeyondTrust — privileged access best practices",
-      "url": "https://www.beyondtrust.com/resources/whitepapers"
+      "url": "https://www.beyondtrust.com/resources/whitepapers",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned change windows, maintenance, approved automation, and known good service accounts; correlate with change tickets and identity team communication.",
+  "knownFalsePositives": "1. **Maintenance window on `pam` (UC-9.8.6)** — Planned work for 'BeyondTrust Emergency Access Break-Glass Account Usage Audit' shifts `values` over `span=1h` while `user`, `target` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `beyondtrust:pam`** — Scheduled automation elevates `target` without crossing configured threshold for UC-9.8.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`, `target`** — Health checks in `pam` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `beyondtrust:pam`** — First 48h baseline for UC-9.8.6 on `user` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "securityDomain": "audit",
   "equipment": [
     "beyondtrust",
     "m365"
+  ],
+  "equipmentModels": [
+    "beyondtrust_generic",
+    "m365_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -44,5 +66,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — BeyondTrust Emergency Access Break-Glass Account Usage Audit"
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for BeyondTrust Privilege Management / Password Safe emergency workflow — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=beyondtrust:pam into pam. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`target, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — BeyondTrust Emergency Access Break-Glass Account Usage Audit",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

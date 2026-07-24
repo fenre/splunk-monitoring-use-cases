@@ -9,32 +9,42 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'RPKI ROV for IPv6 BGP Route Origin Validation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_rpki_rov_for_ipv6_bgp_route_origin_validation` (UC-5.20.49), SOC dashboard panel \"Operations — RPKI ROV for IPv6 BGP Route Origin Validation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.49 positive (RPKI, ROV, for, IPv6, BGP): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `rpki_state`, `severity` satisfies -24h for 'RPKI ROV for IPv6 BGP Route Origin Validation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.49 negative (Origin Validation): ingest benign `network` / `cisco:ios` events where `rpki_state`, `severity` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'RPKI ROV for IPv6 BGP Route Origin Validation'."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` containing BGP RPKI (Resource Public Key Infrastructure) validation events. RPKI ROV (Route Origin Validation) is the BGP security mechanism that verifies whether a BGP announcement is authorised by the prefix holder. It works by checking Route Origin Authorizations (ROAs) published by address holders in the RPKI repository:\n\n1. **ROA (Route Origin Authorization)** — A signed assertion that a specific AS number is authorised to originate a specific prefix (e.g., 'AS 65001 is authorised to announce 2001:db8::/32')\n2. **RPKI Validator** — Software that downloads and validates ROAs from all five RIR repositories (ARIN, RIPE, APNIC, AFRINIC, LACNIC)\n3. **RTR Protocol (RFC 8210)** — Protocol between the RPKI validator and the BGP router, delivering validated ROA data\n\nValidation results:\n- **Valid** — The BGP announcement matches a ROA (correct origin AS and prefix length)\n- **Invalid** — The BGP announcement conflicts with a ROA (wrong origin AS or more-specific than allowed)\n- **NotFound** — No ROA exists for this prefix (not yet registered in RPKI)\n\nIPv6 RPKI adoption (mid-2026) is approximately 55% of IPv6 prefixes covered by ROAs, compared to ~45% for IPv4. RPKI is critical for IPv6 because:\n- IPv6 BGP hijacks have occurred (Pakistan/YouTube incident analog)\n- IPv6 prefix space is less well-known to operators, making hijacks harder to spot manually\n- MANRS (Mutually Agreed Norms for Routing Security) requires RPKI ROV",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812).",
   "spl": "index=network sourcetype=\"cisco:ios\" \"%BGP\" (\"RPKI\" OR \"ROV\" OR \"origin-validation\" OR \"rpki-state\") earliest=-24h\n| rex field=_raw \"(?:prefix|route|network)\\s+(?<prefix>[0-9a-fA-F:/]+)\"\n| rex field=_raw \"(?:origin|Origin|AS)\\s+(?<origin_as>\\d+)\"\n| rex field=_raw \"(?:state|validity|rpki-state)\\s*:?\\s*(?<rpki_state>valid|invalid|not-found|unknown)\"\n| eval severity=case(\n    rpki_state=\"invalid\", \"CRITICAL — route origin does not match RPKI ROA\",\n    rpki_state=\"not-found\", \"INFO — no ROA exists for this prefix\",\n    rpki_state=\"valid\", \"OK — route origin verified by RPKI\",\n    1=1, \"UNKNOWN\")\n| stats count by rpki_state, severity\n| sort -count",
-  "description": "Monitors BGP RPKI Route Origin Validation (ROV) for IPv6 prefixes, detecting invalid route origins (potential BGP hijacks), tracking RPKI coverage statistics, and alerting on RPKI-invalid routes that are accepted into the routing table. RPKI ROV is the primary defence against BGP prefix hijacking — one of the most impactful routing security threats — where an unauthorized AS originates another organization's IPv6 prefix, redirecting traffic through the attacker's network.",
-  "value": "BGP hijacking is one of the most serious internet security threats. In 2008, Pakistan Telecom's hijack of YouTube's prefix demonstrated the real-world impact. IPv6 BGP hijacks are harder to detect manually because operators are less familiar with IPv6 prefix assignments. RPKI ROV provides cryptographic verification that the route origin is legitimate. Monitoring RPKI validation results ensures that the ROV system is functioning correctly and that invalid routes are being rejected, preventing BGP hijacks from affecting production traffic.",
+  "description": "Monitors UC-5.20.49 — RPKI, ROV, for, IPv6, BGP — using `index=network` sourcetype `cisco:ios`, grouped by `rpki_state`, `severity`. Outputs `count` each `the scheduled window`; alert when -24h. Primary focus: Origin Validation. Purpose-built for 'RPKI ROV for IPv6 BGP Route Origin Validation' in Operations workflows.",
+  "value": "Alerting on RPKI, ROV, for, IPv6, BGP through UC-5.20.49 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Configure RPKI validators (e.g., Routinator, Fort, rpki-client) and connect them to BGP routers via RTR protocol. Collect RPKI validation events from BGP syslog. Track Valid/Invalid/NotFound ratios. Alert on Invalid routes accepted. Monitor validator connectivity.",
   "visualization": "(1) Pie chart: RPKI validation state distribution (Valid/Invalid/NotFound). (2) Table: all RPKI-invalid routes with prefix, origin AS, and source peer. (3) Timechart: RPKI events over 7 days. (4) Single-value: percentage of IPv6 routes with Valid RPKI state.",
   "references": [
     {
       "title": "RFC 6811 — BGP Prefix Origin Validation (RPKI ROV specification)",
-      "url": "https://www.rfc-editor.org/rfc/rfc6811"
+      "url": "https://www.rfc-editor.org/rfc/rfc6811",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 8210 — The Resource Public Key Infrastructure (RPKI) to Router Protocol (RTR)",
-      "url": "https://www.rfc-editor.org/rfc/rfc8210"
+      "url": "https://www.rfc-editor.org/rfc/rfc8210",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9319 — The Use of maxLength in the RPKI (guidance on maxLength pitfalls)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9319"
+      "url": "https://www.rfc-editor.org/rfc/rfc9319",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "MANRS — Mutually Agreed Norms for Routing Security (requires RPKI ROV)",
-      "url": "https://www.manrs.org/"
+      "url": "https://www.manrs.org/",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**RPKI-Invalid due to misconfigured ROA.** The prefix holder may have published an incorrect ROA (wrong maxLength, wrong origin AS after an acquisition). In these cases, the route is legitimately originated but the ROA is wrong. Contact the prefix holder to correct the ROA.\n\n**Stale ROA data.** If the RPKI validator loses connectivity to the RIR repositories, the ROA cache becomes stale. Routes that were Valid may transition to NotFound as the cache expires. Monitor validator connectivity separately.\n\n**Transit provider route aggregation.** A transit provider may aggregate customer prefixes into a larger prefix not covered by a ROA. The aggregate route may show as Invalid if the customer's ROA only authorises the more-specific prefix.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.49)** — Planned work for 'RPKI ROV for IPv6 BGP Route Origin Validation' shifts `count` over `span=1h` while `rpki_state`, `severity` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `severity` without crossing configured threshold for UC-5.20.49. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `rpki_state`, `severity`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.49 on `rpki_state` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `rpki_state`, `exception_reason`, `valid_until`.",
   "equipment": [
     "arista",
     "cisco",

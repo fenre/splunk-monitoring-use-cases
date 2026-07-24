@@ -9,46 +9,70 @@
     "Operations"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Pet telemetry (`fi:activity`, `petkit:status`, `tractive:location`, `petlibro:feeder`, `litterrobot:cycle`, `furbo:event`, `aquarium:sensor`).",
-  "app": "Fi collar, Petkit, Tractive, Petlibro, Litter-Robot, pet cameras, and aquarium controllers via vendor exports, Home Assistant integrations, MQTT, and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Tractive Collar Battery Runway Under Twenty-Four Hours' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_tractive_collar_battery_runway_under_twenty_four` (UC-25.11.30), SOC dashboard panel \"Personal — Tractive Collar Battery Runway Under Twenty-Four Hours\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.11.30 positive (Tractive, Collar, Battery, Runway, Under): ingest synthetic events into `index=personal` sourcetype='tractive:location' where `count` grouped by `device` satisfies `battery_pct` < 20, or `estimated_hours_left` < 24 for 'Tractive Collar Battery Runway Under Twenty-Four Hours'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.11.30 negative (Four Hours): ingest benign `personal` / `tractive:location` events where `device` stays below `battery_pct` < 20, or `estimated_hours_left` < 24, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 7 confirms zero alert rows for 'Tractive Collar Battery Runway Under Twenty-Four Hours'."
+  },
+  "dataSources": "Pet telemetry (`fi:activity`, `petkit:status`, `tractive:location`, `petlibro:feeder`, `litterrobot:cycle`, `furbo:event`, `aquarium:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Fi collar, Petkit, Tractive, Petlibro, Litter-Robot, pet cameras, and aquarium controllers via vendor exports, Home Assistant integrations, MQTT, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tractive:location\n| stats latest(battery_pct) as battery_pct, latest(estimated_hours_left) as estimated_hours_left by device\n| where battery_pct<20 OR estimated_hours_left<24\n| sort estimated_hours_left",
-  "description": "Uses Tractive battery telemetry telemetry to monitor remaining charge on GPS collars in index=personal.",
-  "value": "Splunk turns the feed into an operational check for tracking devices that may die before the next walk, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Identifies UC-25.11.30 — Tractive, Collar, Battery, Runway, Under — using `index=personal` sourcetype `tractive:location`, grouped by `device`. Outputs `count` each `the scheduled window`; alert when `battery_pct` < 20, or `estimated_hours_left` < 24. Primary focus: Four Hours. Purpose-built for 'Tractive Collar Battery Runway Under Twenty-Four Hours' in Personal workflows.",
+  "value": "UC-25.11.30 operationalises 'Tractive Collar Battery Runway Under Twenty-Four Hours' against `tractive:location` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Ingest Tractive battery telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Device table of battery percentage and estimated hours left.",
   "cimModels": [],
   "references": [
     {
       "title": "Fi support",
-      "url": "https://support.tryfi.com/hc/en-us"
+      "url": "https://support.tryfi.com/hc/en-us",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Petkit",
-      "url": "https://www.petkit.com/"
+      "url": "https://www.petkit.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Tractive",
-      "url": "https://tractive.com/"
+      "url": "https://tractive.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Petlibro",
-      "url": "https://petlibro.com/"
+      "url": "https://petlibro.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Litter-Robot",
-      "url": "https://www.litter-robot.com/"
+      "url": "https://www.litter-robot.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ESPHome",
-      "url": "https://esphome.io/"
+      "url": "https://esphome.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.11.30)** — Connector for 'Tractive Collar Battery Runway Under Twenty-Four Hours' stops polling `tractive:location`; stale `count` on `device` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.11.30, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tractive:location`. Dedup with `stats latest(*) by device`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `battery_pct` < 20 for 'Tractive Collar Battery Runway Under Twenty-Four Hours'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It turns remaining charge on GPS collars so you can spot tracking devices that may die before the next walk before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Pets & Home Life — typical feeds: Pet tracker location/activity (`tractive:position`, `whistle:activity`), smart feeder events (`petfeeder:event`), litter-box usage (`litterrobot:cycle`), bird-feeder cam detections, plant/soil sensors.\n• **Sourcetypes in this search**: `tractive:location`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=tractive:location`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Pet GPS/activity trackers (Tractive/Fi/Whistle), smart feeders and litter boxes, bird feeders/cams, and plant sensors via vendor APIs and MQTT to HEC..\n\n**Author notes:** Ingest Tractive battery telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"tractive:location\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=tractive:location earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Tractive Collar Battery Runway Under Twenty-Four Hours** over `personal` data (primarily `sourcetype=tractive:location`) across the full search range. It applies numeric thresholds on `battery_pct` (< 20) after latest — tune these constants to your household baseline.\n\n**Fields this search depends on:** `battery_pct`, `device`, `estimated_hours_left`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=tractive:location\n| stats latest(battery_pct) as battery_pct, latest(estimated_hours_left) as estimated_hours_left by device\n| where battery_pct<20 OR estimated_hours_left<24\n| sort estimated_hours_left\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=tractive:location earliest=-7d\n| head 50\n| table battery_pct, device, estimated_hours_left\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=tractive:location earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `battery_pct` before alerting:\n\n```spl\nindex=personal sourcetype=tractive:location earliest=-30d\n| stats perc50(battery_pct) AS p50 perc90(battery_pct) AS p90 perc99(battery_pct) AS p99 max(battery_pct) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.11.30: Personal evidence` with the following panel layout:\n\n**Panel 1 — Device Table Of Battery Percentage And Estimated Hours Left (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `tractive:location` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=tractive:location | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It turns remaining charge on GPS collars so you can spot tracking devices that may die before the next walk before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

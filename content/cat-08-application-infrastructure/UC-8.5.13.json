@@ -8,11 +8,17 @@
     "Change"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "`index=cache` `sourcetype=varnish:vsl` or management log with `BAN` / `RP` tags",
-  "app": "varnishlog forwarding (tagged VSL) or `varnishhist` pipeline",
+  "exclusions": "Covers the detection logic documented for 'Varnish Ban and Purge Request Bursts' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_varnish_ban_and_purge_request_bursts` (UC-8.5.13), SOC dashboard panel \"Operations — Varnish Ban and Purge Request Bursts\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.5.13 positive (Varnish, Ban, and, Purge, Request): ingest synthetic events into `index=cache` sourcetype='varnish:vsl' where `count` grouped by `_time` satisfies `count` > 50 for 'Varnish Ban and Purge Request Bursts'. Validate filter `\"BAN\" OR \"PURGE\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.5.13 negative (Request Bursts): ingest benign `cache` / `varnish:vsl` events where `_time` stays below `count` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Varnish Ban and Purge Request Bursts'."
+  },
+  "dataSources": "`index=cache` `sourcetype=varnish:vsl` or management log with `BAN` / `RP` tags Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "varnishlog forwarding (tagged VSL) or `varnishhist` pipeline — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cache sourcetype=\"varnish:vsl\"\n| search \"BAN\" OR \"PURGE\"\n| bin _time span=5m\n| stats count by _time\n| where count > 50",
-  "description": "Sudden ban/purge storms may follow bad deploys, cache poisoning response, or automation bugs.",
-  "value": "Correlates cache invalidation with content management changes.",
+  "description": "Identifies when Request Bursts criteria fire for 'Varnish Ban and Purge Request Bursts' (UC-8.5.13) in `index=cache` sourcetype `varnish:vsl`. Pipeline aggregates `count` by `_time` over `5m`. Alert logic enforces `count` > 50. SPL signature: filter `\"BAN\" OR \"PURGE\"`. Eliminates manual hunting for UC-8.5.13 conditions.",
+  "value": "UC-8.5.13 helps teams contain Varnish, Ban, and, Purge, Request scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ship filtered VSL lines to reduce volume; include username if management ACL logs it.",
   "visualization": "Timeline (events/min), table (operators), link to CMS releases.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "varnishstat — Varnish reference",
-      "url": "https://varnish-cache.org/docs/trunk/reference/varnishstat.html"
+      "url": "https://varnish-cache.org/docs/trunk/reference/varnishstat.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `cache` (UC-8.5.13)** — Planned work for 'Varnish Ban and Purge Request Bursts' shifts `count` over `span=5m` while `_time` remains in-scope. Applies filter `\"BAN\" OR \"PURGE\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `varnish:vsl`** — Scheduled automation elevates `src` without crossing `count` > 50 for UC-8.5.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `cache` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `varnish:vsl`** — First 48h baseline for UC-8.5.13 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "varnish"
+  ],
+  "equipmentModels": [
+    "varnish_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -36,6 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: varnishlog forwarding (tagged VSL) or `varnishhist` pipeline.\n• Ensure the following data sources are available: `index=cache` `sourcetype=varnish:vsl` or management log with `BAN` / `RP` tags.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIf VSL is unavailable, approximate via HTTP PURGE requests logged at the edge.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cache sourcetype=\"varnish:vsl\"\n| search \"BAN\" OR \"PURGE\"\n| bin _time span=5m\n| stats count by _time\n| where count > 50\n```\n\nUnderstanding this SPL\n\n**Varnish Ban and Purge Request Bursts** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=cache` `sourcetype=varnish:vsl` or management log with `BAN` / `RP` tags. **App/TA**: varnishlog forwarding (tagged VSL) or `varnishhist` pipeline. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with `varnishstat` or `varnishlog` on the Varnish host for the same period.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Timeline (events/min), table (operators), link to CMS releases..",
-  "grandmaExplanation": "We use this to correlate cache invalidation with content management changes."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: varnishlog forwarding (tagged VSL) or `varnishhist` pipeline.\n• Ensure the following data sources are available: `index=cache` `sourcetype=varnish:vsl` or management log with `BAN` / `RP` tags.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIf VSL is unavailable, approximate via HTTP PURGE requests logged at the edge.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cache sourcetype=\"varnish:vsl\"\n| search \"BAN\" OR \"PURGE\"\n| bin _time span=5m\n| stats count by _time\n| where count > 50\n```\n\nUnderstanding this SPL\n\n**Varnish Ban and Purge Request Bursts** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=cache` `sourcetype=varnish:vsl` or management log with `BAN` / `RP` tags. **App/TA**: varnishlog forwarding (tagged VSL) or `varnishhist` pipeline. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with `varnishstat` or `varnishlog` on the Varnish host for the same period.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Timeline (events/min), table (operators), link to CMS releases..\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (varnishlog forwarding (tagged VSL) or `varnishhist` pipeline — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=varnish:vsl into cache. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to correlate cache invalidation with content management changes.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

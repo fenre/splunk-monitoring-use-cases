@@ -9,6 +9,8 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'ISE GUI Admin Session Activity — Concurrent Sessions, Unusual Geo, and Long-Running Sessions' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ise_gui_admin_session_activity_concurrent_sessio` (UC-17.1.72), SOC dashboard panel \"Network — ISE GUI Admin Session Activity — Concurrent Sessions, Unusual Geo, and Long-Running Sessions\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -48,14 +50,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Same admin account login from two IPs in different countries within 5 min. UC-17.1.72 fires.",
-    "negativeScenario": "Admin from one location only. No fire."
+    "positiveScenario": "UC-17.1.72 positive (ISE, GUI, Admin, Session, Activity): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `src_ips` grouped by `admin_user` satisfies `src_ips` > 2 for 'ISE GUI Admin Session Activity — Concurrent Sessions, Unusual Geo, and Long-Running Sessions'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.72 negative (Running Sessions): ingest benign `nac` / `cisco:ise:syslog` events where `admin_user` stays below `src_ips` > 2, or exclude the test entity via `network_exception_register.csv`. Variant 0 confirms zero alert rows for 'ISE GUI Admin Session Activity — Concurrent Sessions, Unusual Geo, and Long-Running Sessions'."
   },
-  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Administrative-Operations-Audit* — codes `60005` (admin login), `60007` (admin logout), `60008` (admin session expired). GeoIP enrichment via `geoip(source_ip)` against MaxMind/ISO data.",
-  "app": "`Splunk Add-on for Cisco Identity Services`.",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Administrative-Operations-Audit* — codes `60005` (admin login), `60007` (admin logout), `60008` (admin session expired). GeoIP enrichment via `geoip(source_ip)` against MaxMind/ISO data. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=60005\n| iplocation source_ip\n| stats count, dc(source_ip) as src_ips, values(Country) as countries by admin_user\n| where src_ips > 2 OR mvcount(countries) > 1",
-  "description": "Detects unusual ISE admin session patterns — same admin account from multiple IPs, multiple countries within a short window, or sessions left running >24h.",
-  "value": "An admin account simultaneously active from two countries is a strong compromise signal. Long-running sessions are forgotten browser tabs that violate session-management policy.",
+  "description": "Detects 'ISE GUI Admin Session Activity — Concurrent Sessions, Unusual Geo, and Long-Running Sessions' (UC-17.1.72) using `index=nac` sourcetype `cisco:ise:syslog` by aggregating `src_ips` grouped by `admin_user` over `the scheduled window` and alerting when `src_ips` > 2. Keywords: ISE, GUI, Admin, Session, Activity. Focuses on Running Sessions behaviour so network teams can triage UC-17.1.72 without ad-hoc log review.",
+  "value": "UC-17.1.72 accelerates insight into Running Sessions ('ISE GUI Admin Session Activity — Concurrent Sessions, Unusual Geo, and Long-Running Sessions') by tracking `src_ips` on `cisco:ise:syslog` feeds, reducing unauthorized access, segmentation drift, and NAC policy failures before spreadsheet checks hide regressions.",
   "implementation": "Schedule every 1h. Requires GeoIP database installed in Splunk.",
   "visualization": "Admin geo map; concurrent-session table; long-session gauge.",
   "cimModels": [
@@ -65,10 +67,31 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 — Administrative Sessions",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "PCI DSS Document Library",
+      "url": "https://www.pcisecuritystandards.org/document_library/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) Admin transitioning between office and VPN.\n(b) Multi-region admin teams with shared accounts (anti-pattern, but exists).",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'ISE GUI Admin Session Activity — Concurrent Sessions, Unusual Geo, and Long-Running Sessions'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "T1078.003",
     "T1078"
@@ -87,7 +110,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Standard pattern.",
+  "detailedImplementation": "Standard pattern.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`admin_user, src_ips`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "If an admin account suddenly logs in from two countries in the same hour, something is wrong — they can't be in two places at once. We watch for these red flags.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

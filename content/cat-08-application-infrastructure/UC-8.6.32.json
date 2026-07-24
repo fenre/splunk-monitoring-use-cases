@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "ActiveMQ broker log (`sourcetype=activemq:log`) KahaDB/checkpoint messages",
-  "app": "Splunk Universal Forwarder file monitor",
+  "exclusions": "Covers the detection logic documented for 'ActiveMQ KahaDB Journal and Checkpoint Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_activemq_kahadb_journal_and_checkpoint_errors` (UC-8.6.32), SOC dashboard panel \"Operations — ActiveMQ KahaDB Journal and Checkpoint Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.6.32 positive (ActiveMQ, KahaDB, Journal, and, Checkpoint): ingest synthetic events into `index=messaging` sourcetype='activemq:log' where `count` grouped by `host` satisfies detection threshold for 'ActiveMQ KahaDB Journal and Checkpoint Errors'. Validate filter `(\"KahaDB\" OR \"Journal\" OR \"checkpoint\") AND (\"ERROR\" OR \"Exc`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.6.32 negative (Checkpoint Errors): ingest benign `messaging` / `activemq:log` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'ActiveMQ KahaDB Journal and Checkpoint Errors'."
+  },
+  "dataSources": "ActiveMQ broker log (`sourcetype=activemq:log`) KahaDB/checkpoint messages Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder file monitor — Universal Forwarder (Splunkbase 617)",
   "spl": "index=messaging sourcetype=\"activemq:log\"\n| search (\"KahaDB\" OR \"Journal\" OR \"checkpoint\") AND (\"ERROR\" OR \"Exception\" OR \"failed\" OR \"corrupt\")\n| stats latest(_raw) as sample by host\n| eval kahadb_fault=1",
-  "description": "Journal I/O failures, checkpoint exceptions, or corruption hints mean the broker cannot durably enqueue/dequeue—often a precursor to forced offline recovery.",
-  "value": "Triggers immediate storage and backup drills before brokers enter an inconsistent state that loses messages.",
+  "description": "Detects UC-8.6.32 for ActiveMQ, KahaDB, Journal, and, Checkpoint over `index=messaging` sourcetype `activemq:log` with thresholds configured threshold. Groups `count` by `host` each `the scheduled window`. Differentiated by filter `(\"KahaDB\" OR \"Journal\" OR \"checkpoint\") AND (\"ERROR\" OR \"Exc`. Supports repeatable operations triage for 'ActiveMQ KahaDB Journal and Checkpoint Errors'.",
+  "value": "For 'ActiveMQ KahaDB Journal and Checkpoint Errors', UC-8.6.32 converts `activity` on `activemq:log` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Route these alerts to the messaging platform team with attached disk SMART metrics. Practice snapshot/restore runbooks quarterly. Suppress during known storage migrations using host lookups.",
   "visualization": "Timeline (KahaDB errors), Table (host, sample), Single value (brokers affected).",
   "cimModels": [
@@ -22,17 +28,33 @@
   "references": [
     {
       "title": "Apache ActiveMQ — KahaDB",
-      "url": "https://activemq.apache.org/components/classic/documentation/kahadb"
+      "url": "https://activemq.apache.org/components/classic/documentation/kahadb",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apache ActiveMQ — Troubleshooting",
-      "url": "https://activemq.apache.org/components/classic/documentation/faq"
+      "url": "https://activemq.apache.org/components/classic/documentation/faq",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Queues and broker metrics swing during rebalancing, replay, or maintenance. We align with change windows.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging` (UC-8.6.32)** — Planned work for 'ActiveMQ KahaDB Journal and Checkpoint Errors' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `(\"KahaDB\" OR \"Journal\" OR \"checkpoint\") AND (\"ERROR\" OR \"Exc`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `activemq:log`** — Scheduled automation elevates `kahadb_fault` without crossing configured threshold for UC-8.6.32. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `activemq:log`** — First 48h baseline for UC-8.6.32 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "activemq",
     "checkpoint"
+  ],
+  "equipmentModels": [
+    "activemq_generic",
+    "checkpoint_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,6 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to triggers immediate storage and backup drills before brokers enter an inconsistent state that loses messages."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder file monitor — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=activemq:log into messaging. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to triggers immediate storage and backup drills before brokers enter an inconsistent state that loses messages.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

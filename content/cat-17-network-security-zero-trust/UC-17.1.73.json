@@ -9,6 +9,8 @@
     "Security"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'Cisco WLC + ISE Wireless Authentication Funnel — Association → Auth → DHCP → Posture' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_cisco_wlc_ise_wireless_authentication_funnel_ass` (UC-17.1.73), SOC dashboard panel \"Network — Cisco WLC + ISE Wireless Authentication Funnel — Association → Auth → DHCP → Posture\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "iso-27001",
@@ -37,14 +39,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Block DHCP for a test SSID. UC-17.1.73 shows funnel drop at DHCP phase.",
-    "negativeScenario": "Healthy onboarding. Funnel completes; no drop."
+    "positiveScenario": "UC-17.1.73 positive (Cisco, WLC, ISE, Wireless, Authentication): ingest synthetic events into `index=network` sourcetype='cisco:wlc:syslog' where `count` grouped by `phase` satisfies detection threshold for 'Cisco WLC + ISE Wireless Authentication Funnel — Association → Auth → DHCP → Posture'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.73 negative (→ Posture): ingest benign `network` / `cisco:wlc:syslog` events where `phase` stays below detection threshold, or exclude the test entity via `network_exception_register.csv`. Variant 6 confirms zero alert rows for 'Cisco WLC + ISE Wireless Authentication Funnel — Association → Auth → DHCP → Posture'."
   },
-  "dataSources": "Combined: ISE syslog `index=nac sourcetype=cisco:ise:syslog` (codes 5200/5400 — auth pass/fail; 5417 — accounting; posture 80001-80003) + Cisco WLC syslog `index=network sourcetype=cisco:wlc:syslog` (association events) + DHCP `index=network sourcetype=dhcp` lease events. Field common: `client_mac`, `ssid`, `ap_name`, `bssid`. Time-series correlation across the four phases.",
-  "app": "`Splunk Add-on for Cisco Identity Services` + `Splunk Add-on for Cisco Wireless`.",
+  "dataSources": "Combined: ISE syslog `index=nac sourcetype=cisco:ise:syslog` (codes 5200/5400 — auth pass/fail; 5417 — accounting; posture 80001-80003) + Cisco WLC syslog `index=network sourcetype=cisco:wlc:syslog` (association events) + DHCP `index=network sourcetype=dhcp` lease events. Field common: `client_mac`, `ssid`, `ap_name`, `bssid`. Time-series correlation across the four phases. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for Cisco Identity Services` + `Splunk Add-on for Cisco Wireless`. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=\"cisco:wlc:syslog\" \"associated\" \n| eval phase=\"associated\"\n| append [search index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (5200, 5400) | eval phase=\"auth\"]\n| append [search index=network sourcetype=\"dhcp\" \"DHCPACK\" | eval phase=\"dhcp\"]\n| append [search index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=80003 | eval phase=\"posture\"]\n| transaction client_mac maxspan=10m\n| stats count by phase\n| eval funnel_drop=phase",
-  "description": "Tracks the wireless-onboarding funnel — associate → authenticate → DHCP → posture. Identifies which phase fails most for a given SSID, AP, or building.",
-  "value": "Wireless onboarding spans many systems. When users complain 'I can't connect to wifi', root cause may be at any phase. The funnel quickly identifies which phase is responsible — letting operations fix the right system.",
+  "description": "Surfaces → Posture anomalies for UC-17.1.73 with window `10m` on `index=network` sourcetype `cisco:wlc:syslog`. Combines `count` by `phase` and compares against configured threshold. Mapped to keywords Cisco, WLC, ISE, Wireless, Authentication for dashboard routing.",
+  "value": "Alerting on Cisco, WLC, ISE, Wireless, Authentication through UC-17.1.73 reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing `activity` early.",
   "implementation": "Schedule every 30 min. Requires WLC and DHCP logs in Splunk.",
   "visualization": "Sankey diagram of funnel; per-SSID drop-off heatmap; per-AP phase failure breakdown.",
   "cimModels": [
@@ -55,10 +57,31 @@
   "references": [
     {
       "title": "Cisco WLC + ISE Integration Best Practices",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "ISO/IEC 27001:2022",
+      "url": "https://www.iso.org/standard/27001",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) Devices that never request DHCP (static-IP or VPN apps).\n(b) Posture skipped for devices in posture-exception list.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'Cisco WLC + ISE Wireless Authentication Funnel — Association → Auth → DHCP → Posture'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=network` `cisco:wlc:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (wireless integration — measures fast-roaming success rate, no adversary technique)"
   ],
@@ -77,7 +100,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Standard pattern.",
+  "detailedImplementation": "Standard pattern.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` + `Splunk Add-on for Cisco Wireless`. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:wlc:syslog, cisco:ise:syslog, dhcp into network, nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`phase`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Connecting to wifi has 4 steps: see the network, log in, get an IP address, prove you're allowed. We watch where users drop out of this 4-step process to find which step is broken.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

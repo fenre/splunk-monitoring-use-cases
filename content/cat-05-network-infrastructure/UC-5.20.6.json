@@ -9,28 +9,42 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'IPv6 Interface Counter Parity' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_interface_counter_parity` (UC-5.20.6), SOC dashboard panel \"Operations — IPv6 Interface Counter Parity\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.6 positive (IPv6, Interface, Counter, Parity): ingest synthetic events into `index=network` sourcetype='snmp:ipIfStatsTable' where `bytes`, `discards` grouped by `host`, `ifIndex`, `ip_version` satisfies -1h for 'IPv6 Interface Counter Parity'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.6 negative (Counter Parity): ingest benign `network` / `snmp:ipIfStatsTable` events where `host`, `ifIndex`, `ip_version` stays below -1h, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'IPv6 Interface Counter Parity'."
+  },
   "dataSources": "`index=network sourcetype=snmp:ipIfStatsTable` from SNMP polling of RFC 4293 `ipIfStatsTable` (OID 1.3.6.1.2.1.4.31.3), or `index=em_metrics sourcetype=telegraf:snmp` from Telegraf SNMP plugin polling the same MIB. This MIB provides per-interface, per-IP-version counters: `ipIfStatsInReceives`, `ipIfStatsInOctets`, `ipIfStatsOutTransmits`, `ipIfStatsOutOctets`, `ipIfStatsInDiscards`, `ipIfStatsOutDiscards`, `ipIfStatsInDelivers`, `ipIfStatsHCInOctets` (64-bit). The table is indexed by `ipIfStatsIPVersion` (1=IPv4, 2=IPv6) and `ipIfStatsIfIndex`. Alternative: `show ipv6 traffic` CLI output collected via scripted input. Volume: one SNMP poll per interface per version per interval (typically 300s); ~100 bytes per counter × 6 counters × 2 versions × interface_count per poll.",
   "app": "Splunk Connect for SNMP (`SC4SNMP`) or SNMP Modular Input (`snmp_ta`, Splunkbase 1537) for SNMP polling. Telegraf with `inputs.snmp` plugin outputting to Splunk HEC is also supported. Install on the Heavy Forwarder or polling host.",
   "spl": "index=network sourcetype=\"snmp:ipIfStatsTable\" earliest=-1h\n| eval ip_version=case(ipIfStatsIPVersion=1, \"IPv4\", ipIfStatsIPVersion=2, \"IPv6\", 1==1, \"Unknown\")\n| stats latest(ipIfStatsHCInOctets) as in_bytes latest(ipIfStatsHCOutOctets) as out_bytes latest(ipIfStatsInDiscards) as in_discards latest(ipIfStatsOutDiscards) as out_discards by host, ifIndex, ip_version\n| eval total_bytes=in_bytes + out_bytes\n| chart sum(total_bytes) as bytes sum(in_discards) as discards over host by ip_version\n| eval ipv6_pct=round('IPv6' / ('IPv4' + 'IPv6') * 100, 1)\n| eval discard_delta=abs('IPv6' - 'IPv4')\n| sort -discard_delta",
-  "description": "Compares per-interface IPv4 and IPv6 traffic counters from RFC 4293 ipIfStatsTable via SNMP, detecting interfaces where IPv6 counters are unexpectedly zero (IPv6 not working despite being configured), where IPv6 discard rates significantly exceed IPv4 (indicating IPv6-specific ACLs, CoPP, or routing issues), or where IPv6 traffic is present on interfaces where it shouldn't be. RFC 9099 §2.6.1.3 specifically calls out per-interface IPv6 counter monitoring as an operational necessity because aggregate counters mask per-link issues.",
-  "value": "Interface-level counter parity catches problems that traffic ratio monitoring (UC-5.20.1) cannot detect. A campus network may show 30% IPv6 overall, but if one distribution switch has zero IPv6 counters on its uplinks, that entire building has no IPv6 connectivity — masked by healthy traffic from other buildings. Similarly, high IPv6 discard rates on a single interface may indicate an ACL misconfiguration that blocks IPv6 only on that link, while IPv4 works fine and nobody notices until a dual-stack application breaks for users in that zone.",
+  "description": "Detects UC-5.20.6 — IPv6, Interface, Counter, Parity — using `index=network` sourcetype `snmp:ipIfStatsTable`, grouped by `host`, `ifIndex`, `ip_version`. Outputs `bytes`, `discards` each `the scheduled window`; alert when -1h. Primary focus: Counter Parity. Purpose-built for 'IPv6 Interface Counter Parity' in Operations workflows.",
+  "value": "UC-5.20.6 accelerates insight into Counter Parity ('IPv6 Interface Counter Parity') by tracking `bytes`, `discards` on `snmp:ipIfStatsTable` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Configure SNMP polling of `ipIfStatsTable` (RFC 4293) on all Layer 3 devices. This MIB provides separate counters for IPv4 (ipVersion=1) and IPv6 (ipVersion=2) per interface, including bytes, packets, discards, and forwarded counts. Poll every 5 minutes and compare the IPv6 counters to IPv4 counters on each interface. Alert when IPv6 counters are zero on an interface where IPv6 is configured, or when IPv6 discards exceed IPv4 discards by more than 10x.",
   "visualization": "(1) Table: host, interface, IPv4 bytes, IPv6 bytes, IPv6 percentage, IPv4 discards, IPv6 discards — sorted by interfaces with zero IPv6 bytes first. (2) Trellis sparklines: per-interface IPv6 byte rate over 24h — flat lines at zero are the problem interfaces. (3) Scatter plot: IPv4 discard rate vs IPv6 discard rate per interface — outliers above the diagonal indicate IPv6-specific packet drops.",
   "references": [
     {
       "title": "RFC 4293 — Management Information Base for the Internet Protocol (IP) — ipIfStatsTable",
-      "url": "https://www.rfc-editor.org/rfc/rfc4293"
+      "url": "https://www.rfc-editor.org/rfc/rfc4293",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.6.1.3 — Per-interface counters)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Connect for SNMP (SC4SNMP) — MIB polling configuration",
-      "url": "https://splunk.github.io/splunk-connect-for-snmp/"
+      "url": "https://splunk.github.io/splunk-connect-for-snmp/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Interfaces with IPv4 only by design.** Management interfaces, out-of-band management networks, and legacy WAN links may intentionally carry only IPv4. Zero IPv6 counters on these interfaces is expected. Maintain an exclusion list or tag interfaces with `ipv6_expected=true/false` in a lookup to suppress false alerts.\n\n**Counter wraparound on 32-bit counters.** Some older platforms expose only 32-bit counters (`ipIfStatsInOctets` vs `ipIfStatsHCInOctets`). On high-speed links, 32-bit counters wrap in minutes, producing erratic ratios. Always use HC (64-bit) counters where available. Check with `snmpwalk ... 1.3.6.1.2.1.4.31.3.1.6` (HCInOctets) — if absent, the platform doesn't support 64-bit counters.\n\n**Asymmetric routing.** If traffic ingresses via one interface (counted as IPv6 in) but egresses via a different interface, the per-interface ratios will be skewed. Aggregate to per-device totals for a more accurate parity check in networks with asymmetric routing.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.6)** — Planned work for 'IPv6 Interface Counter Parity' shifts `bytes`, `discards` over `span=1h` while `host`, `ifIndex`, `ip_version` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snmp:ipIfStatsTable`** — Scheduled automation elevates `ifIndex` without crossing configured threshold for UC-5.20.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `ifIndex`, `ip_version`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:ipIfStatsTable`** — First 48h baseline for UC-5.20.6 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "arista",
     "cisco",

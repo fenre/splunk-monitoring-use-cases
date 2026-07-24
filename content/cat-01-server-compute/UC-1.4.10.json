@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Vendor CLI output (e.g. `MegaCli64 -AdpAllInfo -aAll`), `/proc/scsi/`",
-  "app": "Custom scripted input (MegaRAID, perccli, hpssacli)",
+  "exclusions": "Covers the detection logic documented for 'Disk Controller and HBA Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_disk_controller_and_hba_health` (UC-1.4.10), SOC dashboard panel \"Linux — Disk Controller and HBA Health\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.4.10 positive (Disk, Controller, and, HBA, Health): ingest synthetic events into `index=hardware` sourcetype='raid_controller' where `count` grouped by `host`, `controller_id` satisfies `degraded` > 0 for 'Disk Controller and HBA Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.4.10 negative (HBA Health): ingest benign `hardware` / `raid_controller` events where `host`, `controller_id` stays below `degraded` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'Disk Controller and HBA Health'."
+  },
+  "dataSources": "Vendor CLI output (e.g. `MegaCli64 -AdpAllInfo -aAll`), `/proc/scsi/` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (MegaRAID, perccli, hpssacli) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=hardware sourcetype=raid_controller host=*\n| stats latest(controller_status) as status, latest(degraded_virtual_drives) as degraded by host, controller_id\n| where status != \"Optimal\" OR degraded > 0\n| table host controller_id status degraded",
-  "description": "RAID/HBA controller errors and degraded state often precede array failure. Early visibility enables planned maintenance and avoids data loss.",
-  "value": "The controller is the traffic cop for the disks; if it reports a bad state or degraded virtual drives, you want a ticket while data is still recoverable, not when volumes go offline together.",
+  "description": "Identifies UC-1.4.10 — Disk, Controller, and, HBA, Health — using `index=hardware` sourcetype `raid_controller`, grouped by `host`, `controller_id`. Outputs `count` each `the scheduled window`; alert when `degraded` > 0. Primary focus: HBA Health. Purpose-built for 'Disk Controller and HBA Health' in Linux workflows.",
+  "value": "Operators running UC-1.4.10 on `raid_controller` feeds shorten triage for HBA Health tied to 'Disk Controller and HBA Health', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Run vendor CLI (MegaCli, perccli, hpssacli) via scripted input every 15 minutes. Parse controller and virtual drive state. Alert when status is not Optimal or any array is degraded.",
   "visualization": "Status panel (Optimal/Degraded/Failed), Table of degraded arrays.",
   "cimModels": [],
@@ -20,10 +26,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Patrol read, copyback, and foreign import operations can set temporary attention flags. A restart after a kernel driver update can reset counters—compare to the vendor’s management utility before a hardware RMA. Vendor strings for `status` differ; tune **where** to your parser.",
+  "knownFalsePositives": "1. **Patch Tuesday on `hardware`** — Package managers spike `host` metrics for 'Disk Controller and HBA Health'. Correlate with apt/yum logs in the same `raid_controller` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `raid_controller`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `degraded` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hardware_bmc"
   ],
@@ -32,6 +54,12 @@
     "hardware_bmc_perccli",
     "hardware_bmc_ssacli"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (MegaRAID, perccli, hpssacli).\n• Ensure the following data sources are available: Vendor CLI output (e.g. `MegaCli64 -AdpAllInfo -aAll`), `/proc/scsi/` on Linux for context if needed.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOn Linux, install the vendor’s CLI in the same image as the forwarder or call it over SSH. Run every 15 minutes and emit `controller_status` and `degraded_virtual_drives` (or your naming) per `controller_id` and `host`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust healthy strings to your vendor):\n\n```spl\nindex=hardware sourcetype=raid_controller host=*\n| stats latest(controller_status) as status, latest(degraded_virtual_drives) as degraded by host, controller_id\n| where status != \"Optimal\" OR degraded > 0\n| table host controller_id status degraded\n```\n\nUnderstanding this SPL\n\n**Disk Controller and HBA Health** — RAID/HBA controller errors and degraded state often precede array failure. Early visibility enables planned maintenance and avoids data loss.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=raid_controller`.\n• `stats` takes latest controller and degraded counts per `host` and `controller_id`.\n• `where` flags not-`Optimal` or any `degraded` &gt; 0 in the sample.\n\n\nStep 3 — Validate\nOn a test host, run the vendor CLI and compare to indexed `status` and `degraded`. For full details, see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We look at the card that runs your disk storage so you know when it is unhappy or a disk group is in trouble before a full storage failure."
+  "grandmaExplanation": "We look at the card that runs your disk storage so you know when it is unhappy or a disk group is in trouble before a full storage failure.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

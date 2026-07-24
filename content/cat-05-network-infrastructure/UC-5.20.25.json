@@ -9,28 +9,42 @@
     "Configuration"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'NDP Redirect Message Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ndp_redirect_message_monitoring` (UC-5.20.25), SOC dashboard panel \"Operations — NDP Redirect Message Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.25 positive (NDP, Redirect, Message, Monitoring): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `values` grouped by `host`, `vlan` satisfies `redirect_count` > 0, `redirect_count` > 50, or `redirect_count` > 10 for 'NDP Redirect Message Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.25 negative (Message Monitoring): ingest benign `network` / `cisco:ios` events where `host`, `vlan` stays below `redirect_count` > 0, `redirect_count` > 50, or `redirect_count` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'NDP Redirect Message Monitoring'."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=corelight_zeek` containing ICMPv6 Type 137 (Redirect) messages. NDP Redirects tell hosts that a better next-hop exists for a specific destination — the host should send future packets to the indicated neighbour instead of the current router. RFC 4861 §8 defines Redirect message processing.\n\nRedirects are legitimate in multi-router VLANs where one router is the default gateway but another is closer to the destination. However, attackers can forge Redirect messages to redirect traffic through a malicious host (man-in-the-middle). The THC-IPv6 `redir6` tool automates this attack.\n\nOn well-designed networks with VRRP/HSRP and proper routing, Redirects should be extremely rare. A high Redirect rate or Redirects from non-router sources are strong anomaly indicators.\n\nCisco IOS generates `%IPV6_ND-6-REDIRECT` or logs ICMPv6 Type 137 via ACL logging. Zeek logs Redirect messages in its ICMPv6 analysis.",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812). Zeek (`corelight_zeek`) for ICMPv6 Type 137 decode.",
   "spl": "index=network (sourcetype=\"cisco:ios\" \"%IPV6_ND\" \"REDIRECT\")\n  OR (sourcetype=\"corelight_zeek\" icmpv6_type=137)\n| stats count as redirect_count values(src_ip) as sources values(dest_ip) as targets by host, vlan\n| where redirect_count > 0\n| eval assessment=case(\n    redirect_count > 50, \"WARNING — excessive redirects, possible attack\",\n    redirect_count > 10, \"INFO — elevated redirect rate\",\n    1=1, \"LOW — occasional redirects\")\n| sort -redirect_count",
-  "description": "Monitors ICMPv6 Type 137 Redirect messages on the network. Redirects are intended to optimise routing by telling a host to use a different next-hop for a specific destination, but they can be exploited for man-in-the-middle attacks. An attacker sends a forged Redirect message claiming that traffic to a target destination should be sent through the attacker's link-local address instead of the legitimate router. Unlike IPv4 ICMP Redirects (which are commonly disabled), IPv6 Redirects are processed by default on most operating systems and are harder to disable without breaking legitimate NDP. This use case monitors the rate and source of Redirect messages to detect both misconfiguration (excessive redirects indicating suboptimal routing) and attacks (redirects from non-router sources).",
-  "value": "IPv6 Redirect attacks are often overlooked because many network engineers assume that Redirect behaviour is the same as in IPv4. In IPv6, Redirect processing is enabled by default on all major operating systems (Windows, Linux, macOS) and cannot be disabled as easily as IPv4 ICMP Redirect rejection. An attacker on the same VLAN can redirect specific traffic flows (e.g., DNS queries, authentication traffic) through their own host without being the default gateway — making the attack stealthier than rogue RA attacks. Monitoring Redirect messages provides detection for this class of attack and also identifies routing misconfigurations where Redirects indicate suboptimal default gateway placement.",
+  "description": "Monitors UC-5.20.25 — NDP, Redirect, Message, Monitoring — using `index=network` sourcetype `cisco:ios`, grouped by `host`, `vlan`. Outputs `values` each `the scheduled window`; alert when `redirect_count` > 0, `redirect_count` > 50, or `redirect_count` > 10. Primary focus: Message Monitoring. Purpose-built for 'NDP Redirect Message Monitoring' in Operations workflows.",
+  "value": "For 'NDP Redirect Message Monitoring', UC-5.20.25 converts `activity` on `cisco:ios` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Monitor ICMPv6 Type 137 messages via Zeek (network TAP) or router syslog. Maintain a whitelist of legitimate Redirect sources (routers only). Alert on Redirects from non-router sources, excessive Redirect rates, or Redirects targeting critical destinations (DNS, authentication servers).",
   "visualization": "(1) Timechart: Redirect messages over time — should be near-zero on well-designed networks. (2) Table: Redirect details — source, target destination, better next-hop. (3) Single-value: total Redirects in 24 hours. (4) Alert panel: Redirects from non-router sources.",
   "references": [
     {
       "title": "RFC 4861 — Neighbor Discovery for IP version 6 (§8 — Redirect Function)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4861"
+      "url": "https://www.rfc-editor.org/rfc/rfc4861",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.3 — Redirect security implications)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "THC-IPv6 Attack Toolkit — redir6 redirect attack tool",
-      "url": "https://github.com/vanhauser-thc/thc-ipv6"
+      "url": "https://github.com/vanhauser-thc/thc-ipv6",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Multi-router VLAN with asymmetric routing.** When a VLAN has two routers and the default gateway is not the optimal next-hop for certain destinations, the default gateway sends Redirects to hosts for those specific destinations. This is legitimate NDP behaviour. Verify by checking if the Redirect sources are known router IPs and the 'better next-hop' is also a known router.\n\n**Router reboot or VRRP transition.** During a transition, the new active router may send Redirects for destinations that the old active was directly handling. This is transient.\n\n**Static routes on hosts.** Hosts with static IPv6 routes to non-default-gateway routers will trigger Redirects from the default gateway pointing to the correct next-hop. This is by design.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.25)** — Planned work for 'NDP Redirect Message Monitoring' shifts `values` over `span=1h` while `host`, `vlan` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `cisco:ios`** — Scheduled automation elevates `vlan` without crossing `redirect_count` > 0 for UC-5.20.25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `vlan`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.25 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "arista",
     "cisco",

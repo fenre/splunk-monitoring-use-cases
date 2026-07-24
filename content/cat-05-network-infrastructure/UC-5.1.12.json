@@ -9,27 +9,53 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=cisco:ios`",
-  "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
+  "exclusions": "Covers the detection logic documented for 'ARP/MAC Table Anomalies' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_arp_mac_table_anomalies` (UC-5.1.12), SOC dashboard panel \"Operations — ARP/MAC Table Anomalies\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.12 positive (ARP, MAC, Table, Anomalies): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `host`, `mac` satisfies detection threshold for 'ARP/MAC Table Anomalies'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.12 negative (Table Anomalies): ingest benign `network` / `cisco:ios` events where `host`, `mac` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'ARP/MAC Table Anomalies'."
+  },
+  "dataSources": "`sourcetype=cisco:ios` Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=\"cisco:ios\" \"%SW_MATM-4-MACFLAP_NOTIF\"\n| rex \"(?<mac>[0-9a-fA-F]{4}\\.[0-9a-fA-F]{4}\\.[0-9a-fA-F]{4})\"\n| stats count by host, mac | sort -count",
-  "description": "MAC flapping indicates loops, misconfigurations, or layer-2 attacks.",
-  "value": "Security and operations teams detect ARP/MAC table anomalies including MAC flapping, duplicate IPs, and ARP conflicts that indicate network loops, misconfigurations, or security attacks.",
+  "description": "Monitors UC-5.1.12 — ARP, MAC, Table, Anomalies — using `index=network` sourcetype `cisco:ios`, grouped by `host`, `mac`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Table Anomalies. Purpose-built for 'ARP/MAC Table Anomalies' in Operations workflows.",
+  "value": "UC-5.1.12 gives Operations teams earlier visibility into Table Anomalies through `cisco:ios` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Forward syslog. Alert on MACFLAP events. Investigate the MAC to find the device.",
   "visualization": "Table, Timeline, Bar chart.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "VMware vMotion, imaging carts, and conference room churn move MACs often. Baseline by VLAN before calling an attack.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.12)** — Planned work for 'ARP/MAC Table Anomalies' shifts `count` over `span=1h` while `host`, `mac` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `mac` without crossing configured threshold for UC-5.1.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `mac`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.1.12 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
   ],
   "equipmentModels": [
     "cisco_ios"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -38,7 +64,9 @@
       "note": "UBA"
     }
   ],
-  "detailedImplementation": "Prerequisites\n* ARP and MAC table data from SNMP polling or syslog. Data in `index=network` with SNMP MIB data or syslog. Key SNMP OIDs: ipNetToMediaPhysAddress (ARP), dot1dTpFdbAddress (MAC table). Key syslog: `%IP-4-DUPADDR`, `%SW_MATM-4-MACFLAP_NOTIF`.\n* ARP anomalies: duplicate IP addresses, ARP storms, ARP poisoning. MAC anomalies: MAC flapping (same MAC seen on multiple ports), MAC table overflow, rogue MAC addresses. These indicate misconfigurations, loops, or security attacks.\n\nStep 1 -- Configure data collection\n```\n# Cisco IOS -- MAC flap notifications are logged by default\n# Key syslog: %SW_MATM-4-MACFLAP_NOTIF\n\n# SNMP: poll ARP and MAC tables periodically\n[snmp_mac_table]\ninterval = 300\nsourcetype = snmp:mac:table\nindex = network\n```\nVerify:\n```spl\nindex=network earliest=-24h\n| where match(_raw, \"(?i)MACFLAP|DUPADDR|arp.*conflict|mac.*flap|mac.*move|duplicate.*ip\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- ARP/MAC anomaly detection:**\n```spl\nindex=network earliest=-4h\n| where match(_raw, \"(?i)MACFLAP|DUPADDR|arp.*conflict|mac.*flap|mac.*move|duplicate.*ip|gratuitous.*arp\")\n| rex field=_raw \"(?i)(?:mac|MAC|address)\\s+(?<mac_addr>[0-9a-fA-F]{4}\\.[0-9a-fA-F]{4}\\.[0-9a-fA-F]{4})\"\n| rex field=_raw \"(?i)(?:from|port)\\s+(?<from_port>\\S+)\\s+(?:to|port)\\s+(?<to_port>\\S+)\"\n| rex field=_raw \"(?i)VLAN\\s*(?<vlan_id>\\d+)\"\n| eval device=coalesce(host, device_name)\n| eval anomaly_type=case(\n    match(_raw, \"(?i)MACFLAP|mac.*flap|mac.*move\"), \"MAC_FLAP\",\n    match(_raw, \"(?i)DUPADDR|duplicate.*ip\"), \"DUPLICATE_IP\",\n    match(_raw, \"(?i)arp.*conflict|gratuitous.*arp\"), \"ARP_CONFLICT\",\n    1==1, \"ARP_MAC_ANOMALY\")\n| bin _time span=5m\n| stats count as events dc(mac_addr) as unique_macs values(mac_addr) as macs values(vlan_id) as vlans by _time, device, anomaly_type\n| eval severity=case(\n    anomaly_type=\"MAC_FLAP\" AND events > 50, \"CRITICAL -- severe MAC flapping (possible loop)\",\n    anomaly_type=\"DUPLICATE_IP\", \"WARNING -- duplicate IP address detected\",\n    events > 20, \"WARNING -- excessive \".anomaly_type.\" events\",\n    1==1, \"INFO\")\n| where severity != \"INFO\"\n| sort severity, -events\n```\n\nStep 3 -- Validate\n(a) CLI: `show mac address-table count` -- check table utilization.\n(b) CLI: `show ip arp` -- verify ARP table for duplicates.\n(c) CLI: `show mac address-table notifications mac-move` -- check MAC move history.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- ARP/MAC Anomalies\"):\n* Row 1 -- Single-value: \"MAC flaps (4h)\", \"Duplicate IPs\", \"Anomaly events\".\n* Row 2 -- ARP/MAC anomaly timeline.\n\nAlert: Critical (>50 MAC flaps/5min): possible network loop.\n\nStep 5 -- Troubleshooting\n\n* **MAC flapping** -- Same MAC seen on multiple ports indicates loop or dual-homed device without proper link aggregation. Check STP convergence (UC-5.1.6). Identify the physical device behind the MAC.\n\n* **Duplicate IP address** -- Two devices configured with the same IP. Use ARP entry to identify MAC addresses of both devices, then trace to physical ports. Resolve IP conflict.\n\n* **ARP storm** -- Excessive ARP broadcasts. May indicate scanning or worm. Check source MAC/IP and apply port security or DHCP snooping with DAI (Dynamic ARP Inspection).",
+  "detailedImplementation": "Prerequisites\n* ARP and MAC table data from SNMP polling or syslog. Data in `index=network` with SNMP MIB data or syslog. Key SNMP OIDs: ipNetToMediaPhysAddress (ARP), dot1dTpFdbAddress (MAC table). Key syslog: `%IP-4-DUPADDR`, `%SW_MATM-4-MACFLAP_NOTIF`.\n* ARP anomalies: duplicate IP addresses, ARP storms, ARP poisoning. MAC anomalies: MAC flapping (same MAC seen on multiple ports), MAC table overflow, rogue MAC addresses. These indicate misconfigurations, loops, or security attacks.\n\nStep 1 -- Configure data collection\n```\n# Cisco IOS -- MAC flap notifications are logged by default\n# Key syslog: %SW_MATM-4-MACFLAP_NOTIF\n\n# SNMP: poll ARP and MAC tables periodically\n[snmp_mac_table]\ninterval = 300\nsourcetype = snmp:mac:table\nindex = network\n```\nVerify:\n```spl\nindex=network earliest=-24h\n| where match(_raw, \"(?i)MACFLAP|DUPADDR|arp.*conflict|mac.*flap|mac.*move|duplicate.*ip\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- ARP/MAC anomaly detection:**\n```spl\nindex=network earliest=-4h\n| where match(_raw, \"(?i)MACFLAP|DUPADDR|arp.*conflict|mac.*flap|mac.*move|duplicate.*ip|gratuitous.*arp\")\n| rex field=_raw \"(?i)(?:mac|MAC|address)\\s+(?<mac_addr>[0-9a-fA-F]{4}\\.[0-9a-fA-F]{4}\\.[0-9a-fA-F]{4})\"\n| rex field=_raw \"(?i)(?:from|port)\\s+(?<from_port>\\S+)\\s+(?:to|port)\\s+(?<to_port>\\S+)\"\n| rex field=_raw \"(?i)VLAN\\s*(?<vlan_id>\\d+)\"\n| eval device=coalesce(host, device_name)\n| eval anomaly_type=case(\n    match(_raw, \"(?i)MACFLAP|mac.*flap|mac.*move\"), \"MAC_FLAP\",\n    match(_raw, \"(?i)DUPADDR|duplicate.*ip\"), \"DUPLICATE_IP\",\n    match(_raw, \"(?i)arp.*conflict|gratuitous.*arp\"), \"ARP_CONFLICT\",\n    1==1, \"ARP_MAC_ANOMALY\")\n| bin _time span=5m\n| stats count as events dc(mac_addr) as unique_macs values(mac_addr) as macs values(vlan_id) as vlans by _time, device, anomaly_type\n| eval severity=case(\n    anomaly_type=\"MAC_FLAP\" AND events > 50, \"CRITICAL -- severe MAC flapping (possible loop)\",\n    anomaly_type=\"DUPLICATE_IP\", \"WARNING -- duplicate IP address detected\",\n    events > 20, \"WARNING -- excessive \".anomaly_type.\" events\",\n    1==1, \"INFO\")\n| where severity != \"INFO\"\n| sort severity, -events\n```\n\nStep 3 -- Validate\n(a) CLI: `show mac address-table count` -- check table utilization.\n(b) CLI: `show ip arp` -- verify ARP table for duplicates.\n(c) CLI: `show mac address-table notifications mac-move` -- check MAC move history.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- ARP/MAC Anomalies\"):\n* Row 1 -- Single-value: \"MAC flaps (4h)\", \"Duplicate IPs\", \"Anomaly events\".\n* Row 2 -- ARP/MAC anomaly timeline.\n\nAlert: Critical (>50 MAC flaps/5min): possible network loop.\n\nStep 5 -- Troubleshooting\n\n* **MAC flapping** -- Same MAC seen on multiple ports indicates loop or dual-homed device without proper link aggregation. Check STP convergence (UC-5.1.6). Identify the physical device behind the MAC.\n\n* **Duplicate IP address** -- Two devices configured with the same IP. Use ARP entry to identify MAC addresses of both devices, then trace to physical ports. Resolve IP conflict.\n\n* **ARP storm** -- Excessive ARP broadcasts. May indicate scanning or worm. Check source MAC/IP and apply port security or DHCP snooping with DAI (Dynamic ARP Inspection).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ios into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, mac`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We help you know early when something looks wrong with arp/mac table anomalies so the team can act before it grows into a bigger outage.",
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

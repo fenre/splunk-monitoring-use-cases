@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=elasticsearch:disk_watermark`",
-  "app": "Custom scripted input (`_cat/allocation`, node stats fs)",
+  "exclusions": "Covers the detection logic documented for 'Elasticsearch Disk Watermark Alerts' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_elasticsearch_disk_watermark_alerts` (UC-7.5.8), SOC dashboard panel \"Operations — Elasticsearch Disk Watermark Alerts\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.5.8 positive (Elasticsearch, Disk, Watermark, Alerts): ingest synthetic events into `index=database` sourcetype='elasticsearch:disk_watermark' where `used_pct` grouped by `node_name` satisfies detection threshold for 'Elasticsearch Disk Watermark Alerts'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.5.8 negative (Watermark Alerts): ingest benign `database` / `elasticsearch:disk_watermark` events where `node_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Elasticsearch Disk Watermark Alerts'."
+  },
+  "dataSources": "`sourcetype=elasticsearch:disk_watermark` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (`_cat/allocation`, node stats fs) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"elasticsearch:disk_watermark\"\n| eval used_pct=round(disk_used_bytes/disk_total_bytes*100,1)\n| where used_pct >= watermark_low_pct OR blocks.has_read_only_allow_delete==\"true\"\n| timechart span=5m max(used_pct) as used_pct by node_name",
-  "description": "Elasticsearch blocks shard allocation when flood-stage watermarks are hit; proactive disk alerts prevent read-only indices and cluster yellow/red states.",
-  "value": "Elasticsearch blocks shard allocation when flood-stage watermarks are hit; proactive disk alerts prevent read-only indices and cluster yellow/red states.",
+  "description": "Identifies when Watermark Alerts criteria fire for 'Elasticsearch Disk Watermark Alerts' (UC-7.5.8) in `index=database` sourcetype `elasticsearch:disk_watermark`. Pipeline aggregates `used_pct` by `node_name` over `5m`. Alert logic enforces configured threshold. Title terms: Elasticsearch, Disk, Watermark, Alerts. Eliminates manual hunting for UC-7.5.8 conditions.",
+  "value": "UC-7.5.8 helps teams contain Elasticsearch, Disk, Watermark, Alerts scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Poll `GET _cat/allocation?bytes=b&h=node,disk.avail,disk.total` or `_nodes/stats/fs` for each data node. Compare `disk.used_percent` to `cluster.routing.allocation.disk.watermark` settings. Alert at low/high/flood thresholds before Elasticsearch enforces blocks. Trigger capacity or ILM actions when trending toward limits.",
   "visualization": "Gauge (disk % per node), Table (nodes near watermark), Line chart (free space trend).",
   "cimModels": [
@@ -21,16 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Yellow or relocating shards during rolling restarts, ILM/ISM moves, or snapshot restore; compare with maintenance before treating as an incident.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.5.8)** — Planned work for 'Elasticsearch Disk Watermark Alerts' shifts `used_pct` over `span=5m` while `node_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `elasticsearch:disk_watermark`** — Scheduled automation elevates `used_pct` without crossing configured threshold for UC-7.5.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `node_name`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `elasticsearch:disk_watermark`** — First 48h baseline for UC-7.5.8 on `node_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `node_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "elasticsearch"
   ],
   "equipmentModels": [
     "elasticsearch_es"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we confirm in Kibana or OpenSearch Dashboards and the `_cat` / cluster APIs for that stack.\n• Install and configure the required add-on or app: Custom scripted input (`_cat/allocation`, node stats fs).\n• Ensure the following data sources are available: `sourcetype=elasticsearch:disk_watermark`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll `GET _cat/allocation?bytes=b&h=node,disk.avail,disk.total` or `_nodes/stats/fs` for each data node. Compare `disk.used_percent` to `cluster.routing.allocation.disk.watermark` settings. Alert at low/high/flood thresholds before Elasticsearch enforces blocks. Trigger capacity or ILM actions when trending toward limits.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"elasticsearch:disk_watermark\"\n| eval used_pct=round(disk_used_bytes/disk_total_bytes*100,1)\n| where used_pct >= watermark_low_pct OR blocks.has_read_only_allow_delete==\"true\"\n| timechart span=5m max(used_pct) as used_pct by node_name\n```\n\nUnderstanding this SPL\n\n**Elasticsearch Disk Watermark Alerts** — Elasticsearch blocks shard allocation when flood-stage watermarks are hit; proactive disk alerts prevent read-only indices and cluster yellow/red states.\n\nDocumented **Data sources**: `sourcetype=elasticsearch:disk_watermark`. **App/TA** (typical add-on context): Custom scripted input (`_cat/allocation`, node stats fs). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: elasticsearch:disk_watermark. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"elasticsearch:disk_watermark\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **used_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where used_pct >= watermark_low_pct OR blocks.has_read_only_allow_delete==\"true\"` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by node_name** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (disk % per node), Table (nodes near watermark), Line chart (free space trend).",
-  "grandmaExplanation": "We follow search cluster health, indexing, and query latency so we can keep log and search services responsive when load or mapping changes."
+  "grandmaExplanation": "We follow search cluster health, indexing, and query latency so we can keep log and search services responsive when load or mapping changes.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

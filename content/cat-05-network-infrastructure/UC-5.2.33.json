@@ -8,27 +8,55 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'WAN Link Quality Monitoring — Jitter, Latency, Packet Loss (Meraki MX)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_wan_link_quality_monitoring_jitter_latency_packe` (UC-5.2.33), SOC dashboard panel \"Operations — WAN Link Quality Monitoring — Jitter, Latency, Packet Loss (Meraki MX)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.2.33 positive (WAN, Link, Quality, Monitoring, Jitter,): ingest synthetic events into `index=meraki` sourcetype='meraki:devicesuplinkslossandlatency' where `avg_latency`, `avg_loss`, `peak_latency` grouped by `serial`, `networkId`, `uplink`, `ip` satisfies `avg_loss` > 5, `peak_loss` > 20, `avg_loss` > 2, or `avg_latency` > 200 for 'WAN Link Quality Monitoring — Jitter, Latency, Packet Loss (Meraki MX)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.2.33 negative ((Meraki MX)): ingest benign `meraki` / `meraki:devicesuplinkslossandlatency` events where `serial`, `networkId`, `uplink`, `ip` stays below `avg_loss` > 5, `peak_loss` > 20, `avg_loss` > 2, or `avg_latency` > 200, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'WAN Link Quality Monitoring — Jitter, Latency, Packet Loss (Meraki MX)'."
+  },
   "dataSources": "Splunk_TA_cisco_meraki (Splunkbase #5580): Devices Uplinks Loss and Latency input (sourcetype=meraki:devicesuplinkslossandlatency, TA v3.3+, OAuth scope dashboard:general:telemetry:read). Polls GET /organizations/{orgId}/devices/uplinksLossAndLatency for every MX and MG.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:devicesuplinkslossandlatency\" earliest=-1h\n| spath path=timeSeries{} output=ts\n| mvexpand ts\n| spath input=ts\n| stats avg(latencyMs) as avg_latency,\n        avg(lossPercent) as avg_loss,\n        max(latencyMs) as peak_latency,\n        max(lossPercent) as peak_loss\n         by serial, networkId, uplink, ip\n| eval link_quality = case(\n    avg_loss>5 OR peak_loss>20, \"Critical\",\n    avg_loss>2 OR avg_latency>200, \"Warning\",\n    1=1, \"OK\")\n| where link_quality != \"OK\"\n| sort - avg_loss",
-  "description": "Continuously monitors WAN quality metrics to detect link degradation before impacting users.",
-  "value": "NOC teams monitor Meraki MX WAN uplink latency, loss, and jitter in real time to detect link degradation and trigger failover or ISP escalation before users are impacted.",
+  "description": "Alerts on UC-5.2.33 — WAN, Link, Quality, Monitoring, Jitter, — using `index=meraki` sourcetype `meraki:devicesuplinkslossandlatency`, grouped by `serial`, `networkId`, `uplink`, `ip`. Outputs `avg_latency`, `avg_loss`, `peak_latency` each `the scheduled window`; alert when `avg_loss` > 5, `peak_loss` > 20, `avg_loss` > 2, or `avg_latency` > 200. Primary focus: (Meraki MX). Purpose-built for 'WAN Link Quality Monitoring — Jitter, Latency, Packet Loss (Meraki MX)' in Operations workflows.",
+  "value": "UC-5.2.33 helps teams contain WAN, Link, Quality, Monitoring, Jitter, scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "1. Enable the Devices Uplinks Loss and Latency input. The TA emits one event per device-uplink containing serial, networkId, uplink (wan1/wan2/cellular), ip, and a timeSeries[] array of {ts, lossPercent, latencyMs} samples (default 5-minute granularity, 5-minute timespan). 2. Use mvexpand on timeSeries to flatten samples for trending. 3. Tune thresholds (>2% loss, >200ms latency) to your SLA. 4. Jitter is not directly reported by this endpoint; if you need jitter, use the Appliance VPN Stats input (meraki:appliancesdwanstatistics) which carries jitterMs for SD-WAN tunnels.",
   "visualization": "Uplink quality scorecard; latency/jitter/loss timeline; quality gauge per uplink.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Carrier work, DDNS, and weather-related outages can trigger jitter and loss alerts on a clean policy.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.2.33)** — Planned work for 'WAN Link Quality Monitoring — Jitter, Latency, Packet Loss (Meraki MX)' shifts `avg_latency`, `avg_loss`, `peak_latency` over `span=1h` while `serial`, `networkId`, `uplink`, `ip` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `meraki:devicesuplinkslossandlatency`** — Scheduled automation elevates `networkId` without crossing `avg_loss` > 5 for UC-5.2.33. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `serial`, `networkId`, `uplink`, `ip`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:devicesuplinkslossandlatency`** — First 48h baseline for UC-5.2.33 on `serial` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `serial`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Devices Uplinks Loss and Latency input (sourcetype=meraki:devicesuplinkslossandlatency, TA v3.3+, OAuth scope dashboard:general:telemetry:read). Polls GET /organizations/{orgId}/devices/uplinksLossAndLatency for every MX and MG..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n1. Enable the Devices Uplinks Loss and Latency input. The TA emits one event per device-uplink containing serial, networkId, uplink (wan1/wan2/cellular), ip, and a timeSeries[] array of {ts, lossPercent, latencyMs} samples (default 5-minute granularity, 5-minute timespan). 2. Use mvexpand on timeSeries to flatten samples for trending. 3. Tune thresholds (>2% loss, >200ms latency) to your SLA. 4. Jitter is not directly reported by this endpoint; if you need jitter, use the Appliance VPN Stats inp…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki:devicesuplinkslossandlatency\" earliest=-1h\n| spath path=timeSeries{} output=ts\n| mvexpand ts\n| spath input=ts\n| stats avg(latencyMs) as avg_latency,\n        avg(lossPercent) as avg_loss,\n        max(latencyMs) as peak_latency,\n        max(lossPercent) as peak_loss\n         by serial, networkId, uplink, ip\n| eval link_quality = case(\n    avg_loss>5 OR peak_loss>20, \"Critical\",\n    avg_loss>2 OR avg_latency>200, \"Warning\",\n    1=1, \"OK\")\n| where link_quality != \"OK\"\n| sort - avg_loss\n```\n\nUnderstanding this SPL\n\n**WAN Link Quality Monitoring — Jitter, Latency, Packet Loss (Meraki MX)** — NOC teams monitor Meraki MX WAN uplink latency, loss, and jitter in real time to detect link degradation and trigger failover or ISP escalation before users are impacted.\n\nDocumented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Devices Uplinks Loss and Latency input (sourcetype=meraki:devicesuplinkslossandlatency, TA v3.3+, OAuth scope dashboard:general:telemetry:read). Polls GET /organizations/{orgId}/devices/uplinksLossAndLatency for every MX and MG. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:devicesuplinkslossandlatency. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki:devicesuplinkslossandlatency\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts structured paths (JSON/XML) with `spath`.\n• Expands multivalue fields with `mvexpand` — use `limit=` to cap row explosion.\n• Extracts structured paths (JSON/XML) with `spath`.\n• `stats` rolls up events into metrics; results are split **by serial, networkId, uplink, ip** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **link_quality** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where link_quality != \"OK\"` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Uplink quality scorecard; latency/jitter/loss timeline; quality gauge per uplink.",
-  "grandmaExplanation": "We look at loss, delay, and jitter on internet links from the same boxes so a flaky provider is visible on a dashboard, not in angry tickets."
+  "grandmaExplanation": "We look at loss, delay, and jitter on internet links from the same boxes so a flaky provider is visible on a dashboard, not in angry tickets.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

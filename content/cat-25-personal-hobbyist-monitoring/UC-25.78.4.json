@@ -8,31 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Life-admin document records (`lifeadmin:document`), passport status (`passport:status`), warranty registrations (`warranty:registration`), document-scan index (`documentscan:index`), voter-registration records (`voter:registration`).",
-  "app": "Passport and document trackers, warranty-registration forms, document-scan indexes, and voter-registration reminders streamed to Splunk HEC via scripted inputs and mobile capture workflows.",
+  "exclusions": "Covers personal hobby monitoring for 'Passport Renewal Status Monthly Throughput Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_passport_renewal_status_monthly_throughput_trend` (UC-25.78.4), SOC dashboard panel \"Personal — Passport Renewal Status Monthly Throughput Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.78.4 positive (Passport, Renewal, Status, Monthly, Throughput): ingest synthetic events into `index=personal` sourcetype='passport:status' where `sum` grouped by `_time` satisfies detection threshold for 'Passport Renewal Status Monthly Throughput Trend'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.78.4 negative (Throughput Trend): ingest benign `personal` / `passport:status` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 13 confirms zero alert rows for 'Passport Renewal Status Monthly Throughput Trend'."
+  },
+  "dataSources": "Life-admin document records (`lifeadmin:document`), passport status (`passport:status`), warranty registrations (`warranty:registration`), document-scan index (`documentscan:index`), voter-registration records (`voter:registration`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Passport and document trackers, warranty-registration forms, document-scan indexes, and voter-registration reminders streamed to Splunk HEC via scripted inputs and mobile capture workflows. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=passport:status\n| bin _time span=1mon\n| stats count as items sum(eval(if(renewal_status=\"renewed\",1,0))) as completed by _time\n| sort - _time",
-  "description": "Tracks how many passport records entered the system each month and how many actually got completed.",
-  "value": "Throughput trend lines show whether the queue is shrinking, flat, or quietly becoming a backlog.",
+  "description": "Monitors UC-25.78.4 — Passport, Renewal, Status, Monthly, Throughput — using `index=personal` sourcetype `passport:status`, grouped by `_time`. Outputs `sum` each `1m`; alert when configured threshold. Primary focus: Throughput Trend. Purpose-built for 'Passport Renewal Status Monthly Throughput Trend' in Personal workflows.",
+  "value": "UC-25.78.4 gives Personal teams earlier visibility into Throughput Trend through `passport:status` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Use this after any process cleanup to see whether the change actually improved completion volume.",
   "visualization": "Column chart of monthly created versus completed passport records.",
   "cimModels": [],
   "references": [
     {
       "title": "U.S. Department of State - Passports",
-      "url": "https://travel.state.gov/content/travel/en/passports.html"
+      "url": "https://travel.state.gov/content/travel/en/passports.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "FTC - Warranties",
-      "url": "https://consumer.ftc.gov/articles/warranties"
+      "url": "https://consumer.ftc.gov/articles/warranties",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Vote.gov",
-      "url": "https://vote.gov/"
+      "url": "https://vote.gov/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It spots whether you are clearing passport records as fast as they arrive each month."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.78.4)** — Connector for 'Passport Renewal Status Monthly Throughput Trend' stops polling `passport:status`; stale `sum` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1m` is expected for UC-25.78.4, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `passport:status`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold for 'Passport Renewal Status Monthly Throughput Trend'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Life Admin & Paperwork — typical feeds: Life-admin document records (`lifeadmin:document`), passport status (`passport:status`), warranty registrations (`warranty:registration`), document-scan index (`documentscan:index`), voter-registratio.\n• **Sourcetypes in this search**: `passport:status`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=passport:status`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Passport and document trackers, warranty-registration forms, document-scan indexes, and voter-registration reminders streamed to Splunk HEC via scripted inputs and mobile capture workflows..\n\n**Author notes:** Use this after any process cleanup to see whether the change actually improved completion volume.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"passport:status\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=passport:status earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Passport Renewal Status Monthly Throughput Trend** over `personal` data (primarily `sourcetype=passport:status`) across the full search range. The `sum` aggregation groups by `_time`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=passport:status\n| bin _time span=1mon\n| stats count as items sum(eval(if(renewal_status=\"renewed\",1,0))) as completed by _time\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=passport:status earliest=-7d\n| head 50\n| table _time\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=passport:status earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.78.4: Personal evidence` with the following panel layout:\n\n**Panel 1 — Column Chart Of Monthly Created Versus Completed Passport Records (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `passport:status` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=passport:status | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1m` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1m` buckets.",
+  "grandmaExplanation": "It spots whether you are clearing passport records as fast as they arrive each month.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

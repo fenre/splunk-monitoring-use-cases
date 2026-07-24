@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=cloud sourcetype=aws:cloudtrail` or `sourcetype=azure:monitor:activity` or `sourcetype=google:gcp:pubsub:message`",
-  "app": "Splunk Machine Learning Toolkit (MLTK), Splunk Add-on for AWS / Azure / GCP",
+  "exclusions": "Covers the detection logic documented for 'Cloud Control Plane API Call Volume Anomaly (MLTK)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cloud_control_plane_api_call_volume_anomaly_mltk` (UC-4.4.32), SOC dashboard panel \"Operations — Cloud Control Plane API Call Volume Anomaly (MLTK)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-4.4.32 positive (Cloud, Control, Plane, API, Call): ingest synthetic events into `index=cloud` sourcetype='target_sourcetype' where `baseline_avg`, `baseline_std` grouped by `_time`, `eventName`, `userIdentity.arn`, `sourceIPAddress` satisfies `z_score` > 3, `count` > 50, or `isOutlier` > 0 for 'Cloud Control Plane API Call Volume Anomaly (MLTK)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.4.32 negative (Anomaly (MLTK)): ingest benign `cloud` / `target_sourcetype` events where `_time`, `eventName`, `userIdentity.arn`, `sourceIPAddress` stays below `z_score` > 3, `count` > 50, or `isOutlier` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Cloud Control Plane API Call Volume Anomaly (MLTK)'."
+  },
+  "dataSources": "`index=cloud sourcetype=aws:cloudtrail` or `sourcetype=azure:monitor:activity` or `sourcetype=google:gcp:pubsub:message` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Machine Learning Toolkit (MLTK), Splunk Add-on for AWS / Azure / GCP — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=cloud sourcetype IN (\"aws:cloudtrail\",\"azure:monitor:activity\",\"google:gcp:pubsub:message\")\n| bin _time span=1h\n| stats count by _time, eventName, userIdentity.arn, sourceIPAddress\n| eventstats avg(count) as baseline_avg, stdev(count) as baseline_std by eventName\n| eval z_score=round((count - baseline_avg) / nullif(baseline_std, 0), 2)\n| where z_score > 3 AND count > 50\n| fit DensityFunction count by eventName into cloud_api_anomaly_model\n| rename \"IsOutlier(count)\" as isOutlier\n| where isOutlier > 0\n| table _time, eventName, userIdentity.arn, sourceIPAddress, count, baseline_avg, z_score\n| sort -z_score",
-  "description": "Cloud control plane API calls (EC2 RunInstances, IAM CreateUser, S3 PutBucketPolicy) follow predictable patterns tied to deployment schedules and automation cadence. Anomalous spikes in API call volume may indicate compromised credentials, runaway automation, or an attacker enumerating resources — all of which are invisible to static rate limits but detectable through ML-based baselining.",
-  "value": "Cloud control plane API calls (EC2 RunInstances, IAM CreateUser, S3 PutBucketPolicy) follow predictable patterns tied to deployment schedules and automation cadence. Anomalous spikes in API call volume may indicate compromised credentials, runaway automation, or an attacker enumerating resources — all of which are invisible to static rate limits but detectable through ML-based baselining.",
+  "description": "Surfaces UC-4.4.32 — Cloud, Control, Plane, API, Call — using `index=cloud` sourcetype `configured sourcetype`, grouped by `_time`, `eventName`, `userIdentity.arn`, `sourceIPAddress`. Outputs `baseline_avg`, `baseline_std` each `1h`; alert when `z_score` > 3, `count` > 50, or `isOutlier` > 0. Primary focus: Anomaly (MLTK). Purpose-built for 'Cloud Control Plane API Call Volume Anomaly (MLTK)' in Operations workflows.",
+  "value": "UC-4.4.32 operationalises 'Cloud Control Plane API Call Volume Anomaly (MLTK)' against UC-4.4.32 search results so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Aggregate CloudTrail / Activity Log / Admin Activity events hourly by API action and principal. Train DensityFunction models per API action on 30 days of data to capture automation schedules and deployment patterns. Flag calls that exceed 3 standard deviations from the learned baseline. Prioritize high-risk APIs: IAM mutations, security group changes, KMS key operations, and resource creation. Enrich with source IP geolocation and threat intelligence. Correlate with CI/CD deployment events (cat-12) to suppress planned automation bursts. Generate risk events for Splunk ES with MITRE T1078/T1580 annotations. Retrain models weekly.",
   "visualization": "Line chart (API call volume vs baseline), Table (anomalous API calls with z-scores), Bar chart (top anomalous APIs by principal).",
   "cimModels": [
@@ -24,14 +30,26 @@
   "references": [
     {
       "title": "Splunk Add-on for AWS",
-      "url": "https://splunkbase.splunk.com/app/1876"
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
+  "knownFalsePositives": "1. **Maintenance window on `cloud` (UC-4.4.32)** — Planned work for 'Cloud Control Plane API Call Volume Anomaly (MLTK)' shifts `baseline_avg`, `baseline_std` over `span=1h` while `_time`, `eventName`, `userIdentity.arn`, `sourceIPAddress` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `eventName` without crossing `z_score` > 3 for UC-4.4.32. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `eventName`, `userIdentity.arn`, `sourceIPAddress`** — Health checks in `cloud` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-4.4.32 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078.004",
     "T1526",
@@ -43,7 +61,18 @@
     "azure",
     "gcp"
   ],
+  "equipmentModels": [
+    "aws_generic",
+    "azure_generic",
+    "gcp_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Machine Learning Toolkit (MLTK), Splunk Add-on for AWS / Azure / GCP.\n• Ensure the following data sources are available: `index=cloud sourcetype=aws:cloudtrail` or `sourcetype=azure:monitor:activity` or `sourcetype=google:gcp:pubsub:message`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAggregate CloudTrail / Activity Log / Admin Activity events hourly by API action and principal. Train DensityFunction models per API action on 30 days of data to capture automation schedules and deployment patterns. Flag calls that exceed 3 standard deviations from the learned baseline. Prioritize high-risk APIs: IAM mutations, security group changes, KMS key operations, and resource creation. Enrich with source IP geolocation and threat intelligence. Correlate with CI/CD deployment events (cat-…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud sourcetype IN (\"aws:cloudtrail\",\"azure:monitor:activity\",\"google:gcp:pubsub:message\")\n| bin _time span=1h\n| stats count by _time, eventName, userIdentity.arn, sourceIPAddress\n| eventstats avg(count) as baseline_avg, stdev(count) as baseline_std by eventName\n| eval z_score=round((count - baseline_avg) / nullif(baseline_std, 0), 2)\n| where z_score > 3 AND count > 50\n| fit DensityFunction count by eventName into cloud_api_anomaly_model\n| rename \"IsOutlier(count)\" as isOutlier\n| where isOutlier > 0\n| table _time, eventName, userIdentity.arn, sourceIPAddress, count, baseline_avg, z_score\n| sort -z_score\n```\n\nUnderstanding this SPL\n\n**Cloud Control Plane API Call Volume Anomaly (MLTK)** — Cloud control plane API calls (EC2 RunInstances, IAM CreateUser, S3 PutBucketPolicy) follow predictable patterns tied to deployment schedules and automation cadence. Anomalous spikes in API call volume may indicate compromised credentials, runaway automation, or an attacker enumerating resources — all of which are invisible to static rate limits but detectable through ML-based baselining.\n\nDocumented **Data sources**: `index=cloud sourcetype=aws:cloudtrail` or `sourcetype=azure:monitor:activity` or `sourcetype=google:gcp:pubsub:message`. **App/TA** (typical add-on context): Splunk Machine Learning Toolkit (MLTK), Splunk Add-on for AWS / Azure / GCP. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time, eventName, userIdentity.arn, sourceIPAddress** so each row reflects one combination of those dimensions.\n• `eventstats` rolls up events into metrics; results are split **by eventName** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **z_score** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where z_score > 3 AND count > 50` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Cloud Control Plane API Call Volume Anomaly (MLTK)**): fit DensityFunction count by eventName into cloud_api_anomaly_model\n• Renames fields with `rename` for clarity or joins.\n• Filters the current rows with `where isOutlier > 0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Cloud Control Plane API Call Volume Anomaly (MLTK)**): table _time, eventName, userIdentity.arn, sourceIPAddress, count, baseline_avg, z_score\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  by All_Changes.user All_Changes.object_category All_Changes.action span=1h\n| sort -count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Cloud Control Plane API Call Volume Anomaly (MLTK)** — Cloud control plane API calls (EC2 RunInstances, IAM CreateUser, S3 PutBucketPolicy) follow predictable patterns tied to deployment schedules and automation cadence.\n\nIf you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` on the `Change` data model (`All_Changes` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.\n\n• Uses `sort` to rank results; add `head` to limit the table.\n\nEnable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (API call volume vs baseline), Table (anomalous API calls with z-scores), Bar chart (top anomalous APIs by principal).",
   "grandmaExplanation": "Cloud control plane calls (cloud servers RunInstances, access control CreateUser, cloud storage PutBucketPolicy) follow predictable patterns tied to deployment schedules and automation cadence.",
-  "subcategory": "4.5"
+  "prerequisiteUseCases": [],
+  "subcategory": "4.5",
+  "wave": "crawl"
 }

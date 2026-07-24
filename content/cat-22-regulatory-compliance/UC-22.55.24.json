@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Mark an asset retired but skip key revocation. UC-22.55.24 MUST flag `decom_status=\"key_revocation_missing\"`.",
-    "negativeScenario": "Sanitize, revoke keys, destroy certificates, sign certificate; UC-22.55.24 MUST record `decom_status=\"complete\"`."
+    "positiveScenario": "UC-22.55.24 positive (CLC, 50701, Rail, Asset, Decommissioning): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `count` grouped by `entity` satisfies `days_since_retired` > 30, or `days_since_retired` > 60 for 'CLC/TS 50701 Rail Asset Decommissioning — secure end-of-life for every retired signalling, communications, and rolling-stock asset'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.55.24 negative (stock asset): ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `days_since_retired` > 30, or `days_since_retired` > 60, or exclude the test entity via `compliance_exception_register.csv`. Variant 14 confirms zero alert rows for 'CLC/TS 50701 Rail Asset Decommissioning — secure end-of-life for every retired signalling, communications, and rolling-stock asset'."
   },
   "dataSources": "KV Store `rail_decom_lookup`. HSM and certificate-authority audit logs. Asset-management system retirement events.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_decom_lookup\n| where asset_status=\"retired\"\n| eval now_ts = now()\n| eval days_since_retired = if(isnotnull(retired_at), round((now_ts - retired_at) / 86400, 0), null())\n| eval decom_status = case(\n    isnull(sanitization_signed_at) AND days_since_retired > 30, \"sanitization_missing\",\n    isnull(certificate_destruction_signed_at), \"certificate_destruction_missing\",\n    isnull(key_revocation_signed_at), \"key_revocation_missing\",\n    isnull(decom_certificate_signed_at) AND days_since_retired > 60, \"certificate_missing\",\n    1=1, \"complete\")\n| where decom_status != \"complete\"\n| table asset_id retired_at sanitization_signed_at certificate_destruction_signed_at key_revocation_signed_at decom_certificate_signed_at decom_status",
-  "description": "Tracks decommissioning workflow for retired rail-OT assets.",
-  "value": "Retired assets with unrevoked credentials are a key risk for unauthorized re-entry. This UC forces the workflow.",
+  "description": "Identifies UC-22.55.24 — CLC, 50701, Rail, Asset, Decommissioning — using `index=target_index` sourcetype `configured sourcetype`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `days_since_retired` > 30, or `days_since_retired` > 60. Primary focus: stock asset. Purpose-built for 'CLC/TS 50701 Rail Asset Decommissioning — secure end-of-life for every retired signalling, communications, and rolling-stock asset' in Compliance workflows.",
+  "value": "Alerting on CLC, 50701, Rail, Asset, Decommissioning through UC-22.55.24 reduces audit findings, regulatory gaps, and attestation delays by surfacing `activity` early.",
   "implementation": "(1) Asset-management retirement triggers decom workflow in `rail_decom_lookup`. (2) HSM and CA log revocations to Splunk. (3) Schedule UC-22.55.24 weekly Monday 09:30.",
   "visualization": "(Panel 1) Decom-status by phase. (Panel 2) Overdue queue. (Panel 3) Sanitization-throughput trend.",
   "cimModels": [
@@ -47,14 +47,26 @@
   "references": [
     {
       "title": "CLC/TS 50701:2021 clause 8.4",
-      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NIST SP 800-88 r1 (Media Sanitization)",
-      "url": "https://csrc.nist.gov/publications/detail/sp/800-88/rev-1/final"
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-88/rev-1/final",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Asset in transit to disposal vendor** — sanitization signed but physical disposal pending. Suppression: tracked under disposal-vendor workflow.\n\n**Suppression mechanism**: KV Store `clc_22_55_24_exceptions` with documented Asset Management Lead approval and 30-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Rail Asset Decommissioning — secure end-of-life for every retired signalling, communications, and rolling-stock asset' (UC-22.55.24) on `entity` during scheduled clause CLC-TS-50701-c8-4 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `days_since_retired` > 30. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (decommissioning governance)"
   ],
@@ -79,7 +91,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_decom_lookup`.\n- HSM / CA audit log forwarding.\n\n## Step 1 — Decom collection\n\n```ini\n[rail_decom_lookup]\nenforceTypes = true\nfield.asset_id = string\nfield.retired_at = number\nfield.sanitization_signed_at = number\nfield.certificate_destruction_signed_at = number\nfield.key_revocation_signed_at = number\nfield.decom_certificate_signed_at = number\nfield.asset_status = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.24: CLC/TS 50701 Rail Decommissioning]\ncron_schedule = 30 9 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.24,reg=CLC-TS-50701,clause=CLC-TS-50701-c8-4\naction.notable.param.rule_title = Rail decommissioning incomplete\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `key_revocation_missing`** (owner: Rail Cybersecurity Lead, severity P2): revoke HSM keys; confirm CA revocation; sign workflow.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **HSM key extraction**: keys may be exportable from older HSMs.\n- **Certificate revocation lag**: OCSP propagation can take hours/days.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_decom_lookup`.\n- HSM / CA audit log forwarding.\n\n## Step 1 — Decom collection\n\n```ini\n[rail_decom_lookup]\nenforceTypes = true\nfield.asset_id = string\nfield.retired_at = number\nfield.sanitization_signed_at = number\nfield.certificate_destruction_signed_at = number\nfield.key_revocation_signed_at = number\nfield.decom_certificate_signed_at = number\nfield.asset_status = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.24: CLC/TS 50701 Rail Decommissioning]\ncron_schedule = 30 9 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.24,reg=CLC-TS-50701,clause=CLC-TS-50701-c8-4\naction.notable.param.rule_title = Rail decommissioning incomplete\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `key_revocation_missing`** (owner: Rail Cybersecurity Lead, severity P2): revoke HSM keys; confirm CA revocation; sign workflow.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **HSM key extraction**: keys may be exportable from older HSMs.\n- **Certificate revocation lag**: OCSP propagation can take hours/days.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`days_since_retired, decom_status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When old trains and signal-cabinets are retired, we must erase their secret keys and digital certificates so nobody can sneak back in. We track every retirement and make sure the team completes the wipe.",
   "prerequisiteUseCases": [
     "UC-22.55.3"

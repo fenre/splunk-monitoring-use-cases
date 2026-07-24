@@ -10,28 +10,42 @@
     "Operations"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Detailed: `index=iac` Terraform structured logs (`terraform:json`, `tfc:run`, `hcp:audit`), Ansible callback summaries (`ansible:result`), Batfish analysis exports (`batfish:analysis` via HEC), device golden-config snapshots in `index=config_archive`, Nornir/NAPALM gather logs (`network_audit:nornir`, `napalm:cli`) with `diff_hash`, `host`, `intent_layer` (routing/ACL/BGP).",
-  "app": "HashiCorp Terraform Enterprise / Cloud audit log add-on or HEC JSON; Ansible callbacks; Batfish container pipeline shipping JSON summaries to Splunk; custom TA for NAPALM CLI captures; optional Git webhook correlation for commit SHA.",
+  "exclusions": "Covers the detection logic documented for 'Configuration Deployment Drift (Post-Automation Validation)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_configuration_deployment_drift_post_automation_v` (UC-5.19.4), SOC dashboard panel \"Operations — Configuration Deployment Drift (Post-Automation Validation)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.19.4 positive (Configuration, Deployment, Drift, (Post, Automation): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `values` grouped by `hn`, `src` satisfies `count` >= 1 for 'Configuration Deployment Drift (Post-Automation Validation)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.19.4 negative (Automation Validation)): ingest benign `target_index` / `target_sourcetype` events where `hn`, `src` stays below `count` >= 1, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Configuration Deployment Drift (Post-Automation Validation)'."
+  },
+  "dataSources": "Detailed: `index=iac` Terraform structured logs (`terraform:json`, `tfc:run`, `hcp:audit`), Ansible callback summaries (`ansible:result`), Batfish analysis exports (`batfish:analysis` via HEC), device golden-config snapshots in `index=config_archive`, Nornir/NAPALM gather logs (`network_audit:nornir`, `napalm:cli`) with `diff_hash`, `host`, `intent_layer` (routing/ACL/BGP). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "HashiCorp Terraform Enterprise / Cloud audit log add-on or HEC JSON; Ansible callbacks; Batfish container pipeline shipping JSON summaries to Splunk; custom TA for NAPALM CLI captures; optional Git webhook correlation for commit SHA. — Universal Forwarder (Splunkbase 617)",
   "spl": "index IN (\"iac\",\"config_audit\",\"network_audit\") earliest=-24h@h latest=now\n| eval src=lower(coalesce(sourcetype,_sourcetype,\"\"))\n| eval lr=lower(_raw)\n| eval drift=case(match(src,\"batfish\") AND match(lr,\"fail|violated|undefined\\\\sreference|inconsistent\"),1,match(src,\"terraform|tfc|hcp\") AND match(lr,\"apply.*error|policy.*denied|drift\"),1,match(src,\"ansible|napalm|nornir\") AND match(lr,\"\\\\bfail\\\\b|\\\\bdiff\\\\b|configuration drift\"),1,match(lr,\"drift|golden.*mismatch|hash.*diff\"),1,0)\n| eval hn=coalesce(host,device,d_hostname,network_device,\"unknown\")\n| eval layer=coalesce(intent_layer,resource_type,\"unspecified\")\n| where drift=1\n| stats count earliest(_time) as first_seen latest(_time) as last_seen values(layer) as layers by hn src\n| where count>=1\n| sort -count",
-  "description": "Splunk unifies Terraform apply outcomes, Ansible convergence artifacts, Batfish reachability/policy checks, and Nornir/NAPALM diff snapshots so post-change validation failures roll into one prioritized drift backlog instead of siloed CI emails.",
-  "value": "Architecture teams enforce intent fidelity across hybrid nets because hazardous ACL omissions, BGP knob regressions, or Terraform policy denies are detected in the same operational timeline as live automation rather than weeks later during audits.",
+  "description": "Alerts on 'Configuration Deployment Drift (Post-Automation Validation)' patterns (UC-5.19.4) sourced from `index=target_index` sourcetype `configured sourcetype`. Threshold bundle: `count` >= 1; aggregation grain: `hn`, `src`; metrics: `values`. Watch terms: Configuration, Deployment, Drift, (Post, Automation.",
+  "value": "UC-5.19.4 gives Operations teams earlier visibility into Automation Validation) through UC-5.19.4 search results, lowering operational risk and delayed incident response.",
   "implementation": "Instrument each toolchain to emit compact JSON verdict lines (pass/fail plus resource identifiers); agree on shared `host` keys; nightly Batfish snapshot ingest; alert on any drift=1 per device per day unless suppressed.",
   "visualization": "Dashboard Studio: KPI count of hosts with drift signals; treemap by toolchain source; detail table (`hn`,`src`,`layers`,`count`,`first_seen`,`last_seen`) with link-out to stored diffs.",
   "references": [
     {
       "title": "Batfish documentation — Network validation",
-      "url": "https://batfish.readthedocs.io/"
+      "url": "https://batfish.readthedocs.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "HashiCorp Terraform — Audit logging",
-      "url": "https://developer.hashicorp.com/terraform/cloud-docs/"
+      "url": "https://developer.hashicorp.com/terraform/cloud-docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NAPALM documentation — Cross-vendor network automation",
-      "url": "https://napalm.readthedocs.io/"
+      "url": "https://napalm.readthedocs.io/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Benign drift:** emergency hotfixes outside Terraform/Ansible flagged until reconciled.**Batfish modeling gaps:** missing interfaces appear as false inconsistencies.**Timing skew:** snapshot older than live device state.**Parallel pipelines:** duplicate detections from Ansible and NAPALM unless deduped on hash.**Large churn:** mass VLAN adds spike counts during migrations.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.19.4)** — Planned work for 'Configuration Deployment Drift (Post-Automation Validation)' shifts `values` over `span=1h` while `hn`, `src` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `configured_sourcetype`** — Scheduled automation elevates `src` without crossing `count` >= 1 for UC-5.19.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `hn`, `src`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.19.4 on `hn` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `hn`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "N/A (configuration governance)"
   ],
@@ -54,7 +68,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Golden sources of truth documented (Terraform remote state workspace IDs, Ansible inventory groups, Batfish snapshot naming).\n• Secrets scrubbing rules applied before HEC.\n\nStep 1 — Emit validation events\nConfigure Terraform Cloud notifications or runners to POST summary JSON; schedule Batfish `bfq` checks after merges; have Nornir push per-device diff hashes.\n\nStep 2 — Normalize schema\nUse transforms to map differing vendor keys into `host`, `intent_layer`, `drift_reason`; stash large diffs in lookup-backed KV references rather than huge `_raw`.\n\nStep 3 — Saved search\nSave `network_automation_post_validate_drift`; alert on first occurrence per host daily or cumulative count≥3 per layer weekly.\n\nStep 4 — Validate\nIntroduce controlled deliberate drift in lab; verify each subsystem surfaces drift=1 within SLA.\n\nStep 5 — Operationalize\nDashboard: Sankey from toolchain source to affected hosts; annotate owners via CMDB lookup; integrate ticketing webhook on drilldown.",
+  "detailedImplementation": "Prerequisites\n• Golden sources of truth documented (Terraform remote state workspace IDs, Ansible inventory groups, Batfish snapshot naming).\n• Secrets scrubbing rules applied before HEC.\n\nStep 1 — Emit validation events\nConfigure Terraform Cloud notifications or runners to POST summary JSON; schedule Batfish `bfq` checks after merges; have Nornir push per-device diff hashes.\n\nStep 2 — Normalize schema\nUse transforms to map differing vendor keys into `host`, `intent_layer`, `drift_reason`; stash large diffs in lookup-backed KV references rather than huge `_raw`.\n\nStep 3 — Saved search\nSave `network_automation_post_validate_drift`; alert on first occurrence per host daily or cumulative count≥3 per layer weekly.\n\nStep 4 — Validate\nIntroduce controlled deliberate drift in lab; verify each subsystem surfaces drift=1 within SLA.\n\nStep 5 — Operationalize\nDashboard: Sankey from toolchain source to affected hosts; annotate owners via CMDB lookup; integrate ticketing webhook on drilldown.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (HashiCorp Terraform Enterprise / Cloud audit log add-on or HEC JSON; Ansible callbacks; Batfish container pipeline shipping JSON summaries to Splunk; custom TA for NAPALM CLI captures; optional Git webhook correlation for commit SHA. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`drift, hn, src`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "After our robots push settings, we double-check that each machine still matches the approved blueprint using several checker tools. When something disagrees, we see one clear list of mismatches instead of hunting through separate reports.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

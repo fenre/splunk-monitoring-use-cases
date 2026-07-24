@@ -9,24 +9,43 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), UPS status via NUT (`nut:ups`).",
-  "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'SMART Disk Failure Early Warning' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_smart_disk_failure_early_warning` (UC-25.8.8), SOC dashboard panel \"Personal — SMART Disk Failure Early Warning\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.8.8 positive (SMART, Disk, Failure, Early, Warning): ingest synthetic events into `index=personal` sourcetype='synology:disk' where `count` grouped by `disk` satisfies `realloc` > 0, or `pending` > 0 for 'SMART Disk Failure Early Warning'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.8.8 negative (Early Warning): ingest benign `personal` / `synology:disk` events where `disk` stays below `realloc` > 0, or `pending` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 11 confirms zero alert rows for 'SMART Disk Failure Early Warning'."
+  },
+  "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), UPS status via NUT (`nut:ups`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=synology:disk\n| stats latest(reallocated_sectors) as realloc, latest(pending_sectors) as pending, latest(smart_status) as smart by disk\n| where realloc>0 OR pending>0 OR smart!=\"normal\"\n| sort - realloc",
-  "description": "Reads the self-diagnostic attributes of your NAS disks and flags the early warning signs of a drive about to fail.",
-  "value": "Disks rarely die without warning in their diagnostics; catching reallocated or pending sectors early lets you swap the drive before data loss.",
+  "description": "Alerts on UC-25.8.8 — SMART, Disk, Failure, Early, Warning — using `index=personal` sourcetype `synology:disk`, grouped by `disk`. Outputs `count` each `the scheduled window`; alert when `realloc` > 0, or `pending` > 0. Primary focus: Early Warning. Purpose-built for 'SMART Disk Failure Early Warning' in Personal workflows.",
+  "value": "UC-25.8.8 helps teams contain SMART, Disk, Failure, Early, Warning scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Forward disk self-diagnostic attributes; schedule daily and alert on any degrading drive.",
   "visualization": "Table of disks by reallocated and pending sector counts.",
   "cimModels": [],
   "references": [
     {
       "title": "Synology — DSM Storage Manager",
-      "url": "https://kb.synology.com/en-global/DSM/help/DSM/StorageManager/storage_pool"
+      "url": "https://kb.synology.com/en-global/DSM/help/DSM/StorageManager/storage_pool",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.8.8)** — Connector for 'SMART Disk Failure Early Warning' stops polling `synology:disk`; stale `count` on `disk` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.8.8, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `synology:disk`. Dedup with `stats latest(*) by disk`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `realloc` > 0 for 'SMART Disk Failure Early Warning'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "proxmox",
@@ -36,5 +55,12 @@
   "equipmentModels": [
     "snmp_ups"
   ],
-  "grandmaExplanation": "It reads the health warnings built into your storage drives so you can replace one before it fails and loses data."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Lab & Self-Hosting — typical feeds: Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`)..\n• **Sourcetypes in this search**: `synology:disk`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=synology:disk`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC..\n\n**Author notes:** Forward disk self-diagnostic attributes; schedule daily and alert on any degrading drive.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"synology:disk\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=synology:disk earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **SMART Disk Failure Early Warning** over `personal` data (primarily `sourcetype=synology:disk`) across the full search range. It applies numeric thresholds on `realloc` (> 0) after latest — tune these constants to your household baseline.\n\n**Fields this search depends on:** `disk`, `pending`, `realloc`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=synology:disk\n| stats latest(reallocated_sectors) as realloc, latest(pending_sectors) as pending, latest(smart_status) as smart by disk\n| where realloc>0 OR pending>0 OR smart!=\"normal\"\n| sort - realloc\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=synology:disk earliest=-7d\n| head 50\n| table disk, pending, realloc\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=synology:disk earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `realloc` before alerting:\n\n```spl\nindex=personal sourcetype=synology:disk earliest=-30d\n| stats perc50(realloc) AS p50 perc90(realloc) AS p90 perc99(realloc) AS p99 max(realloc) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.8.8: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Disks By Reallocated And Pending Sector Counts (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `synology:disk` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=synology:disk | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It reads the health warnings built into your storage drives so you can replace one before it fails and loses data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

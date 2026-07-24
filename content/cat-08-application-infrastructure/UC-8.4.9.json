@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "HAProxy stats CSV (`/haproxy?stats;csv`), syslog",
-  "app": "Custom (HAProxy stats socket/CSV, syslog)",
+  "exclusions": "Covers the detection logic documented for 'HAProxy Backend and Frontend Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_haproxy_backend_and_frontend_health` (UC-8.4.9), SOC dashboard panel \"Operations — HAProxy Backend and Frontend Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.4.9 positive (HAProxy, Backend, and, Frontend, Health): ingest synthetic events into `index=haproxy` sourcetype='haproxy:stats' where `count` grouped by `pxname`, `svname`, `type` satisfies `queue_depth` > 10 for 'HAProxy Backend and Frontend Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.4.9 negative (Frontend Health): ingest benign `haproxy` / `haproxy:stats` events where `pxname`, `svname`, `type` stays below `queue_depth` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'HAProxy Backend and Frontend Health'."
+  },
+  "dataSources": "HAProxy stats CSV (`/haproxy?stats;csv`), syslog Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom (HAProxy stats socket/CSV, syslog) — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=haproxy sourcetype=\"haproxy:stats\"\n| eval backend_status=case(status==\"UP\",1, status==\"DOWN\",0, 1=1,null())\n| stats latest(backend_status) as up, latest(qcur) as queue_depth, latest(scur) as sessions by pxname, svname, type\n| where type==\"backend\" AND (up==0 OR queue_depth>10)\n| table pxname, svname, up, queue_depth, sessions",
-  "description": "Backend server state, connection queue depth, and HTTP response distribution indicate load balancer effectiveness and backend capacity. Detection of DOWN backends or saturated queues enables rapid failover and scaling decisions.",
-  "value": "Backend server state, connection queue depth, and HTTP response distribution indicate load balancer effectiveness and backend capacity. Detection of DOWN backends or saturated queues enables rapid failover and scaling decisions.",
+  "description": "Surfaces 'HAProxy Backend and Frontend Health' (UC-8.4.9) using `index=haproxy` sourcetype `haproxy:stats` by aggregating `count` grouped by `pxname`, `svname`, `type` over `the scheduled window` and alerting when `queue_depth` > 10. Keywords: HAProxy, Backend, and, Frontend, Health. Focuses on Frontend Health behaviour so operations teams can triage UC-8.4.9 without ad-hoc log review.",
+  "value": "UC-8.4.9 accelerates insight into Frontend Health ('HAProxy Backend and Frontend Health') by tracking `activity` on `haproxy:stats` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Enable HAProxy stats via `stats uri /haproxy?stats` and `stats enable` in the frontend. Poll stats CSV via scripted input (curl or socket) every 30–60 seconds. Parse backend/frontend rows; extract status (UP/DOWN), qcur (current queued requests), scur (current sessions), and response code distribution. Forward to Splunk via HEC. Alert when any backend is DOWN or queue_depth exceeds 10. Correlate with syslog for connection errors and backend health transitions.",
   "visualization": "Status grid (backend × health), Table (backends with queue depth), Line chart (queue depth over time), Single value (DOWN backends count).",
   "cimModels": [
@@ -23,14 +29,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 833",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `haproxy` (UC-8.4.9)** — Planned work for 'HAProxy Backend and Frontend Health' shifts `count` over `span=1h` while `pxname`, `svname`, `type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `haproxy:stats`** — Scheduled automation elevates `svname` without crossing `queue_depth` > 10 for UC-8.4.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pxname`, `svname`, `type`** — Health checks in `haproxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `haproxy:stats`** — First 48h baseline for UC-8.4.9 on `pxname` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pxname`, `exception_reason`, `valid_until`.",
   "equipment": [
     "haproxy",
     "syslog"
   ],
+  "equipmentModels": [
+    "haproxy_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (HAProxy stats socket/CSV, syslog).\n• Ensure the following data sources are available: HAProxy stats CSV (`/haproxy?stats;csv`), syslog.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable HAProxy stats via `stats uri /haproxy?stats` and `stats enable` in the frontend. Poll stats CSV via scripted input (curl or socket) every 30–60 seconds. Parse backend/frontend rows; extract status (UP/DOWN), qcur (current queued requests), scur (current sessions), and response code distribution. Forward to Splunk via HEC. Alert when any backend is DOWN or queue_depth exceeds 10. Correlate with syslog for connection errors and backend health transitions.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=haproxy sourcetype=\"haproxy:stats\"\n| eval backend_status=case(status==\"UP\",1, status==\"DOWN\",0, 1=1,null())\n| stats latest(backend_status) as up, latest(qcur) as queue_depth, latest(scur) as sessions by pxname, svname, type\n| where type==\"backend\" AND (up==0 OR queue_depth>10)\n| table pxname, svname, up, queue_depth, sessions\n```\n\nUnderstanding this SPL\n\n**HAProxy Backend and Frontend Health** — Backend server state, connection queue depth, and HTTP response distribution indicate load balancer effectiveness and backend capacity. Detection of DOWN backends or saturated queues enables rapid failover and scaling decisions.\n\nDocumented **Data sources**: HAProxy stats CSV (`/haproxy?stats;csv`), syslog. **App/TA** (typical add-on context): Custom (HAProxy stats socket/CSV, syslog). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: haproxy; **sourcetype**: haproxy:stats. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=haproxy, sourcetype=\"haproxy:stats\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **backend_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by pxname, svname, type** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where type==\"backend\" AND (up==0 OR queue_depth>10)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **HAProxy Backend and Frontend Health**): table pxname, svname, up, queue_depth, sessions\n\n\nStep 3 — Validate\nCompare with the API gateway or mesh admin (Kong, Apigee, AWS API Gateway, etc.) and a raw log tail for the same time range.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (backend × health), Table (backends with queue depth), Line chart (queue depth over time), Single value (DOWN backends count).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch for signs that backend server state, connection queue depth, and HTTP response distribution indicate load balancer effectiveness and backend capacity."
+  "grandmaExplanation": "We watch for signs that backend server state, connection queue depth, and HTTP response distribution indicate load balancer effectiveness and backend capacity.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

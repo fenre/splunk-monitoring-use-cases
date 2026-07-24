@@ -9,11 +9,17 @@
     "Cost"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Snowflake Query Spill to Remote Storage Ratio' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_snowflake_query_spill_to_remote_storage_ratio` (UC-7.1.80), SOC dashboard panel \"Operations — Snowflake Query Spill to Remote Storage Ratio\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.80 positive (Snowflake, Query, Spill, Remote, Storage): ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:query_history' where `total_remote`, `total_scanned` grouped by `USER_NAME`, `WAREHOUSE_NAME` satisfies `scanned` > 0, `remote_spill` > 1073741824, or `spill_ratio` > 5 for 'Snowflake Query Spill to Remote Storage Ratio'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.80 negative (Storage Ratio): ingest benign `datawarehouse` / `snowflake:query_history` events where `USER_NAME`, `WAREHOUSE_NAME` stays below `scanned` > 0, `remote_spill` > 1073741824, or `spill_ratio` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Snowflake Query Spill to Remote Storage Ratio'."
+  },
   "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY` spill bytes fields on `snowflake:query_history`",
   "app": "Splunk Add-on for Snowflake (Splunkbase 5390)",
   "spl": "index=datawarehouse sourcetype=\"snowflake:query_history\"\n| eval remote_spill=tonumber(BYTES_SPILLED_TO_REMOTE_STORAGE)\n| eval local_spill=tonumber(BYTES_SPILLED_TO_LOCAL_STORAGE)\n| eval scanned=tonumber(BYTES_SCANNED)\n| eval spill_ratio=if(scanned>0, round((remote_spill+local_spill)/scanned*100,2), null())\n| where remote_spill > 1073741824 AND spill_ratio > 5\n| stats sum(remote_spill) as total_remote sum(scanned) as total_scanned values(QUERY_TEXT) as sample_sql by USER_NAME, WAREHOUSE_NAME\n| sort -total_remote",
-  "description": "Remote spill is particularly expensive and slow compared with in-memory execution; a high spill-to-scan ratio flags queries that need warehouse sizing, clustering, or predicate fixes before they become recurring credit burners.",
-  "value": "Cuts Snowflake cost and latency by targeting the worst remote spill offenders with engineering fixes.",
+  "description": "Identifies risk tied to Snowflake, Query, Spill, Remote, Storage through UC-7.1.80 on `index=datawarehouse` sourcetype `snowflake:query_history`. Summarises `total_remote`, `total_scanned` grouped by `USER_NAME`, `WAREHOUSE_NAME` across `the scheduled window` before applying `scanned` > 0, `remote_spill` > 1073741824, or `spill_ratio` > 5. Operators tune 'Snowflake Query Spill to Remote Storage Ratio' using UC-7.1.80 runbook steps.",
+  "value": "Tracking `total_remote`, `total_scanned` via UC-7.1.80 on `snowflake:query_history` feeds improves response to 'Snowflake Query Spill to Remote Storage Ratio' and reduces operational risk and delayed incident response.",
   "implementation": "Verify spill columns exist in your Snowflake edition export. Null-safe `tonumber()` in SPL. Exclude ETL service accounts with known wide aggregates via lookup. Dashboard top 20 queries weekly; alert when any single execution exceeds 1GB remote spill and 5% ratio.",
   "visualization": "Bar chart (total_remote by user), Table (sample_sql truncated).",
   "cimModels": [
@@ -22,13 +28,33 @@
   "references": [
     {
       "title": "Snowflake — Spilling",
-      "url": "https://docs.snowflake.com/en/user-guide/ui-query-profile#spilling"
+      "url": "https://docs.snowflake.com/en/user-guide/ui-query-profile#spilling",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 5390",
+      "url": "https://splunkbase.splunk.com/app/5390",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Larger ETL or analyst workloads and seasonal reporting can raise warehouse credits or queueing without a fault; tune to business hours and team-specific baselines.",
+  "knownFalsePositives": "1. **Maintenance window on `datawarehouse` (UC-7.1.80)** — Planned work for 'Snowflake Query Spill to Remote Storage Ratio' shifts `total_remote`, `total_scanned` over `span=1h` while `USER_NAME`, `WAREHOUSE_NAME` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snowflake:query_history`** — Scheduled automation elevates `WAREHOUSE_NAME` without crossing `scanned` > 0 for UC-7.1.80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `USER_NAME`, `WAREHOUSE_NAME`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snowflake:query_history`** — First 48h baseline for UC-7.1.80 on `USER_NAME` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `USER_NAME`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow",
     "snowflake"
+  ],
+  "equipmentModels": [
+    "servicenow_generic",
+    "snowflake_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -37,5 +63,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Snowflake (Splunkbase 5390)). Enable the modular input or HEC token that writes sourcetype=snowflake:query_history into datawarehouse. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`USER_NAME, WAREHOUSE_NAME, remote_spill, scanned`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

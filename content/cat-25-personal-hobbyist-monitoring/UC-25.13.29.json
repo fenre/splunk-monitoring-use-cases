@@ -9,38 +9,60 @@
     "Operations"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Personal productivity telemetry (`obsidian:sync`, `obsidian:note`, `todoist:task`, `toggl:timeentry`, `calendar:freebusy`, `calendar:event`).",
-  "app": "Obsidian Sync, Todoist, Toggl Track, Google Calendar / iCloud calendar exports, and task metadata ingested into Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Toggl Billable vs Non-Billable Split' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_toggl_billable_vs_non_billable_split` (UC-25.13.29), SOC dashboard panel \"Personal — Toggl Billable vs Non-Billable Split\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.13.29 positive (Toggl, Billable, Non, Billable, Split): ingest synthetic events into `index=personal` sourcetype='toggl:timeentry' where `total_min` grouped by `client`, `_time` satisfies `total_min` > 0 for 'Toggl Billable vs Non-Billable Split'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.13.29 negative (Billable Split): ingest benign `personal` / `toggl:timeentry` events where `client`, `_time` stays below `total_min` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Toggl Billable vs Non-Billable Split'."
+  },
+  "dataSources": "Personal productivity telemetry (`obsidian:sync`, `obsidian:note`, `todoist:task`, `toggl:timeentry`, `calendar:freebusy`, `calendar:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Obsidian Sync, Todoist, Toggl Track, Google Calendar / iCloud calendar exports, and task metadata ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=toggl:timeentry\n| bin _time span=1mon\n| stats sum(eval(if(billable=\"true\",duration_min,0))) as billable_min, sum(duration_min) as total_min by client _time\n| eval billable_pct=round(100*billable_min/total_min,1)\n| where total_min>0\n| sort - billable_pct",
-  "description": "Uses Toggl billing metadata telemetry to monitor how work time splits between billable and non-billable buckets in index=personal.",
-  "value": "Splunk turns the feed into an operational check for clients or months where effort is not translating into billed time, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Monitors UC-25.13.29 — Toggl, Billable, Non, Billable, Split — using `index=personal` sourcetype `toggl:timeentry`, grouped by `client`, `_time`. Outputs `total_min` each `1m`; alert when `total_min` > 0. Primary focus: Billable Split. Purpose-built for 'Toggl Billable vs Non-Billable Split' in Personal workflows.",
+  "value": "Alerting on Toggl, Billable, Non, Billable, Split through UC-25.13.29 reduces missed training goals, stale hobby data, and connector failures by surfacing `total_min` early.",
   "implementation": "Ingest Toggl billing metadata data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Monthly billable-share chart by client.",
   "cimModels": [],
   "references": [
     {
       "title": "Obsidian Sync",
-      "url": "https://help.obsidian.md/sync"
+      "url": "https://help.obsidian.md/sync",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Todoist REST API",
-      "url": "https://developer.todoist.com/rest/v2/"
+      "url": "https://developer.todoist.com/rest/v2/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Toggl Track API",
-      "url": "https://engineering.toggl.com/docs/"
+      "url": "https://engineering.toggl.com/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Google Calendar freeBusy",
-      "url": "https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query"
+      "url": "https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.13.29)** — Connector for 'Toggl Billable vs Non-Billable Split' stops polling `toggl:timeentry`; stale `total_min` on `client`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `total_min` over `1m` is expected for UC-25.13.29, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `toggl:timeentry`. Dedup with `stats latest(*) by client`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew `total_min` > 0 for 'Toggl Billable vs Non-Billable Split'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It blends how work time splits between billable and non-billable buckets so you can spot clients or months where effort is not translating into billed time before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Digital Life & Productivity — typical feeds: RescueTime activity (`rescuetime:activity`), Apple/Android screen-time exports (`screentime:usage`), GitHub events (`github:personal`), habit-tracker logs (`habit:entry`), calendar/todo exports..\n• **Sourcetypes in this search**: `toggl:timeentry`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=toggl:timeentry`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Screen-time / RescueTime exports, GitHub personal activity, habit/journal trackers, and calendar feeds via HEC scripted inputs..\n\n**Author notes:** Ingest Toggl billing metadata data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"toggl:timeentry\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=toggl:timeentry earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Toggl Billable vs Non-Billable Split** over `personal` data (primarily `sourcetype=toggl:timeentry`) across the full search range. It applies numeric thresholds on `total_min` (> 0) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `client`, `total_min`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=toggl:timeentry\n| bin _time span=1mon\n| stats sum(eval(if(billable=\"true\",duration_min,0))) as billable_min, sum(duration_min) as total_min by client _time\n| eval billable_pct=round(100*billable_min/total_min,1)\n| where total_min>0\n| sort - billable_pct\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=toggl:timeentry earliest=-7d\n| head 50\n| table _time, client, total_min\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=toggl:timeentry earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `total_min` before alerting:\n\n```spl\nindex=personal sourcetype=toggl:timeentry earliest=-30d\n| stats perc50(total_min) AS p50 perc90(total_min) AS p90 perc99(total_min) AS p99 max(total_min) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.13.29: Personal evidence` with the following panel layout:\n\n**Panel 1 — Monthly Billable-Share Chart By Client (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `toggl:timeentry` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=toggl:timeentry | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1m` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1m` buckets.",
+  "grandmaExplanation": "It blends how work time splits between billable and non-billable buckets so you can spot clients or months where effort is not translating into billed time before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

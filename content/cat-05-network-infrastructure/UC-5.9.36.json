@@ -9,24 +9,42 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'HTTP Server Throughput Analysis' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_http_server_throughput_analysis` (UC-5.9.36), SOC dashboard panel \"Operations — HTTP Server Throughput Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.9.36 positive (HTTP, Server, Throughput, Analysis): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `avg_throughput`, `min_throughput` grouped by `thousandeyes.test.name`, `server.address` satisfies detection threshold for 'HTTP Server Throughput Analysis'. Validate macro `stream_index`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.9.36 negative (Throughput Analysis): ingest benign `target_index` / `target_sourcetype` events where `thousandeyes.test.name`, `server.address` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'HTTP Server Throughput Analysis'."
+  },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` with `thousandeyes.test.type=\"http-server\"` from `ta_cisco_thousandeyes` (Splunkbase 7719). OTel v2 metric `http.server.throughput` reports download throughput in **bytes per second** — the rate at which the response body is received.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`stream_index` thousandeyes.test.type=\"http-server\"\n| stats avg(http.server.throughput) as avg_throughput min(http.server.throughput) as min_throughput by thousandeyes.test.name, server.address\n| eval avg_mbps=round(avg_throughput*8/1000000,2), min_mbps=round(min_throughput*8/1000000,2)\n| sort avg_mbps",
-  "description": "Monitors HTTP Server test download throughput — the data transfer rate from the target server. Low throughput indicates bandwidth constraints, server-side throttling, or congested network paths. Useful for large file downloads, API responses with significant payloads, or content delivery performance.",
-  "value": "Throughput tells a different story than latency. A server may respond quickly (low TTFB) but deliver content slowly (low throughput) due to bandwidth limitations, TCP window sizing, or server-side rate limiting. For applications that transfer significant data (report downloads, file servers, media streaming, API bulk responses), throughput is the critical metric. This UC identifies servers and paths where bandwidth is the bottleneck.",
+  "description": "Surfaces UC-5.9.36 — HTTP, Server, Throughput, Analysis — using `index=target_index` sourcetype `configured sourcetype`, grouped by `thousandeyes.test.name`, `server.address`. Outputs `avg_throughput`, `min_throughput` each `the scheduled window`; alert when configured threshold. Filter chain includes macro `stream_index`. Purpose-built for 'HTTP Server Throughput Analysis' in Operations workflows.",
+  "value": "For 'HTTP Server Throughput Analysis', UC-5.9.36 converts `avg_throughput`, `min_throughput` on macro `stream_index` into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Uses the same HTTP Server tests as UC-5.9.34. Throughput is automatically measured alongside availability and TTFB.",
   "visualization": "(1) Bar chart: throughput per test (Mbps). (2) Timechart: throughput trending. (3) Table: tests sorted by throughput (lowest first). (4) Comparison: throughput by agent location.",
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes OTel v2 — HTTP Server metrics",
-      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics"
+      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Small response bodies.** For tests targeting endpoints with tiny responses (health check endpoints, API status pages), throughput is meaningless because there's insufficient data to measure transfer rate. Focus on tests targeting pages with > 10 KB response bodies.\n\n**Connection reuse.** Throughput for the first request on a new connection includes TCP and TLS setup. Subsequent requests on the same connection (keep-alive) will show higher throughput.\n\n**Server-side rate limiting.** Application-level rate limiting may cap throughput by design. This is intentional, not a problem.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.9.36)** — Planned work for 'HTTP Server Throughput Analysis' shifts `avg_throughput`, `min_throughput` over `span=1h` while `thousandeyes.test.name`, `server.address` remains in-scope. Applies macro `stream_index`. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `server.address` without crossing configured threshold for UC-5.9.36. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `thousandeyes.test.name`, `server.address`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.9.36 on `thousandeyes.test.name` is unstable; join `stream_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `thousandeyes.test.name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

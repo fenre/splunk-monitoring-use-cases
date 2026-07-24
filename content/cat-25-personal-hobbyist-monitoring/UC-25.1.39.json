@@ -9,23 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports.",
-  "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files.",
-  "spl": "index=personal sourcetype=finalsurge:workout\nbin _time span=1w\nstats avg(compliance_pct) as compliance by athlete _time\nwhere compliance<80",
-  "description": "Surfaces weeks where completed Final Surge workouts materially missed prescribed duration or intensity.",
-  "value": "Surfacing final surge plan compliance below eighty percent helps you act before small issues become habits.",
+  "exclusions": "Covers personal hobby monitoring for 'Final Surge Plan Compliance Below Eighty Percent' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_final_surge_plan_compliance_below_eighty_percent` (UC-25.1.39), SOC dashboard panel \"Personal — Final Surge Plan Compliance Below Eighty Percent\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.1.39 positive (Final, Surge, Plan, Compliance, Below): ingest synthetic events into `index=personal` sourcetype='finalsurge:workout' where `compliance` grouped by `athlete`, `_time` satisfies `compliance` < 80 for 'Final Surge Plan Compliance Below Eighty Percent'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.1.39 negative (Eighty Percent): ingest benign `personal` / `finalsurge:workout` events where `athlete`, `_time` stays below `compliance` < 80, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'Final Surge Plan Compliance Below Eighty Percent'."
+  },
+  "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=finalsurge:workout\n| bin _time span=1w\n| stats avg(compliance_pct) as compliance by athlete _time\n| where compliance<80",
+  "description": "Detects when Eighty Percent criteria fire for 'Final Surge Plan Compliance Below Eighty Percent' (UC-25.1.39) in `index=personal` sourcetype `finalsurge:workout`. Pipeline aggregates `compliance` by `athlete`, `_time` over `1w`. Alert logic enforces `compliance` < 80. Title terms: Final, Surge, Plan, Compliance, Below. Eliminates manual hunting for UC-25.1.39 conditions.",
+  "value": "UC-25.1.39 helps teams contain Final, Surge, Plan, Compliance, Below scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Ingest the relevant fitness & activity tracking export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It treats when final surge plan compliance below eighty percent matters for your routine."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.1.39)** — Connector for 'Final Surge Plan Compliance Below Eighty Percent' stops polling `finalsurge:workout`; stale `compliance` on `athlete`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `compliance` over `1w` is expected for UC-25.1.39, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `finalsurge:workout`. Dedup with `stats latest(*) by athlete`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `compliance` < 80 for 'Final Surge Plan Compliance Below Eighty Percent'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Fitness & Activity Tracking — typical feeds: Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports..\n• **Sourcetypes in this search**: `finalsurge:workout`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=finalsurge:workout`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files..\n\n**Author notes:** Ingest the relevant fitness & activity tracking export into `index=personal` and schedule this search weekly.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"finalsurge:workout\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=finalsurge:workout earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Final Surge Plan Compliance Below Eighty Percent** over `personal` data (primarily `sourcetype=finalsurge:workout`) across the full search range. It applies numeric thresholds on `compliance` (< 80) after avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `athlete`, `compliance`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=finalsurge:workout\n| bin _time span=1w\n| stats avg(compliance_pct) as compliance by athlete _time\n| where compliance<80\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=finalsurge:workout earliest=-7d\n| head 50\n| table _time, athlete, compliance\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=finalsurge:workout earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `compliance` before alerting:\n\n```spl\nindex=personal sourcetype=finalsurge:workout earliest=-30d\n| stats perc50(compliance) AS p50 perc90(compliance) AS p90 perc99(compliance) AS p99 max(compliance) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.1.39: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Or Chart Of Key Fields (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `finalsurge:workout` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=finalsurge:workout | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It treats when final surge plan compliance below eighty percent matters for your routine.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

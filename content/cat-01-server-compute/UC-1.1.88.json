@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=syslog` (SELinux/AppArmor denials mentioning containers, or runtime logs)",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Covers the detection logic documented for 'Container Escape Attempt Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_container_escape_attempt_detection` (UC-1.1.88), SOC dashboard panel \"Linux — Container Escape Attempt Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.88 positive (Container, Escape, Attempt, Detection): ingest synthetic events into `index=os` sourcetype='syslog' where `count` grouped by `host`, `container_id` satisfies `count` > 5 for 'Container Escape Attempt Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.88 negative (Attempt Detection): ingest benign `os` / `syslog` events where `host`, `container_id` stays below `count` > 5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 7 confirms zero alert rows for 'Container Escape Attempt Detection'."
+  },
+  "dataSources": "`sourcetype=syslog` (SELinux/AppArmor denials mentioning containers, or runtime logs) Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=syslog (\"AppArmor\" OR \"SELinux\") \"container\" (\"denied\" OR \"DENIED\")\n| stats count by host, container_id\n| where count>5",
-  "description": "Counts combined **AppArmor**/**SELinux** style denials whose text also references a **container** id or the word **container**, and pages when a **host**+**container** pair crosses a small floor.",
-  "value": "These log lines are rare in healthy microservice estates; even a handful can be the first hint of a breakout tool hitting **policy** before it succeeds.",
+  "description": "Identifies UC-1.1.88 — Container, Escape, Attempt, Detection — using `index=os` sourcetype `syslog`, grouped by `host`, `container_id`. Outputs `count` each `the scheduled window`; alert when `count` > 5. Primary focus: Attempt Detection. Purpose-built for 'Container Escape Attempt Detection' in Linux workflows.",
+  "value": "UC-1.1.88 operationalises 'Container Escape Attempt Detection' against `syslog` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
   "implementation": "If `container_id` is not extracted, start with `by host` only and add **REX** for **k8s** **namespace**/**pod** once you standardize logging. Raise `>5` in **dev** clusters that are always noisy.",
   "visualization": "Alert, Table",
   "cimModels": [
@@ -21,18 +27,40 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Build** hosts that compile in **unconfined** modes; **shift-left** scans; log text that contains the word **container** in an unrelated sense—tighten keywords per your **CRI** vendor.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Container Escape Attempt Detection'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 5.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "syslog"
   ],
-  "detailedImplementation": "Prerequisites\n• **Runtime** logs ( **containerd** / **cri-o** ) may be a better primary in some orgs—pair this UC with those sourcetypes in a **join** during triage.\n\n**CIM** — **N/A** for the **syslog** keyword pass; use **Authentication**/**Change** only after you model **container** policy into CIM.\n\n\nStep 3 — Validate\n`crictl inspect` / **docker** **inspect** for the **id**; **dmesg** **seccomp** lines on the node the same minute.\n\nStep 4 — Operationalize\nPage both **platform** and **product** security when a **container** image name in the log matches a customer **tenant**.\n\n",
-  "grandmaExplanation": "We help you know when the safety rules around boxed-in programs say “no” more than a few times in a way that mentions those little program boxes, which is worth a fast look."
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• **Runtime** logs ( **containerd** / **cri-o** ) may be a better primary in some orgs—pair this UC with those sourcetypes in a **join** during triage.\n\n**CIM** — **N/A** for the **syslog** keyword pass; use **Authentication**/**Change** only after you model **container** policy into CIM.\n\n\nStep 3 — Validate\n`crictl inspect` / **docker** **inspect** for the **id**; **dmesg** **seccomp** lines on the node the same minute.\n\nStep 4 — Operationalize\nPage both **platform** and **product** security when a **container** image name in the log matches a customer **tenant**.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=syslog into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`container_id, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you know when the safety rules around boxed-in programs say “no” more than a few times in a way that mentions those little program boxes, which is worth a fast look.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

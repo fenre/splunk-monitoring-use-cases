@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Pure Storage Array Data Reduction Ratio Collapse' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_pure_storage_array_data_reduction_ratio_collapse` (UC-6.1.34), SOC dashboard panel \"Operations — Pure Storage Array Data Reduction Ratio Collapse\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.1.34 positive (Pure, Storage, Array, Data, Reduction): ingest synthetic events into `index=storage` sourcetype='purestorage:*' where `count` grouped by `array_name` satisfies `drr` > 0, `drr_start` > 2, or `drop_pct` > 25 for 'Pure Storage Array Data Reduction Ratio Collapse'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.34 negative (Ratio Collapse): ingest benign `storage` / `purestorage:*` events where `array_name` stays below `drr` > 0, `drr_start` > 2, or `drop_pct` > 25, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Pure Storage Array Data Reduction Ratio Collapse'."
+  },
   "dataSources": "FlashArray `/array/space` or Unified Add-on array capacity events (JSON) indexed as `purestorage:*` or legacy `PureStorage_REST`",
   "app": "Pure Storage Unified Add-on for Splunk (Splunkbase 5513)",
   "spl": "index=storage (sourcetype=\"purestorage:*\" OR sourcetype=\"PureStorage_REST\") earliest=-7d\n| eval drr=coalesce(data_reduction_ratio, space_data_reduction_ratio, total_reduction)\n| where isnotnull(drr) AND drr > 0\n| sort 0 _time\n| stats first(drr) as drr_start last(drr) as drr_end by array_name\n| eval drop_pct=round((drr_start-drr_end)/drr_start*100,1)\n| where drr_start > 2 AND drop_pct > 25\n| table array_name drr_start drr_end drop_pct",
-  "description": "A sudden drop in data-reduction ratio often means new noisy workloads, encryption of source data, or loss of thin-provisioned savings—and usable physical capacity burns faster than forecasts.",
-  "value": "Gives capacity owners early warning before free space cliffs, so they can rebalance volumes, change backup patterns, or expand arrays without emergency outages.",
+  "description": "Alerts on 'Pure Storage Array Data Reduction Ratio Collapse' patterns (UC-6.1.34) sourced from `index=storage` sourcetype `purestorage:*`. Threshold bundle: `drr` > 0, `drr_start` > 2, or `drop_pct` > 25; aggregation grain: `array_name`; metrics: `count`. Watch terms: Pure, Storage, Array, Data, Reduction.",
+  "value": "UC-6.1.34 gives Operations teams earlier visibility into Ratio Collapse through `purestorage:*` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest array-level space metrics at least hourly. Baseline the 7-day average reduction ratio per array and alert when the live ratio falls more than ~25% below that baseline. Validate field names against a sample event from your TA version; map REST `space.data_reduction` into `data_reduction_ratio` at ingest if the TA does not already.",
   "visualization": "Line chart (ratio trend), bar chart (delta vs baseline), table (array, drop %).",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "Pure Storage Unified Add-on for Splunk (Splunkbase)",
-      "url": "https://splunkbase.splunk.com/app/5513"
+      "url": "https://splunkbase.splunk.com/app/5513",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Connect for Syslog — Pure Storage",
-      "url": "https://splunk.github.io/splunk-connect-for-syslog/main/sources/"
+      "url": "https://splunk.github.io/splunk-connect-for-syslog/main/sources/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.34)** — Planned work for 'Pure Storage Array Data Reduction Ratio Collapse' shifts `count` over `span=1h` while `array_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `purestorage:*`** — Scheduled automation elevates `drr` without crossing `drr` > 0 for UC-6.1.34. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `array_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `purestorage:*`** — First 48h baseline for UC-6.1.34 on `array_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `array_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "pure_storage"
+  ],
+  "equipmentModels": [
+    "pure_storage_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -40,5 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Pure Storage Unified Add-on for Splunk (Splunkbase 5513)). Enable the modular input or HEC token that writes sourcetype=purestorage:, PureStorage_REST into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`array_name, drop_pct, drr, drr_start`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

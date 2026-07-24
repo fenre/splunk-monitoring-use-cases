@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=iac` `sourcetype=ansible:result` with per-play `duration` (seconds) and `play`, `role` from callback JSON",
-  "app": "Ansible Splunk HTTP Event Collector callback, ARA export, or AWX job event normalizer",
+  "exclusions": "Covers the detection logic documented for 'Ansible Playbook Execution Duration Trending by Play and Role' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ansible_playbook_execution_duration_trending_by_` (UC-12.7.5), SOC dashboard panel \"Operations — Ansible Playbook Execution Duration Trending by Play and Role\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.7.5 positive (Ansible, Playbook, Execution, Duration, Trending): ingest synthetic events into `index=iac` sourcetype='ansible:result' where `p50`, `baseline` grouped by `_time`, `playbook`, `play`, `role` satisfies `duration` > 0, or `runs` >= 5 for 'Ansible Playbook Execution Duration Trending by Play and Role'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.7.5 negative (and Role): ingest benign `iac` / `ansible:result` events where `_time`, `playbook`, `play`, `role` stays below `duration` > 0, or `runs` >= 5, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Ansible Playbook Execution Duration Trending by Play and Role'."
+  },
+  "dataSources": "`index=iac` `sourcetype=ansible:result` with per-play `duration` (seconds) and `play`, `role` from callback JSON Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Ansible Splunk HTTP Event Collector callback, ARA export, or AWX job event normalizer — Universal Forwarder (Splunkbase 617)",
   "spl": "index=iac sourcetype=\"ansible:result\"\n| where isnotnull(duration) AND duration > 0\n| bin _time span=1d\n| stats median(duration) as p50, perc95(duration) as p95, count as runs by _time, playbook, play, role\n| eventstats median(p95) as baseline by playbook, play, role\n| where p95 > baseline * 1.5 AND runs >= 5\n| sort -p95",
-  "description": "Run duration creep in specific plays or roles is an early sign of module inefficiency, network degradation, or hosts accumulating configuration debt. Trending p95 by play isolates the slow slice of long playbooks without blaming the entire automation surface.",
-  "value": "Guides refactoring priorities and prevents surprise CI timeouts or maintenance windows that overrun change freezes.",
+  "description": "Identifies 'Ansible Playbook Execution Duration Trending by Play and Role' (UC-12.7.5) using `index=iac` sourcetype `ansible:result` by aggregating `p50`, `baseline` grouped by `_time`, `playbook`, `play`, `role` over `1d` and alerting when `duration` > 0, or `runs` >= 5. Keywords: Ansible, Playbook, Execution, Duration, Trending. Focuses on and Role behaviour so operations teams can triage UC-12.7.5 without ad-hoc log review.",
+  "value": "UC-12.7.5 accelerates insight into and Role ('Ansible Playbook Execution Duration Trending by Play and Role') by tracking `p50`, `baseline` on `ansible:result` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Ensure callback payloads include hierarchical fields (playbook, play, role) and duration in seconds. Exclude ad-hoc `-m shell` runs if needed via `job_type`. Use 30-day baseline; tune multiplier per environment.",
   "visualization": "Line chart (p95 duration by play over time), treemap (time spent by role), table of worst regressions.",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "Ansible — Callback plugins",
-      "url": "https://docs.ansible.com/ansible/latest/plugins/callback.html"
+      "url": "https://docs.ansible.com/ansible/latest/plugins/callback.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Build times vary with cache state, runner availability, or test suite expansion.",
+  "knownFalsePositives": "1. **Maintenance window on `iac` (UC-12.7.5)** — Planned work for 'Ansible Playbook Execution Duration Trending by Play and Role' shifts `p50`, `baseline` over `span=1d` while `_time`, `playbook`, `play`, `role` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `median` on `ansible:result`** — Scheduled automation elevates `playbook` without crossing `duration` > 0 for UC-12.7.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `playbook`, `play`, `role`** — Health checks in `iac` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ansible:result`** — First 48h baseline for UC-12.7.5 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ansible"
+  ],
+  "equipmentModels": [
+    "ansible_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-01",
@@ -42,5 +63,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch infrastructure-as-code runs and policy so changes to systems stay visible and governed."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Ansible Splunk HTTP Event Collector callback, ARA export, or AWX job event normalizer — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ansible:result into iac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, duration, play, playbook`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch infrastructure-as-code runs and policy so changes to systems stay visible and governed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,31 +8,57 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Power BI activity events (`o365:management:activity` with `Workload=PowerBI`), Power BI REST Admin API (`/admin/groups`, `/datasets/refreshes`, `/capacities/refreshables`), on-prem data gateway `Mashup`/`GatewayInfo` logs, Premium capacity metrics.",
-  "app": "Splunk Add-on for Microsoft Cloud Services / Microsoft 365 (`Splunk_TA_microsoft-cloudservices`) for the Power BI activity log; Power BI REST Admin API and on-prem data gateway logs via HEC scripted inputs.",
+  "exclusions": "Covers the detection logic documented for 'Power BI On-Prem Data Gateway Availability' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_power_bi_on_prem_data_gateway_availability` (UC-24.2.3), SOC dashboard panel \"Operations — Power BI On-Prem Data Gateway Availability\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.2.3 positive (Power, Prem, Data, Gateway, Availability): ingest synthetic events into `index=bi` sourcetype='powerbi:gateway:info' where `count` grouped by `gatewayName`, `gatewayClusterName` satisfies `mins_since` > 10 for 'Power BI On-Prem Data Gateway Availability'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.2.3 negative (Gateway Availability): ingest benign `bi` / `powerbi:gateway:info` events where `gatewayName`, `gatewayClusterName` stays below `mins_since` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Power BI On-Prem Data Gateway Availability'."
+  },
+  "dataSources": "Power BI activity events (`o365:management:activity` with `Workload=PowerBI`), Power BI REST Admin API (`/admin/groups`, `/datasets/refreshes`, `/capacities/refreshables`), on-prem data gateway `Mashup`/`GatewayInfo` logs, Premium capacity metrics. Collected via Splunk Add-on for Microsoft Office 365 (Splunkbase 4054) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Microsoft Cloud Services / Microsoft 365 (`Splunk_TA_microsoft-cloudservices`) for the Power BI activity log; Power BI REST Admin API and on-prem data gateway logs via HEC scripted inputs. — Splunk Add-on for Microsoft Office 365 (Splunkbase 4054)",
   "spl": "index=bi sourcetype=powerbi:gateway:info\n| stats latest(gatewayStatus) as status, latest(_time) as last_seen by gatewayName, gatewayClusterName\n| eval mins_since=round((now()-last_seen)/60,0)\n| where status!=\"Live\" OR mins_since>10\n| sort - mins_since",
-  "description": "Monitors the on-premises data gateways that connect Power BI to internal data and flags gateways that are offline or have stopped reporting in.",
-  "value": "If the on-prem gateway goes down, every refresh and DirectQuery report depending on internal data fails; monitoring gateway liveness prevents a silent, widespread outage.",
+  "description": "Monitors UC-24.2.3 — Power, Prem, Data, Gateway, Availability — using `index=bi` sourcetype `powerbi:gateway:info`, grouped by `gatewayName`, `gatewayClusterName`. Outputs `count` each `the scheduled window`; alert when `mins_since` > 10. Primary focus: Gateway Availability. Purpose-built for 'Power BI On-Prem Data Gateway Availability' in Operations workflows.",
+  "value": "UC-24.2.3 helps teams contain Power, Prem, Data, Gateway, Availability scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ingest gateway logs or poll gateway status via the REST API; schedule every 5 minutes; alert on offline or stale gateways. Deploy gateway clusters for resilience.",
   "visualization": "Table of gateway status, single-value count of offline gateways, alert.",
   "cimModels": [],
   "references": [
     {
       "title": "Power BI — Track user activities (audit log)",
-      "url": "https://learn.microsoft.com/power-bi/enterprise/service-admin-auditing"
+      "url": "https://learn.microsoft.com/power-bi/enterprise/service-admin-auditing",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Power BI REST Admin API",
-      "url": "https://learn.microsoft.com/rest/api/power-bi/admin"
+      "url": "https://learn.microsoft.com/rest/api/power-bi/admin",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.2.3)** — Planned work for 'Power BI On-Prem Data Gateway Availability' shifts `count` over `span=1h` while `gatewayName`, `gatewayClusterName` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `powerbi:gateway:info`** — Scheduled automation elevates `gatewayClusterName` without crossing `mins_since` > 10 for UC-24.2.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `gatewayName`, `gatewayClusterName`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `powerbi:gateway:info`** — First 48h baseline for UC-24.2.3 on `gatewayName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `gatewayName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure",
     "m365"
   ],
-  "grandmaExplanation": "We check that the bridge connecting Power BI to your internal data is up, so reports that rely on it do not suddenly stop working."
+  "equipmentModels": [
+    "azure_generic",
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Microsoft Cloud Services / Microsoft 365 (`Splunk_TA_microsoft-cloudservices`) for the Power BI activity log; Power BI REST Admin API and on-prem data gateway logs via HEC scripted inputs. — Splunk Add-on for Microsoft Office 365 (Splunkbase 4054)). Enable the modular input or HEC token that writes sourcetype=powerbi:gateway:info into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`gatewayClusterName, gatewayName, mins_since`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We check that the bridge connecting Power BI to your internal data is up, so reports that rely on it do not suddenly stop working.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

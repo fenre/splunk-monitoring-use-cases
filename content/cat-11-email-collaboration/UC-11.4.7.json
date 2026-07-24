@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "TLS handshake to mail server ports (25, 465, 587, 993, 995)",
-  "app": "Custom scripted input (openssl s_client)",
+  "exclusions": "Covers the detection logic documented for 'Mail Server TLS and Certificate Expiration' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_mail_server_tls_and_certificate_expiration` (UC-11.4.7), SOC dashboard panel \"Operations — Mail Server TLS and Certificate Expiration\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.4.7 positive (Mail, Server, TLS, and, Certificate): ingest synthetic events into `index=mail` sourcetype='mail_tls' where `count` grouped by `entity` satisfies `days_left` < 30 for 'Mail Server TLS and Certificate Expiration'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.4.7 negative (Certificate Expiration): ingest benign `mail` / `mail_tls` events where `entity` stays below `days_left` < 30, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Mail Server TLS and Certificate Expiration'."
+  },
+  "dataSources": "TLS handshake to mail server ports (25, 465, 587, 993, 995) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (openssl s_client) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=mail sourcetype=mail_tls host=*\n| eval days_left=round((expiry_epoch-now())/86400, 0)\n| where days_left < 30\n| table host port days_left subject\n| sort days_left",
-  "description": "Expired or expiring TLS certificates on SMTP/IMAP/POP break encryption and can cause delivery failures. Proactive monitoring prevents outages.",
-  "value": "Expired or expiring TLS certificates on SMTP/IMAP/POP break encryption and can cause delivery failures. Proactive monitoring prevents outages.",
+  "description": "Alerts on Certificate Expiration activity in UC-11.4.7 ('Mail Server TLS and Certificate Expiration') from `index=mail` sourcetype `mail_tls`. Rolls up `count` by `entity` across `the scheduled window` and pages when `days_left` < 30. Covers Mail, Server, TLS, and, Certificate. Operations operators treat UC-11.4.7 as the canonical signal.",
+  "value": "Operators running UC-11.4.7 on `mail_tls` feeds shorten triage for Certificate Expiration tied to 'Mail Server TLS and Certificate Expiration', lowering operational risk and delayed incident response.",
   "implementation": "Script that connects to mail server ports and extracts certificate expiry (e.g. `openssl s_client -connect host:25 -starttls smtp`). Ingest daily. Alert when expiry is within 30 days.",
   "visualization": "Table (host, port, days left), Single value (soonest expiry), Gauge (days remaining).",
   "cimModels": [
@@ -23,10 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Certificate renewals on balancers, staged cutovers, and test mailboxes hitting TLS to edge hosts.",
+  "knownFalsePositives": "1. **Maintenance window on `mail` (UC-11.4.7)** — Planned work for 'Mail Server TLS and Certificate Expiration' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mail_tls`** — Scheduled automation elevates `days_left` without crossing `days_left` < 30 for UC-11.4.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `mail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mail_tls`** — First 48h baseline for UC-11.4.7 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (openssl s_client).\n• Ensure the following data sources are available: TLS handshake to mail server ports (25, 465, 587, 993, 995).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nScript that connects to mail server ports and extracts certificate expiry (e.g. `openssl s_client -connect host:25 -starttls smtp`). Ingest daily. Alert when expiry is within 30 days.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=mail sourcetype=mail_tls host=*\n| eval days_left=round((expiry_epoch-now())/86400, 0)\n| where days_left < 30\n| table host port days_left subject\n| sort days_left\n```\n\nUnderstanding this SPL\n\n**Mail Server TLS and Certificate Expiration** — Expired or expiring TLS certificates on SMTP/IMAP/POP break encryption and can cause delivery failures. Proactive monitoring prevents outages.\n\nDocumented **Data sources**: TLS handshake to mail server ports (25, 465, 587, 993, 995). **App/TA** (typical add-on context): Custom scripted input (openssl s_client). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: mail; **sourcetype**: mail_tls. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=mail, sourcetype=mail_tls. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **days_left** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where days_left < 30` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Mail Server TLS and Certificate Expiration**): table host port days_left subject\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with your MTA and mail security logs, mailq output, and DNS/MX for the same hosts and time window.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (host, port, days left), Single value (soonest expiry), Gauge (days remaining).",
-  "grandmaExplanation": "We watch your mail servers and queues, so delivery, auth, and encryption problems show up in time to fix them."
+  "grandmaExplanation": "We watch your mail servers and queues, so delivery, auth, and encryption problems show up in time to fix them.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=fgt_traffic` (FortiSASE ZTNA sessions)",
-  "app": "`TA-fortinet_fortigate` (FortiSASE ZTNA logs)",
+  "exclusions": "Covers the detection logic documented for 'FortiSASE ZTNA Application Access (Fortinet)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_fortisase_ztna_application_access_fortinet` (UC-17.3.40), SOC dashboard panel \"Network — FortiSASE ZTNA Application Access (Fortinet)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.40 positive (FortiSASE, ZTNA, Application, Access, (Fortinet)): ingest synthetic events into `index=zt` sourcetype='fgt_traffic' where `users` grouped by `ztna_tag`, `dstip`, `action` satisfies -24h for 'FortiSASE ZTNA Application Access (Fortinet)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.40 negative (Access (Fortinet)): ingest benign `zt` / `fgt_traffic` events where `ztna_tag`, `dstip`, `action` stays below -24h, or exclude the test entity via `network_exception_register.csv`. Variant 13 confirms zero alert rows for 'FortiSASE ZTNA Application Access (Fortinet)'."
+  },
+  "dataSources": "`sourcetype=fgt_traffic` (FortiSASE ZTNA sessions) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`TA-fortinet_fortigate` (FortiSASE ZTNA logs) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=zt sourcetype=\"fgt_traffic\" subtype=\"forward\" earliest=-24h\n| where isnotnull(ztna_tag) OR isnotnull(ztna_rule)\n| stats count dc(user) as users by ztna_tag, dstip, action\n| sort -count",
-  "description": "FortiSASE ZTNA tags replace traditional VPN by granting per-application access based on device posture and identity. Monitoring ZTNA tag matches and application access patterns validates zero-trust enforcement.",
-  "value": "ZTNA operations teams monitor FortiSASE ZTNA application access success and denial rates, identifying applications with high deny rates caused by device posture tag failures and users unable to reach critical applications due to FortiClient EMS compliance issues.",
+  "description": "Detects UC-17.3.40 — FortiSASE, ZTNA, Application, Access, (Fortinet) — using `index=zt` sourcetype `fgt_traffic`, grouped by `ztna_tag`, `dstip`, `action`. Outputs `users` each `the scheduled window`; alert when -24h. Primary focus: Access (Fortinet). Purpose-built for 'FortiSASE ZTNA Application Access (Fortinet)' in Network workflows.",
+  "value": "UC-17.3.40 gives Network teams earlier visibility into Access (Fortinet) through `fgt_traffic` feeds, lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Map `ztna_tag` to EMS posture profiles. Alert when ZTNA deny rate exceeds baseline (posture drift or misconfigured tags). Report on ZTNA adoption vs legacy VPN connections.",
   "visualization": "Table (ZTNA tag access), Bar chart (actions by tag), Line chart (ZTNA sessions trend), Single value (ZTNA vs VPN ratio).",
   "cimModels": [
@@ -24,10 +30,26 @@
   "references": [
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Remote workforce login storm** — Morning VPN/ZTNA session spike for 'FortiSASE ZTNA Application Access (Fortinet)'. Compare with historical same-hour baseline.\n\n2. **IdP or SAML metadata refresh** — Brief auth failures during federation cert rotation.\n\n3. **Split-tunnel policy change** — New route advertisements shift traffic patterns.\n\n4. **Synthetic ZTNA health checks** — Monitoring probes from known appliance IPs.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `src`, `valid_until`.",
   "mitreAttack": [
     "T1021",
     "T1071.001"
@@ -38,7 +60,13 @@
   "equipmentModels": [
     "fortinet_fortigate"
   ],
-  "detailedImplementation": "Prerequisites\n• FortiSASE ZTNA access logs in `index=fortisase` with `sourcetype=fortisase:ztna`. Key fields: `action` (accept/deny), `ztnaapp` (ZTNA application name), `user`, `srcip`, `dstip`, `dstport`, `ztna_tag` (device posture tag), `devid`.\n• FortiSASE ZTNA uses ZTNA tags (device posture labels) to determine access. Tags are applied by FortiClient EMS based on device compliance checks. A device with the 'Compliant' tag gets access; without it, access is denied.\n\nStep 1 — Configure data collection\nVerify ZTNA events:\n```spl\nindex=fortisase sourcetype=\"fortisase:ztna\" earliest=-24h\n| stats count by action, ztnaapp\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — ZTNA access overview:\n```spl\nindex=fortisase sourcetype=\"fortisase:ztna\" earliest=-24h\n| stats count(eval(action=\"accept\")) as accepted count(eval(action=\"deny\")) as denied dc(user) as users by ztnaapp\n| eval deny_rate=round(denied/(accepted+denied)*100, 1)\n| sort - deny_rate\n```\n\nUnderstanding this SPL: Shows the accept/deny rate per ZTNA-published application. A high deny rate on a critical application means many users are failing the ZTNA tag check — their devices are not compliant. This directly impacts productivity. The deny rate should be < 5% for well-deployed applications.\n\nDenied users analysis:\n```spl\nindex=fortisase sourcetype=\"fortisase:ztna\" action=deny earliest=-24h\n| stats count by user, ztnaapp, ztna_tag\n| sort - count\n```\n\nStep 3 — Validate\n(a) Access a ZTNA app with a compliant device. Verify accept.\n(b) Remove the ZTNA tag (change compliance state). Verify deny.\n\nStep 4 — Operationalize\nDashboard: Row 1 — App deny rate. Row 2 — Denied users. Row 3 — ZTNA tag distribution.\nAlert: When deny rate exceeds 10% for any application.\n\nRunbook:\n1. **High deny rate** — Check FortiClient EMS for compliance issues.\n2. **Specific ZTNA tag missing** — Device may need FortiClient agent update.\n3. **All denies** — ZTNA policy or EMS connectivity issue.\n\nStep 5 — Troubleshooting\n• **No ZTNA events** — ZTNA may not be licensed in FortiSASE.\n• **`ztna_tag` always empty** — FortiClient EMS may not be syncing tags to FortiSASE.",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• FortiSASE ZTNA access logs in `index=fortisase` with `sourcetype=fortisase:ztna`. Key fields: `action` (accept/deny), `ztnaapp` (ZTNA application name), `user`, `srcip`, `dstip`, `dstport`, `ztna_tag` (device posture tag), `devid`.\n• FortiSASE ZTNA uses ZTNA tags (device posture labels) to determine access. Tags are applied by FortiClient EMS based on device compliance checks. A device with the 'Compliant' tag gets access; without it, access is denied.\n\nStep 1 — Configure data collection\nVerify ZTNA events:\n```spl\nindex=fortisase sourcetype=\"fortisase:ztna\" earliest=-24h\n| stats count by action, ztnaapp\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — ZTNA access overview:\n```spl\nindex=fortisase sourcetype=\"fortisase:ztna\" earliest=-24h\n| stats count(eval(action=\"accept\")) as accepted count(eval(action=\"deny\")) as denied dc(user) as users by ztnaapp\n| eval deny_rate=round(denied/(accepted+denied)*100, 1)\n| sort - deny_rate\n```\n\nUnderstanding this SPL: Shows the accept/deny rate per ZTNA-published application. A high deny rate on a critical application means many users are failing the ZTNA tag check — their devices are not compliant. This directly impacts productivity. The deny rate should be < 5% for well-deployed applications.\n\nDenied users analysis:\n```spl\nindex=fortisase sourcetype=\"fortisase:ztna\" action=deny earliest=-24h\n| stats count by user, ztnaapp, ztna_tag\n| sort - count\n```\n\nStep 3 — Validate\n(a) Access a ZTNA app with a compliant device. Verify accept.\n(b) Remove the ZTNA tag (change compliance state). Verify deny.\n\nStep 4 — Operationalize\nDashboard: Row 1 — App deny rate. Row 2 — Denied users. Row 3 — ZTNA tag distribution.\nAlert: When deny rate exceeds 10% for any application.\n\nRunbook:\n1. **High deny rate** — Check FortiClient EMS for compliance issues.\n2. **Specific ZTNA tag missing** — Device may need FortiClient agent update.\n3. **All denies** — ZTNA policy or EMS connectivity issue.\n\nStep 5 — Troubleshooting\n• **No ZTNA events** — ZTNA may not be licensed in FortiSASE.\n• **`ztna_tag` always empty** — FortiClient EMS may not be syncing tags to FortiSASE.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`TA-fortinet_fortigate` (FortiSASE ZTNA logs) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=fgt_traffic into zt. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action, dstip, ztna_tag`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "FortiSASE checks both who you are and whether your device meets security requirements before letting you access each application. We track which applications block the most people and why, so we can fix the device compliance issues that are keeping people from their work.",
-  "hardware": "FortiSASE (cloud), FortiClient (EMS-managed endpoint), FortiGate ZTNA proxy"
+  "hardware": "FortiSASE (cloud), FortiClient (EMS-managed endpoint), FortiGate ZTNA proxy",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

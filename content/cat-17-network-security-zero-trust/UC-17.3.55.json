@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Symantec WSS access logs with threat fields",
+  "exclusions": "Covers the detection logic documented for 'Broadcom Symantec Cloud SWG Threat Events (Broadcom)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_broadcom_symantec_cloud_swg_threat_events_broadc` (UC-17.3.55), SOC dashboard panel \"Network — Broadcom Symantec Cloud SWG Threat Events (Broadcom)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.55 positive (Broadcom, Symantec, Cloud, SWG, Threat): ingest synthetic events into `index=proxy` sourcetype='symantec:wss:accesslog' where `count` grouped by `cs_threat`, `cs_categories`, `cs_userdn`, `cs_host` satisfies -24h for 'Broadcom Symantec Cloud SWG Threat Events (Broadcom)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.55 negative (Events (Broadcom)): ingest benign `proxy` / `symantec:wss:accesslog` events where `cs_threat`, `cs_categories`, `cs_userdn`, `cs_host` stays below -24h, or exclude the test entity via `network_exception_register.csv`. Variant 6 confirms zero alert rows for 'Broadcom Symantec Cloud SWG Threat Events (Broadcom)'."
+  },
+  "dataSources": "Symantec WSS access logs with threat fields Indexes: proxy. Sourcetypes: symantec:wss:accesslog. Key fields: cs_categories, cs_host, cs_threat, cs_userdn. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Symantec WSS Add-on for Splunk (Splunkbase 3856)",
   "spl": "index=proxy sourcetype=\"symantec:wss:accesslog\" earliest=-24h\n| where sc_filter_result=\"DENIED\" AND isnotnull(cs_threat_risk_level) AND cs_threat_risk_level IN (\"High\",\"Critical\")\n| stats count by cs_threat, cs_categories, cs_userdn, cs_host\n| sort -count",
-  "description": "Cloud SWG detects malware, phishing, and zero-day threats via URL reputation, content analysis, and sandboxing. Threat events in Splunk enable incident response and threat hunting.",
-  "value": "Security operations teams analyze Symantec Cloud SWG threat detections, identifying malware and C2 blocks indicating compromised endpoints, finding high-risk traffic that was detected but not blocked (policy gaps), and tracking malware family trends.",
+  "description": "Identifies Events (Broadcom) anomalies for UC-17.3.55 with window `the scheduled window` on `index=proxy` sourcetype `symantec:wss:accesslog`. Combines `count` by `cs_threat`, `cs_categories`, `cs_userdn`, `cs_host` and compares against -24h. Mapped to keywords Broadcom, Symantec, Cloud, SWG, Threat for dashboard routing.",
+  "value": "Alerting on Broadcom, Symantec, Cloud, SWG, Threat through UC-17.3.55 reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing `activity` early.",
   "implementation": "Map `cs_threat` to threat categories. Alert on critical-severity threats. Correlate with endpoint detection for compromised hosts. Report on threat type distribution.",
   "visualization": "Bar chart (threats by category), Table (affected users), Timeline (detections), Pie chart (threat types).",
   "cimModels": [
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "Symantec WSS Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3856"
+      "url": "https://splunkbase.splunk.com/app/3856",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Malware",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Malware"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Malware",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Vulnerability scanner signature matches** — Qualys/Tenable traffic triggers IPS/threat signatures for 'Broadcom Symantec Cloud SWG Threat Events (Broadcom)'. Compare `src` against `scanner_ips` lookup.\n\n2. **Policy push during change window** — New deny rule generates expected blocks. Match firewall commit timestamp in change calendar.\n\n3. **Encrypted traffic inspection gap** — TLS-heavy apps bypass deep inspection; volume drop is operational, not a sensor failure.\n\n4. **Red-team C2 simulation** — Approved exercise from `pen_test_hosts.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src`, `signature_id`, `valid_until`.",
   "mitreAttack": [
     "T1071.001",
     "T1568.002"
@@ -38,7 +56,16 @@
   "equipment": [
     "broadcom_symantec"
   ],
-  "detailedImplementation": "Prerequisites\n• Symantec WSS threat events in `index=symantec` with `sourcetype=symantec:wss`. Key fields: `cs-threat-risk`, `cs-threat-type` (malware/phishing/exploit), `cs-categories` (includes Malware/Phishing categories), `cs-action`, `cs-host`, `cs-userdn`, `cs-malware-name`.\n• Symantec WSS threat scanning includes anti-malware (signature + ML), URL reputation, content analysis, and sandboxing. Threat events indicate either successful blocks or detected-but-allowed traffic.\n\nStep 1 — Configure data collection\nVerify threat events:\n```spl\nindex=symantec sourcetype=\"symantec:wss\" earliest=-7d\n| where tonumber(cs-threat-risk) > 3 OR match(cs-categories, \"(?i)malware|phishing\")\n| stats count by cs-threat-type, cs-action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Threat event dashboard:\n```spl\nindex=symantec sourcetype=\"symantec:wss\" earliest=-24h\n| where tonumber(cs-threat-risk) > 5 OR match(cs-categories, \"(?i)malware|phishing|command|botnet\")\n| stats count dc(cs-userdn) as users by cs-threat-type, cs-malware-name, cs-action, cs-host\n| sort - count\n```\n\nUnderstanding this SPL: Groups threat events by type, malware name, and action. Events with cs-action=DENIED are successfully blocked threats. Events with cs-action=ALLOWED + high threat risk indicate gaps in the blocking policy — threats detected but not prevented.\n\nStep 3 — Validate\n(a) Download EICAR test file. Verify threat detection.\n(b) In WSS: Reports > Threats.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Threat type distribution. Row 2 — Allowed high-risk (gaps). Row 3 — Top malware families.\nAlert: Immediate on malware/C2 blocks from internal users.\n\nRunbook:\n1. **Malware blocked** — Check user endpoint for additional indicators.\n2. **High-risk allowed** — Policy gap. Update blocking rules.\n3. **C2/Botnet detection** — Internal compromise. Isolate endpoint.\n\nStep 5 — Troubleshooting\n• **No threat events** — Threat scanning may be disabled in the WSS policy profile.\n• **`cs-malware-name` empty** — Not all threat detections include a malware name (e.g., phishing URLs).",
+  "equipmentModels": [
+    "broadcom_symantec_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Symantec WSS threat events in `index=symantec` with `sourcetype=symantec:wss`. Key fields: `cs-threat-risk`, `cs-threat-type` (malware/phishing/exploit), `cs-categories` (includes Malware/Phishing categories), `cs-action`, `cs-host`, `cs-userdn`, `cs-malware-name`.\n• Symantec WSS threat scanning includes anti-malware (signature + ML), URL reputation, content analysis, and sandboxing. Threat events indicate either successful blocks or detected-but-allowed traffic.\n\nStep 1 — Configure data collection\nVerify threat events:\n```spl\nindex=symantec sourcetype=\"symantec:wss\" earliest=-7d\n| where tonumber(cs-threat-risk) > 3 OR match(cs-categories, \"(?i)malware|phishing\")\n| stats count by cs-threat-type, cs-action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Threat event dashboard:\n```spl\nindex=symantec sourcetype=\"symantec:wss\" earliest=-24h\n| where tonumber(cs-threat-risk) > 5 OR match(cs-categories, \"(?i)malware|phishing|command|botnet\")\n| stats count dc(cs-userdn) as users by cs-threat-type, cs-malware-name, cs-action, cs-host\n| sort - count\n```\n\nUnderstanding this SPL: Groups threat events by type, malware name, and action. Events with cs-action=DENIED are successfully blocked threats. Events with cs-action=ALLOWED + high threat risk indicate gaps in the blocking policy — threats detected but not prevented.\n\nStep 3 — Validate\n(a) Download EICAR test file. Verify threat detection.\n(b) In WSS: Reports > Threats.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Threat type distribution. Row 2 — Allowed high-risk (gaps). Row 3 — Top malware families.\nAlert: Immediate on malware/C2 blocks from internal users.\n\nRunbook:\n1. **Malware blocked** — Check user endpoint for additional indicators.\n2. **High-risk allowed** — Policy gap. Update blocking rules.\n3. **C2/Botnet detection** — Internal compromise. Isolate endpoint.\n\nStep 5 — Troubleshooting\n• **No threat events** — Threat scanning may be disabled in the WSS policy profile.\n• **`cs-malware-name` empty** — Not all threat detections include a malware name (e.g., phishing URLs).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Symantec WSS Add-on for Splunk (Splunkbase 3856)). Enable the modular input or HEC token that writes sourcetype=symantec:wss:accesslog into proxy. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cs_categories, cs_host, cs_threat, cs_userdn`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Symantec scans all our web traffic for malware and phishing. We track what it catches and also what it detects but does not block — because detected-but-allowed threats are security gaps we need to close before someone gets infected.",
-  "hardware": "Symantec Cloud SWG (cloud), Symantec Endpoint Agent"
+  "hardware": "Symantec Cloud SWG (cloud), Symantec Endpoint Agent",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

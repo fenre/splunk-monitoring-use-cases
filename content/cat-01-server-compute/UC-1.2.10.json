@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-TaskScheduler/Operational`, EventCode=201",
-  "app": "`Splunk_TA_windows`",
+  "exclusions": "Covers the detection logic documented for 'Scheduled Task Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_scheduled_task_failures` (UC-1.2.10), SOC dashboard panel \"Linux — Scheduled Task Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.2.10 positive (Scheduled, Task, Failures): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Microsoft-Windows-TaskScheduler/Operational' EventCode=201 where `count` grouped by `entity` satisfies detection threshold for 'Scheduled Task Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.2.10 negative (Task Failures): ingest benign `wineventlog` / `WinEventLog:Microsoft-Windows-TaskScheduler/Operational` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 15 confirms zero alert rows for 'Scheduled Task Failures'."
+  },
+  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-TaskScheduler/Operational`, EventCode=201 Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-TaskScheduler/Operational\" EventCode=201\n| where ActionName!=\"0\" AND ResultCode!=\"0\"\n| table _time host TaskName ResultCode ActionName\n| sort -_time",
-  "description": "Failed scheduled tasks break batch jobs, cleanup scripts, and automated processes. Often goes unnoticed until downstream effects appear.",
-  "value": "Failed tasks often mean skipped backups or drift—fixing the task before data loss beats discovering it at restore time.",
+  "description": "Alerts on UC-1.2.10 — Scheduled, Task, Failures — using `index=wineventlog` sourcetype `WinEventLog:Microsoft-Windows-TaskScheduler/Operational`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Task Failures. Purpose-built for 'Scheduled Task Failures' in Linux workflows.",
+  "value": "UC-1.2.10 operationalises 'Scheduled Task Failures' against `WinEventLog:Microsoft-Windows-TaskScheduler/Operational` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
   "implementation": "Enable Task Scheduler operational log collection. Alert on non-zero ResultCode values. Maintain a lookup of critical tasks per server role.",
   "visualization": "Table of failures, Single value (failures last 24h), Bar chart by task name.",
   "cimModels": [
@@ -24,13 +30,38 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Build scripts, MDT, and dev boxes fail tasks in ways that are noisy. Name and owner context separate noise from business batch failures.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Scheduled Task Failures'. Correlate with apt/yum logs in the same `WinEventLog:Microsoft-Windows-TaskScheduler/Operational` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Microsoft-Windows-TaskScheduler/Operational`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],
+  "equipmentModels": [
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Microsoft-Windows-TaskScheduler/Operational`, EventCode=201.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Task Scheduler operational log collection. Alert on non-zero ResultCode values. Maintain a lookup of critical tasks per server role.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-TaskScheduler/Operational\" EventCode=201\n| where ActionName!=\"0\" AND ResultCode!=\"0\"\n| table _time host TaskName ResultCode ActionName\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Scheduled Task Failures** — Failed scheduled tasks break batch jobs, cleanup scripts, and automated processes. Often goes unnoticed until downstream effects appear.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-TaskScheduler/Operational`, EventCode=201. **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Microsoft-Windows-TaskScheduler/Operational. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Microsoft-Windows-TaskScheduler/Operational\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where ActionName!=\"0\" AND ResultCode!=\"0\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Scheduled Task Failures**): table _time host TaskName ResultCode ActionName\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.object All_Changes.action All_Changes.dest span=1h\n| where count>0\n```\n\nUnderstanding this CIM / accelerated SPL\n\nCIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.\n\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of failures, Single value (failures last 24h), Bar chart by task name.",
-  "grandmaExplanation": "We catch scheduled jobs that did not run successfully, so backups and cleanups you rely on are not failing quietly in the background."
+  "grandmaExplanation": "We catch scheduled jobs that did not run successfully, so backups and cleanups you rely on are not failing quietly in the background.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

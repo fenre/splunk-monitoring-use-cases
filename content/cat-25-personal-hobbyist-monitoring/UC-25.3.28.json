@@ -9,50 +9,75 @@
     "Performance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Personal EV and vehicle telemetry (`tesla:vehicle`, `tesla:charge`, `rivian:vehicle`, `chargepoint:session`, `plugshare:checkin`, `evcharger:session`, `obd:pid`, `smartcar:vehicle`).",
-  "app": "Tesla Fleet API / TeslaMate, Rivian telemetry, ChargePoint session exports, PlugShare trip logs, Smartcar, and OBD-II / home-charger data via APIs, CSV exports, MQTT, and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'OBD Tire Pressure Seasonal Delta' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_obd_tire_pressure_seasonal_delta` (UC-25.3.28), SOC dashboard panel \"Personal — OBD Tire Pressure Seasonal Delta\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.3.28 positive (OBD, Tire, Pressure, Seasonal, Delta): ingest synthetic events into `index=personal` sourcetype='obd:pid' where `fl`, `fr`, `rl` grouped by `vin`, `month` satisfies `seasonal_drop` > 5 for 'OBD Tire Pressure Seasonal Delta'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.3.28 negative (Seasonal Delta): ingest benign `personal` / `obd:pid` events where `vin`, `month` stays below `seasonal_drop` > 5, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'OBD Tire Pressure Seasonal Delta'."
+  },
+  "dataSources": "Personal EV and vehicle telemetry (`tesla:vehicle`, `tesla:charge`, `rivian:vehicle`, `chargepoint:session`, `plugshare:checkin`, `evcharger:session`, `obd:pid`, `smartcar:vehicle`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Tesla Fleet API / TeslaMate, Rivian telemetry, ChargePoint session exports, PlugShare trip logs, Smartcar, and OBD-II / home-charger data via APIs, CSV exports, MQTT, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=obd:pid metric=tire_pressure\n| eval month=strftime(_time,\"%m\")\n| stats avg(front_left_psi) as fl, avg(front_right_psi) as fr, avg(rear_left_psi) as rl, avg(rear_right_psi) as rr by vin month\n| eval avg_psi=round((fl+fr+rl+rr)/4,1)\n| eventstats max(avg_psi) as peak_psi, min(avg_psi) as trough_psi by vin\n| eval seasonal_drop=round(peak_psi-trough_psi,1)\n| where seasonal_drop>5\n| sort - seasonal_drop",
-  "description": "Uses OBD-II tire-pressure exports telemetry to monitor seasonal pressure spread across the year in index=personal.",
-  "value": "Splunk turns the feed into an operational check for vehicles that need more seasonal tire attention, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Surfaces 'OBD Tire Pressure Seasonal Delta' (UC-25.3.28) using `index=personal` sourcetype `obd:pid` by aggregating `fl`, `fr`, `rl` grouped by `vin`, `month` over `the scheduled window` and alerting when `seasonal_drop` > 5. Keywords: OBD, Tire, Pressure, Seasonal, Delta. Focuses on Seasonal Delta behaviour so personal teams can triage UC-25.3.28 without ad-hoc log review.",
+  "value": "UC-25.3.28 accelerates insight into Seasonal Delta ('OBD Tire Pressure Seasonal Delta') by tracking `fl`, `fr`, `rl` on `obd:pid` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Ingest OBD-II tire-pressure exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Monthly tire-pressure spread by VIN.",
   "cimModels": [],
   "references": [
     {
       "title": "Tesla Fleet API",
-      "url": "https://developer.tesla.com/docs/fleet-api"
+      "url": "https://developer.tesla.com/docs/fleet-api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TeslaMate documentation",
-      "url": "https://docs.teslamate.org/"
+      "url": "https://docs.teslamate.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Rivian",
-      "url": "https://rivian.com/"
+      "url": "https://rivian.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ChargePoint",
-      "url": "https://www.chargepoint.com/"
+      "url": "https://www.chargepoint.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "PlugShare",
-      "url": "https://www.plugshare.com/"
+      "url": "https://www.plugshare.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Smartcar API",
-      "url": "https://smartcar.com/docs/"
+      "url": "https://smartcar.com/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Open Charge Point Protocol",
-      "url": "https://www.openchargealliance.org/protocols/open-charge-point-protocol/"
+      "url": "https://www.openchargealliance.org/protocols/open-charge-point-protocol/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.3.28)** — Connector for 'OBD Tire Pressure Seasonal Delta' stops polling `obd:pid`; stale `fl`, `fr`, `rl` on `vin`, `month` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `fl`, `fr`, `rl` over `1w` is expected for UC-25.3.28, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `obd:pid`. Dedup with `stats latest(*) by vin`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `seasonal_drop` > 5 for 'OBD Tire Pressure Seasonal Delta'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It nudges seasonal pressure spread across the year so you can spot vehicles that need more seasonal tire attention before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Connected Cars & EVs — typical feeds: Tesla vehicle/charge state (`tesla:vehicle`, `tesla:charge`), TeslaMate MQTT/Postgres, OBD-II PIDs (`obd:pid`), Smartcar API (`smartcar:vehicle`), EV charger sessions (`evcharger:session`)..\n• **Sourcetypes in this search**: `obd:pid`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=obd:pid`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Tesla Fleet API / TeslaMate, Teslafi, and generic OBD-II / Smartcar / manufacturer APIs via HEC scripted inputs and MQTT..\n\n**Author notes:** Ingest OBD-II tire-pressure exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"obd:pid\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=obd:pid earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **OBD Tire Pressure Seasonal Delta** over `personal` data (primarily `sourcetype=obd:pid`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `month`, `seasonal_drop`, `vin`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=obd:pid metric=tire_pressure\n| eval month=strftime(_time,\"%m\")\n| stats avg(front_left_psi) as fl, avg(front_right_psi) as fr, avg(rear_left_psi) as rl, avg(rear_right_psi) as rr by vin month\n| eval avg_psi=round((fl+fr+rl+rr)/4,1)\n| eventstats max(avg_psi) as peak_psi, min(avg_psi) as trough_psi by vin\n| eval seasonal_drop=round(peak_psi-trough_psi,1)\n| where seasonal_drop>5\n| sort - seasonal_drop\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=obd:pid earliest=-7d\n| head 50\n| table month, seasonal_drop, vin\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=obd:pid earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `seasonal_drop` before alerting:\n\n```spl\nindex=personal sourcetype=obd:pid earliest=-30d\n| stats perc50(seasonal_drop) AS p50 perc90(seasonal_drop) AS p90 perc99(seasonal_drop) AS p99 max(seasonal_drop) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.3.28: Personal evidence` with the following panel layout:\n\n**Panel 1 — Monthly Tire-Pressure Spread By Vin (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `obd:pid` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=obd:pid | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It nudges seasonal pressure spread across the year so you can spot vehicles that need more seasonal tire attention before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -10,11 +10,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Telecommunications",
-  "dataSources": "`index=voip` `sourcetype=asterisk:ami` lines containing `ChallengeResponseFailed`, `FailedACL`, or `InvalidPassword`",
-  "app": "Asterisk AMI TCP logger (custom scripted input or `hep`/`syslog` bridge), Splunk Universal Forwarder",
+  "exclusions": "Covers the detection logic documented for 'Asterisk AMI SIP Digest Authentication Failure Burst' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_asterisk_ami_sip_digest_authentication_failure_b` (UC-21.8.11), SOC dashboard panel \"Operations — Asterisk AMI SIP Digest Authentication Failure Burst\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-21.8.11 positive (Asterisk, AMI, SIP, Digest, Authentication): ingest synthetic events into `index=voip` sourcetype='asterisk:ami' where `count` grouped by `_time`, `host`, `Peer`, `Account` satisfies `count` > 20 for 'Asterisk AMI SIP Digest Authentication Failure Burst'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-21.8.11 negative (Failure Burst): ingest benign `voip` / `asterisk:ami` events where `_time`, `host`, `Peer`, `Account` stays below `count` > 20, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Asterisk AMI SIP Digest Authentication Failure Burst'."
+  },
+  "dataSources": "`index=voip` `sourcetype=asterisk:ami` lines containing `ChallengeResponseFailed`, `FailedACL`, or `InvalidPassword` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Asterisk AMI TCP logger (custom scripted input or `hep`/`syslog` bridge), Splunk Universal Forwarder — Universal Forwarder (Splunkbase 617)",
   "spl": "index=voip sourcetype=asterisk:ami (Event=\"ChallengeResponseFailed\" OR Event=\"InvalidPassword\" OR Message=\"*Authentication*failed*\")\n| bin _time span=5m\n| stats count by _time, host, Peer, Account\n| where count > 20",
-  "description": "Brute-force attempts against Asterisk SIP digest authentication or AMI logins often precede toll fraud. AMI emits structured `Event` types for failed challenges; rolling 5-minute counts per peer and account expose automated attacks without needing full PCAP.",
-  "value": "Reduces toll fraud and trunk denial-of-service by surfacing authentication storms while they are still noisy and blockable at the SBC or firewall.",
+  "description": "Identifies UC-21.8.11 — Asterisk, AMI, SIP, Digest, Authentication — using `index=voip` sourcetype `asterisk:ami`, grouped by `_time`, `host`, `Peer`, `Account`. Outputs `count` each `5m`; alert when `count` > 20. Primary focus: Failure Burst. Purpose-built for 'Asterisk AMI SIP Digest Authentication Failure Burst' in Operations workflows.",
+  "value": "Operators running UC-21.8.11 on `asterisk:ami` feeds shorten triage for Failure Burst tied to 'Asterisk AMI SIP Digest Authentication Failure Burst', lowering operational risk and delayed incident response.",
   "implementation": "Enable AMI read-only for monitoring if possible. Stream AMI over TCP to a lightweight forwarder script that prefixes syslog or writes to a monitored file with `sourcetype=asterisk:ami`. Ensure `Peer`, `Account`, and `Event` fields are extracted. Baseline legitimate password churn; tune `count > 20` per environment. Pair with firewall blocklist automation via SOAR.",
   "visualization": "Column chart (failures per 5m), Table (top Peer), Bubble (Account × Peer).",
   "cimModels": [
@@ -24,14 +30,26 @@
   "references": [
     {
       "title": "Asterisk Wiki — Asterisk Manager Interface (AMI)",
-      "url": "https://wiki.asterisk.org/"
+      "url": "https://wiki.asterisk.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Docs: Get data into Splunk from TCP/UDP ports",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Monitornetworkports"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Monitornetworkports",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short bursts of digest failures when phones mass re-register after Wi-Fi/VPN flips, password-expiry days, SBC or certificate work the voice security team posted.",
+  "knownFalsePositives": "1. **Maintenance window on `voip` (UC-21.8.11)** — Planned work for 'Asterisk AMI SIP Digest Authentication Failure Burst' shifts `count` over `span=5m` while `_time`, `host`, `Peer`, `Account` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `asterisk:ami`** — Scheduled automation elevates `host` without crossing `count` > 20 for UC-21.8.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `host`, `Peer`, `Account`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `asterisk:ami`** — First 48h baseline for UC-21.8.11 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "asterisk",
     "hardware_bmc",
@@ -47,7 +65,9 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• AMI user dedicated to monitoring with `read` only and IP ACL.\n• TLS or VPN if AMI crosses a network segment.\n\nStep 1 — Validate field extractions on a known failed login.\n\nStep 2 — Suppress alerts from trusted scanner subnets via lookup.\n\nStep 3 — Correlate with `sourcetype=asterisk:security` if enabled.\n\nStep 4 — Run tabletop with fraud team on auto-block SOP.",
+  "detailedImplementation": "Prerequisites\n• AMI user dedicated to monitoring with `read` only and IP ACL.\n• TLS or VPN if AMI crosses a network segment.\n\nStep 1 — Validate field extractions on a known failed login.\n\nStep 2 — Suppress alerts from trusted scanner subnets via lookup.\n\nStep 3 — Correlate with `sourcetype=asterisk:security` if enabled.\n\nStep 4 — Run tabletop with fraud team on auto-block SOP.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Asterisk AMI TCP logger (custom scripted input or `hep`/`syslog` bridge), Splunk Universal Forwarder — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=asterisk:ami into voip. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`Account, Peer, _time, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch SIP auth failures on voice platforms. We help you catch brute-force or config drift before phones stop registering.",
-  "telcoUseCase": "IMS / enterprise SIP trunk hardening — detect credential stuffing against Asterisk Manager Interface (AMI) or SIP peers before trunks lock or fraud routes appear."
+  "prerequisiteUseCases": [],
+  "telcoUseCase": "IMS / enterprise SIP trunk hardening — detect credential stuffing against Asterisk Manager Interface (AMI) or SIP peers before trunks lock or fraud routes appear.",
+  "wave": "crawl"
 }

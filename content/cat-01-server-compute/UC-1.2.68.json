@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=WinEventLog:System` (Source=Ntfs, EventCode 55, 98, 137, 140)",
-  "app": "`Splunk_TA_windows`",
+  "exclusions": "Covers the detection logic documented for 'NTFS Corruption and Self-Healing' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_ntfs_corruption_and_self_healing` (UC-1.2.68), SOC dashboard panel \"Linux — NTFS Corruption and Self-Healing\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.2.68 positive (NTFS, Corruption, and, Self, Healing): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:System' EventCode=55 where `count` grouped by `entity` satisfies detection threshold for 'NTFS Corruption and Self-Healing'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.2.68 negative (Self Healing): ingest benign `wineventlog` / `WinEventLog:System` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'NTFS Corruption and Self-Healing'."
+  },
+  "dataSources": "`sourcetype=WinEventLog:System` (Source=Ntfs, EventCode 55, 98, 137, 140) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:System\" Source=\"Ntfs\" EventCode IN (55, 98, 137, 140)\n| eval issue=case(EventCode=55,\"NTFS corruption detected\",EventCode=98,\"Volume dirty flag set\",EventCode=137,\"Self-healing started\",EventCode=140,\"Self-healing completed\")\n| table _time, host, issue, DriveName, CorruptionType\n| sort -_time",
-  "description": "NTFS corruption can cause data loss, application failures, and boot issues. Self-healing events indicate disk degradation that will worsen.",
-  "value": "Catching file-system corruption and self-heal activity early helps avoid silent data loss, unplanned reboots, and long restores on servers that the business relies on.",
+  "description": "Detects UC-1.2.68 — NTFS, Corruption, and, Self, Healing — using `index=wineventlog` sourcetype `WinEventLog:System`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Self Healing. Purpose-built for 'NTFS Corruption and Self-Healing' in Linux workflows.",
+  "value": "Operators running UC-1.2.68 on `WinEventLog:System` feeds shorten triage for Self Healing tied to 'NTFS Corruption and Self-Healing', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "NTFS events log automatically. EventCode 55=structure corruption on volume (critical), 98=volume marked dirty (chkdsk needed at boot), 137/140=self-healing activity. Any EventCode 55 requires immediate attention — indicates metadata corruption that may spread. Correlate with WHEA (hardware) and SMART events to determine if underlying disk is failing. Schedule chkdsk offline and plan disk replacement.",
   "visualization": "Table (corruption events), Timeline, Single value (affected volumes — target: 0).",
   "cimModels": [
@@ -23,17 +29,38 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned chkdsk or storage maintenance; known firmware/driver updates that trigger one-time self-heal; virtualization snapshots or backup agents touching the volume. Correlate with disk hardware, backup windows, and change records.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'NTFS Corruption and Self-Healing'. Correlate with apt/yum logs in the same `WinEventLog:System` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:System`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],
+  "equipmentModels": [
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:System` (Source=Ntfs, EventCode 55, 98, 137, 140).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOn the Universal Forwarder, enable the Windows `System` channel in `inputs.conf` (e.g. `[WinEventLog://System]`) with `current_only = 0` if you need backfill, and set `index`/`_TCP_ROUTING` per your design. NTFS events log to System with Source=Ntfs. EventCode 55=structure corruption on volume (critical), 98=volume marked dirty (chkdsk at boot), 137/140=self-healing. EventCode 55 needs immediate triage. Correlate with WHEA and SMART, schedule offline chkdsk, and plan disk replacement if hardware is failing.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:System\" Source=\"Ntfs\" EventCode IN (55, 98, 137, 140)\n| eval issue=case(EventCode=55,\"NTFS corruption detected\",EventCode=98,\"Volume dirty flag set\",EventCode=137,\"Self-healing started\",EventCode=140,\"Self-healing completed\")\n| table _time, host, issue, DriveName, CorruptionType\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**NTFS Corruption and Self-Healing** — NTFS corruption can cause data loss, application failures, and boot issues. Self-healing events indicate disk degradation that will worsen.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:System` (Source=Ntfs, EventCode 55, 98, 137, 140). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:System. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:System\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **issue** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **NTFS Corruption and Self-Healing**): table _time, host, issue, DriveName, CorruptionType\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (after tagging System NTFS into `Change`):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  by All_Changes.dest All_Changes.user All_Changes.object span=1h\n| where count >= 1\n```\n\nEnable **data model acceleration** on `Change` (All_Changes). The primary search with `Source=Ntfs` and EventCode filters remains the clearest; use CIM for rollups only when tagging is in place.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (corruption events), Timeline, Single value (affected volumes — target: 0).",
-  "grandmaExplanation": "We watch the Windows system log for file-system health messages so we can notice disk and corruption problems on servers before they turn into data loss or long outages."
+  "grandmaExplanation": "We watch the Windows system log for file-system health messages so we can notice disk and corruption problems on servers before they turn into data loss or long outages.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

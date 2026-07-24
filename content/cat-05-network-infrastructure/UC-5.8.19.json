@@ -8,21 +8,43 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Multi-Organization Comparison and Benchmarking (Meraki)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_multi_organization_comparison_and_benchmarking_m` (UC-5.8.19), SOC dashboard panel \"Operations — Multi-Organization Comparison and Benchmarking (Meraki)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.8.19 positive (Multi, Organization, Comparison, and, Benchmarking): ingest synthetic events into `index=meraki` sourcetype='meraki:devicesavailabilities' where `sum` grouped by `organizationId`, `organizationName`, `]` satisfies -1h for 'Multi-Organization Comparison and Benchmarking (Meraki)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.8.19 negative (Benchmarking (Meraki)): ingest benign `meraki` / `meraki:devicesavailabilities` events where `organizationId`, `organizationName`, `]` stays below -1h, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Multi-Organization Comparison and Benchmarking (Meraki)'."
+  },
   "dataSources": "Splunk_TA_cisco_meraki (Splunkbase #5580): Devices Availabilities and Assurance Alerts inputs configured for each organization tenancy you want to compare. NOTE: configure one TA Organization entry per tenancy; events are stamped with organizationId and organizationName.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:devicesavailabilities\" earliest=-1h\n| stats count as device_count,\n        sum(eval(if(status=\"online\",1,0))) as online_count,\n        sum(eval(if(status=\"alerting\",1,0))) as alerting_count\n         by organizationId, organizationName\n| eval availability_pct = round(online_count*100/device_count, 2)\n| join type=left organizationId [\n    search index=meraki sourcetype=\"meraki:assurancealerts\" earliest=-24h\n    | stats count as open_alerts by organizationId\n  ]\n| fillnull value=0 open_alerts\n| eval alerts_per_device = round(open_alerts/device_count, 2)\n| sort - availability_pct",
-  "description": "Compares metrics across organizations to identify best practices and outliers.",
-  "value": "Network operations teams benchmark Meraki network health across multiple organizations for MSP customer reporting, enterprise business unit comparison, and fleet growth tracking.",
+  "description": "Monitors UC-5.8.19 — Multi, Organization, Comparison, and, Benchmarking — using `index=meraki` sourcetype `meraki:devicesavailabilities`, grouped by `organizationId`, `organizationName`, `]`. Outputs `sum` each `the scheduled window`; alert when -1h. Primary focus: Benchmarking (Meraki). Purpose-built for 'Multi-Organization Comparison and Benchmarking (Meraki)' in Operations workflows.",
+  "value": "Operators running UC-5.8.19 on `meraki:devicesavailabilities` feeds shorten triage for Benchmarking (Meraki) tied to 'Multi-Organization Comparison and Benchmarking (Meraki)', lowering operational risk and delayed incident response.",
   "implementation": "1. In Splunk_TA_cisco_meraki -> Configuration -> Organization, add one entry per Meraki tenancy you want to benchmark. 2. Enable the same set of inputs (Devices Availabilities + Assurance Alerts) in each. 3. Group by organizationName for side-by-side comparison. 4. For per-product-type drill-down, add productType to the stats by clause.",
   "visualization": "Organization comparison bar chart; health rank table; benchmark line chart.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Different site sizes and use cases make raw scores unfair; compare like-sized orgs and segment retail vs head office.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.8.19)** — Planned work for 'Multi-Organization Comparison and Benchmarking (Meraki)' shifts `sum` over `span=1h` while `organizationId`, `organizationName`, `]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `meraki:devicesavailabilities`** — Scheduled automation elevates `organizationName` without crossing configured threshold for UC-5.8.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `organizationId`, `organizationName`, `]`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:devicesavailabilities`** — First 48h baseline for UC-5.8.19 on `organizationId` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `organizationId`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
@@ -30,6 +52,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Devices Availabilities and Assurance Alerts inputs configured for each organization tenancy you want to compare. NOTE: configure one TA Organization entry per tenancy; events are stamped with organizationId and organizationName..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n1. In Splunk_TA_cisco_meraki -> Configuration -> Organization, add one entry per Meraki tenancy you want to benchmark. 2. Enable the same set of inputs (Devices Availabilities + Assurance Alerts) in each. 3. Group by organizationName for side-by-side comparison. 4. For per-product-type drill-down, add productType to the stats by clause.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki:devicesavailabilities\" earliest=-1h\n| stats count as device_count,\n        sum(eval(if(status=\"online\",1,0))) as online_count,\n        sum(eval(if(status=\"alerting\",1,0))) as alerting_count\n         by organizationId, organizationName\n| eval availability_pct = round(online_count*100/device_count, 2)\n| join type=left organizationId [\n    search index=meraki sourcetype=\"meraki:assurancealerts\" earliest=-24h\n    | stats count as open_alerts by organizationId\n  ]\n| fillnull value=0 open_alerts\n| eval alerts_per_device = round(open_alerts/device_count, 2)\n| sort - availability_pct\n```\n\nUnderstanding this SPL\n\n**Multi-Organization Comparison and Benchmarking (Meraki)** — Network operations teams benchmark Meraki network health across multiple organizations for MSP customer reporting, enterprise business unit comparison, and fleet growth tracking.\n\nDocumented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Devices Availabilities and Assurance Alerts inputs configured for each organization tenancy you want to compare. NOTE: configure one TA Organization entry per tenancy; events are stamped with organizationId and organizationName. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:devicesavailabilities. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki:devicesavailabilities\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by organizationId, organizationName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **availability_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Fills null values with `fillnull`.\n• `eval` defines or adjusts **alerts_per_device** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Organization comparison bar chart; health rank table; benchmark line chart.",
-  "grandmaExplanation": "We help you compare sites and organizations on Meraki, so the slow or noisy places stand out next to the good ones."
+  "grandmaExplanation": "We help you compare sites and organizations on Meraki, so the slow or noisy places stand out next to the good ones.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

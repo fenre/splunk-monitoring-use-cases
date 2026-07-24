@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=aws:cloudwatch` (namespace `AWS/Lambda`)",
-  "app": "`Splunk_TA_aws`",
+  "exclusions": "Covers the detection logic documented for 'Lambda Invocation Errors and Failed Invocations' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_lambda_invocation_errors_and_failed_invocations` (UC-4.5.1), SOC dashboard panel \"Operations — Lambda Invocation Errors and Failed Invocations\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-4.5.1 positive (Lambda, Invocation, Errors, and, Failed): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `errors`, `invocations` grouped by `FunctionName`, `]` satisfies `invocations` > 0, or `error_rate` > 1 for 'Lambda Invocation Errors and Failed Invocations'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.5.1 negative (Failed Invocations): ingest benign `aws` / `aws:cloudwatch` events where `FunctionName`, `]` stays below `invocations` > 0, or `error_rate` > 1, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Lambda Invocation Errors and Failed Invocations'."
+  },
+  "dataSources": "`sourcetype=aws:cloudwatch` (namespace `AWS/Lambda`) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/Lambda\" metric_name=\"Errors\"\n| timechart span=5m sum(Sum) as errors by FunctionName\n| join max=1 FunctionName type=left\n    [ search index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/Lambda\" metric_name=\"Invocations\"\n    | timechart span=5m sum(Sum) as invocations by FunctionName ]\n| eval error_rate=if(invocations>0, round(100*errors/invocations, 2), 0)\n| where error_rate > 1",
-  "description": "Failed Lambda invocations surface runtime bugs, dependency outages, and misconfiguration before they silently drop user traffic or break downstream workflows.",
-  "value": "Failed Lambda invocations surface runtime bugs, dependency outages, and misconfiguration before they silently drop user traffic or break downstream workflows.",
+  "description": "Detects risk tied to Lambda, Invocation, Errors, and, Failed through UC-4.5.1 on `index=aws` sourcetype `aws:cloudwatch`. Summarises `errors`, `invocations` grouped by `FunctionName`, `]` across `5m` before applying `invocations` > 0, or `error_rate` > 1. Operators tune 'Lambda Invocation Errors and Failed Invocations' using UC-4.5.1 runbook steps.",
+  "value": "Tracking `errors`, `invocations` via UC-4.5.1 on `aws:cloudwatch` feeds improves response to 'Lambda Invocation Errors and Failed Invocations' and reduces operational risk and delayed incident response.",
   "implementation": "Enable CloudWatch metric collection for the Lambda namespace (Errors, Invocations). Ingest via Splunk_TA_aws. Optionally correlate with Lambda application logs from CloudWatch Logs subscription. Alert when error rate exceeds policy (for example 1–5% sustained over 15 minutes).",
   "visualization": "Line chart (errors and invocations over time by function), Single value (error rate %), Table (FunctionName, errors, invocations, error_rate).",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "Splunk_TA_aws",
-      "url": "https://splunkbase.splunk.com/app/1876"
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Cold starts, retries, and a bad client sending junk traffic can all raise error counts without a code bug. We look at the share of invocations and we compare the same time last week before we assume the function is broken.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.5.1)** — Planned work for 'Lambda Invocation Errors and Failed Invocations' shifts `errors`, `invocations` over `span=5m` while `FunctionName`, `]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch`** — Scheduled automation elevates `]` without crossing `invocations` > 0 for UC-4.5.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `FunctionName`, `]`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-4.5.1 on `FunctionName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `FunctionName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],
+  "equipmentModels": [
+    "aws_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudwatch` (namespace `AWS/Lambda`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable CloudWatch metric collection for the Lambda namespace (Errors, Invocations). Ingest via Splunk_TA_aws. Optionally correlate with Lambda application logs from CloudWatch Logs subscription. Alert when error rate exceeds policy (for example 1–5% sustained over 15 minutes).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/Lambda\" metric_name=\"Errors\"\n| timechart span=5m sum(Sum) as errors by FunctionName\n| join max=1 FunctionName type=left\n    [ search index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/Lambda\" metric_name=\"Invocations\"\n    | timechart span=5m sum(Sum) as invocations by FunctionName ]\n| eval error_rate=if(invocations>0, round(100*errors/invocations, 2), 0)\n| where error_rate > 1\n```\n\nUnderstanding this SPL\n\n**Lambda Invocation Errors and Failed Invocations** — Failed Lambda invocations surface runtime bugs, dependency outages, and misconfiguration before they silently drop user traffic or break downstream workflows.\n\nDocumented **Data sources**: `sourcetype=aws:cloudwatch` (namespace `AWS/Lambda`). **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by FunctionName** — ideal for trending and alerting on this use case.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **error_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where error_rate > 1` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (errors and invocations over time by function), Single value (error rate %), Table (FunctionName, errors, invocations, error_rate).",
-  "grandmaExplanation": "Failed Lambda invocations surface runtime bugs, dependency outages, and misconfiguration before they silently drop user traffic or break downstream workflows."
+  "grandmaExplanation": "Failed Lambda invocations surface runtime bugs, dependency outages, and misconfiguration before they silently drop user traffic or break downstream workflows.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

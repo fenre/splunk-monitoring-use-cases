@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=sam:install`, `sourcetype=snow:alm_license`",
-  "app": "SCCM, Flexera, ServiceNow SAM",
+  "exclusions": "Covers the detection logic documented for 'Software Asset Management Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_software_asset_management_compliance` (UC-16.2.12), SOC dashboard panel \"Operations — Software Asset Management Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-16.2.12 positive (Software, Asset, Management, Compliance): ingest synthetic events into `index=sam` sourcetype='sam:install' where `deployed`, `entitled` grouped by `product_name`, `]` satisfies `entitled` > 0 for 'Software Asset Management Compliance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.2.12 negative (Management Compliance): ingest benign `sam` / `sam:install` events where `product_name`, `]` stays below `entitled` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Software Asset Management Compliance'."
+  },
+  "dataSources": "`sourcetype=sam:install`, `sourcetype=snow:alm_license` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "SCCM, Flexera, ServiceNow SAM — Universal Forwarder (Splunkbase 617)",
   "spl": "index=sam sourcetype=\"sam:install\" product_name=\"Microsoft*Visio*\"\n| stats dc(host) as deployed by product_name\n| join max=1 product_name [ search index=itsm sourcetype=\"snow:alm_license\" | stats sum(entitlement) as entitled by product_name ]\n| eval compliance_pct=if(entitled>0, round(min(deployed,entitled)/entitled*100, 1), null())\n| eval over_deployed=if(deployed>entitled, deployed-entitled, 0)\n| table product_name, deployed, entitled, compliance_pct, over_deployed",
-  "description": "Measures install counts vs license entitlements for major publishers — SAM compliance for audits.",
-  "value": "Measures install counts vs license entitlements for major publishers — SAM compliance for audits.",
+  "description": "Alerts on UC-16.2.12 — Software, Asset, Management, Compliance — using `index=sam` sourcetype `sam:install`, grouped by `product_name`, `]`. Outputs `deployed`, `entitled` each `the scheduled window`; alert when `entitled` > 0. Primary focus: Management Compliance. Purpose-built for 'Software Asset Management Compliance' in Operations workflows.",
+  "value": "Alerting on Software, Asset, Management, Compliance through UC-16.2.12 reduces operational risk and delayed incident response by surfacing `deployed`, `entitled` early.",
   "implementation": "Normalize product SKUs. Join installs to entitlement table. Alert when `over_deployed>0` or compliance below policy. Refresh entitlements monthly.",
   "visualization": "Table (SKU compliance), Single value (non-compliant SKUs), Bar chart (overage).",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Unknown installs and license gaps from BYOD-style tools, new packaging, and shadow projects that are not in the inventory feed yet.",
+  "knownFalsePositives": "1. **Maintenance window on `sam` (UC-16.2.12)** — Planned work for 'Software Asset Management Compliance' shifts `deployed`, `entitled` over `span=1h` while `product_name`, `]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `sam:install`** — Scheduled automation elevates `]` without crossing `entitled` > 0 for UC-16.2.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `product_name`, `]`** — Health checks in `sam` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `sam:install`** — First 48h baseline for UC-16.2.12 on `product_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `product_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],
+  "equipmentModels": [
+    "servicenow_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SCCM, Flexera, ServiceNow SAM.\n• Ensure the following data sources are available: `sourcetype=sam:install`, `sourcetype=snow:alm_license`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize product SKUs. Join installs to entitlement table. Alert when `over_deployed>0` or compliance below policy. Refresh entitlements monthly.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=sam sourcetype=\"sam:install\" product_name=\"Microsoft*Visio*\"\n| stats dc(host) as deployed by product_name\n| join max=1 product_name [ search index=itsm sourcetype=\"snow:alm_license\" | stats sum(entitlement) as entitled by product_name ]\n| eval compliance_pct=if(entitled>0, round(min(deployed,entitled)/entitled*100, 1), null())\n| eval over_deployed=if(deployed>entitled, deployed-entitled, 0)\n| table product_name, deployed, entitled, compliance_pct, over_deployed\n```\n\nUnderstanding this SPL\n\n**Software Asset Management Compliance** — Measures install counts vs license entitlements for major publishers — SAM compliance for audits.\n\nDocumented **Data sources**: `sourcetype=sam:install`, `sourcetype=snow:alm_license`. **App/TA** (typical add-on context): SCCM, Flexera, ServiceNow SAM. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: sam; **sourcetype**: sam:install. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=sam, sourcetype=\"sam:install\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by product_name** so each row reflects one combination of those dimensions.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **compliance_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **over_deployed** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Software Asset Management Compliance**): table product_name, deployed, entitled, compliance_pct, over_deployed\n\n\nStep 3 — Validate\nCompare with the ServiceNow list or form that matches this data (for example the incident, request, or problem view). Reconcile a few record numbers, states, and times. Confirm the add-on poll or export time lines up with what you see in the browser.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (SKU compliance), Single value (non-compliant SKUs), Bar chart (overage).",
-  "grandmaExplanation": "We look for installs and license truth compared to what we are allowed, so we are not out of step with auditors or the vendor."
+  "grandmaExplanation": "We look for installs and license truth compared to what we are allowed, so we are not out of step with auditors or the vendor.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

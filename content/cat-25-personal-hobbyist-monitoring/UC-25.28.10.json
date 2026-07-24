@@ -8,23 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Bar-velocity reps (`vbt:rep`), running gait (`gait:metric`), hangboard sessions (`hangboard:session`), golf-swing metrics (`golfswing:metric`), power-meter intervals (`powermeter:interval`), basketball shot arcs (`shotarc:make`).",
-  "app": "Sports and skill sensors — velocity-based-training bar trackers, running-form IMUs, climbing hangboard load cells, golf launch monitors, cycling power meters, and computer-vision shot trackers — logged to Splunk HEC via APIs and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Personal-Best Achievement Log' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_personal_best_achievement_log` (UC-25.28.10), SOC dashboard panel \"Personal — Personal-Best Achievement Log\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.28.10 positive (Personal, Best, Achievement, Log): ingest synthetic events into `index=personal` sourcetype='vbt:rep' where `best_so_far` grouped by `exercise` satisfies `est_1rm` > 0 for 'Personal-Best Achievement Log'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.28.10 negative (Achievement Log): ingest benign `personal` / `vbt:rep` events where `exercise` stays below `est_1rm` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'Personal-Best Achievement Log'."
+  },
+  "dataSources": "Bar-velocity reps (`vbt:rep`), running gait (`gait:metric`), hangboard sessions (`hangboard:session`), golf-swing metrics (`golfswing:metric`), power-meter intervals (`powermeter:interval`), basketball shot arcs (`shotarc:make`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Sports and skill sensors — velocity-based-training bar trackers, running-form IMUs, climbing hangboard load cells, golf launch monitors, cycling power meters, and computer-vision shot trackers — logged to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=vbt:rep\n| eval est_1rm=round(load_kg*(1+reps/30),1)\n| streamstats current=t max(est_1rm) as best_so_far by exercise\n| eval new_pb=if(est_1rm>=best_so_far AND est_1rm>0,1,0)\n| where new_pb=1\n| table _time exercise est_1rm",
-  "description": "Flags the moment you set a new personal best on any lift, capturing the milestones that make training rewarding.",
-  "value": "Personal bests are the reward that keeps training fun; surfacing them automatically turns raw logs into a highlight reel.",
+  "description": "Alerts on 'Personal-Best Achievement Log' patterns (UC-25.28.10) sourced from `index=personal` sourcetype `vbt:rep`. Threshold bundle: `est_1rm` > 0; aggregation grain: `exercise`; metrics: `best_so_far`. Watch terms: Personal, Best, Achievement, Log.",
+  "value": "UC-25.28.10 gives Personal teams earlier visibility into Achievement Log through `vbt:rep` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest reps and loads into `index=personal`; detect and log new personal bests per exercise.",
   "visualization": "Table of personal-best moments by exercise and date.",
   "cimModels": [],
   "references": [
     {
       "title": "TrainingPeaks — training analytics",
-      "url": "https://www.trainingpeaks.com/"
+      "url": "https://www.trainingpeaks.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It spots when you set a new personal record on a lift, capturing the milestones that make training satisfying."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.28.10)** — Connector for 'Personal-Best Achievement Log' stops polling `vbt:rep`; stale `best_so_far` on `exercise` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `best_so_far` over `1w` is expected for UC-25.28.10, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vbt:rep`. Dedup with `stats latest(*) by exercise`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `est_1rm` > 0 for 'Personal-Best Achievement Log'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Sports, Skills & Training Telemetry — typical feeds: Bar-velocity reps (`vbt:rep`), running gait (`gait:metric`), hangboard sessions (`hangboard:session`), golf-swing metrics (`golfswing:metric`), power-meter intervals (`powermeter:interval`), basketbal.\n• **Sourcetypes in this search**: `vbt:rep`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=vbt:rep`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Sports and skill sensors — velocity-based-training bar trackers, running-form IMUs, climbing hangboard load cells, golf launch monitors, cycling power meters, and computer-vision shot trackers — logged to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Ingest reps and loads into `index=personal`; detect and log new personal bests per exercise.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"vbt:rep\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=vbt:rep earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Personal-Best Achievement Log** over `personal` data (primarily `sourcetype=vbt:rep`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `est_1rm`, `exercise`, `new_pb`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=vbt:rep\n| eval est_1rm=round(load_kg*(1+reps/30),1)\n| streamstats current=t max(est_1rm) as best_so_far by exercise\n| eval new_pb=if(est_1rm>=best_so_far AND est_1rm>0,1,0)\n| where new_pb=1\n| table _time exercise est_1rm\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=vbt:rep earliest=-7d\n| head 50\n| table est_1rm, exercise, new_pb\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=vbt:rep earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `est_1rm` before alerting:\n\n```spl\nindex=personal sourcetype=vbt:rep earliest=-30d\n| stats perc50(est_1rm) AS p50 perc90(est_1rm) AS p90 perc99(est_1rm) AS p99 max(est_1rm) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.28.10: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Personal-Best Moments By Exercise And Date (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `vbt:rep` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=vbt:rep | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It spots when you set a new personal record on a lift, capturing the milestones that make training satisfying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

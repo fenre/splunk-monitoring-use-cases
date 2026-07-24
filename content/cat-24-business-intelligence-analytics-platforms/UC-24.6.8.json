@@ -9,28 +9,43 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "MicroStrategy DSS logs (`microstrategy:dsserror`), Cognos audit (`cognos:audit`), BusinessObjects audit (`businessobjects:audit`), Oracle Analytics usage (`oracle:analytics:usage`), ThoughtSpot audit (`thoughtspot:audit`), QuickSight CloudTrail (`aws:cloudtrail`).",
-  "app": "Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS.",
+  "exclusions": "Covers the detection logic documented for 'Cognos Content Store Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cognos_content_store_health` (UC-24.6.8), SOC dashboard panel \"Operations — Cognos Content Store Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.6.8 positive (Cognos, Content, Store, Health): ingest synthetic events into `index=bi` sourcetype='cognos:audit' where `values` grouped by `component` satisfies `events` > 0 for 'Cognos Content Store Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.6.8 negative (Store Health): ingest benign `bi` / `cognos:audit` events where `component` stays below `events` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Cognos Content Store Health'."
+  },
+  "dataSources": "MicroStrategy DSS logs (`microstrategy:dsserror`), Cognos audit (`cognos:audit`), BusinessObjects audit (`businessobjects:audit`), Oracle Analytics usage (`oracle:analytics:usage`), ThoughtSpot audit (`thoughtspot:audit`), QuickSight CloudTrail (`aws:cloudtrail`). Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=bi sourcetype=cognos:audit (\"content store\" OR \"CM-SYS\") (\"error\" OR \"warning\")\n| stats count as events, values(message) as messages by component\n| where events>0\n| sort - events",
-  "description": "Monitors IBM Cognos Content Manager for content-store errors and warnings that precede report-server instability and save/schedule failures.",
-  "value": "The content store is Cognos's system of record; early warnings here prevent a full reporting outage.",
+  "description": "Detects Store Health activity in UC-24.6.8 ('Cognos Content Store Health') from `index=bi` sourcetype `cognos:audit`. Rolls up `values` by `component` across `the scheduled window` and pages when `events` > 0. Covers Cognos, Content, Store, Health. Operations operators treat UC-24.6.8 as the canonical signal.",
+  "value": "Operators running UC-24.6.8 on `cognos:audit` feeds shorten triage for Store Health tied to 'Cognos Content Store Health', lowering operational risk and delayed incident response.",
   "implementation": "Ingest Cognos audit and CM logs; schedule every 30 minutes and alert on content-store errors.",
   "visualization": "Table of component by events with messages, timechart.",
   "cimModels": [],
   "references": [
     {
       "title": "MicroStrategy — Enterprise Manager / monitoring",
-      "url": "https://www2.microstrategy.com/producthelp/current/EnterpriseManager/en-us/Content/enterprise_manager.htm"
+      "url": "https://www2.microstrategy.com/producthelp/current/EnterpriseManager/en-us/Content/enterprise_manager.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IBM Cognos Analytics — Audit reporting",
-      "url": "https://www.ibm.com/docs/en/cognos-analytics"
+      "url": "https://www.ibm.com/docs/en/cognos-analytics",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.6.8)** — Planned work for 'Cognos Content Store Health' shifts `values` over `span=1h` while `component` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `cognos:audit`** — Scheduled automation elevates `src` without crossing `events` > 0 for UC-24.6.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `component`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cognos:audit`** — First 48h baseline for UC-24.6.8 on `component` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `component`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "oracle"
@@ -38,5 +53,12 @@
   "equipmentModels": [
     "oracle_oracle_db"
   ],
-  "grandmaExplanation": "We keep an eye on the database that Cognos relies on so trouble is caught before reports go down."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=cognos:audit into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`component, events`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on the database that Cognos relies on so trouble is caught before reports go down.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

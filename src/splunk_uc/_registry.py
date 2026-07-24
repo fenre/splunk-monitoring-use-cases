@@ -399,6 +399,14 @@ register(
 )
 register(
     Verb(
+        name="audit-template-provenance",
+        module="audits.template_provenance",
+        help="Detect bulk-enricher template fingerprints in UC sidecars (hand-craft burndown queue).",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-baseline-clause-grammar-free",
         module="audits.baseline_clause_grammar_free",
         help="Phase F drift guard: refuse `clause-grammar` fingerprints in audit-baseline.json.",

@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=platform` `sourcetype=traefik:log`",
-  "app": "Traefik application logging",
+  "exclusions": "Covers the detection logic documented for 'Traefik Router Backend Resolution Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_traefik_router_backend_resolution_errors` (UC-8.6.23), SOC dashboard panel \"Operations — Traefik Router Backend Resolution Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.6.23 positive (Traefik, Router, Backend, Resolution, Errors): ingest synthetic events into `index=platform` sourcetype='traefik:log' where `count` grouped by `message` satisfies detection threshold for 'Traefik Router Backend Resolution Errors'. Validate filter `\"error\" AND (\"Router\" OR \"service\" OR \"provider\") AND (\"unab`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.6.23 negative (Resolution Errors): ingest benign `platform` / `traefik:log` events where `message` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Traefik Router Backend Resolution Errors'."
+  },
+  "dataSources": "`index=platform` `sourcetype=traefik:log` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Traefik application logging — Universal Forwarder (Splunkbase 617)",
   "spl": "index=platform sourcetype=\"traefik:log\"\n| search \"error\" AND (\"Router\" OR \"service\" OR \"provider\") AND (\"unable\" OR \"cannot\" OR \"failed\")\n| stats count by message\n| sort -count",
-  "description": "Router/service errors surface DNS, KV, or Docker socket issues before clients see 404/503 at scale.",
-  "value": "Clarifies misconfigured labels or stale SD entries.",
+  "description": "Alerts on 'Traefik Router Backend Resolution Errors' patterns (UC-8.6.23) sourced from `index=platform` sourcetype `traefik:log`. Threshold bundle: configured threshold; aggregation grain: `message`; metrics: `count`. Enrichment path: filter `\"error\" AND (\"Router\" OR \"service\" OR \"provider\") AND (\"unab`.",
+  "value": "UC-8.6.23 gives Operations teams earlier visibility into Resolution Errors through `traefik:log` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Enable JSON logs with `msg` field for easier `stats`.",
   "visualization": "Table (signature), timeline, correlation with Kubernetes events index.",
   "cimModels": [
@@ -22,13 +28,33 @@
   "references": [
     {
       "title": "Traefik — Logs and Access Logs",
-      "url": "https://doc.traefik.io/traefik/"
+      "url": "https://doc.traefik.io/traefik/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `platform` (UC-8.6.23)** — Planned work for 'Traefik Router Backend Resolution Errors' shifts `count` over `span=1h` while `message` remains in-scope. Applies filter `\"error\" AND (\"Router\" OR \"service\" OR \"provider\") AND (\"unab`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `traefik:log`** — Scheduled automation elevates `src` without crossing configured threshold for UC-8.6.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `message`** — Health checks in `platform` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `traefik:log`** — First 48h baseline for UC-8.6.23 on `message` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `message`, `exception_reason`, `valid_until`.",
   "equipment": [
     "docker",
     "traefik"
+  ],
+  "equipmentModels": [
+    "docker_generic",
+    "traefik_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -37,6 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Traefik application logging.\n• Ensure the following data sources are available: `index=platform` `sourcetype=traefik:log`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCombine with provider-specific logs (Kubernetes, Consul).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=platform sourcetype=\"traefik:log\"\n| search \"error\" AND (\"Router\" OR \"service\" OR \"provider\") AND (\"unable\" OR \"cannot\" OR \"failed\")\n| stats count by message\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Traefik Router Backend Resolution Errors** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=platform` `sourcetype=traefik:log`. **App/TA**: Traefik application logging. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Table (signature), timeline, correlation with Kubernetes events index..",
-  "grandmaExplanation": "We use this to clarifies misconfigured labels or stale SD entries."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Traefik application logging.\n• Ensure the following data sources are available: `index=platform` `sourcetype=traefik:log`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCombine with provider-specific logs (Kubernetes, Consul).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=platform sourcetype=\"traefik:log\"\n| search \"error\" AND (\"Router\" OR \"service\" OR \"provider\") AND (\"unable\" OR \"cannot\" OR \"failed\")\n| stats count by message\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Traefik Router Backend Resolution Errors** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=platform` `sourcetype=traefik:log`. **App/TA**: Traefik application logging. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Table (signature), timeline, correlation with Kubernetes events index..\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Traefik application logging — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=traefik:log into platform. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`message`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to clarifies misconfigured labels or stale SD entries.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

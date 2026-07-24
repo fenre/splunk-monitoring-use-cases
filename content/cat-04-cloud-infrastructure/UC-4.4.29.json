@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=aws:cloudwatch:events` (Backup), `sourcetype=mscs:azure:diagnostics` (Backup), `sourcetype=google:gcp:pubsub:message` (gkebackup, sqladmin)",
-  "app": "`Splunk_TA_aws`, Azure Backup logs, GCP Backup for GKE / Database exports",
+  "exclusions": "Covers the detection logic documented for 'Multi-Cloud Backup Recovery Testing' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_multi_cloud_backup_recovery_testing` (UC-4.4.29), SOC dashboard panel \"Operations — Multi-Cloud Backup Recovery Testing\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-4.4.29 positive (Multi, Cloud, Backup, Recovery, Testing): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch:events' where `count` grouped by `app_name`, `provider` satisfies `failed` > 0 for 'Multi-Cloud Backup Recovery Testing'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.4.29 negative (Recovery Testing): ingest benign `aws` / `aws:cloudwatch:events` events where `app_name`, `provider` stays below `failed` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Multi-Cloud Backup Recovery Testing'."
+  },
+  "dataSources": "`sourcetype=aws:cloudwatch:events` (Backup), `sourcetype=mscs:azure:diagnostics` (Backup), `sourcetype=google:gcp:pubsub:message` (gkebackup, sqladmin) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_aws`, Azure Backup logs, GCP Backup for GKE / Database exports — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "(index=aws sourcetype=\"aws:cloudwatch:events\" detail-type=\"Restore Job State Change\")\n OR (index=azure sourcetype=\"mscs:azure:diagnostics\" Category=\"AzureBackupReport\" OperationName=\"Restore\")\n OR (index=gcp sourcetype=\"google:gcp:pubsub:message\" \"Restore\" OR \"restoreBackup\")\n| eval ok=if(match(_raw,\"(?i)(FAILED|ERROR|PARTIAL)\"),0,1)\n| eval provider=case(index=\"aws\",\"aws\", index=\"azure\",\"azure\", index=\"gcp\",\"gcp\",1=1,\"unknown\")\n| eval app_name=coalesce(detail.resourceArn, BackupItemName, resource.labels.project_id, \"unknown\")\n| stats count(eval(ok=1)) as success, count(eval(ok=0)) as failed by app_name, provider\n| where failed>0",
-  "description": "Untested restores fail when needed; tracking drill outcomes across AWS Backup, Azure Backup, and GCP proves RPO/RTO.",
-  "value": "Untested restores fail when needed; tracking drill outcomes across AWS Backup, Azure Backup, and GCP proves RPO/RTO.",
+  "description": "Detects UC-4.4.29 — Multi, Cloud, Backup, Recovery, Testing — using `index=aws` sourcetype `aws:cloudwatch:events`, grouped by `app_name`, `provider`. Outputs `count` each `the scheduled window`; alert when `failed` > 0. Primary focus: Recovery Testing. Purpose-built for 'Multi-Cloud Backup Recovery Testing' in Operations workflows.",
+  "value": "Tracking `activity` via UC-4.4.29 on `aws:cloudwatch:events` feeds improves response to 'Multi-Cloud Backup Recovery Testing' and reduces operational risk and delayed incident response.",
   "implementation": "Tag restore jobs with `drill=true` in application metadata. Quarterly dashboard of success rate and restore duration percentiles. Alert on any failed table-top restore.",
   "visualization": "Table (app, provider, success/fail), Bar chart (drill outcomes by quarter), Line chart (restore duration trend).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk_TA_aws",
-      "url": "https://splunkbase.splunk.com/app/1876"
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.4.29)** — Planned work for 'Multi-Cloud Backup Recovery Testing' shifts `count` over `span=1h` while `app_name`, `provider` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch:events`** — Scheduled automation elevates `provider` without crossing `failed` > 0 for UC-4.4.29. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `app_name`, `provider`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch:events`** — First 48h baseline for UC-4.4.29 on `app_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `app_name`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1578.001",
     "T1578.004"
@@ -35,6 +57,17 @@
     "azure",
     "gcp"
   ],
+  "equipmentModels": [
+    "aws_generic",
+    "azure_generic",
+    "gcp_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`, Azure Backup logs, GCP Backup for GKE / Database exports.\n• Ensure the following data sources are available: `sourcetype=aws:cloudwatch:events` (Backup), `sourcetype=mscs:azure:diagnostics` (Backup), `sourcetype=google:gcp:pubsub:message` (gkebackup, sqladmin).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTag restore jobs with `drill=true` in application metadata. Quarterly dashboard of success rate and restore duration percentiles. Alert on any failed table-top restore.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n(index=aws sourcetype=\"aws:cloudwatch:events\" detail-type=\"Restore Job State Change\")\n OR (index=azure sourcetype=\"mscs:azure:diagnostics\" Category=\"AzureBackupReport\" OperationName=\"Restore\")\n OR (index=gcp sourcetype=\"google:gcp:pubsub:message\" \"Restore\" OR \"restoreBackup\")\n| eval ok=if(match(_raw,\"(?i)(FAILED|ERROR|PARTIAL)\"),0,1)\n| eval provider=case(index=\"aws\",\"aws\", index=\"azure\",\"azure\", index=\"gcp\",\"gcp\",1=1,\"unknown\")\n| eval app_name=coalesce(detail.resourceArn, BackupItemName, resource.labels.project_id, \"unknown\")\n| stats count(eval(ok=1)) as success, count(eval(ok=0)) as failed by app_name, provider\n| where failed>0\n```\n\nUnderstanding this SPL\n\n**Multi-Cloud Backup Recovery Testing** — Untested restores fail when needed; tracking drill outcomes across AWS Backup, Azure Backup, and GCP proves RPO/RTO.\n\nDocumented **Data sources**: `sourcetype=aws:cloudwatch:events` (Backup), `sourcetype=mscs:azure:diagnostics` (Backup), `sourcetype=google:gcp:pubsub:message` (gkebackup, sqladmin). **App/TA** (typical add-on context): `Splunk_TA_aws`, Azure Backup logs, GCP Backup for GKE / Database exports. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws, azure, gcp; **sourcetype**: aws:cloudwatch:events, mscs:azure:diagnostics, google:gcp:pubsub:message. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, index=azure, index=gcp, sourcetype=\"aws:cloudwatch:events\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **ok** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **provider** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **app_name** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by app_name, provider** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where failed>0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (app, provider, success/fail), Bar chart (drill outcomes by quarter), Line chart (restore duration trend).",
-  "grandmaExplanation": "Untested restores fail when needed; tracking drill outcomes across AWS Backup, Azure Backup, and GCP proves recovery point/recovery time."
+  "grandmaExplanation": "Untested restores fail when needed; tracking drill outcomes across AWS Backup, Azure Backup, and GCP proves recovery point/recovery time.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

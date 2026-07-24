@@ -9,31 +9,57 @@
     "Inventory"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Crypto prices/holdings (`crypto:price`, `wallet:balance`), exchange transactions (`coinbase:txn`), budget/transaction exports (`firefly:txn`, `ynab:txn`), bill feeds.",
-  "app": "Crypto exchange/wallet APIs (Coinbase, on-chain), budgeting exports (YNAB/Firefly III), and subscription trackers via HEC scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Wallet Concentration Risk' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_wallet_concentration_risk` (UC-25.12.12), SOC dashboard panel \"Personal — Wallet Concentration Risk\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.12.12 positive (Wallet, Concentration, Risk): ingest synthetic events into `index=personal` sourcetype='wallet:balance' where `portfolio_usd` grouped by `asset` satisfies `pct` > 50 for 'Wallet Concentration Risk'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.12.12 negative (Concentration Risk): ingest benign `personal` / `wallet:balance` events where `asset` stays below `pct` > 50, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 13 confirms zero alert rows for 'Wallet Concentration Risk'."
+  },
+  "dataSources": "Crypto prices/holdings (`crypto:price`, `wallet:balance`), exchange transactions (`coinbase:txn`), budget/transaction exports (`firefly:txn`, `ynab:txn`), bill feeds. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Crypto exchange/wallet APIs (Coinbase, on-chain), budgeting exports (YNAB/Firefly III), and subscription trackers via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=wallet:balance\n| stats latest(balance_usd) as usd by asset\n| eventstats sum(usd) as portfolio_usd\n| eval pct=round(100*usd/portfolio_usd,1)\n| where pct>50\n| sort - pct",
-  "description": "Shows whether one asset has grown to dominate your tracked portfolio, turning a few green weeks into hidden concentration risk.",
-  "value": "Diversification is easy to believe and hard to verify after price moves; a concentration report gives you the plain answer instantly.",
+  "description": "Monitors UC-25.12.12 — Wallet, Concentration, Risk — using `index=personal` sourcetype `wallet:balance`, grouped by `asset`. Outputs `portfolio_usd` each `the scheduled window`; alert when `pct` > 50. Primary focus: Concentration Risk. Purpose-built for 'Wallet Concentration Risk' in Personal workflows.",
+  "value": "UC-25.12.12 gives Personal teams earlier visibility into Concentration Risk through `wallet:balance` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Forward wallet balances in USD terms; review allocation whenever an asset crosses your comfort threshold.",
   "visualization": "Portfolio table of assets by current value and share percentage.",
   "cimModels": [],
   "references": [
     {
       "title": "CoinGecko API",
-      "url": "https://www.coingecko.com/en/api/documentation"
+      "url": "https://www.coingecko.com/en/api/documentation",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Coinbase API docs",
-      "url": "https://docs.cdp.coinbase.com/exchange/reference/exchangerestapi_getproducts"
+      "url": "https://docs.cdp.coinbase.com/exchange/reference/exchangerestapi_getproducts",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.12.12)** — Connector for 'Wallet Concentration Risk' stops polling `wallet:balance`; stale `portfolio_usd` on `asset` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `portfolio_usd` over `1w` is expected for UC-25.12.12, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `wallet:balance`. Dedup with `stats latest(*) by asset`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `pct` > 50 for 'Wallet Concentration Risk'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "exchange",
     "m365"
   ],
-  "grandmaExplanation": "It logs when one coin or asset has grown so big that too much of your portfolio depends on it."
+  "equipmentModels": [
+    "exchange_generic",
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Personal Finance & Crypto — typical feeds: Crypto prices/holdings (`crypto:price`, `wallet:balance`), exchange transactions (`coinbase:txn`), budget/transaction exports (`firefly:txn`, `ynab:txn`), recurring-subscription and bill feeds..\n• **Sourcetypes in this search**: `wallet:balance`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=wallet:balance`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Crypto exchange/wallet APIs (Coinbase, on-chain), budgeting exports (YNAB/Firefly III), and subscription trackers via HEC scripted inputs..\n\n**Author notes:** Forward wallet balances in USD terms; review allocation whenever an asset crosses your comfort threshold.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"wallet:balance\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=wallet:balance earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Wallet Concentration Risk** over `personal` data (primarily `sourcetype=wallet:balance`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `asset`, `pct`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=wallet:balance\n| stats latest(balance_usd) as usd by asset\n| eventstats sum(usd) as portfolio_usd\n| eval pct=round(100*usd/portfolio_usd,1)\n| where pct>50\n| sort - pct\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=wallet:balance earliest=-7d\n| head 50\n| table asset, pct\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=wallet:balance earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `pct` before alerting:\n\n```spl\nindex=personal sourcetype=wallet:balance earliest=-30d\n| stats perc50(pct) AS p50 perc90(pct) AS p90 perc99(pct) AS p99 max(pct) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.12.12: Personal evidence` with the following panel layout:\n\n**Panel 1 — Portfolio Table Of Assets By Current Value And Share Percentage (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `wallet:balance` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=wallet:balance | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It logs when one coin or asset has grown so big that too much of your portfolio depends on it.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

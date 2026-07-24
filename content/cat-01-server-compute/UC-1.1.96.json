@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=custom:numa_zone`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
+  "exclusions": "Covers the detection logic documented for 'NUMA Hit/Miss Ratio Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_numa_hit_miss_ratio_tracking` (UC-1.1.96), SOC dashboard panel \"Linux — NUMA Hit/Miss Ratio Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.96 positive (NUMA, Hit, Miss, Ratio, Tracking): ingest synthetic events into `index=os` sourcetype='custom:numa_zone' where `hits`, `misses` grouped by `host` satisfies `hit_ratio` < 0.9 for 'NUMA Hit/Miss Ratio Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.96 negative (Ratio Tracking): ingest benign `os` / `custom:numa_zone` events where `host` stays below `hit_ratio` < 0.9, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 3 confirms zero alert rows for 'NUMA Hit/Miss Ratio Tracking'."
+  },
+  "dataSources": "`sourcetype=custom:numa_zone` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix, custom scripted input` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:numa_zone host=*\n| stats sum(numa_hit) as hits, sum(numa_miss) as misses by host\n| eval hit_ratio=hits/(hits+misses)\n| where hit_ratio < 0.9",
-  "description": "Tracking NUMA hit/miss ratio identifies opportunities for workload optimization on NUMA systems.",
-  "value": "Tracking NUMA hit/miss ratio identifies opportunities for workload optimization on NUMA systems.",
+  "description": "Identifies when Ratio Tracking criteria fire for 'NUMA Hit/Miss Ratio Tracking' (UC-1.1.96) in `index=os` sourcetype `custom:numa_zone`. Pipeline aggregates `hits`, `misses` by `host` over `the scheduled window`. Alert logic enforces `hit_ratio` < 0.9. Title terms: NUMA, Hit, Miss, Ratio, Tracking. Eliminates manual hunting for UC-1.1.96 conditions.",
+  "value": "UC-1.1.96 helps teams contain NUMA, Hit, Miss, Ratio, Tracking scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
   "implementation": "Parse /proc/zoneinfo for NUMA statistics per zone. Calculate hit ratio monthly. Alert when ratio drops below 90%, suggesting memory allocation pattern misalignment with NUMA topology.",
   "visualization": "Gauge, Timechart",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Non-NUMA or single-socket hosts may emit sparse or zero `numa_miss` events; ratios can be misleading on VMs where the hypervisor rebalances memory. Short sampling windows during migrations or kernel upgrades can dip the hit ratio without a chronic workload problem.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'NUMA Hit/Miss Ratio Tracking'. Correlate with apt/yum logs in the same `custom:numa_zone` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `sum` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:numa_zone`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `hit_ratio` < 0.9.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=custom:numa_zone`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nParse /proc/zoneinfo for NUMA statistics per zone. Calculate hit ratio monthly. Alert when ratio drops below 90%, suggesting memory allocation pattern misalignment with NUMA topology.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=custom:numa_zone host=*\n| stats sum(numa_hit) as hits, sum(numa_miss) as misses by host\n| eval hit_ratio=hits/(hits+misses)\n| where hit_ratio < 0.9\n```\n\nUnderstanding this SPL\n\n**NUMA Hit/Miss Ratio Tracking** — Tracking NUMA hit/miss ratio identifies opportunities for workload optimization on NUMA systems.\n\nDocumented **Data sources**: `sourcetype=custom:numa_zone`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: custom:numa_zone. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=custom:numa_zone. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **hit_ratio** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where hit_ratio < 0.9` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge, Timechart",
-  "grandmaExplanation": "We track NUMA local versus remote memory use so we can see when workloads are sitting on the wrong socket and wasting performance."
+  "grandmaExplanation": "We track NUMA local versus remote memory use so we can see when workloads are sitting on the wrong socket and wasting performance.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

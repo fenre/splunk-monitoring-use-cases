@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=google:gcp:pubsub:message` (SCC findings JSON), SCC Pub/Sub notifications",
-  "app": "`Splunk_TA_google-cloudplatform` (Pub/Sub export)",
+  "exclusions": "Covers the detection logic documented for 'Security Command Center Findings' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_security_command_center_findings` (UC-4.3.30), SOC dashboard panel \"Operations — Security Command Center Findings\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-4.3.30 positive (Security, Command, Center, Findings): ingest synthetic events into `index=gcp` sourcetype='google:gcp:pubsub:message' where `count` grouped by `finding.category`, `resource` satisfies detection threshold for 'Security Command Center Findings'. Validate filter `finding.state=\"ACTIVE\" (finding.severity=\"HIGH\" OR finding.s`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.3.30 negative (Center Findings): ingest benign `gcp` / `google:gcp:pubsub:message` events where `finding.category`, `resource` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Security Command Center Findings'."
+  },
+  "dataSources": "`sourcetype=google:gcp:pubsub:message` (SCC findings JSON), SCC Pub/Sub notifications Collected via Splunk Add-on for Google Cloud Platform (Splunkbase 3084) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_google-cloudplatform` (Pub/Sub export) — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
   "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" sourceProperties.ResourceName=*\n| spath path=finding\n| search finding.state=\"ACTIVE\" (finding.severity=\"HIGH\" OR finding.severity=\"CRITICAL\")\n| stats latest(finding.createTime) as seen by finding.category, resource\n| sort -seen",
-  "description": "SCC aggregates misconfigurations and threats; operationalizing findings closes gaps faster than periodic console reviews.",
-  "value": "SCC aggregates misconfigurations and threats; operationalizing findings closes gaps faster than periodic console reviews.",
+  "description": "Monitors UC-4.3.30 — Security, Command, Center, Findings — using `index=gcp` sourcetype `google:gcp:pubsub:message`, grouped by `finding.category`, `resource`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `finding.state=\"ACTIVE\" (finding.severity=\"HIGH\" OR finding.s`. Purpose-built for 'Security Command Center Findings' in Operations workflows.",
+  "value": "UC-4.3.30 operationalises 'Security Command Center Findings' against `google:gcp:pubsub:message` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Enable continuous export or finding notifications to Pub/Sub. Map categories to owners. Auto-ticket CRITICAL; weekly review HIGH. Deduplicate by finding ID across updates.",
   "visualization": "Table (category, resource, severity), Bar chart (findings by category), Timeline (new findings).",
   "cimModels": [
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "Splunk_TA_google-cloudplatform",
-      "url": "https://splunkbase.splunk.com/app/3088"
+      "url": "https://splunkbase.splunk.com/app/3088",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Vulnerabilities",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "A fresh scanner run or a vendor re-rate can resurface a finding we already know about. We deduplicate on resource and time and we only escalate when the exposure is new or the severity stepped up.",
+  "knownFalsePositives": "1. **Maintenance window on `gcp` (UC-4.3.30)** — Planned work for 'Security Command Center Findings' shifts `count` over `span=1h` while `finding.category`, `resource` remains in-scope. Applies filter `finding.state=\"ACTIVE\" (finding.severity=\"HIGH\" OR finding.s`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `google:gcp:pubsub:message`** — Scheduled automation elevates `resource` without crossing configured threshold for UC-4.3.30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `finding.category`, `resource`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `google:gcp:pubsub:message`** — First 48h baseline for UC-4.3.30 on `finding.category` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `finding.category`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1580",
     "T1526"
@@ -36,6 +54,15 @@
   "equipment": [
     "gcp"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_google-cloudplatform` (Pub/Sub export).\n• Ensure the following data sources are available: `sourcetype=google:gcp:pubsub:message` (SCC findings JSON), SCC Pub/Sub notifications.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable continuous export or finding notifications to Pub/Sub. Map categories to owners. Auto-ticket CRITICAL; weekly review HIGH. Deduplicate by finding ID across updates.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" sourceProperties.ResourceName=*\n| spath path=finding\n| search finding.state=\"ACTIVE\" (finding.severity=\"HIGH\" OR finding.severity=\"CRITICAL\")\n| stats latest(finding.createTime) as seen by finding.category, resource\n| sort -seen\n```\n\nUnderstanding this SPL\n\n**Security Command Center Findings** — SCC aggregates misconfigurations and threats; operationalizing findings closes gaps faster than periodic console reviews.\n\nDocumented **Data sources**: `sourcetype=google:gcp:pubsub:message` (SCC findings JSON), SCC Pub/Sub notifications. **App/TA** (typical add-on context): `Splunk_TA_google-cloudplatform` (Pub/Sub export). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: gcp; **sourcetype**: google:gcp:pubsub:message. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=gcp, sourcetype=\"google:gcp:pubsub:message\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts structured paths (JSON/XML) with `spath`.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by finding.category, resource** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (category, resource, severity), Bar chart (findings by category), Timeline (new findings).",
-  "grandmaExplanation": "SCC aggregates misconfigurations and threats; operationalizing findings closes gaps faster than periodic console reviews."
+  "equipmentModels": [
+    "gcp_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_google-cloudplatform` (Pub/Sub export).\n• Ensure the following data sources are available: `sourcetype=google:gcp:pubsub:message` (SCC findings JSON), SCC Pub/Sub notifications.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable continuous export or finding notifications to Pub/Sub. Map categories to owners. Auto-ticket CRITICAL; weekly review HIGH. Deduplicate by finding ID across updates.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" sourceProperties.ResourceName=*\n| spath path=finding\n| search finding.state=\"ACTIVE\" (finding.severity=\"HIGH\" OR finding.severity=\"CRITICAL\")\n| stats latest(finding.createTime) as seen by finding.category, resource\n| sort -seen\n```\n\nUnderstanding this SPL\n\n**Security Command Center Findings** — SCC aggregates misconfigurations and threats; operationalizing findings closes gaps faster than periodic console reviews.\n\nDocumented **Data sources**: `sourcetype=google:gcp:pubsub:message` (SCC findings JSON), SCC Pub/Sub notifications. **App/TA** (typical add-on context): `Splunk_TA_google-cloudplatform` (Pub/Sub export). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: gcp; **sourcetype**: google:gcp:pubsub:message. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=gcp, sourcetype=\"google:gcp:pubsub:message\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts structured paths (JSON/XML) with `spath`.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by finding.category, resource** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (category, resource, severity), Bar chart (findings by category), Timeline (new findings).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_google-cloudplatform` (Pub/Sub export) — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)). Enable the modular input or HEC token that writes sourcetype=google:gcp:pubsub:message into gcp. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`finding.category, resource`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "SCC aggregates misconfigurations and threats; operationalizing findings closes gaps faster than periodic console reviews.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

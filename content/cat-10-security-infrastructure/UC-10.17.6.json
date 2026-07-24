@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=dell:sonicwall` management or SSL-VPN session summary events",
+  "exclusions": "Covers the detection logic documented for 'SonicWall SSL-VPN Concurrent Sessions vs Licensed Capacity (SonicWall)' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_sonicwall_ssl_vpn_concurrent_sessions_vs_license` (UC-10.17.6), SOC dashboard panel \"Security Infra — SonicWall SSL-VPN Concurrent Sessions vs Licensed Capacity (SonicWall)\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.17.6 positive (SonicWall, SSL, VPN, Concurrent, Sessions): ingest synthetic events into `index=netops` sourcetype='dell:sonicwall' where `count` grouped by `host` satisfies `pct` >= 80 for 'SonicWall SSL-VPN Concurrent Sessions vs Licensed Capacity (SonicWall)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.17.6 negative (Capacity (SonicWall)): ingest benign `netops` / `dell:sonicwall` events where `host` stays below `pct` >= 80, or exclude the test entity via `soc_exception_register.csv`. Variant 0 confirms zero alert rows for 'SonicWall SSL-VPN Concurrent Sessions vs Licensed Capacity (SonicWall)'."
+  },
+  "dataSources": "`sourcetype=dell:sonicwall` management or SSL-VPN session summary events Indexes: netops. Sourcetypes: dell:sonicwall. Key fields: host, pct. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Dell SonicWall Add-on for Splunk (Splunkbase 6203)",
   "spl": "index=netops sourcetype=\"dell:sonicwall\" earliest=-4h\n| where match(_raw,\"(?i)ssl-vpn|NetExtender|session\")\n| rex field=_raw \"(?i)active[\\s_]*sessions[\\s:=]+(?<sessions>\\d+)\"\n| stats latest(sessions) as active_sessions by host\n| eval license_limit=250\n| eval pct=round(100*active_sessions/license_limit,1)\n| where pct>=80",
-  "description": "VPN license exhaustion blocks remote workers during incidents or weather events. Session counts should be tracked like any other capacity metric.",
-  "value": "Prevents emergency license purchases and documents growth for budget planning.",
+  "description": "Surfaces 'SonicWall SSL-VPN Concurrent Sessions vs Licensed Capacity (SonicWall)' (UC-10.17.6) using `index=netops` sourcetype `dell:sonicwall` by aggregating `count` grouped by `host` over `the scheduled window` and alerting when `pct` >= 80. Keywords: SonicWall, SSL, VPN, Concurrent, Sessions. Focuses on Capacity (SonicWall) behaviour so security infra teams can triage UC-10.17.6 without ad-hoc log review.",
+  "value": "UC-10.17.6 accelerates insight into Capacity (SonicWall) ('SonicWall SSL-VPN Concurrent Sessions vs Licensed Capacity (SonicWall)') by tracking `activity` on `dell:sonicwall` feeds, reducing missed threat campaigns, control regressions, and SOC SLA breaches before spreadsheet checks hide regressions.",
   "implementation": "Enable SSL-VPN session logging. If only available via SNMP/API, ingest via scripted input into `sourcetype=sonicwall:vpn:metrics`.",
   "visualization": "Single value (sessions vs cap), timechart (concurrent sessions).",
   "cimModels": [
@@ -22,13 +28,26 @@
   "references": [
     {
       "title": "Splunkbase — Dell SonicWall Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/6203"
+      "url": "https://splunkbase.splunk.com/app/6203",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Connect for Syslog — Dell SonicWall reference",
-      "url": "https://docs.splunk.com/Documentation/SC4S/"
+      "url": "https://docs.splunk.com/Documentation/SC4S/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `netops` (UC-10.17.6)** — Planned work for 'SonicWall SSL-VPN Concurrent Sessions vs Licensed Capacity (SonicWall)' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `dell:sonicwall`** — Scheduled automation elevates `license_limit` without crossing `pct` >= 80 for UC-10.17.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `netops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dell:sonicwall`** — First 48h baseline for UC-10.17.6 on `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "snmp",
@@ -44,5 +63,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "VPN license exhaustion blocks remote workers during incidents or weather events — we monitor SonicWall logs so teams can act before users feel pain."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Dell SonicWall Add-on for Splunk (Splunkbase 6203)). Enable the modular input or HEC token that writes sourcetype=dell:sonicwall into netops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, pct`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "VPN license exhaustion blocks remote workers during incidents or weather events — we monitor SonicWall logs so teams can act before users feel pain.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

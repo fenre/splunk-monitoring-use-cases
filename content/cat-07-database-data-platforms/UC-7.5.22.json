@@ -8,11 +8,17 @@
     "Change"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'Snowflake Schema Object DDL from Query History' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_snowflake_schema_object_ddl_from_query_history` (UC-7.5.22), SOC dashboard panel \"Operations — Snowflake Schema Object DDL from Query History\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.5.22 positive (Snowflake, Schema, Object, DDL, from): ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:query_history' where `count` grouped by `QUERY_ID` satisfies detection threshold for 'Snowflake Schema Object DDL from Query History'. Validate filter `QUERY_TYPE=\"DDL\" OR match(QUERY_TEXT,\"(?i)^(create`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.5.22 negative (Query History): ingest benign `datawarehouse` / `snowflake:query_history` events where `QUERY_ID` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Snowflake Schema Object DDL from Query History'."
+  },
   "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY` (`QUERY_TEXT`, `QUERY_TYPE`, `USER_NAME`, `ROLE_NAME`, `START_TIME`)",
   "app": "Splunk DB Connect, DBX Add-on for Snowflake JDBC (Splunkbase 6153)",
   "spl": "index=datawarehouse sourcetype=\"snowflake:query_history\"\n| search QUERY_TYPE=\"DDL\" OR match(QUERY_TEXT,\"(?i)^(create|alter|drop)\\s+(table|view|schema|warehouse|pipe|stage|task|stream)\")\n| stats earliest(_time) as first_seen latest(QUERY_TEXT) as ddl latest(USER_NAME) as actor by QUERY_ID\n| table first_seen actor ddl",
-  "description": "Tracking DDL executed in Snowflake supports change governance: who created pipes, stages, or tables outside CAB windows. ACCOUNT_USAGE query history is the standard audit source.",
-  "value": "Improves forensic reconstruction after incidents and enforces separation-of-duties on production accounts.",
+  "description": "Detects 'Snowflake Schema Object DDL from Query History' (UC-7.5.22) using `index=datawarehouse` sourcetype `snowflake:query_history` via filter `QUERY_TYPE=\"DDL\" OR match(QUERY_TEXT,\"(?i)^(create` by aggregating `count` grouped by `QUERY_ID` over `the scheduled window` and alerting when configured threshold. Keywords: Snowflake, Schema, Object, DDL, from. Focuses on Query History behaviour so operations teams can triage UC-7.5.22 without ad-hoc log review.",
+  "value": "UC-7.5.22 accelerates insight into Query History ('Snowflake Schema Object DDL from Query History') by tracking `activity` on `snowflake:query_history` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Replicate QUERY_HISTORY on a schedule (note ACCOUNT_USAGE latency). Filter to production roles. Join QUERY_ID to ACCESS_HISTORY if column-level detail is required. Archive results to a restricted index.",
   "visualization": "Table (time, actor, statement), Timeline (DDL volume), Top users.",
   "cimModels": [
@@ -21,18 +27,35 @@
   "references": [
     {
       "title": "Snowflake QUERY_HISTORY view",
-      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/query_history"
+      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/query_history",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "DBX Add-on for Snowflake JDBC",
-      "url": "https://splunkbase.splunk.com/app/6153"
+      "url": "https://splunkbase.splunk.com/app/6153",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned access reviews, recertification, break-glass accounts, and vendor maintenance can emit privilege- or access-change events that match the rule but are already approved; require a change ticket for context.",
+  "knownFalsePositives": "1. **Maintenance window on `datawarehouse` (UC-7.5.22)** — Planned work for 'Snowflake Schema Object DDL from Query History' shifts `count` over `span=1h` while `QUERY_ID` remains in-scope. Applies filter `QUERY_TYPE=\"DDL\" OR match(QUERY_TEXT,\"(?i)^(create`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snowflake:query_history`** — Scheduled automation elevates `src` without crossing configured threshold for UC-7.5.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `QUERY_ID`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snowflake:query_history`** — First 48h baseline for UC-7.5.22 on `QUERY_ID` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `QUERY_ID`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "servicenow",
     "snowflake"
+  ],
+  "equipmentModels": [
+    "db_connect_generic",
+    "servicenow_generic",
+    "snowflake_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +64,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We track who changed users and privileges in our databases so we can support compliance and spot unauthorized access paths early."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk DB Connect, DBX Add-on for Snowflake JDBC (Splunkbase 6153)). Enable the modular input or HEC token that writes sourcetype=snowflake:query_history into datawarehouse. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`QUERY_ID`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We track who changed users and privileges in our databases so we can support compliance and spot unauthorized access paths early.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

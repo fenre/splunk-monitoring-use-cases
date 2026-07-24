@@ -8,6 +8,8 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'OT Device Authentication Failure Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ot_device_authentication_failure_detection` (UC-14.9.14), SOC dashboard panel \"Operations — OT Device Authentication Failure Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "compliance": [
     {
       "regulation": "api-rp-1164",
@@ -76,11 +78,15 @@
       "evidenceArtifact": "Saved search 'UC-14.9.14' running on sourcetype=cisco:cybervision:syslog · Nozomi: sourcetype=nozomi:alert (type_id=\"AUTH\"), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
+  "controlTest": {
+    "positiveScenario": "UC-14.9.14 positive (Device, Authentication, Failure, Detection): ingest synthetic events into `index=nozomi` sourcetype='nozomi:alert' where `count` grouped by `src_ip`, `dst_ip`, `zone` satisfies `total_failures` >= 3 for 'OT Device Authentication Failure Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.9.14 negative (Failure Detection): ingest benign `nozomi` / `nozomi:alert` events where `src_ip`, `dst_ip`, `zone` stays below `total_failures` >= 3, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'OT Device Authentication Failure Detection'."
+  },
   "dataSources": "`sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"AUTH\")",
   "app": "`Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)",
   "spl": "index=nozomi sourcetype=\"nozomi:alert\" type_id=\"AUTH*\"\n| stats count as total_failures by src_ip, dst_ip, zone\n| where total_failures >= 3\n| sort -total_failures\n| table src_ip, dst_ip, total_failures, zone",
-  "description": "OT security platforms detect login failure events including the number of failed authentication attempts and the protocol used. Brute-force login attempts against HMIs, engineering workstations, or web-enabled controllers indicate credential-based attacks that could lead to unauthorized process control.",
-  "value": "OT security platforms detect login failure events including the number of failed authentication attempts and the protocol used. Brute-force login attempts against HMIs, engineering workstations, or web-enabled controllers indicate credential-based attacks that could lead to unauthorized process control.",
+  "description": "Detects risk tied to Device, Authentication, Failure, Detection through UC-14.9.14 on `index=nozomi` sourcetype `nozomi:alert`. Summarises `count` grouped by `src_ip`, `dst_ip`, `zone` across `the scheduled window` before applying `total_failures` >= 3. Operators tune 'OT Device Authentication Failure Detection' using UC-14.9.14 runbook steps.",
+  "value": "Tracking `activity` via UC-14.9.14 on `nozomi:alert` feeds improves response to 'OT Device Authentication Failure Detection' and reduces operational risk and delayed incident response.",
   "implementation": "Both platforms detect authentication failures on OT devices. Alert on repeated failures, especially against critical OT assets (PLCs, RTUs, SIS controllers). Correlate source IP with known engineering workstations. Unknown sources attempting authentication are high priority. Feed into Splunk ES notable events.",
   "visualization": "Failed auth timeline; top attack source table; target asset vulnerability assessment; brute force detection dashboard.",
   "cimModels": [
@@ -90,18 +96,40 @@
   "references": [
     {
       "title": "Splunkbase app 5748",
-      "url": "https://splunkbase.splunk.com/app/5748"
+      "url": "https://splunkbase.splunk.com/app/5748",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 6905",
-      "url": "https://splunkbase.splunk.com/app/6905"
+      "url": "https://splunkbase.splunk.com/app/6905",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Authentication noise from RADIUS rekeys, account lockouts, or certificate rotation on HMI and controllers.",
+  "knownFalsePositives": "1. **Maintenance window on `nozomi` (UC-14.9.14)** — Planned work for 'OT Device Authentication Failure Detection' shifts `count` over `span=1h` while `src_ip`, `dst_ip`, `zone` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `nozomi:alert`** — Scheduled automation elevates `dst_ip` without crossing `total_failures` >= 3 for UC-14.9.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_ip`, `dst_ip`, `zone`** — Health checks in `nozomi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nozomi:alert`** — First 48h baseline for UC-14.9.14 on `src_ip` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src_ip`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
   ],
+  "equipmentModels": [
+    "cisco_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905).\n• Ensure the following data sources are available: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"AUTH\").\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBoth platforms detect authentication failures on OT devices. Alert on repeated failures, especially against critical OT assets (PLCs, RTUs, SIS controllers). Correlate source IP with known engineering workstations. Unknown sources attempting authentication are high priority. Feed into Splunk ES notable events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nozomi sourcetype=\"nozomi:alert\" type_id=\"AUTH*\"\n| stats count as total_failures by src_ip, dst_ip, zone\n| where total_failures >= 3\n| sort -total_failures\n| table src_ip, dst_ip, total_failures, zone\n```\n\nUnderstanding this SPL\n\n**OT Device Authentication Failure Detection** — OT security platforms detect login failure events including the number of failed authentication attempts and the protocol used. Brute-force login attempts against HMIs, engineering workstations, or web-enabled controllers indicate credential-based attacks that could lead to unauthorized process control.\n\nDocumented **Data sources**: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"AUTH\"). **App/TA** (typical add-on context): `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nozomi; **sourcetype**: nozomi:alert. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nozomi, sourcetype=\"nozomi:alert\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by src_ip, dst_ip, zone** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where total_failures >= 3` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **OT Device Authentication Failure Detection**): table src_ip, dst_ip, total_failures, zone\n\nStep 3 — Validate\nRun the search for a time range that should include both routine and change activity, then compare the same assets, flows, and alerts in the Cisco Cyber Vision UI and in Nozomi Guardian or CMC, matching whichever source the event came from. Reconcile severities, counts, and key fields in both tools.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Failed auth timeline; top attack source table; target asset vulnerability assessment; brute force detection dashboard.",
-  "grandmaExplanation": "We log failed authentications in OT so weak credentials and account lockouts are visible next to the same asset data."
+  "grandmaExplanation": "We log failed authentications in OT so weak credentials and account lockouts are visible next to the same asset data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=webex:device`, device online/offline events",
-  "app": "`ta_cisco_webex_add_on_for_splunk`",
+  "exclusions": "Covers the detection logic documented for 'Webex Room System Uptime' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_webex_room_system_uptime` (UC-11.5.5), SOC dashboard panel \"Operations — Webex Room System Uptime\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.5.5 positive (Webex, Room, System, Uptime): ingest synthetic events into `index=webex` sourcetype='webex:device' where `uptime_ratio` grouped by `_time`, `device_id` satisfies `uptime_ratio` < 0.99 for 'Webex Room System Uptime'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.5.5 negative (System Uptime): ingest benign `webex` / `webex:device` events where `_time`, `device_id` stays below `uptime_ratio` < 0.99, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Webex Room System Uptime'."
+  },
+  "dataSources": "`sourcetype=webex:device`, device online/offline events Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`ta_cisco_webex_add_on_for_splunk` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=webex sourcetype=\"webex:device\"\n| eval up=if(connection_state=\"connected\",1,0)\n| bin _time span=1h\n| stats avg(up) as uptime_ratio by _time, device_id\n| where uptime_ratio < 0.99\n| table _time, device_id, uptime_ratio",
-  "description": "Room system availability underpins executive and boardroom SLAs; uptime trending supports hardware refresh and network path decisions.",
-  "value": "Room system availability underpins executive and boardroom SLAs; uptime trending supports hardware refresh and network path decisions.",
+  "description": "Alerts on UC-11.5.5 for Webex, Room, System, Uptime over `index=webex` sourcetype `webex:device` with thresholds `uptime_ratio` < 0.99. Groups `uptime_ratio` by `_time`, `device_id` each `1h`. Centered on System Uptime indicators. Supports repeatable operations triage for 'Webex Room System Uptime'.",
+  "value": "For 'Webex Room System Uptime', UC-11.5.5 converts `uptime_ratio` on `webex:device` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Derive online state from heartbeat or Control Hub connectivity. Compute rolling uptime per room vs. expected business hours. Alert on devices below 99% weekly uptime or prolonged offline spans.",
   "visualization": "Line chart (uptime ratio by room), Single value (fleet uptime %), Table (rooms below SLA).",
   "cimModels": [
@@ -22,16 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Nights and weekends with powered-down rooms; compare against occupancy expectations.",
+  "knownFalsePositives": "1. **Maintenance window on `webex` (UC-11.5.5)** — Planned work for 'Webex Room System Uptime' shifts `uptime_ratio` over `span=1h` while `_time`, `device_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `webex:device`** — Scheduled automation elevates `device_id` without crossing `uptime_ratio` < 0.99 for UC-11.5.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `device_id`** — Health checks in `webex` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `webex:device`** — First 48h baseline for UC-11.5.5 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
   "equipmentModels": [
     "cisco_webex"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `ta_cisco_webex_add_on_for_splunk`.\n• Ensure the following data sources are available: `sourcetype=webex:device`, device online/offline events.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDerive online state from heartbeat or Control Hub connectivity. Compute rolling uptime per room vs. expected business hours. Alert on devices below 99% weekly uptime or prolonged offline spans.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=webex sourcetype=\"webex:device\"\n| eval up=if(connection_state=\"connected\",1,0)\n| bin _time span=1h\n| stats avg(up) as uptime_ratio by _time, device_id\n| where uptime_ratio < 0.99\n| table _time, device_id, uptime_ratio\n```\n\nUnderstanding this SPL\n\n**Webex Room System Uptime** — Room system availability underpins executive and boardroom SLAs; uptime trending supports hardware refresh and network path decisions.\n\nDocumented **Data sources**: `sourcetype=webex:device`, device online/offline events. **App/TA** (typical add-on context): `ta_cisco_webex_add_on_for_splunk`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: webex; **sourcetype**: webex:device. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=webex, sourcetype=\"webex:device\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **up** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time, device_id** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where uptime_ratio < 0.99` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Webex Room System Uptime**): table _time, device_id, uptime_ratio\n\n\nStep 3 — Validate\nCompare with Webex Control Hub device and meeting analytics for the same room or user.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (uptime ratio by room), Single value (fleet uptime %), Table (rooms below SLA).",
-  "grandmaExplanation": "We watch meeting rooms and devices, so empty bookings, bad gear, and license waste are visible before a big event fails."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `ta_cisco_webex_add_on_for_splunk`.\n• Ensure the following data sources are available: `sourcetype=webex:device`, device online/offline events.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDerive online state from heartbeat or Control Hub connectivity. Compute rolling uptime per room vs. expected business hours. Alert on devices below 99% weekly uptime or prolonged offline spans.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=webex sourcetype=\"webex:device\"\n| eval up=if(connection_state=\"connected\",1,0)\n| bin _time span=1h\n| stats avg(up) as uptime_ratio by _time, device_id\n| where uptime_ratio < 0.99\n| table _time, device_id, uptime_ratio\n```\n\nUnderstanding this SPL\n\n**Webex Room System Uptime** — Room system availability underpins executive and boardroom SLAs; uptime trending supports hardware refresh and network path decisions.\n\nDocumented **Data sources**: `sourcetype=webex:device`, device online/offline events. **App/TA** (typical add-on context): `ta_cisco_webex_add_on_for_splunk`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: webex; **sourcetype**: webex:device. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=webex, sourcetype=\"webex:device\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **up** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time, device_id** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where uptime_ratio < 0.99` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Webex Room System Uptime**): table _time, device_id, uptime_ratio\n\n\nStep 3 — Validate\nCompare with Webex Control Hub device and meeting analytics for the same room or user.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (uptime ratio by room), Single value (fleet uptime %), Table (rooms below SLA).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`ta_cisco_webex_add_on_for_splunk` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=webex:device into webex. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, device_id, up, uptime_ratio`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch meeting rooms and devices, so empty bookings, bad gear, and license waste are visible before a big event fails.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

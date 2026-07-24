@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "MDS logs as `ceph:log` or MDS status JSON as `ceph:status`",
-  "app": "Forwarder on MDS nodes; optional `ceph tell mds.* cache status` scripted input",
+  "exclusions": "Covers the detection logic documented for 'CephFS MDS session cap recall and cache pressure' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cephfs_mds_session_cap_recall_and_cache_pressure` (UC-6.2.24), SOC dashboard panel \"Operations — CephFS MDS session cap recall and cache pressure\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.24 positive (CephFS, MDS, session, cap, recall): ingest synthetic events into `index=os` sourcetype='ceph:log' where `count` grouped by `mds_id`, `host` satisfies `cap_events` > 50 for 'CephFS MDS session cap recall and cache pressure'. Validate filter `\"mds.\" AND (\"cap\" OR \"recall\" OR \"session\")`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.24 negative (cache pressure): ingest benign `os` / `ceph:log` events where `mds_id`, `host` stays below `cap_events` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'CephFS MDS session cap recall and cache pressure'."
+  },
+  "dataSources": "MDS logs as `ceph:log` or MDS status JSON as `ceph:status` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Forwarder on MDS nodes; optional `ceph tell mds.* cache status` scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=\"ceph:log\" earliest=-4h\n| search \"mds.\" AND (\"cap\" OR \"recall\" OR \"session\")\n| rex field=_raw \"(?i)mds\\.(?<mds_id>[a-z0-9_]+)\"\n| stats count as cap_events by mds_id, host\n| where cap_events > 50\n| sort - cap_events",
-  "description": "Aggressive cap recall usually means clients are hoarding caps or MDS cache is undersized, causing metadata latency for CephFS users.",
-  "value": "Keeps shared filesystems responsive for HPC and EDA workloads without blind MDS reboots.",
+  "description": "Surfaces UC-6.2.24 — CephFS, MDS, session, cap, recall — using `index=os` sourcetype `ceph:log`, grouped by `mds_id`, `host`. Outputs `count` each `the scheduled window`; alert when `cap_events` > 50. Filter chain includes filter `\"mds.\" AND (\"cap\" OR \"recall\" OR \"session\")`. Purpose-built for 'CephFS MDS session cap recall and cache pressure' in Operations workflows.",
+  "value": "Alerting on CephFS, MDS, session, cap, recall through UC-6.2.24 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Split index: `os` for logs, `storage` for JSON status. Add client IP via `rex` when present to notify noisy tenants.",
   "visualization": "Table (MDS, events), line chart over time.",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "Ceph Documentation — monitoring",
-      "url": "https://docs.ceph.com/en/latest/radosgw/"
+      "url": "https://docs.ceph.com/en/latest/radosgw/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Red Hat Ceph Storage — troubleshooting",
-      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/"
+      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `os` (UC-6.2.24)** — Planned work for 'CephFS MDS session cap recall and cache pressure' shifts `count` over `span=1h` while `mds_id`, `host` remains in-scope. Applies filter `\"mds.\" AND (\"cap\" OR \"recall\" OR \"session\")`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ceph:log`** — Scheduled automation elevates `host` without crossing `cap_events` > 50 for UC-6.2.24. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `mds_id`, `host`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:log`** — First 48h baseline for UC-6.2.24 on `mds_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `mds_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ceph"
+  ],
+  "equipmentModels": [
+    "ceph_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch who is allowed on the storage network and who just logged in, so stray servers or surprise changes on the fabric are harder to miss."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Forwarder on MDS nodes; optional `ceph tell mds.* cache status` scripted input — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ceph:log into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cap_events, host, mds_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch who is allowed on the storage network and who just logged in, so stray servers or surprise changes on the fabric are harder to miss.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

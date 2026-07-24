@@ -9,11 +9,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Manufacturing",
-  "dataSources": "`index=edge-hub-logs` sourcetype=splunk_edge_hub_log visual_inspection_event, `index=edge-hub-data` inspection_metadata",
-  "app": "Splunk Edge Hub (USB camera + NPU container), v2.1+, OT Intelligence",
+  "exclusions": "Covers the detection logic documented for 'USB Camera Visual Inspection for Manufacturing Defects' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_usb_camera_visual_inspection_for_manufacturing_d` (UC-14.3.46), SOC dashboard panel \"Operations — USB Camera Visual Inspection for Manufacturing Defects\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.3.46 positive (USB, Camera, Visual, Inspection, for): ingest synthetic events into `index=edge-hub-logs` sourcetype='splunk_edge_hub_log' where `count` grouped by `location`, `product_line` satisfies detection threshold for 'USB Camera Visual Inspection for Manufacturing Defects'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.3.46 negative (Manufacturing Defects): ingest benign `edge-hub-logs` / `splunk_edge_hub_log` events where `location`, `product_line` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'USB Camera Visual Inspection for Manufacturing Defects'."
+  },
+  "dataSources": "`index=edge-hub-logs` sourcetype=splunk_edge_hub_log visual_inspection_event, `index=edge-hub-data` inspection_metadata Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub (USB camera + NPU container), v2.1+, OT Intelligence — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-logs sourcetype=splunk_edge_hub_log visual_inspection_event defect_detected=true\n| stats count as defect_count, count(eval(defect_severity=\"CRITICAL\")) as critical_defects by location, product_line\n| eval defect_rate=(defect_count / total_parts_inspected) * 100\n| where defect_rate > acceptable_defect_rate\n| eval quality_alert=\"DEFECT_RATE_EXCEEDED\"",
-  "description": "Automates defect detection on assembly lines by running visual inspection models on captured images without human intervention.",
-  "value": "Automates defect detection on assembly lines by running visual inspection models on captured images without human intervention.",
+  "description": "Alerts on UC-14.3.46 — USB, Camera, Visual, Inspection, for — using `index=edge-hub-logs` sourcetype `splunk_edge_hub_log`, grouped by `location`, `product_line`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Manufacturing Defects. Purpose-built for 'USB Camera Visual Inspection for Manufacturing Defects' in Operations workflows.",
+  "value": "UC-14.3.46 gives Operations teams earlier visibility into Manufacturing Defects through `splunk_edge_hub_log` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Deploy Edge Hub with USB camera pointing at assembly line. Train TensorFlow Lite object detection model (e.g., SSD MobileNet) on product images with annotated defects (scratches, dents, misalignment, discoloration). Build custom ARM64 container that captures images at takt time (e.g., 1 image per part), runs inference on NPU, logs result (defect_detected=true/false, defect_class, confidence) to edge-hub-logs. Store images locally only if defect detected (privacy + storage). Implement local alerting: if defect severity=CRITICAL, trigger relay to stop conveyor belt. Configure edge.json resource limits: memory 512MB, CPU 2 cores, GPU (NPU) enabled.",
   "visualization": "Defect detection timeline, defect type distribution pie, quality trend chart.",
   "cimModels": [
@@ -23,17 +29,42 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensors offline during scheduled site visits, calibration, or replacement campaigns.",
+  "knownFalsePositives": "1. **Maintenance window on `edge-hub-logs` (UC-14.3.46)** — Planned work for 'USB Camera Visual Inspection for Manufacturing Defects' shifts `count` over `span=1h` while `location`, `product_line` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `splunk_edge_hub_log`** — Scheduled automation elevates `product_line` without crossing configured threshold for UC-14.3.46. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `location`, `product_line`** — Health checks in `edge-hub-logs` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `splunk_edge_hub_log`** — First 48h baseline for UC-14.3.46 on `location` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `location`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Edge Hub",
     "Splunk OT Intelligence"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (USB camera + NPU container), v2.1+, OT Intelligence.\n• Ensure the following data sources are available: `index=edge-hub-logs` sourcetype=splunk_edge_hub_log visual_inspection_event, `index=edge-hub-data` inspection_metadata.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Edge Hub with USB camera pointing at assembly line. Train TensorFlow Lite object detection model (e.g., SSD MobileNet) on product images with annotated defects (scratches, dents, misalignment, discoloration). Build custom ARM64 container that captures images at takt time (e.g., 1 image per part), runs inference on NPU, logs result (defect_detected=true/false, defect_class, confidence) to edge-hub-logs. Store images locally only if defect detected (privacy + storage). Implement local alert…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-logs sourcetype=splunk_edge_hub_log visual_inspection_event defect_detected=true\n| stats count as defect_count, count(eval(defect_severity=\"CRITICAL\")) as critical_defects by location, product_line\n| eval defect_rate=(defect_count / total_parts_inspected) * 100\n| where defect_rate > acceptable_defect_rate\n| eval quality_alert=\"DEFECT_RATE_EXCEEDED\"\n```\n\nUnderstanding this SPL\n\n**USB Camera Visual Inspection for Manufacturing Defects** — Automates defect detection on assembly lines by running visual inspection models on captured images without human intervention.\n\nDocumented **Data sources**: `index=edge-hub-logs` sourcetype=splunk_edge_hub_log visual_inspection_event, `index=edge-hub-data` inspection_metadata. **App/TA** (typical add-on context): Splunk Edge Hub (USB camera + NPU container), v2.1+, OT Intelligence. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-logs; **sourcetype**: splunk_edge_hub_log. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-logs, sourcetype=splunk_edge_hub_log. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by location, product_line** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **defect_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where defect_rate > acceptable_defect_rate` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **quality_alert** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Defect detection timeline, defect type distribution pie, quality trend chart.",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with the situation around: usb camera visual inspection for manufacturing defects before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with the situation around: usb camera visual inspection for manufacturing defects before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

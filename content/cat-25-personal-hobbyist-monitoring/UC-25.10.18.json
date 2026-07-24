@@ -9,26 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture and greenhouse sensors (`plant:sensor`), aquarium controllers (`aquarium:sensor`).",
-  "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT.",
+  "exclusions": "Covers personal hobby monitoring for 'Weekly AQI Exposure Hours' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_weekly_aqi_exposure_hours` (UC-25.10.18), SOC dashboard panel \"Personal — Weekly AQI Exposure Hours\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.10.18 positive (Weekly, AQI, Exposure, Hours): ingest synthetic events into `index=personal` sourcetype='purpleair:aqi' where `poor_samples` grouped by `_time` satisfies `aqi` >= 100, or `poor_hours` > 6 for 'Weekly AQI Exposure Hours'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.10.18 negative (Exposure Hours): ingest benign `personal` / `purpleair:aqi` events where `_time` stays below `aqi` >= 100, or `poor_hours` > 6, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'Weekly AQI Exposure Hours'."
+  },
+  "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture and greenhouse sensors (`plant:sensor`), aquarium controllers (`aquarium:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=purpleair:aqi\n| eval poor_air=if(aqi>=100,1,0)\n| bin _time span=1w\n| stats sum(poor_air) as poor_samples by _time\n| eval poor_hours=round(poor_samples/12,1)\n| where poor_hours>6\n| sort - poor_hours",
-  "description": "Adds up how many hours each week your local air quality sat in the unhealthy range, useful for planning runs, ventilation, or filters.",
-  "value": "One nasty hour is easy to shrug off; a weekly exposure total makes smoke and pollution episodes feel real enough to act on.",
+  "description": "Surfaces 'Weekly AQI Exposure Hours' (UC-25.10.18) using `index=personal` sourcetype `purpleair:aqi` by aggregating `poor_samples` grouped by `_time` over `1w` and alerting when `aqi` >= 100, or `poor_hours` > 6. Keywords: Weekly, AQI, Exposure, Hours. Focuses on Exposure Hours behaviour so personal teams can triage UC-25.10.18 without ad-hoc log review.",
+  "value": "UC-25.10.18 accelerates insight into Exposure Hours ('Weekly AQI Exposure Hours') by tracking `poor_samples` on `purpleair:aqi` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Forward AQI readings at a five-minute cadence; review weekly exposure totals and compare them against symptoms or outdoor plans.",
   "visualization": "Weekly bar chart of estimated unhealthy-air exposure hours.",
   "cimModels": [],
   "references": [
     {
       "title": "PurpleAir API",
-      "url": "https://api.purpleair.com/"
+      "url": "https://api.purpleair.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.10.18)** — Connector for 'Weekly AQI Exposure Hours' stops polling `purpleair:aqi`; stale `poor_samples` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `poor_samples` over `1w` is expected for UC-25.10.18, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `purpleair:aqi`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `aqi` >= 100 for 'Weekly AQI Exposure Hours'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It highlights how many hours this week the air around your home was bad enough that you probably should have changed plans."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Weather, Environment & Garden — typical feeds: Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture/greenhouse sensors, aquarium controllers (`aquarium:sensor`.\n• **Sourcetypes in this search**: `purpleair:aqi`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=purpleair:aqi`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT..\n\n**Author notes:** Forward AQI readings at a five-minute cadence; review weekly exposure totals and compare them against symptoms or outdoor plans.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"purpleair:aqi\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=purpleair:aqi earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Weekly AQI Exposure Hours** over `personal` data (primarily `sourcetype=purpleair:aqi`) across the full search range. It applies numeric thresholds on `aqi` (>= 100) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `aqi`, `poor_air`, `poor_hours`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=purpleair:aqi\n| eval poor_air=if(aqi>=100,1,0)\n| bin _time span=1w\n| stats sum(poor_air) as poor_samples by _time\n| eval poor_hours=round(poor_samples/12,1)\n| where poor_hours>6\n| sort - poor_hours\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=purpleair:aqi earliest=-7d\n| head 50\n| table _time, aqi, poor_air, poor_hours\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=purpleair:aqi earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `aqi` before alerting:\n\n```spl\nindex=personal sourcetype=purpleair:aqi earliest=-30d\n| stats perc50(aqi) AS p50 perc90(aqi) AS p90 perc99(aqi) AS p99 max(aqi) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.10.18: Personal evidence` with the following panel layout:\n\n**Panel 1 — Weekly Bar Chart Of Estimated Unhealthy-Air Exposure Hours (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `purpleair:aqi` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=purpleair:aqi | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It highlights how many hours this week the air around your home was bad enough that you probably should have changed plans.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

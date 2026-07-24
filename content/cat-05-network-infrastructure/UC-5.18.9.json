@@ -10,28 +10,42 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Detailed: `index=network`; syslog for pseudowire VC state (`%Pseudowire`, `%L2VPN`, `%AC-*`, Junos `rpd_l2circuit_*`, `rpd_l2vpn_*`, Nokia `svcVpls*`/`sdp-bind*` narratives); SNMP PW-STANDARD-MIB `pwOperStatus`; telemetry VC counters.",
-  "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`), Splunk Add-on for Juniper; SNMP Modular Input for `pwOperStatus`; Nokia SR OS operational logs.",
+  "exclusions": "Covers the detection logic documented for 'Pseudowire (L2VPN) Status Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_pseudowire_l2vpn_status_monitoring` (UC-5.18.9), SOC dashboard panel \"Operations — Pseudowire (L2VPN) Status Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.18.9 positive (Pseudowire, (L2VPN), Status, Monitoring): ingest synthetic events into `index=network` sourcetype='target_sourcetype' where `values` grouped by `host`, `sourcetype` satisfies -24h for 'Pseudowire (L2VPN) Status Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.18.9 negative (Status Monitoring): ingest benign `network` / `target_sourcetype` events where `host`, `sourcetype` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Pseudowire (L2VPN) Status Monitoring'."
+  },
+  "dataSources": "Detailed: `index=network`; syslog for pseudowire VC state (`%Pseudowire`, `%L2VPN`, `%AC-*`, Junos `rpd_l2circuit_*`, `rpd_l2vpn_*`, Nokia `svcVpls*`/`sdp-bind*` narratives); SNMP PW-STANDARD-MIB `pwOperStatus`; telemetry VC counters. Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`), Splunk Add-on for Juniper; SNMP Modular Input for `pwOperStatus`; Nokia SR OS operational logs. — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=network earliest=-24h@h latest=now\n| eval msg=lower(_raw)\n| eval pw=match(msg,\"(?:pseudowire|pw.?id|l2circuit|l2vpn|(?:ethernet|virtual.?circuit)|(?:vpws|vpls).*?(?:vc|pseudo|routed.?pseudo)|(?:mpls.?)?(?:xc|cross.?connect).*pw)\")\n| eval bad=match(msg,\"(?:down|standby|(?:not.?)?(?:operational|active)|(?:detach|withdraw)|(?:signal.?)?(?:fail|mismatch)|(?:mtu).*(?:mismatch)|(?:remote.?)?(?:label).*(?:(?:mis)?match)|(?:oam)?(?:alarm)|(?:bd.?status).*?(?:down))\")\n| where pw=1 AND bad=1\n| rex field=_raw max_match=0 \"(?i)(?:vc.?id|vcid|pseudo.?wire.?id)\\s*[:=]?\\s*(?<vc_id>[0-9]+)\"\n| rex field=_raw max_match=0 \"(?i)(?:neighbor|peer)\\s*[:=]?\\s*(?<neighbor>[0-9.]+|[0-9a-f:]+)\"\n| rex field=_raw max_match=0 \"(?i)(?:interface|ac)\\s*[:=]?\\s*(?<ac_if>[^\\s,]+)\"\n| stats count earliest(_time) as first_seen latest(_time) as last_seen values(neighbor) as peers values(ac_if) as ac_ports values(vc_id) as vc_ids by host sourcetype\n| sort - count",
-  "description": "Splunk watches pseudowire attachment circuits and VC signaling so Ethernet wholesale handoffs, mobile backhaul emulations, and VPWS extensions raise alarms when VC IDs drift, MTUs mismatch, or remote labels disappear.",
-  "value": "Business wholesale revenue stays defendable because operations correlates customer-visible Carrier Ethernet outages with precise pseudowire identifiers instead of guessing among dozens of VPN attachment interfaces.",
+  "description": "Detects UC-5.18.9 — Pseudowire, (L2VPN), Status, Monitoring — using `index=network` sourcetype `configured sourcetype`, grouped by `host`, `sourcetype`. Outputs `values` each `the scheduled window`; alert when -24h. Primary focus: Status Monitoring. Purpose-built for 'Pseudowire (L2VPN) Status Monitoring' in Operations workflows.",
+  "value": "UC-5.18.9 accelerates insight into Status Monitoring ('Pseudowire (L2VPN) Status Monitoring') by tracking `activity` on UC-5.18.9 search results, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Land PW syslog plus fifteen-minute SNMP polls for `pwOperStatus.down`, join on `vc_id`, enrich with customer circuit IDs via lookup, alert when VC stays non-forwarding > three polling intervals.",
   "visualization": "Dashboard Studio: KPI for down pseudowires; Sankey optional via stats prep; table (`host`, `vc_ids`, `peers`, `ac_ports`, `count`).",
   "references": [
     {
       "title": "Cisco Layer 2 VPNs Configuration Guide — Pseudowire",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Juniper Layer 2 Circuits and VPNs User Guide",
-      "url": "https://www.juniper.net/documentation/"
+      "url": "https://www.juniper.net/documentation/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IETF RFC 4762 — VPLS Using LDP Signaling",
-      "url": "https://www.rfc-editor.org/rfc/rfc4762"
+      "url": "https://www.rfc-editor.org/rfc/rfc4762",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Protective standby:** VC purposely standby during ISSU—suppress via change tag.**SNMP stale indices:** renumber after reboot mis-joins until baseline refresh.**Keyword bleed:** generic \"circuit\" matches unrelated SONET logs—tighten regex.**MTU tuning windows:** planned edits spike alarms—calendar linkage.**Dual-homed PW:** single attachment messages appear alarming though service intact.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.18.9)** — Planned work for 'Pseudowire (L2VPN) Status Monitoring' shifts `values` over `span=1h` while `host`, `sourcetype` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `configured_sourcetype`** — Scheduled automation elevates `sourcetype` without crossing configured threshold for UC-5.18.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `sourcetype`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.18.9 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "N/A (availability monitoring)"
   ],
@@ -57,7 +71,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Circuit inventory CSV tying `vc_id`, endpoints, customer VLAN, and handoff port.\n• Known-good MTU template list.\n\nStep 1 — Logging coverage\nCisco ME/ASR families: ensure pseudowire status transitions emit syslog not solely SNMP traps if traps filtered upstream.\n\nStep 2 — SNMP augmentation\nPoll `pwOperStatus`, `pwRemotePwID`, `pwAttachedPwIndex` via SC4SNMP profiles.\n\nStep 3 — SPL correlation\nJoin syslog events within ±300s of SNMP down transitions using `vc_id` key.\n\nStep 4 — CLI validation\n`show l2vpn xconnect`, Junos `show l2circuit connections`, Nokia `show service sdp-using` commands confirm Splunk narrative.\n\nStep 5 — Lifecycle\nQuarterly audit stale VC IDs still alerting—retire suppress entries after migrations.",
+  "detailedImplementation": "Prerequisites\n• Circuit inventory CSV tying `vc_id`, endpoints, customer VLAN, and handoff port.\n• Known-good MTU template list.\n\nStep 1 — Logging coverage\nCisco ME/ASR families: ensure pseudowire status transitions emit syslog not solely SNMP traps if traps filtered upstream.\n\nStep 2 — SNMP augmentation\nPoll `pwOperStatus`, `pwRemotePwID`, `pwAttachedPwIndex` via SC4SNMP profiles.\n\nStep 3 — SPL correlation\nJoin syslog events within ±300s of SNMP down transitions using `vc_id` key.\n\nStep 4 — CLI validation\n`show l2vpn xconnect`, Junos `show l2circuit connections`, Nokia `show service sdp-using` commands confirm Splunk narrative.\n\nStep 5 — Lifecycle\nQuarterly audit stale VC IDs still alerting—retire suppress entries after migrations.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cisco Networks Add-on for Splunk (`TA-cisco_ios`), Splunk Add-on for Juniper; SNMP Modular Input for `pwOperStatus`; Nokia SR OS operational logs. — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=see SPL into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, sourcetype`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We babysit the pretend Ethernet cords stretched across the country inside our pipes. When those cords fray or lose their pairing tags, we ring the bell before wholesale buyers lose phone or cloud links.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

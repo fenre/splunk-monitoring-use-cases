@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "WildFly server.log or JMX metrics from Infinispan cache subsystem via JMX Remote, Jolokia, or Splunk Add-on for JMX",
-  "app": "Splunk Add-on for JMX or custom scripted input polling WildFly management API",
+  "exclusions": "Covers the detection logic documented for 'WildFly / JBoss Infinispan Cache Eviction and Miss Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_wildfly_jboss_infinispan_cache_eviction_and_miss` (UC-8.1.94), SOC dashboard panel \"Operations — WildFly / JBoss Infinispan Cache Eviction and Miss Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.1.94 positive (WildFly, JBoss, Infinispan, Cache, Eviction): ingest synthetic events into `index=appserver` sourcetype='jboss:server' where `count` grouped by `host`, `cache_name` satisfies `hit_ratio` < 80, or `evictions` > 1000 for 'WildFly / JBoss Infinispan Cache Eviction and Miss Rate'. Validate filter `cache AND (eviction OR miss OR hit)`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.94 negative (Miss Rate): ingest benign `appserver` / `jboss:server` events where `host`, `cache_name` stays below `hit_ratio` < 80, or `evictions` > 1000, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'WildFly / JBoss Infinispan Cache Eviction and Miss Rate'."
+  },
+  "dataSources": "WildFly server.log or JMX metrics from Infinispan cache subsystem via JMX Remote, Jolokia, or Splunk Add-on for JMX Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for JMX or custom scripted input polling WildFly management API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=appserver sourcetype=\"jboss:server\" OR sourcetype=\"jmx:jboss\"\n| search cache AND (eviction OR miss OR hit)\n| rex field=_raw \"cache=(?<cache_name>[^,\\s]+)\"\n| eval hits=tonumber(coalesce(cache_hits, hits)), misses=tonumber(coalesce(cache_misses, misses)), evictions=tonumber(coalesce(cache_evictions, evictions))\n| stats latest(hits) as hits, latest(misses) as misses, latest(evictions) as evictions by host, cache_name\n| eval hit_ratio=if((hits+misses)>0, round(100*hits/(hits+misses),1), 0)\n| where hit_ratio < 80 OR evictions > 1000\n| sort -evictions",
-  "description": "WildFly embeds Infinispan as its distributed cache for HTTP sessions, EJB stateful beans, Hibernate second-level cache, and JPA entity cache. High eviction rates or low hit ratios indicate that cache regions are undersized, causing repeated database round-trips, increased latency, and wasted CPU on re-computation. Monitoring these metrics prevents silent performance degradation that only surfaces under production load.",
-  "value": "Detecting cache pressure early prevents cascading latency increases. A poorly tuned Infinispan cache can multiply database load by 5-10x during peak traffic, turning a cache-friendly application into one that overwhelms backend datastores.",
+  "description": "Detects UC-8.1.94 — WildFly, JBoss, Infinispan, Cache, Eviction — using `index=appserver` sourcetype `jboss:server`, grouped by `host`, `cache_name`. Outputs `count` each `the scheduled window`; alert when `hit_ratio` < 80, or `evictions` > 1000. Filter chain includes filter `cache AND (eviction OR miss OR hit)`. Purpose-built for 'WildFly / JBoss Infinispan Cache Eviction and Miss Rate' in Operations workflows.",
+  "value": "Alerting on WildFly, JBoss, Infinispan, Cache, Eviction through UC-8.1.94 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Deploy Splunk Add-on for JMX on a Universal Forwarder co-located with the WildFly instance. Configure a JMX input targeting org.infinispan:type=Cache,name=*,component=Statistics MBeans. Alternatively, poll the WildFly management API endpoint /subsystem=infinispan/cache-container=*/local-cache=*/component=statistics via a scripted input. Set alert threshold for hit_ratio below 80% sustained over 15 minutes and evictions above 1000 per collection interval. Review cache max-entries and lifespan settings in standalone.xml or domain.xml when alerts fire.",
   "visualization": "Table (cache regions with low hit ratio), Line chart (eviction rate over time per cache region), Single value (overall cache hit ratio).",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "WildFly Admin Guide — Infinispan Subsystem",
-      "url": "https://docs.wildfly.org/31/Admin_Guide.html#Infinispan_Subsystem"
+      "url": "https://docs.wildfly.org/31/Admin_Guide.html#Infinispan_Subsystem",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Cache misses spike after cache flush, deploys with new cache keys, or during warm-up after restart. Compare with those events before treating as a fault.",
+  "knownFalsePositives": "1. **Maintenance window on `appserver` (UC-8.1.94)** — Planned work for 'WildFly / JBoss Infinispan Cache Eviction and Miss Rate' shifts `count` over `span=1h` while `host`, `cache_name` remains in-scope. Applies filter `cache AND (eviction OR miss OR hit)`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `jboss:server`** — Scheduled automation elevates `cache_name` without crossing `hit_ratio` < 80 for UC-8.1.94. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `cache_name`** — Health checks in `appserver` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jboss:server`** — First 48h baseline for UC-8.1.94 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "jboss"
+  ],
+  "equipmentModels": [
+    "jboss_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -36,6 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We watch for signs that detecting cache pressure early prevents cascading latency increases."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for JMX or custom scripted input polling WildFly management API — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=jboss:server, jmx:jboss into appserver. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cache_name, evictions, hit_ratio, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for signs that detecting cache pressure early prevents cascading latency increases.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Analytics"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Throughput share highlights noisy neighbors and mis-routed vhosts.",
-  "app": "Splunk Universal Forwarder; optional Splunk Add-on for Unix and Linux (`Splunk_TA_nix`); custom `props.conf`/`transforms.conf` for `phpfpm:*` sourcetypes",
+  "exclusions": "Covers the detection logic documented for 'PHP-FPM Per-Pool Request Throughput Comparison' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_php_fpm_per_pool_request_throughput_comparison` (UC-8.4.41), SOC dashboard panel \"Operations — PHP-FPM Per-Pool Request Throughput Comparison\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.4.41 positive (PHP, FPM, Per, Pool, Request): ingest synthetic events into `index=web` sourcetype='phpfpm:access' where `total_rps` grouped by `pool`, `_time` satisfies detection threshold for 'PHP-FPM Per-Pool Request Throughput Comparison'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.4.41 negative (Throughput Comparison): ingest benign `web` / `phpfpm:access` events where `pool`, `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'PHP-FPM Per-Pool Request Throughput Comparison'."
+  },
+  "dataSources": "Throughput share highlights noisy neighbors and mis-routed vhosts. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder; optional Splunk Add-on for Unix and Linux (`Splunk_TA_nix`); custom `props.conf`/`transforms.conf` for `phpfpm:*` sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"phpfpm:access\"\n| bin _time span=5m\n| stats count as rps by pool, _time\n| eventstats sum(rps) as total_rps by _time\n| eval share_pct=round(100*rps/total_rps,1)",
-  "description": "Request volume per pool shows which tenants or apps dominate capacity. Imbalance may indicate routing bugs or noisy neighbors.",
-  "value": "Informs fair sharing, rate limits, and horizontal scale plans.",
+  "description": "Monitors 'PHP-FPM Per-Pool Request Throughput Comparison' (UC-8.4.41) using `index=web` sourcetype `phpfpm:access` by aggregating `total_rps` grouped by `pool`, `_time` over `5m` and alerting when configured threshold. Keywords: PHP, FPM, Per, Pool, Request. Focuses on Throughput Comparison behaviour so operations teams can triage UC-8.4.41 without ad-hoc log review.",
+  "value": "UC-8.4.41 accelerates insight into Throughput Comparison ('PHP-FPM Per-Pool Request Throughput Comparison') by tracking `total_rps` on `phpfpm:access` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Ensure access log includes pool name or map via `SCRIPT_FILENAME` lookup. Use `sistats` for large volumes.",
   "visualization": "Time series (pool utilization, queue, latency percentiles), single value alerts, top charts for scripts and methods.",
   "cimModels": [
@@ -23,17 +29,33 @@
   "references": [
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "PHP-FPM configuration",
-      "url": "https://www.php.net/manual/en/"
+      "url": "https://www.php.net/manual/en/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.4.41)** — Planned work for 'PHP-FPM Per-Pool Request Throughput Comparison' shifts `total_rps` over `span=5m` while `pool`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `phpfpm:access`** — Scheduled automation elevates `_time` without crossing configured threshold for UC-8.4.41. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pool`, `_time`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `phpfpm:access`** — First 48h baseline for UC-8.4.41 on `pool` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pool`, `exception_reason`, `valid_until`.",
   "equipment": [
     "linux",
     "phpfpm"
+  ],
+  "equipmentModels": [
+    "linux_generic",
+    "phpfpm_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,6 +64,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We watch for signs that informs fair sharing, rate limits, and horizontal scale plans."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder; optional Splunk Add-on for Unix and Linux (`Splunk_TA_nix`); custom `props.conf`/`transforms.conf` for `phpfpm:*` sourcetypes — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=phpfpm:access into web. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, pool`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for signs that informs fair sharing, rate limits, and horizontal scale plans.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

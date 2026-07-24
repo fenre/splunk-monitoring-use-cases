@@ -10,25 +10,43 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Telecommunications",
-  "dataSources": "`index=network` BGP syslog (`sourcetype=cisco:ios`, `sourcetype=juniper:junos`) filtered to peers documented in `ix_peering_neighbors.csv` (`neighbor_ip`, `ix_name`, `ix_lan`, `asn_peer`, `route_server_flag`). NetFlow (`index=netflow`) toward IX-facing interfaces optionally supplements traffic-plane visibility via lookup `ix_interfaces.csv` mapping exporter/interface tuples.",
-  "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, optional NetFlow TA.",
+  "exclusions": "Covers the detection logic documented for 'Internet Exchange Point (IXP) Peering Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_internet_exchange_point_ixp_peering_health` (UC-5.10.14), SOC dashboard panel \"Operations — Internet Exchange Point (IXP) Peering Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.10.14 positive (Internet, Exchange, Point, (IXP), Peering): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `bad_samples`, `state_entropy` grouped by `_time`, `ix_name`, `peer`, `asn_peer` satisfies `bad_samples` > 0, or `state_entropy` > 3 for 'Internet Exchange Point (IXP) Peering Health'. Validate lookup `ix_peering_neighbors.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.10.14 negative (Peering Health): ingest benign `network` / `cisco:ios` events where `_time`, `ix_name`, `peer`, `asn_peer` stays below `bad_samples` > 0, or `state_entropy` > 3, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Internet Exchange Point (IXP) Peering Health'."
+  },
+  "dataSources": "`index=network` BGP syslog (`sourcetype=cisco:ios`, `sourcetype=juniper:junos`) filtered to peers documented in `ix_peering_neighbors.csv` (`neighbor_ip`, `ix_name`, `ix_lan`, `asn_peer`, `route_server_flag`). NetFlow (`index=netflow`) toward IX-facing interfaces optionally supplements traffic-plane visibility via lookup `ix_interfaces.csv` mapping exporter/interface tuples. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, optional NetFlow TA. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network earliest=-4h (sourcetype=\"cisco:ios\" OR sourcetype=\"juniper:junos\")\n    (\"%BGP-5-ADJCHANGE\" OR \"%BGP-3-NOTIFICATION\" OR \"BGP_PEER_UP\" OR \"BGP_PEER_DOWN\" OR \"Notification sent\")\n| rex field=_raw \"neighbor (?<peer>[0-9a-fA-F:\\.:\\]]+)\"\n| lookup ix_peering_neighbors.csv neighbor_ip as peer OUTPUT ix_name asn_peer route_server_flag\n| where isnotnull(ix_name)\n| rex field=_raw \"(?i)(?<transition>(?:Established|Idle|Active|Connect|OpenSent|Down)[^\\n]*)\"\n| eval unhealthy=if(match(transition,\"(?i)Idle|Active|Connect|Down|Notification\"),1,0)\n| bin _time span=30m\n| stats sum(unhealthy) as bad_samples count as msgs dc(transition) as state_entropy values(transition) as last_states by _time ix_name peer asn_peer route_server_flag host\n| where bad_samples>0 OR state_entropy>3\n| stats latest(bad_samples) as alerts latest(msgs) as chatter latest(last_states) as transitions latest(route_server_flag) as rs_mode by ix_name peer asn_peer host\n| sort -alerts",
-  "description": "Monitors only BGP neighbors classified as Internet Exchange peers—surfacing session instability, notification storms, or route-server-specific flap patterns distinct from upstream transit links sitting on different interfaces.",
-  "value": "Peering teams isolate IX-specific regressions (fabric partitions, MAC-learning errors, RS policy edits) faster than generic BGP dashboards that bury IX peers among dozens of carrier sessions.",
+  "description": "Monitors when Peering Health criteria fire for 'Internet Exchange Point (IXP) Peering Health' (UC-5.10.14) in `index=network` sourcetype `cisco:ios`. Pipeline aggregates `bad_samples`, `state_entropy` by `_time`, `ix_name`, `peer`, `asn_peer` over `30m`. Alert logic enforces `bad_samples` > 0, or `state_entropy` > 3. SPL signature: lookup `ix_peering_neighbors.csv`. Eliminates manual hunting for UC-5.10.14 conditions.",
+  "value": "UC-5.10.14 helps teams contain Internet, Exchange, Point, (IXP), Peering scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Maintain gold-standard CSV whenever peers move ports; annotate route-server vs bilateral peers to tune thresholds; integrate IX participant portal outage RSS optional enrichment.",
   "visualization": "Per-IX bubble chart (peer ASN vs flap score); timeline bands colored by IX fabric outage hypotheses; table linking peer IPs to MAC addresses when ARP logs exist.",
   "cimModels": [],
   "references": [
     {
       "title": "Euro-IX — Internet Exchange Points resources",
-      "url": "https://www.euro-ix.net/"
+      "url": "https://www.euro-ix.net/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 4271 — BGP-4",
-      "url": "https://www.rfc-editor.org/rfc/rfc4271"
+      "url": "https://www.rfc-editor.org/rfc/rfc4271",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "RS soft resets during IRR refresh windows resemble outages; bilateral peers negotiating ADD-PATH toggle sessions briefly; metro Ethernet protective switching duplicates BGP logs.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.10.14)** — Planned work for 'Internet Exchange Point (IXP) Peering Health' shifts `bad_samples`, `state_entropy` over `span=30m` while `_time`, `ix_name`, `peer`, `asn_peer` remains in-scope. Applies lookup `ix_peering_neighbors.csv`. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cisco:ios`** — Scheduled automation elevates `ix_name` without crossing `bad_samples` > 0 for UC-5.10.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `ix_name`, `peer`, `asn_peer`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.10.14 on `_time` is unstable; join `ix_peering_neighbors.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "exchange",
@@ -48,8 +66,9 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Accurate neighbor-to-IX mapping refreshed after every IX migration.\n• Understanding bilateral versus route-server operational expectations (RS peers tolerate controlled resets).\n• Clock sync across route reflectors logging duplicates.\n• Optional NetFlow validation proving traffic collapse aligns with control-plane logs.\n\nStep 1 — Import `ix_peering_neighbors.csv` via automation consuming IRR/peering DB exports plus manual overrides.\n\nStep 2 — Tune rex statements per Junos `RPD_BGP_NEIGHBOR_STATE_CHANGED` vs Cisco `%BGP-5-ADJCHANGE` formats.\n\nStep 3 — Severity matrix flags RS peers differently—idle/connect churn may indicate LAN duplex mismatch.\n\nStep 4 — Dashboard overlays IX LAN SNMP errors (from UC-5.1.x physical monitors) when BGP alerts fire.\n\nStep 5 — Troubleshooting: duplicate syslog paths inflate counts—dedup via `dedup` on signature hash; private interconnect VLAN tagging mistakes misassociate peers—verify CMDB.",
+  "detailedImplementation": "Prerequisites\n• Accurate neighbor-to-IX mapping refreshed after every IX migration.\n• Understanding bilateral versus route-server operational expectations (RS peers tolerate controlled resets).\n• Clock sync across route reflectors logging duplicates.\n• Optional NetFlow validation proving traffic collapse aligns with control-plane logs.\n\nStep 1 — Import `ix_peering_neighbors.csv` via automation consuming IRR/peering DB exports plus manual overrides.\n\nStep 2 — Tune rex statements per Junos `RPD_BGP_NEIGHBOR_STATE_CHANGED` vs Cisco `%BGP-5-ADJCHANGE` formats.\n\nStep 3 — Severity matrix flags RS peers differently—idle/connect churn may indicate LAN duplex mismatch.\n\nStep 4 — Dashboard overlays IX LAN SNMP errors (from UC-5.1.x physical monitors) when BGP alerts fire.\n\nStep 5 — Troubleshooting: duplicate syslog paths inflate counts—dedup via `dedup` on signature hash; private interconnect VLAN tagging mistakes misassociate peers—verify CMDB.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`TA-cisco_ios`, `Splunk_TA_juniper`, optional NetFlow TA. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ios, juniper:junos into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, asn_peer, bad_samples, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We keep an eye on the special club connections where internet providers swap traffic cheaply, so when those handshake lines flicker we know which shared meeting room broke instead of blaming the whole world.",
+  "prerequisiteUseCases": [],
   "telcoUseCase": "IX fabric observability",
   "wave": "run"
 }

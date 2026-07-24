@@ -11,6 +11,8 @@
   ],
   "splunkPillar": "Security",
   "industry": "Manufacturing",
+  "exclusions": "Covers the detection logic documented for 'Modbus Register Value Change Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_modbus_register_value_change_tracking` (UC-14.6.6), SOC dashboard panel \"Operations — Modbus Register Value Change Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "compliance": [
     {
       "regulation": "iec-62443",
@@ -79,11 +81,15 @@
       "evidenceArtifact": "Saved search 'UC-14.6.6' running on sourcetype zeek:modbus_detailed:json and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
+  "controlTest": {
+    "positiveScenario": "UC-14.6.6 positive (Modbus, Register, Value, Change, Tracking): ingest synthetic events into `index=ot` sourcetype='zeek:modbus_detailed:json' where `count` grouped by `reg_key` satisfies detection threshold for 'Modbus Register Value Change Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.6.6 negative (Change Tracking): ingest benign `ot` / `zeek:modbus_detailed:json` events where `reg_key` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Modbus Register Value Change Tracking'."
+  },
   "dataSources": "`index=ot` `sourcetype=\"zeek:modbus_detailed:json\"` (`func`, `address`, `unit`, `request_values`, `response_values`, `matched`, `network_direction`)",
   "app": "TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)",
   "spl": "index=ot sourcetype=\"zeek:modbus_detailed:json\" matched=true\n| where func IN (\"0x06\",\"6\",\"0x10\",\"16\")\n| eval reg_key=destination_h.\"|\".unit.\"|\".address\n| sort 0 reg_key _time\n| streamstats window=2 global=f earliest(response_values) as earlier_resp latest(response_values) as later_resp by reg_key\n| where isnotnull(earlier_resp) AND mvjoin(earlier_resp,\",\")!=mvjoin(later_resp,\",\")\n| table _time source_h destination_h unit address func earlier_resp later_resp request_values",
-  "description": "Covert changes to holding registers can alter setpoints or interlocks; comparing matched request/response values highlights tampering distinct from normal operator writes.",
-  "value": "Covert changes to holding registers can alter setpoints or interlocks; comparing matched request/response values highlights tampering distinct from normal operator writes.",
+  "description": "Identifies UC-14.6.6 — Modbus, Register, Value, Change, Tracking — using `index=ot` sourcetype `zeek:modbus_detailed:json`, grouped by `reg_key`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Change Tracking. Purpose-built for 'Modbus Register Value Change Tracking' in Operations workflows.",
+  "value": "UC-14.6.6 gives Operations teams earlier visibility into Change Tracking through `zeek:modbus_detailed:json` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Deploy Zeek with ICSNPP-Modbus on taps near RTUs; ensure `request_values`/`response_values` are indexed. Focus on critical register ranges from asset documentation; schedule correlation with historian trends for validation.",
   "visualization": "Table (register_key, old vs new values), Timeline (changes), Line chart (change rate per hour).",
   "cimModels": [
@@ -93,17 +99,38 @@
   "references": [
     {
       "title": "TA for Zeek",
-      "url": "https://splunkbase.splunk.com/app/5466"
+      "url": "https://splunkbase.splunk.com/app/5466",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Corelight App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3884"
+      "url": "https://splunkbase.splunk.com/app/3884",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Register churn during recipe edits, setpoint sweeps, or batch phase changes.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.6.6)** — Planned work for 'Modbus Register Value Change Tracking' shifts `count` over `span=1h` while `reg_key` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `zeek:modbus_detailed:json`** — Scheduled automation elevates `reg_key` without crossing configured threshold for UC-14.6.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `reg_key`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zeek:modbus_detailed:json`** — First 48h baseline for UC-14.6.6 on `reg_key` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `reg_key`, `exception_reason`, `valid_until`.",
   "equipment": [
     "modbus"
   ],
+  "equipmentModels": [
+    "modbus_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884).\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"zeek:modbus_detailed:json\"` (`func`, `address`, `unit`, `request_values`, `response_values`, `matched`, `network_direction`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Zeek with ICSNPP-Modbus on taps near RTUs; ensure `request_values`/`response_values` are indexed. Focus on critical register ranges from asset documentation; schedule correlation with historian trends for validation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"zeek:modbus_detailed:json\" matched=true\n| where func IN (\"0x06\",\"6\",\"0x10\",\"16\")\n| eval reg_key=destination_h.\"|\".unit.\"|\".address\n| sort 0 reg_key _time\n| streamstats window=2 global=f earliest(response_values) as earlier_resp latest(response_values) as later_resp by reg_key\n| where isnotnull(earlier_resp) AND mvjoin(earlier_resp,\",\")!=mvjoin(later_resp,\",\")\n| table _time source_h destination_h unit address func earlier_resp later_resp request_values\n```\n\nUnderstanding this SPL\n\n**Modbus Register Value Change Tracking** — Covert changes to holding registers can alter setpoints or interlocks; comparing matched request/response values highlights tampering distinct from normal operator writes.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"zeek:modbus_detailed:json\"` (`func`, `address`, `unit`, `request_values`, `response_values`, `matched`, `network_direction`). **App/TA** (typical add-on context): TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: zeek:modbus_detailed:json. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"zeek:modbus_detailed:json\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where func IN (\"0x06\",\"6\",\"0x10\",\"16\")` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **reg_key** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• `streamstats` rolls up events into metrics; results are split **by reg_key** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where isnotnull(earlier_resp) AND mvjoin(earlier_resp,\",\")!=mvjoin(later_resp,\",\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Modbus Register Value Change Tracking**): table _time source_h destination_h unit address func earlier_resp later_resp request_values\n\nStep 3 — Validate\nRun the search for a short window and compare key fields with Zeek or Corelight protocol logs on the sensor for the same flow. Reconcile function codes, endpoints, and time order against a small known-good capture if needed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (register_key, old vs new values), Timeline (changes), Line chart (change rate per hour).",
-  "grandmaExplanation": "We use deep packet inspection to follow register value changes so we can audit what moved and when in the process."
+  "grandmaExplanation": "We use deep packet inspection to follow register value changes so we can audit what moved and when in the process.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

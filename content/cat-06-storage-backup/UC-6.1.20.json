@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Host `iscsiadm -m session`, array iSCSI session list",
-  "app": "Vendor TA, Linux `iscsiadm` scripted input, array iSCSI session API",
+  "exclusions": "Covers the detection logic documented for 'iSCSI Session Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_iscsi_session_monitoring` (UC-6.1.20), SOC dashboard panel \"Operations — iSCSI Session Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.1.20 positive (iSCSI, Session, Monitoring): ingest synthetic events into `index=storage` sourcetype='iscsi:session' where `sessions`, `baseline` grouped by `host`, `target_iqn`, `_time` satisfies detection threshold for 'iSCSI Session Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.20 negative (Session Monitoring): ingest benign `storage` / `iscsi:session` events where `host`, `target_iqn`, `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'iSCSI Session Monitoring'."
+  },
+  "dataSources": "Host `iscsiadm -m session`, array iSCSI session list Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Vendor TA, Linux `iscsiadm` scripted input, array iSCSI session API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"iscsi:session\"\n| bin _time span=5m\n| stats dc(session_id) as sessions by host, target_iqn, _time\n| eventstats avg(sessions) as baseline by host, target_iqn\n| where sessions < baseline OR sessions=0",
-  "description": "Dropped or flapping iSCSI sessions cause path loss and I/O errors. Session count and login state trending validates host-to-array connectivity after network or firmware changes.",
-  "value": "Dropped or flapping iSCSI sessions cause path loss and I/O errors. Session count and login state trending validates host-to-array connectivity after network or firmware changes.",
+  "description": "Alerts on 'iSCSI Session Monitoring' patterns (UC-6.1.20) sourced from `index=storage` sourcetype `iscsi:session`. Threshold bundle: configured threshold; aggregation grain: `host`, `target_iqn`, `_time`; metrics: `sessions`, `baseline`. Watch terms: iSCSI, Session, Monitoring.",
+  "value": "UC-6.1.20 gives Operations teams earlier visibility into Session Monitoring through `iscsi:session` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Scripted input on hosts or array API export of active sessions every 5m. Alert on session count drop to zero or vs baseline. Correlate with NIC/link events.",
   "visualization": "Line chart (sessions per host/target), Table (hosts with zero sessions), Single value (total active sessions).",
   "cimModels": [
@@ -21,10 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.20)** — Planned work for 'iSCSI Session Monitoring' shifts `sessions`, `baseline` over `span=5m` while `host`, `target_iqn`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `iscsi:session`** — Scheduled automation elevates `target_iqn` without crossing configured threshold for UC-6.1.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `target_iqn`, `_time`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `iscsi:session`** — First 48h baseline for UC-6.1.20 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Vendor TA, Linux `iscsiadm` scripted input, array iSCSI session API.\n• Ensure the following data sources are available: Host `iscsiadm -m session`, array iSCSI session list.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nScripted input on hosts or array API export of active sessions every 5m. Alert on session count drop to zero or vs baseline. Correlate with NIC/link events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=storage sourcetype=\"iscsi:session\"\n| bin _time span=5m\n| stats dc(session_id) as sessions by host, target_iqn, _time\n| eventstats avg(sessions) as baseline by host, target_iqn\n| where sessions < baseline OR sessions=0\n```\n\nUnderstanding this SPL\n\n**iSCSI Session Monitoring** — Dropped or flapping iSCSI sessions cause path loss and I/O errors. Session count and login state trending validates host-to-array connectivity after network or firmware changes.\n\nDocumented **Data sources**: Host `iscsiadm -m session`, array iSCSI session list. **App/TA** (typical add-on context): Vendor TA, Linux `iscsiadm` scripted input, array iSCSI session API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: storage; **sourcetype**: iscsi:session. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=storage, sourcetype=\"iscsi:session\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by host, target_iqn, _time** so each row reflects one combination of those dimensions.\n• `eventstats` rolls up events into metrics; results are split **by host, target_iqn** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where sessions < baseline OR sessions=0` — typically the threshold or rule expression for this monitoring goal.\n\nStep 3 — Validate\nCompare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Point on-call to the ONTAP or array runbook, Cisco SAN references, and SNMP/REST credentials already used in production—not generic platform steps only. Consider visualizations: Line chart (sessions per host/target), Table (hosts with zero sessions), Single value (total active sessions).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises."
+  "grandmaExplanation": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

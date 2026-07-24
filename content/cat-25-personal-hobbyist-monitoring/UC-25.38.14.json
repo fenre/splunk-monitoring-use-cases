@@ -9,27 +9,55 @@
     "Operations"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Breach alerts (`breach:alert`), inbox stats (`inbox:stats`), cloud-drive usage (`clouddrive:usage`), certificate expiry (`certexpiry:check`).",
-  "app": "Personal cybersecurity feeds — Have-I-Been-Pwned breach alerts, personal email/inbox stats, cloud-storage usage APIs, and personal TLS-certificate expiry checks — sent to Splunk HEC via scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Certificate Renewal Failure Queue' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_certificate_renewal_failure_queue` (UC-25.38.14), SOC dashboard panel \"Personal — Certificate Renewal Failure Queue\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.38.14 positive (Certificate, Renewal, Failure, Queue): ingest synthetic events into `index=personal` sourcetype='certexpiry:check' where `days_left` grouped by `endpoint` satisfies `days_left` < 14 for 'Certificate Renewal Failure Queue'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.38.14 negative (Failure Queue): ingest benign `personal` / `certexpiry:check` events where `endpoint` stays below `days_left` < 14, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'Certificate Renewal Failure Queue'."
+  },
+  "dataSources": "Breach alerts (`breach:alert`), inbox stats (`inbox:stats`), cloud-drive usage (`clouddrive:usage`), certificate expiry (`certexpiry:check`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Personal cybersecurity feeds — Have-I-Been-Pwned breach alerts, personal email/inbox stats, cloud-storage usage APIs, and personal TLS-certificate expiry checks — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=certexpiry:check\n| where status!=\"renewed\"\n| stats min(days_left) as days_left, latest(common_name) as common_name by endpoint\n| where days_left<14\n| sort days_left",
-  "description": "Lists personal endpoints or services whose certificates are nearing expiry without a successful renewal.",
-  "value": "Even for personal infrastructure, certificate expiry is a needless self-inflicted outage or trust warning.",
+  "description": "Detects UC-25.38.14 for Certificate, Renewal, Failure, Queue over `index=personal` sourcetype `certexpiry:check` with thresholds `days_left` < 14. Groups `days_left` by `endpoint` each `the scheduled window`. Centered on Failure Queue indicators. Supports repeatable personal triage for 'Certificate Renewal Failure Queue'.",
+  "value": "For 'Certificate Renewal Failure Queue', UC-25.38.14 converts `days_left` on `certexpiry:check` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest certificate checks into `index=personal`; alert on endpoints inside the final two weeks without renewal.",
   "visualization": "Table of endpoints with common name and days remaining.",
   "cimModels": [],
   "references": [
     {
       "title": "Have I Been Pwned — API",
-      "url": "https://haveibeenpwned.com/API/v3"
+      "url": "https://haveibeenpwned.com/API/v3",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NCSC — cyber aware",
-      "url": "https://www.ncsc.gov.uk/cyberaware/home"
+      "url": "https://www.ncsc.gov.uk/cyberaware/home",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It maps which of your personal sites or services are heading toward an expired certificate warning because renewal has not happened."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.38.14)** — Connector for 'Certificate Renewal Failure Queue' stops polling `certexpiry:check`; stale `days_left` on `endpoint` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `days_left` over `1w` is expected for UC-25.38.14, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `certexpiry:check`. Dedup with `stats latest(*) by endpoint`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_left` < 14 for 'Certificate Renewal Failure Queue'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Personal Cyber & Digital Exhaust — typical feeds: Breach alerts (`breach:alert`), inbox stats (`inbox:stats`), cloud-drive usage (`clouddrive:usage`), certificate expiry (`certexpiry:check`)..\n• **Sourcetypes in this search**: `certexpiry:check`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=certexpiry:check`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Personal cybersecurity feeds — Have-I-Been-Pwned breach alerts, personal email/inbox stats, cloud-storage usage APIs, and personal TLS-certificate expiry checks — sent to Splunk HEC via scripted inputs..\n\n**Author notes:** Ingest certificate checks into `index=personal`; alert on endpoints inside the final two weeks without renewal.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"certexpiry:check\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=certexpiry:check earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Certificate Renewal Failure Queue** over `personal` data (primarily `sourcetype=certexpiry:check`) across the full search range. It applies numeric thresholds on `days_left` (< 14) after min, latest — tune these constants to your household baseline.\n\n**Fields this search depends on:** `days_left`, `endpoint`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=certexpiry:check\n| where status!=\"renewed\"\n| stats min(days_left) as days_left, latest(common_name) as common_name by endpoint\n| where days_left<14\n| sort days_left\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=certexpiry:check earliest=-7d\n| head 50\n| table days_left, endpoint\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=certexpiry:check earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `days_left` before alerting:\n\n```spl\nindex=personal sourcetype=certexpiry:check earliest=-30d\n| stats perc50(days_left) AS p50 perc90(days_left) AS p90 perc99(days_left) AS p99 max(days_left) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.38.14: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Endpoints With Common Name And Days Remaining (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `certexpiry:check` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=certexpiry:check | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It maps which of your personal sites or services are heading toward an expired certificate warning because renewal has not happened.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

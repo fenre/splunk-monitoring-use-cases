@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Microsoft IIS Failed Request Tracing (FREB) Log Analysis' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_microsoft_iis_failed_request_tracing_freb_log_an` (UC-8.2.39), SOC dashboard panel \"Operations — Microsoft IIS Failed Request Tracing (FREB) Log Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.2.39 positive (Microsoft, IIS, Failed, Request, Tracing): ingest synthetic events into `index=web` sourcetype='iis:freb' where `count` grouped by `url`, `status_code`, `failure_reason` satisfies detection threshold for 'Microsoft IIS Failed Request Tracing (FREB) Log Analysis'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.2.39 negative (Log Analysis): ingest benign `web` / `iis:freb` events where `url`, `status_code`, `failure_reason` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Microsoft IIS Failed Request Tracing (FREB) Log Analysis'."
+  },
   "dataSources": "`index=web` Failed Request Tracing XML converted to JSON or `ms:iis:freb` via custom parser",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`); Splunk Add-on for Microsoft IIS (Splunkbase 3185)",
   "spl": "index=web sourcetype=\"iis:freb\" OR sourcetype=\"ms:iis:freb\"\n| stats count by url, status_code, failure_reason\n| sort - count\n| head 30",
-  "description": "FREB captures per-request pipeline events—including modules, rewrite rules, and authentication—when requests fail or exceed thresholds. Aggregating failure reasons ranks fixes faster than coarse HTTP status counts alone.",
-  "value": "Shortens performance and reliability incidents on Windows-only stacks without full code deploys.",
+  "description": "Monitors 'Microsoft IIS Failed Request Tracing (FREB) Log Analysis' patterns (UC-8.2.39) sourced from `index=web` sourcetype `iis:freb`. Threshold bundle: configured threshold; aggregation grain: `url`, `status_code`, `failure_reason`; metrics: `count`. Watch terms: Microsoft, IIS, Failed, Request, Tracing.",
+  "value": "UC-8.2.39 gives Operations teams earlier visibility into Log Analysis through `iis:freb` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Enable FREB for 5xx and long-running requests; ship `%SystemDrive%\\inetpub\\logs\\FailedReqLogFiles`. Add `props.conf` XML breaking.",
   "visualization": "Stacked bars for status/substatus, Perfmon timecharts, top client tables.",
   "cimModels": [
@@ -23,17 +29,33 @@
   "references": [
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Microsoft IIS documentation",
-      "url": "https://learn.microsoft.com/en-us/iis/troubleshoot/using-failed-request-tracing"
+      "url": "https://learn.microsoft.com/en-us/iis/troubleshoot/using-failed-request-tracing",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.2.39)** — Planned work for 'Microsoft IIS Failed Request Tracing (FREB) Log Analysis' shifts `count` over `span=1h` while `url`, `status_code`, `failure_reason` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `iis:freb`** — Scheduled automation elevates `status_code` without crossing configured threshold for UC-8.2.39. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `url`, `status_code`, `failure_reason`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `iis:freb`** — First 48h baseline for UC-8.2.39 on `url` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `url`, `exception_reason`, `valid_until`.",
   "equipment": [
     "iis",
     "windows"
+  ],
+  "equipmentModels": [
+    "iis_generic",
+    "windows_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,6 +64,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to shortens performance and reliability incidents on Windows-only stacks without full code deploys."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`); Splunk Add-on for Microsoft IIS (Splunkbase 3185)). Enable the modular input or HEC token that writes sourcetype=iis:freb, ms:iis:freb into web. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`failure_reason, status_code, url`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to shortens performance and reliability incidents on Windows-only stacks without full code deploys.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

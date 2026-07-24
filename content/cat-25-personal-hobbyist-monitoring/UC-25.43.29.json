@@ -9,35 +9,60 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Battery telemetry (`marine:battery`), AIS traffic (`marine:ais`), shore power (`marina:power`), tide forecasts (`tide:table`), export syncs (`marine:export`).",
-  "app": "Boating and marine telemetry — Victron BMV battery exports, AIS transponder logs, shore-power meter readings, and NOAA tide tables — streamed to Splunk HEC via NMEA exports and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'AIS Stationary-Vessel Drift Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_ais_stationary_vessel_drift_watch` (UC-25.43.29), SOC dashboard panel \"Personal — AIS Stationary-Vessel Drift Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.43.29 positive (AIS, Stationary, Vessel, Drift, Watch): ingest synthetic events into `index=personal` sourcetype='marine:ais' where `sum` grouped by `anchorage` satisfies detection threshold for 'AIS Stationary-Vessel Drift Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.43.29 negative (Drift Watch): ingest benign `personal` / `marine:ais` events where `anchorage` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 7 confirms zero alert rows for 'AIS Stationary-Vessel Drift Watch'."
+  },
+  "dataSources": "Battery telemetry (`marine:battery`), AIS traffic (`marine:ais`), shore power (`marina:power`), tide forecasts (`tide:table`), export syncs (`marine:export`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Boating and marine telemetry — Victron BMV battery exports, AIS transponder logs, shore-power meter readings, and NOAA tide tables — streamed to Splunk HEC via NMEA exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=marine:ais anchorage=* drift_alert=*\n| stats count as total, sum(eval(if(drift_alert=\"yes\",1,0))) as matched by anchorage\n| eval a_drift_alert_pct=round(100*matched/total,1)\n| sort - a_drift_alert_pct",
-  "description": "Measures the percentage of stationary-vessel intervals that end with a drift alert by anchorage.",
-  "value": "Completion and exception percentages make it easier to spot which anchorage are helping or hurting stationary-vessel intervals.",
+  "description": "Surfaces UC-25.43.29 — AIS, Stationary, Vessel, Drift, Watch — using `index=personal` sourcetype `marine:ais`, grouped by `anchorage`. Outputs `sum` each `the scheduled window`; alert when configured threshold. Primary focus: Drift Watch. Purpose-built for 'AIS Stationary-Vessel Drift Watch' in Personal workflows.",
+  "value": "UC-25.43.29 operationalises 'AIS Stationary-Vessel Drift Watch' against `marine:ais` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Store a normalized flag for `a drift alert` on `marine:ais` events and summarize the hit rate by `anchorage`.",
   "visualization": "Table of anchorage with percentage of stationary-vessel intervals ending with a drift alert.",
   "cimModels": [],
   "references": [
     {
       "title": "Victron Energy — BMV battery monitors",
-      "url": "https://www.victronenergy.com/battery-monitors"
+      "url": "https://www.victronenergy.com/battery-monitors",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Garmin AIS 800 — transponder",
-      "url": "https://www.garmin.com/en-US/p/624973"
+      "url": "https://www.garmin.com/en-US/p/624973",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "SmartPlug — shore power",
-      "url": "https://www.smartplug.com/"
+      "url": "https://www.smartplug.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NOAA Tides and Currents",
-      "url": "https://tidesandcurrents.noaa.gov/"
+      "url": "https://tidesandcurrents.noaa.gov/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It gathers how often a drift alert happens for each anchorage so you can see where stationary-vessel intervals go smoothly or get stuck."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.43.29)** — Connector for 'AIS Stationary-Vessel Drift Watch' stops polling `marine:ais`; stale `sum` on `anchorage` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected for UC-25.43.29, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `marine:ais`. Dedup with `stats latest(*) by anchorage`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'AIS Stationary-Vessel Drift Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Boating & Marine — typical feeds: NMEA/SignalK data (`nmea:reading`), bilge pump (`bilge:event`), mooring/anchor watch (`mooring:status`), marine weather (`marineweather:forecast`)..\n• **Sourcetypes in this search**: `marine:ais`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=marine:ais`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Marine electronics — NMEA 2000 / SignalK boat networks, bilge, battery and shore-power sensors, anchor-watch GPS, and marine weather feeds — streamed to Splunk HEC via SignalK and scripted inputs..\n\n**Author notes:** Store a normalized flag for `a drift alert` on `marine:ais` events and summarize the hit rate by `anchorage`.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"marine:ais\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=marine:ais earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **AIS Stationary-Vessel Drift Watch** over `personal` data (primarily `sourcetype=marine:ais`) across the full search range. The `sum` aggregation groups by `anchorage`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `anchorage`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=marine:ais anchorage=* drift_alert=*\n| stats count as total, sum(eval(if(drift_alert=\"yes\",1,0))) as matched by anchorage\n| eval a_drift_alert_pct=round(100*matched/total,1)\n| sort - a_drift_alert_pct\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=marine:ais earliest=-7d\n| head 50\n| table anchorage\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=marine:ais earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.43.29: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Anchorage With Percentage Of Stationary-Vessel Intervals Ending With A Drift Alert (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `marine:ais` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=marine:ais | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It gathers how often a drift alert happens for each anchorage so you can see where stationary-vessel intervals go smoothly or get stuck.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

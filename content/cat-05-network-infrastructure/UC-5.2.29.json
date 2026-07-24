@@ -8,21 +8,43 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Threat Intelligence Correlation and IoC Matching (Meraki MX)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_threat_intelligence_correlation_and_ioc_matching` (UC-5.2.29), SOC dashboard panel \"Operations — Threat Intelligence Correlation and IoC Matching (Meraki MX)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.2.29 positive (Threat, Intelligence, Correlation, and, IoC): ingest synthetic events into `index=meraki` sourcetype='meraki' where `count` grouped by `src`, `dest`, `threat_name` satisfies detection threshold for 'Threat Intelligence Correlation and IoC Matching (Meraki MX)'. Validate lookup `threat_intelligence_list`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.2.29 negative ((Meraki MX)): ingest benign `meraki` / `meraki` events where `src`, `dest`, `threat_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Threat Intelligence Correlation and IoC Matching (Meraki MX)'."
+  },
   "dataSources": "`sourcetype=meraki type=security_event OR type=urls OR type=flows OR type=firewall OR type=ids-alerts` | Alternate ingest: Splunk Connect for Syslog (SC4S) Meraki vendor pack — points the Meraki dashboard at an SC4S receiver and produces sourcetype=\"meraki\" syslog events (free-form text extracted with rex). Use when you don't want to deploy the polling API TA.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA).",
   "spl": "index=meraki sourcetype=\"meraki\" (type=security_event OR type=urls OR type=flows OR type=firewall OR type=ids-alerts)\n| lookup threat_intelligence_list src as src OUTPUTNEW threat_name, threat_severity\n| where threat_severity=\"high\" OR threat_severity=\"critical\"\n| stats count as hit_count by src, dest, threat_name\n| sort - hit_count",
-  "description": "Correlates network traffic with threat intelligence databases to detect known malicious IPs and domains.",
-  "value": "Security teams correlate Meraki MX firewall traffic against threat intelligence IoC feeds, prioritizing unblocked connections to high-confidence indicators of compromise.",
+  "description": "Alerts on UC-5.2.29 — Threat, Intelligence, Correlation, and, IoC — using `index=meraki` sourcetype `meraki`, grouped by `src`, `dest`, `threat_name`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `threat_intelligence_list`. Purpose-built for 'Threat Intelligence Correlation and IoC Matching (Meraki MX)' in Operations workflows.",
+  "value": "UC-5.2.29 helps teams contain Threat, Intelligence, Correlation, and, IoC scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Create threat intelligence lookup table. Correlate with network events.",
   "visualization": "IoC match timeline; threat severity breakdown; affected hosts table.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "New cloud ranges, fast-flux, and short-lived goodware can overlap threat feeds; tune age and scope of feeds you trust.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.2.29)** — Planned work for 'Threat Intelligence Correlation and IoC Matching (Meraki MX)' shifts `count` over `span=1h` while `src`, `dest`, `threat_name` remains in-scope. Applies lookup `threat_intelligence_list`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `meraki`** — Scheduled automation elevates `dest` without crossing configured threshold for UC-5.2.29. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`, `dest`, `threat_name`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki`** — First 48h baseline for UC-5.2.29 on `src` is unstable; join `threat_intelligence_list` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
@@ -30,6 +52,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA)..\n• Ensure the following data sources are available: `sourcetype=meraki type=security_event OR type=urls OR type=flows OR type=firewall OR type=ids-alerts` | Alternate ingest: Splunk Connect for Syslog (SC4S) Meraki vendor pack — points the Meraki dashboard at an SC4S receiver and produces sourcetype=\"meraki\" syslog events (free-form text extracted with rex). Use when you don't want to deploy the polling API TA..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate threat intelligence lookup table. Correlate with network events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki\" (type=security_event OR type=urls OR type=flows OR type=firewall OR type=ids-alerts)\n| lookup threat_intelligence_list src as src OUTPUTNEW threat_name, threat_severity\n| where threat_severity=\"high\" OR threat_severity=\"critical\"\n| stats count as hit_count by src, dest, threat_name\n| sort - hit_count\n```\n\nUnderstanding this SPL\n\n**Threat Intelligence Correlation and IoC Matching (Meraki MX)** — Security teams correlate Meraki MX firewall traffic against threat intelligence IoC feeds, prioritizing unblocked connections to high-confidence indicators of compromise.\n\nDocumented **Data sources**: `sourcetype=meraki type=security_event OR type=urls OR type=flows OR type=firewall OR type=ids-alerts` | Alternate ingest: Splunk Connect for Syslog (SC4S) Meraki vendor pack — points the Meraki dashboard at an SC4S receiver and produces sourcetype=\"meraki\" syslog events (free-form text extracted with rex). Use when you don't want to deploy the polling API TA. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where threat_severity=\"high\" OR threat_severity=\"critical\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src, dest, threat_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: IoC match timeline; threat severity breakdown; affected hosts table.",
-  "grandmaExplanation": "We line up your threat indicators with what the small office already saw so you can see known bad addresses without waiting on a manual list."
+  "grandmaExplanation": "We line up your threat indicators with what the small office already saw so you can see known bad addresses without waiting on a manual list.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

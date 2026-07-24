@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:host\"` — host status events: `host_name`, `host_id`, `prev_status`, `new_status`, `user`",
-  "app": "Engine audit stream or REST poller writing `ovirt:host` JSON lines",
+  "exclusions": "Covers the detection logic documented for 'oVirt Host Activation and Maintenance Mode State Changes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_ovirt_host_activation_and_maintenance_mode_state` (UC-2.8.2), SOC dashboard panel \"Linux — oVirt Host Activation and Maintenance Mode State Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.8.2 positive (oVirt, Host, Activation, and, Maintenance): ingest synthetic events into `index=ovirt` sourcetype='ovirt:host' where `values` grouped by `host_name`, `user` satisfies -24h for 'oVirt Host Activation and Maintenance Mode State Changes'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.8.2 negative (State Changes): ingest benign `ovirt` / `ovirt:host` events where `host_name`, `user` stays below -24h, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 0 confirms zero alert rows for 'oVirt Host Activation and Maintenance Mode State Changes'."
+  },
+  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:host\"` — host status events: `host_name`, `host_id`, `prev_status`, `new_status`, `user` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Engine audit stream or REST poller writing `ovirt:host` JSON lines — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ovirt sourcetype=\"ovirt:host\" earliest=-24h\n| eval ns=lower(coalesce(new_status, status))\n| where match(ns, \"(?i)maintenance|nonoperational|up|active\")\n| stats earliest(_time) as first_t, latest(_time) as last_t, values(ns) as statuses by host_name, user\n| sort - last_t",
-  "description": "Unexpected host activations or maintenance exits change scheduler capacity and can violate change windows. A clear audit of who moved hosts prevents shadow operations.",
-  "value": "Strengthens change governance and speeds incident correlation when capacity drops suddenly.",
+  "description": "Alerts on 'oVirt Host Activation and Maintenance Mode State Changes' (UC-2.8.2) using `index=ovirt` sourcetype `ovirt:host` by aggregating `values` grouped by `host_name`, `user` over `the scheduled window` and alerting when -24h. Keywords: oVirt, Host, Activation, and, Maintenance. Focuses on State Changes behaviour so linux teams can triage UC-2.8.2 without ad-hoc log review.",
+  "value": "UC-2.8.2 accelerates insight into State Changes ('oVirt Host Activation and Maintenance Mode State Changes') by tracking `activity` on `ovirt:host` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Ingest host lifecycle events from Engine audit. Build lookups for approved maintenance windows. Alert on transitions outside the window.",
   "visualization": "Timeline per host; table of recent users; single value hosts in maintenance.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "oVirt Host Administration",
-      "url": "https://www.ovirt.org/documentation/administration_guide/"
+      "url": "https://www.ovirt.org/documentation/administration_guide/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "AOS storage metrics can look worse during background heal, curator, or disk removal work; match alerts to Nutanix task progress and maintenance windows.",
+  "knownFalsePositives": "1. **Patch Tuesday on `ovirt`** — Package managers spike `host_name` metrics for 'oVirt Host Activation and Maintenance Mode State Changes'. Correlate with apt/yum logs in the same `ovirt:host` window.\n\n2. **Nightly backup I/O on `host_name`** — Predictable `values` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ovirt:host`** — Nagios/Zabbix polls `host_name` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host_name` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host_name`, `valid_until`.",
   "equipment": [
     "ovirt"
+  ],
+  "equipmentModels": [
+    "ovirt_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -36,5 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Engine audit stream or REST poller writing `ovirt:host` JSON lines — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ovirt:host into ovirt. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host_name, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

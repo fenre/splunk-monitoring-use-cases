@@ -9,11 +9,17 @@
     "Audit"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=web` `sourcetype=tomcat:access` (Catalina HTTP access log with RemoteAddrValve / ErrorReportValve outcomes)",
-  "app": "Splunk Universal Forwarder; Splunk Add-on for JMX (`Splunk_TA_jmx`) for metrics; file inputs for `tomcat:catalina`, `tomcat:access`, `tomcat:manager`",
+  "exclusions": "Covers the detection logic documented for 'Apache Tomcat Valve Request Filtering and Access Pattern Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_apache_tomcat_valve_request_filtering_and_access` (UC-8.1.78), SOC dashboard panel \"Operations — Apache Tomcat Valve Request Filtering and Access Pattern Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.1.78 positive (Apache, Tomcat, Valve, Request, Filtering): ingest synthetic events into `index=web` sourcetype='tomcat:access' where `count` grouped by `cs_uri_stem`, `remote_host`, `status` satisfies detection threshold for 'Apache Tomcat Valve Request Filtering and Access Pattern Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.78 negative (Pattern Audit): ingest benign `web` / `tomcat:access` events where `cs_uri_stem`, `remote_host`, `status` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Apache Tomcat Valve Request Filtering and Access Pattern Audit'."
+  },
+  "dataSources": "`index=web` `sourcetype=tomcat:access` (Catalina HTTP access log with RemoteAddrValve / ErrorReportValve outcomes) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder; Splunk Add-on for JMX (`Splunk_TA_jmx`) for metrics; file inputs for `tomcat:catalina`, `tomcat:access`, `tomcat:manager` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"tomcat:access\"\n| where status=403 OR status=401\n| stats count by cs_uri_stem, remote_host, status\n| sort - count\n| head 50",
-  "description": "Valves such as `RemoteAddrValve` and security constraints emit 403/401 in access logs. Auditing stems and sources validates rules and spots probing.",
-  "value": "Supports zero-trust and WAF-adjacent controls with evidence of enforcement.",
+  "description": "Monitors UC-8.1.78 — Apache, Tomcat, Valve, Request, Filtering — using `index=web` sourcetype `tomcat:access`, grouped by `cs_uri_stem`, `remote_host`, `status`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Pattern Audit. Purpose-built for 'Apache Tomcat Valve Request Filtering and Access Pattern Audit' in Operations workflows.",
+  "value": "UC-8.1.78 gives Operations teams earlier visibility into Pattern Audit through `tomcat:access` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Enable Access Log Valve in `server.xml`; sync field order with `props.conf`. Correlate 403 spikes with `RemoteAddrValve` deny rules.",
   "visualization": "Time charts for utilization, tables for top URIs and deploy events, single-value alerts.",
   "cimModels": [
@@ -23,16 +29,32 @@
   "references": [
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apache Tomcat documentation",
-      "url": "https://tomcat.apache.org/tomcat-10.0-doc/config/valve.html"
+      "url": "https://tomcat.apache.org/tomcat-10.0-doc/config/valve.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.1.78)** — Planned work for 'Apache Tomcat Valve Request Filtering and Access Pattern Audit' shifts `count` over `span=1h` while `cs_uri_stem`, `remote_host`, `status` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `tomcat:access`** — Scheduled automation elevates `remote_host` without crossing configured threshold for UC-8.1.78. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cs_uri_stem`, `remote_host`, `status`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tomcat:access`** — First 48h baseline for UC-8.1.78 on `cs_uri_stem` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cs_uri_stem`, `exception_reason`, `valid_until`.",
   "equipment": [
+    "apache",
     "tomcat"
+  ],
+  "equipmentModels": [
+    "apache_httpd"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,6 +63,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to support zero-trust and WAF-adjacent controls with evidence of enforcement."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder; Splunk Add-on for JMX (`Splunk_TA_jmx`) for metrics; file inputs for `tomcat:catalina`, `tomcat:access`, `tomcat:manager` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=tomcat:access into web. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cs_uri_stem, remote_host, status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to support zero-trust and WAF-adjacent controls with evidence of enforcement.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

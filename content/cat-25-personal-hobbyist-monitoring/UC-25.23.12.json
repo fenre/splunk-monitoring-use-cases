@@ -8,30 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Baby feedings (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), school departures (`school:departure`), stroller activity (`stroller:walk`), household chores (`chore:event`), and family geofence events (`family:location`).",
-  "app": "Family and baby telemetry from baby-tracking apps, school and geofence automations, stroller logs, chore trackers, and shared-home events streamed to Splunk HEC via APIs and Home Assistant.",
+  "exclusions": "Covers personal hobby monitoring for 'Night Feeding Interval Compression' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_night_feeding_interval_compression` (UC-25.23.12), SOC dashboard panel \"Personal — Night Feeding Interval Compression\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.23.12 positive (Night, Feeding, Interval, Compression): ingest synthetic events into `index=personal` sourcetype='baby:feed' where `avg_gap_hours`, `min_gap_hours` grouped by `child` satisfies `date_hour` >= 0, or `date_hour` <= 5 for 'Night Feeding Interval Compression'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.23.12 negative (Interval Compression): ingest benign `personal` / `baby:feed` events where `child` stays below `date_hour` >= 0, or `date_hour` <= 5, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'Night Feeding Interval Compression'."
+  },
+  "dataSources": "Baby feedings (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), school departures (`school:departure`), stroller activity (`stroller:walk`), household chores (`chore:event`), and family geofence events (`family:location`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Family and baby telemetry from baby-tracking apps, school and geofence automations, stroller logs, chore trackers, and shared-home events streamed to Splunk HEC via APIs and Home Assistant. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=baby:feed\n| where date_hour>=0 AND date_hour<=5\n| sort 0 _time\n| streamstats current=f last(_time) as prev_time by child\n| eval gap_hours=round((_time-prev_time)/3600,2)\n| stats avg(gap_hours) as avg_gap_hours min(gap_hours) as min_gap_hours by child",
-  "description": "Calculates average and shortest gaps between overnight feeds for each child.",
-  "value": "Night feeding cadence is one of the biggest quality-of-life signals for new parents, and seeing the trend beats guessing from memory.",
+  "description": "Detects 'Night Feeding Interval Compression' (UC-25.23.12) using `index=personal` sourcetype `baby:feed` by aggregating `avg_gap_hours`, `min_gap_hours` grouped by `child` over `the scheduled window` and alerting when `date_hour` >= 0, or `date_hour` <= 5. Keywords: Night, Feeding, Interval, Compression. Focuses on Interval Compression behaviour so personal teams can triage UC-25.23.12 without ad-hoc log review.",
+  "value": "UC-25.23.12 accelerates insight into Interval Compression ('Night Feeding Interval Compression') by tracking `avg_gap_hours`, `min_gap_hours` on `baby:feed` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Export feeding timestamps from your baby-tracking app and review overnight interval compression week over week.",
   "visualization": "Table of average and minimum overnight feed gaps by child.",
   "cimModels": [],
   "references": [
     {
       "title": "Huckleberry - baby tracking",
-      "url": "https://huckleberrycare.com/"
+      "url": "https://huckleberrycare.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Google Calendar - API",
-      "url": "https://developers.google.com/calendar/api"
+      "url": "https://developers.google.com/calendar/api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.23.12)** — Connector for 'Night Feeding Interval Compression' stops polling `baby:feed`; stale `avg_gap_hours`, `min_gap_hours` on `child` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_gap_hours`, `min_gap_hours` over `1w` is expected for UC-25.23.12, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `baby:feed`. Dedup with `stats latest(*) by child`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `date_hour` >= 0 for 'Night Feeding Interval Compression'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],
-  "grandmaExplanation": "It watches how close together the nighttime feeds are getting, so exhausted parents can still see the trend clearly."
+  "equipmentModels": [
+    "asterisk_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Family, Baby & Household Chaos — typical feeds: Baby feeds (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), chore completions (`chore:completion`), allowance ledger (`allowance:ledger`), family calendar (`family:calendar`.\n• **Sourcetypes in this search**: `baby:feed`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=baby:feed`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Baby-tracking app exports (Huckleberry/Baby Daybook), chore and allowance boards, shared family calendars, screen-time reports, and growth logs via Splunk HEC scripted inputs..\n\n**Author notes:** Export feeding timestamps from your baby-tracking app and review overnight interval compression week over week.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"baby:feed\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=baby:feed earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Night Feeding Interval Compression** over `personal` data (primarily `sourcetype=baby:feed`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `child`, `date_hour`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=baby:feed\n| where date_hour>=0 AND date_hour<=5\n| sort 0 _time\n| streamstats current=f last(_time) as prev_time by child\n| eval gap_hours=round((_time-prev_time)/3600,2)\n| stats avg(gap_hours) as avg_gap_hours min(gap_hours) as min_gap_hours by child\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=baby:feed earliest=-7d\n| head 50\n| table child, date_hour\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=baby:feed earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `date_hour` before alerting:\n\n```spl\nindex=personal sourcetype=baby:feed earliest=-30d\n| stats perc50(date_hour) AS p50 perc90(date_hour) AS p90 perc99(date_hour) AS p99 max(date_hour) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.23.12: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Average And Minimum Overnight Feed Gaps By Child (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `baby:feed` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=baby:feed | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It watches how close together the nighttime feeds are getting, so exhausted parents can still see the trend clearly.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

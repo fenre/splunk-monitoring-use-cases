@@ -9,11 +9,17 @@
     "Risk"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "`index=batch` `sourcetype=controlm:alert` policy breach, `sourcetype=controlm:job` with `sla_met`, `due_time`",
-  "app": "Control-M/EM alerting integration to Splunk HEC",
+  "exclusions": "Covers the detection logic documented for 'Control-M Workload Policy Violation and SLA Breach Risk' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_control_m_workload_policy_violation_and_sla_brea` (UC-12.7.12), SOC dashboard panel \"Operations — Control-M Workload Policy Violation and SLA Breach Risk\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.7.12 positive (Control, Workload, Policy, Violation, and): ingest synthetic events into `index=batch` sourcetype='controlm:alert' where `values` grouped by `policy_name`, `folder`, `controlm_server` satisfies detection threshold for 'Control-M Workload Policy Violation and SLA Breach Risk'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.7.12 negative (Breach Risk): ingest benign `batch` / `controlm:alert` events where `policy_name`, `folder`, `controlm_server` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Control-M Workload Policy Violation and SLA Breach Risk'."
+  },
+  "dataSources": "`index=batch` `sourcetype=controlm:alert` policy breach, `sourcetype=controlm:job` with `sla_met`, `due_time` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Control-M/EM alerting integration to Splunk HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=batch (sourcetype=\"controlm:alert\" OR sourcetype=\"controlm:job\")\n| eval policy_hit=if(sourcetype=\"controlm:alert\" AND match(lower(alert_type),\"(?i)workload|policy|resource\"),1,0)\n| eval sla_risk=if(sourcetype=\"controlm:job\" AND (sla_met=\"false\" OR match(lower(status),\"(?i)late|overdue\")),1,0)\n| where policy_hit=1 OR sla_risk=1\n| stats count, latest(_time) as last_seen, values(job_name) as jobs by policy_name, folder, controlm_server\n| sort -count",
-  "description": "Workload policies enforce CPU, job concurrency, and time-window guardrails; violations predict contention that will breach job SLAs or overrun change windows. Correlating policy alerts with concrete job outcomes separates noisy tuning from real risk.",
-  "value": "Supports operational risk dashboards and prevents cross-application stampedes on shared mainframe or open-systems capacity.",
+  "description": "Detects 'Control-M Workload Policy Violation and SLA Breach Risk' patterns (UC-12.7.12) sourced from `index=batch` sourcetype `controlm:alert`. Threshold bundle: configured threshold; aggregation grain: `policy_name`, `folder`, `controlm_server`; metrics: `values`. Watch terms: Control, Workload, Policy, Violation, and.",
+  "value": "UC-12.7.12 gives Operations teams earlier visibility into Breach Risk through `controlm:alert` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Map vendor-specific alert_type strings via lookup. Require `controlm_server` for multi-EM estates. Exclude test folders with an allowlist. Schedule near-real-time for policy alerts, hourly rollups for SLA trending.",
   "visualization": "Stacked bar (violations by policy), timeline with annotation markers, pie of affected folders.",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "BMC Control-M Workload Policies",
-      "url": "https://documents.bmc.com/supportu/controlm/"
+      "url": "https://documents.bmc.com/supportu/controlm/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Transient errors during platform maintenance, network blips, or certificate renewals on shared services.",
+  "knownFalsePositives": "1. **Maintenance window on `batch` (UC-12.7.12)** — Planned work for 'Control-M Workload Policy Violation and SLA Breach Risk' shifts `values` over `span=1h` while `policy_name`, `folder`, `controlm_server` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `controlm:alert`** — Scheduled automation elevates `folder` without crossing configured threshold for UC-12.7.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `policy_name`, `folder`, `controlm_server`** — Health checks in `batch` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `controlm:alert`** — First 48h baseline for UC-12.7.12 on `policy_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `policy_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "controlm"
+  ],
+  "equipmentModels": [
+    "controlm_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-01",
@@ -42,5 +63,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch batch and control jobs so missed handoffs or resource limits do not break business processing."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Control-M/EM alerting integration to Splunk HEC — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=controlm:alert, controlm:job into batch. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`controlm_server, folder, policy_hit, policy_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch batch and control jobs so missed handoffs or resource limits do not break business processing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

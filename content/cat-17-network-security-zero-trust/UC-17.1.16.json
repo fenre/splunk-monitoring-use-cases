@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`cisco:ise:auth` with MAB",
-  "app": "`Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog",
+  "exclusions": "Covers the detection logic documented for 'MAC Authentication Bypass Anomaly Detection' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_mac_authentication_bypass_anomaly_detection` (UC-17.1.16), SOC dashboard panel \"Network — MAC Authentication Bypass Anomaly Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.1.16 positive (MAC, Authentication, Bypass, Anomaly, Detection): ingest synthetic events into `index=nac` sourcetype='cisco:ise:auth' where `baseline` grouped by `_time`, `switch`, `port` satisfies `count` > 10 for 'MAC Authentication Bypass Anomaly Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.16 negative (Anomaly Detection): ingest benign `nac` / `cisco:ise:auth` events where `_time`, `switch`, `port` stays below `count` > 10, or exclude the test entity via `network_exception_register.csv`. Variant 14 confirms zero alert rows for 'MAC Authentication Bypass Anomaly Detection'."
+  },
+  "dataSources": "`cisco:ise:auth` with MAB Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:auth\" auth_method=\"MAB\" earliest=-7d\n| bin _time span=1h\n| stats count by _time, switch, port\n| eventstats avg(count) as baseline by switch\n| where count > baseline*3 AND count>10\n| sort -count",
-  "description": "Complements UC-17.1.6 whitelist checks with **volume and velocity** anomalies (sudden MAB spikes per port or site) that may indicate MAC spoofing or policy gaps.",
-  "value": "Security teams detect behavioral anomalies in MAB-authenticated devices — location changes, profile changes, and high-velocity port switching — that indicate MAC spoofing attacks, unauthorized device swaps, or attacker lateral movement using cloned hardware addresses.",
+  "description": "Surfaces UC-17.1.16 — MAC, Authentication, Bypass, Anomaly, Detection — using `index=nac` sourcetype `cisco:ise:auth`, grouped by `_time`, `switch`, `port`. Outputs `baseline` each `1h`; alert when `count` > 10. Primary focus: Anomaly Detection. Purpose-built for 'MAC Authentication Bypass Anomaly Detection' in Network workflows.",
+  "value": "Alerting on MAC, Authentication, Bypass, Anomaly, Detection through UC-17.1.16 reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing `baseline` early.",
   "implementation": "Baseline MAB events per switch/port; alert on spikes. Join UC-17.1.6 for unknown MAC focus.",
   "visualization": "Line chart (MAB rate per switch), Table (spike events), Heatmap (port × hour).",
   "cimModels": [
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "Splunk_TA_cisco-ise",
-      "url": "https://splunkbase.splunk.com/app/1915"
+      "url": "https://splunkbase.splunk.com/app/1915",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Authentication pattern spikes during ISE or RADIUS maintenance, certificate renewal windows, or RADIUS time-outs that affect many clients at once.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'MAC Authentication Bypass Anomaly Detection'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:auth` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "T1200"
   ],
@@ -42,6 +60,10 @@
     "cisco_ios",
     "cisco_ise"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     {
       "name": "Splunk User Behavior Analytics",
@@ -49,7 +71,9 @@
       "note": "UBA"
     }
   ],
-  "detailedImplementation": "Prerequisites\n• Cisco ISE with MAB enabled. Data in `index=nac` with `sourcetype=cisco:ise:syslog`. Key fields: `CallingStationID`, `AuthenticationMethod` (mab), `NetworkDeviceName`, `NAS-Port-Id`, `SelectedAuthorizationProfiles`, `EndPointPolicy`.\n• Unlike UC-17.1.6 (MAB inventory), this UC focuses on behavioral anomalies: known MAB devices behaving differently than expected. Anomaly indicators: a MAC address that normally authenticates from Building A suddenly appearing on a switch in Building B, a printer MAC appearing on a user-facing port, or a MAB device changing its profiled type.\n• Create a `mab_baseline.csv` lookup: `mac_address,expected_nas,expected_port_pattern,expected_profile,last_seen` with the normal behavior baseline for each MAB device.\n\nStep 1 — Configure data collection\nBuild baseline:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" AuthenticationMethod=mab earliest=-30d\n| stats latest(NetworkDeviceName) as last_nas latest(NAS-Port-Id) as last_port latest(EndPointPolicy) as last_profile by CallingStationID\n| outputlookup mab_baseline.csv\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — MAB behavioral anomalies:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" AuthenticationMethod=mab earliest=-24h\n| lookup mab_baseline.csv mac_address as CallingStationID OUTPUT expected_nas expected_port_pattern expected_profile\n| eval nas_change=if(NetworkDeviceName!=expected_nas AND isnotnull(expected_nas), \"YES\", \"no\")\n| eval profile_change=if(EndPointPolicy!=expected_profile AND isnotnull(expected_profile), \"YES\", \"no\")\n| where nas_change=\"YES\" OR profile_change=\"YES\"\n| table _time, CallingStationID, EndPointPolicy, expected_profile, profile_change, NetworkDeviceName, expected_nas, nas_change, NAS-Port-Id\n| sort _time\n```\n\nUnderstanding this SPL: Detects MAB devices that deviate from their established pattern. A MAC spoofing attack looks exactly like a NAS change — the attacker clones a printer's MAC and connects from a different port. A profile change (e.g., printer MAC suddenly profiled as 'Workstation') is even more suspicious, as it means the device's network fingerprint changed. Legitimate moves (printer relocated) should be confirmed and the baseline updated.\n\nHigh-velocity MAB changes:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" AuthenticationMethod=mab earliest=-24h\n| stats dc(NetworkDeviceName) as nas_count dc(NAS-Port-Id) as port_count by CallingStationID\n| where nas_count > 2 OR port_count > 5\n```\n\nStep 3 — Validate\n(a) Move a test MAB device to a different switch port. Verify the anomaly triggers.\n(b) Confirm that a device staying on its normal port does NOT trigger.\n\nStep 4 — Operationalize\nDashboard: Row 1 — MAB anomaly count trend. Row 2 — Anomalous devices detail. Row 3 — High-velocity suspects.\nAlert: Immediate on any profile change. Informational on NAS change.\n\nRunbook:\n1. **NAS change** — Verify with facilities if the device was physically moved. Update baseline if legitimate.\n2. **Profile change** — Likely MAC spoofing or a device swap. Investigate physically.\n3. **High velocity** — Automated attack. Block the MAC immediately.\n\nStep 5 — Troubleshooting\n• **Too many false positives** — The baseline may be too strict. Widen the expected NAS to a site level.\n• **Profile changes from ISE updates** — When ISE profiling policies are updated, devices may re-profile. Exclude 24h after ISE policy changes.",
+  "detailedImplementation": "Prerequisites\n• Cisco ISE with MAB enabled. Data in `index=nac` with `sourcetype=cisco:ise:syslog`. Key fields: `CallingStationID`, `AuthenticationMethod` (mab), `NetworkDeviceName`, `NAS-Port-Id`, `SelectedAuthorizationProfiles`, `EndPointPolicy`.\n• Unlike UC-17.1.6 (MAB inventory), this UC focuses on behavioral anomalies: known MAB devices behaving differently than expected. Anomaly indicators: a MAC address that normally authenticates from Building A suddenly appearing on a switch in Building B, a printer MAC appearing on a user-facing port, or a MAB device changing its profiled type.\n• Create a `mab_baseline.csv` lookup: `mac_address,expected_nas,expected_port_pattern,expected_profile,last_seen` with the normal behavior baseline for each MAB device.\n\nStep 1 — Configure data collection\nBuild baseline:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" AuthenticationMethod=mab earliest=-30d\n| stats latest(NetworkDeviceName) as last_nas latest(NAS-Port-Id) as last_port latest(EndPointPolicy) as last_profile by CallingStationID\n| outputlookup mab_baseline.csv\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — MAB behavioral anomalies:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" AuthenticationMethod=mab earliest=-24h\n| lookup mab_baseline.csv mac_address as CallingStationID OUTPUT expected_nas expected_port_pattern expected_profile\n| eval nas_change=if(NetworkDeviceName!=expected_nas AND isnotnull(expected_nas), \"YES\", \"no\")\n| eval profile_change=if(EndPointPolicy!=expected_profile AND isnotnull(expected_profile), \"YES\", \"no\")\n| where nas_change=\"YES\" OR profile_change=\"YES\"\n| table _time, CallingStationID, EndPointPolicy, expected_profile, profile_change, NetworkDeviceName, expected_nas, nas_change, NAS-Port-Id\n| sort _time\n```\n\nUnderstanding this SPL: Detects MAB devices that deviate from their established pattern. A MAC spoofing attack looks exactly like a NAS change — the attacker clones a printer's MAC and connects from a different port. A profile change (e.g., printer MAC suddenly profiled as 'Workstation') is even more suspicious, as it means the device's network fingerprint changed. Legitimate moves (printer relocated) should be confirmed and the baseline updated.\n\nHigh-velocity MAB changes:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" AuthenticationMethod=mab earliest=-24h\n| stats dc(NetworkDeviceName) as nas_count dc(NAS-Port-Id) as port_count by CallingStationID\n| where nas_count > 2 OR port_count > 5\n```\n\nStep 3 — Validate\n(a) Move a test MAB device to a different switch port. Verify the anomaly triggers.\n(b) Confirm that a device staying on its normal port does NOT trigger.\n\nStep 4 — Operationalize\nDashboard: Row 1 — MAB anomaly count trend. Row 2 — Anomalous devices detail. Row 3 — High-velocity suspects.\nAlert: Immediate on any profile change. Informational on NAS change.\n\nRunbook:\n1. **NAS change** — Verify with facilities if the device was physically moved. Update baseline if legitimate.\n2. **Profile change** — Likely MAC spoofing or a device swap. Investigate physically.\n3. **High velocity** — Automated attack. Block the MAC immediately.\n\nStep 5 — Troubleshooting\n• **Too many false positives** — The baseline may be too strict. Widen the expected NAS to a site level.\n• **Profile changes from ISE updates** — When ISE profiling policies are updated, devices may re-profile. Exclude 24h after ISE policy changes.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:auth into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, port, switch`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Devices like printers and cameras usually connect from the same place every day. If one of their identities suddenly appears in a different building or starts behaving differently, someone might be copying that identity to sneak onto the network, and we investigate.",
-  "hardware": "Cisco ISE, access switches"
+  "hardware": "Cisco ISE, access switches",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

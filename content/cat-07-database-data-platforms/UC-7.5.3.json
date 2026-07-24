@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=opensearch:index_stats`",
-  "app": "Custom scripted input (OpenSearch `_stats`, `_cat/indices`)",
+  "exclusions": "Covers the detection logic documented for 'OpenSearch Index Performance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_opensearch_index_performance` (UC-7.5.3), SOC dashboard panel \"Operations — OpenSearch Index Performance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.5.3 positive (OpenSearch, Index, Performance): ingest synthetic events into `index=database` sourcetype='opensearch:index_stats' where `count` grouped by `entity` satisfies `merge_ms` > 600000, or `total_time_in_millis` > 300000 for 'OpenSearch Index Performance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.5.3 negative (Index Performance): ingest benign `database` / `opensearch:index_stats` events where `entity` stays below `merge_ms` > 600000, or `total_time_in_millis` > 300000, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'OpenSearch Index Performance'."
+  },
+  "dataSources": "`sourcetype=opensearch:index_stats` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (OpenSearch `_stats`, `_cat/indices`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"opensearch:index_stats\"\n| eval merge_ms=primaries.merges.total_time_in_millis\n| eval search_qps=primaries.search.query_total / nullif(uptime_sec,0)\n| where merge_ms > 600000 OR primaries.refresh.total_time_in_millis > 300000\n| table index, merge_ms, primaries.refresh.total_time_in_millis, store.size_in_bytes",
-  "description": "Slow merges, refresh intervals, and segment counts drive query latency and heap use; tracking per-index stats keeps search SLAs achievable.",
-  "value": "Slow merges, refresh intervals, and segment counts drive query latency and heap use; tracking per-index stats keeps search SLAs achievable.",
+  "description": "Monitors 'OpenSearch Index Performance' (UC-7.5.3) using `index=database` sourcetype `opensearch:index_stats` by aggregating `count` grouped by `entity` over `the scheduled window` and alerting when `merge_ms` > 600000, or `total_time_in_millis` > 300000. Keywords: OpenSearch, Index, Performance. Focuses on Index Performance behaviour so operations teams can triage UC-7.5.3 without ad-hoc log review.",
+  "value": "UC-7.5.3 accelerates insight into Index Performance ('OpenSearch Index Performance') by tracking `activity` on `opensearch:index_stats` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Poll `GET /<index>/_stats` or per-index `_stats` every 15 minutes. Extract merges, refresh, indexing, and store size. Compare against baselines; alert when merge or refresh time spikes without matching traffic increase. Review ILM/ISM policies for hot indices.",
   "visualization": "Line chart (merge and refresh time by index), Table (top indices by merge cost), Bar chart (segment count if extracted).",
   "cimModels": [
@@ -21,16 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned full or differential backups, log backup bursts, and restore drills can spike I/O and job duration; suppress or threshold against the known backup window.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.5.3)** — Planned work for 'OpenSearch Index Performance' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `opensearch:index_stats`** — Scheduled automation elevates `merge_ms` without crossing `merge_ms` > 600000 for UC-7.5.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `opensearch:index_stats`** — First 48h baseline for UC-7.5.3 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "elasticsearch"
   ],
   "equipmentModels": [
     "elasticsearch_opensearch"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we confirm in OpenSearch Dashboards and `_cat` / `_stats` APIs so index size and merge pressure match what Splunk shows.\n• Install and configure the required add-on or app: Custom scripted input (OpenSearch `_stats`, `_cat/indices`).\n• Ensure the following data sources are available: `sourcetype=opensearch:index_stats`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll `GET /<index>/_stats` or per-index `_stats` every 15 minutes. Extract merges, refresh, indexing, and store size. Compare against baselines; alert when merge or refresh time spikes without matching traffic increase. Review ILM/ISM policies for hot indices.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"opensearch:index_stats\"\n| eval merge_ms=primaries.merges.total_time_in_millis\n| eval search_qps=primaries.search.query_total / nullif(uptime_sec,0)\n| where merge_ms > 600000 OR primaries.refresh.total_time_in_millis > 300000\n| table index, merge_ms, primaries.refresh.total_time_in_millis, store.size_in_bytes\n```\n\nUnderstanding this SPL\n\n**OpenSearch Index Performance** — Slow merges, refresh intervals, and segment counts drive query latency and heap use; tracking per-index stats keeps search SLAs achievable.\n\nDocumented **Data sources**: `sourcetype=opensearch:index_stats`. **App/TA** (typical add-on context): Custom scripted input (OpenSearch `_stats`, `_cat/indices`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: opensearch:index_stats. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"opensearch:index_stats\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **merge_ms** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **search_qps** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where merge_ms > 600000 OR primaries.refresh.total_time_in_millis > 300000` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **OpenSearch Index Performance**): table index, merge_ms, primaries.refresh.total_time_in_millis, store.size_in_bytes\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (merge and refresh time by index), Table (top indices by merge cost), Bar chart (segment count if extracted).",
-  "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise."
+  "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

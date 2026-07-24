@@ -8,24 +8,42 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Any Splunk index containing IPv6 addresses — `index=network`, `index=netflow`, `index=firewall`, `index=dns`, etc. This UC analyses the textual representation of IPv6 addresses across all data sources. No new input required. Key concern: different devices and applications format the same IPv6 address differently — `2001:0db8:0000:0000:0000:0000:0000:0001` vs `2001:db8::1` vs `2001:DB8::1`. RFC 5952 defines a single canonical form. Non-canonical addresses break correlation, deduplication, and lookup joins.",
-  "app": "No specific app required. This UC uses SPL regex to detect non-canonical IPv6 address representations. If you use a log normalisation layer (Splunk Edge Processor, Cribl), address canonicalisation can be applied at ingest time for better performance.",
+  "exclusions": "Covers the detection logic documented for 'IPv6 Address Canonical Format Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_address_canonical_format_compliance` (UC-5.20.5), SOC dashboard panel \"Operations — IPv6 Address Canonical Format Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.5 positive (IPv6, Address, Canonical, Format, Compliance): ingest synthetic events into `index=network` sourcetype='target_sourcetype' where `non_canonical_count` grouped by `sourcetype` satisfies -24h for 'IPv6 Address Canonical Format Compliance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.5 negative (Format Compliance): ingest benign `network` / `target_sourcetype` events where `sourcetype` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'IPv6 Address Canonical Format Compliance'."
+  },
+  "dataSources": "Any Splunk index containing IPv6 addresses — `index=network`, `index=netflow`, `index=firewall`, `index=dns`, etc. This UC analyses the textual representation of IPv6 addresses across all data sources. No new input required. Key concern: different devices and applications format the same IPv6 address differently — `2001:0db8:0000:0000:0000:0000:0000:0001` vs `2001:db8::1` vs `2001:DB8::1`. RFC 5952 defines a single canonical form. Non-canonical addresses break correlation, deduplication, and lookup joins. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "No specific app required. This UC uses SPL regex to detect non-canonical IPv6 address representations. If you use a log normalisation layer (Splunk Edge Processor, Cribl), address canonicalisation can be applied at ingest time for better performance. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network OR index=netflow OR index=firewall earliest=-24h\n| rex field=_raw \"(?<raw_ipv6>[0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){2,7})\"\n| where isnotnull(raw_ipv6)\n| eval has_leading_zeros=if(match(raw_ipv6, \":0[0-9a-fA-F]\"), 1, 0)\n| eval has_uppercase=if(match(raw_ipv6, \"[A-F]\"), 1, 0)\n| eval is_fully_expanded=if(len(raw_ipv6) > 25, 1, 0)\n| eval non_canonical=if(has_leading_zeros=1 OR has_uppercase=1 OR is_fully_expanded=1, 1, 0)\n| stats count as total_addresses sum(non_canonical) as non_canonical_count by sourcetype\n| eval compliance_pct=round((1 - non_canonical_count/total_addresses) * 100, 1)\n| sort compliance_pct",
-  "description": "Audits IPv6 addresses across all log sources for compliance with RFC 5952, which defines the canonical text representation of IPv6 addresses: lowercase hexadecimal, leading zeros suppressed, longest run of all-zero groups compressed to '::', and no unnecessary '::' expansion. Non-canonical representations are a silent operational hazard — the same device appears as different addresses in different logs, breaking SIEM correlation, lookup table joins, threat intelligence matching, and incident investigation. RFC 9099 §2.6.1.1 explicitly warns that non-canonical IPv6 addresses are a significant operational security problem.",
-  "value": "If your firewall logs `2001:0DB8::1`, your DHCP server logs `2001:db8:0:0:0:0:0:1`, and your RADIUS server logs `2001:DB8::1`, a search for any one form will miss the other two — and the attacker's address will only appear in one log. This is not a theoretical problem: RFC 9099 documents it as a known operational failure mode. This UC quantifies the problem per sourcetype, identifying which data sources need normalisation, and tracks compliance improvement over time. For organisations with IPv6 threat intelligence feeds, non-canonical addresses also cause feed lookups to miss matches.",
+  "description": "Monitors UC-5.20.5 — IPv6, Address, Canonical, Format, Compliance — using `index=network` sourcetype `configured sourcetype`, grouped by `sourcetype`. Outputs `non_canonical_count` each `the scheduled window`; alert when -24h. Primary focus: Format Compliance. Purpose-built for 'IPv6 Address Canonical Format Compliance' in Operations workflows.",
+  "value": "For 'IPv6 Address Canonical Format Compliance', UC-5.20.5 converts `non_canonical_count` on UC-5.20.5 search results into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Run the search across all indexes containing IPv6 data. The search extracts raw IPv6 addresses from event text, then checks for three common non-canonical patterns: leading zeros in groups (e.g., `0db8` instead of `db8`), uppercase hex digits (e.g., `DB8` instead of `db8`), and full expansion without '::' compression. The compliance percentage per sourcetype tells you which data sources need attention. Fix at the source (device configuration) or at ingest (Splunk Edge Processor or props.conf SEDCMD).",
   "visualization": "(1) Table: sourcetype, total addresses, non-canonical count, compliance percentage — sorted worst-first. (2) Single-value tile: overall canonical compliance percentage across all sources. (3) Bar chart: compliance percentage by sourcetype for quick identification of the worst offenders. (4) Examples panel: sample non-canonical addresses with suggested canonical form for remediation.",
   "references": [
     {
       "title": "RFC 5952 — A Recommendation for IPv6 Address Text Representation",
-      "url": "https://www.rfc-editor.org/rfc/rfc5952"
+      "url": "https://www.rfc-editor.org/rfc/rfc5952",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.6.1.1 — Logging format)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Intentionally expanded addresses in configuration contexts.** Some device configurations (ACLs, static routes) use fully-expanded IPv6 addresses for clarity or template consistency. These appear in syslog when configurations are logged, but represent intentional formatting, not a correlation problem — the log event itself is a config snippet, not a traffic record.\n\n**Hex values in non-IPv6 contexts.** The regex may match hex strings that look like IPv6 address fragments but are actually MAC addresses, certificate hashes, or session IDs. The filter `(:[0-9a-fA-F]{1,4}){2,7}` requires at least 3 colon-separated groups, which reduces false matches, but some non-IPv6 strings may still match. Validate by spot-checking flagged entries.\n\n**Mixed-notation IPv4-mapped addresses.** Addresses like `::ffff:192.0.2.1` use mixed IPv4/IPv6 notation, which RFC 5952 permits. These may appear non-canonical by the uppercase/expansion checks but are correctly formatted.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.5)** — Planned work for 'IPv6 Address Canonical Format Compliance' shifts `non_canonical_count` over `span=1h` while `sourcetype` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `has_leading_zeros` without crossing configured threshold for UC-5.20.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sourcetype`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.20.5 on `sourcetype` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sourcetype`, `exception_reason`, `valid_until`.",
   "equipment": [
     "arista",
     "cisco",

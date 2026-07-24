@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=\"citrix:vda:events\"` (`WinEventLog:Application` or CtxPrint / spooler events on VDA/UPS), `sourcetype=\"WinEventLog:Application\"` for Citrix Print Manager Service, `sourcetype=\"WinEventLog:System\"` for spooler service stops; `index=windows` for Universal Print forwarders if used",
-  "app": "Splunk Add-on for Microsoft Windows, Template for Citrix XenDesktop 7 (TA-XD7-Broker), Citrix Universal Print Server documentation-based field extractions",
+  "exclusions": "Covers the detection logic documented for 'Universal Print Server Health and Printing Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_universal_print_server_health_and_printing_failu` (UC-2.6.38), SOC dashboard panel \"Linux — Universal Print Server Health and Printing Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.38 positive (Universal, Print, Server, Health, and): ingest synthetic events into `index=windows` sourcetype='WinEventLog:Application' EventCode=808 where `values` grouped by `role`, `user`, `client_name`, `printer_name` satisfies detection threshold for 'Universal Print Server Health and Printing Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.38 negative (Printing Failures): ingest benign `windows` / `WinEventLog:Application` events where `role`, `user`, `client_name`, `printer_name` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 14 confirms zero alert rows for 'Universal Print Server Health and Printing Failures'."
+  },
+  "dataSources": "`sourcetype=\"citrix:vda:events\"` (`WinEventLog:Application` or CtxPrint / spooler events on VDA/UPS), `sourcetype=\"WinEventLog:Application\"` for Citrix Print Manager Service, `sourcetype=\"WinEventLog:System\"` for spooler service stops; `index=windows` for Universal Print forwarders if used Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Microsoft Windows, Template for Citrix XenDesktop 7 (TA-XD7-Broker), Citrix Universal Print Server documentation-based field extractions — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=windows OR index=xd (sourcetype=\"WinEventLog:Application\" OR sourcetype=\"citrix:vda:events\") (match(_raw, \"(?i)Citrix.*Print|Universal Print|spooler|CtxPrint|render|driver|UPS\") OR match(_raw, \"(?i)printer.*(map|fail|error|offline)\")) OR EventCode=808\n| eval fail=if(match(_raw, \"(?i)fail|error|not found|denied|offline|stuck|abort\") OR match(Message, \"(?i)fail|error\"), 1, 0)\n| eval role=if(match(_raw, \"(?i)Universal Print Server|Citrix.*Print\"),\"UPS_VDA\", \"print_stack\")\n| where fail=1\n| stats count, values(Message) as sample_msg, values(host) as hosts, earliest(_time) as first_seen, latest(_time) as last_seen by role, user, client_name, printer_name, EventCode",
-  "description": "Citrix Universal Print Server offloads and compresses print traffic, but spooler instability, bad drivers, and printer auto-creation or mapping errors still break end-user print jobs. Monitoring Application and VDA event streams for spooler failures, print manager errors, and user-visible mapping failures differentiates a single bad queue from a site-wide print outage.",
-  "value": "Citrix Universal Print Server offloads and compresses print traffic, but spooler instability, bad drivers, and printer auto-creation or mapping errors still break end-user print jobs. Monitoring Application and VDA event streams for spooler failures, print manager errors, and user-visible mapping failures differentiates a single bad queue from a site-wide print outage.",
+  "description": "Surfaces UC-2.6.38 — Universal, Print, Server, Health, and — using `index=windows` sourcetype `WinEventLog:Application`, grouped by `role`, `user`, `client_name`, `printer_name`. Outputs `values` each `the scheduled window`; alert when configured threshold. Primary focus: Printing Failures. Purpose-built for 'Universal Print Server Health and Printing Failures' in Linux workflows.",
+  "value": "Alerting on Universal, Print, Server, Health, and through UC-2.6.38 reduces capacity incidents, patch regressions, and service outages by surfacing `activity` early.",
   "implementation": "Ingest VDA/UPS and brokering hosts into indexes with CIM-agnostic `props.conf` for long Message fields. Add printer allow/deny list lookups. Correlate with NetScaler/ADC only if you split print by site. Throttle on EventCode+printer driver hash to find systemic driver regressions. Alert when distinct hosts with fail=1 in 15m exceeds 3.",
   "visualization": "Table (failures with sample message), Pie chart (fail by driver or queue), Bar chart (failures per site).",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "Universal Print Server - Citrix",
-      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/"
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 742",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `windows`** — Package managers spike `role` metrics for 'Universal Print Server Health and Printing Failures'. Correlate with apt/yum logs in the same `WinEventLog:Application` window.\n\n2. **Nightly backup I/O on `role`** — Predictable `values` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Application`** — Nagios/Zabbix polls `role` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `role` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `role`, `valid_until`.",
   "equipment": [
     "citrix"
   ],
@@ -33,6 +55,12 @@
     "citrix_netscaler"
   ],
   "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows, Template for Citrix XenDesktop 7 (TA-XD7-Broker).\n• Ensure the following data sources are available: `sourcetype=\"WinEventLog:Application\"` and `sourcetype=\"citrix:vda:events\"` from VDAs/UPS, optional `sourcetype=\"WinEventLog:System\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable required Windows event channels. Confirm Citrix print components log to Application. If EventCode=808 (example) is noisy, list suppressions in a macro. Tag `printer_name` and `user` with vendor extractions or `fieldalias` from XML.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust EventCode list to match your print-related Windows events):\n\n```spl\nindex=windows OR index=xd (sourcetype=\"WinEventLog:Application\" OR sourcetype=\"citrix:vda:events\") (match(_raw, \"(?i)Citrix.*Print|Universal Print|spooler|CtxPrint|render|driver|UPS\") OR match(_raw, \"(?i)printer.*(map|fail|error|offline)\")) OR EventCode=808\n| eval fail=if(match(_raw, \"(?i)fail|error|not found|denied|offline|stuck|abort\") OR match(Message, \"(?i)fail|error\"), 1, 0)\n| eval role=if(match(_raw, \"(?i)Universal Print Server|Citrix.*Print\"),\"UPS_VDA\", \"print_stack\")\n| where fail=1\n| stats count, values(Message) as sample_msg, values(host) as hosts, earliest(_time) as first_seen, latest(_time) as last_seen by role, user, client_name, printer_name, EventCode\n```\n\nStep 3 — Validate\nReproduce a failed print in test and check events land in the search. Tighten regex to cut benign warnings.\n\nStep 4 — Operationalize\nRoute to the print services team with driver and queue metadata. Add monthly dashboard for most failing drivers to drive packaging updates.",
-  "grandmaExplanation": "We read the on-screen printer errors and system messages from your virtual session hosts — so you catch broken printers and stuck jobs before they hurt real work."
+  "grandmaExplanation": "We read the on-screen printer errors and system messages from your virtual session hosts — so you catch broken printers and stuck jobs before they hurt real work.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

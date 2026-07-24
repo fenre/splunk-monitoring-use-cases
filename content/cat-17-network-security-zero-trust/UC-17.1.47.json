@@ -9,6 +9,8 @@
     "Operations"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'Cisco ISE Backup Job Success and Operational-Data Backup Validation' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_cisco_ise_backup_job_success_and_operational_dat` (UC-17.1.47), SOC dashboard panel \"Network — Cisco ISE Backup Job Success and Operational-Data Backup Validation\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -97,14 +99,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Misconfigure backup repository credentials. Run a manual backup. ISE emits 51032 (failed). UC-17.1.47 fires showing the (backup_type, repository) with failures > 0.",
-    "negativeScenario": "Fix credentials. Successful backup emits 51031. Alert clears on next 4h schedule."
+    "positiveScenario": "UC-17.1.47 positive (Cisco, ISE, Backup, Job, Success): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `count` grouped by `backup_type`, `backup_repository` satisfies `failures` > 0, or `days_since_success` > 2 for 'Cisco ISE Backup Job Success and Operational-Data Backup Validation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.47 negative (Backup Validation): ingest benign `nac` / `cisco:ise:syslog` events where `backup_type`, `backup_repository` stays below `failures` > 0, or `days_since_success` > 2, or exclude the test entity via `network_exception_register.csv`. Variant 6 confirms zero alert rows for 'Cisco ISE Backup Job Success and Operational-Data Backup Validation'."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Administrative and Operational Audit* category — backup codes `51030` (backup operation started), `51031` (backup completed successfully), `51032` (backup failed), `51033` (backup partial — some data could not be backed up), `51034` (backup repository validation failed), `51035` (operational-data backup completed). Fields: `backup_type` (config|operational|standalone), `backup_repository`, `backup_size_mb`, `triggered_by` (admin|scheduled). ISE OpenAPI `/api/v1/backup/status` polled every 1h, written to `index=nac sourcetype=cisco:ise:backup_status`.",
   "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
   "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (51030, 51031, 51032, 51033, 51034, 51035))\n  OR (index=nac sourcetype=\"cisco:ise:backup_status\")\n| eval status = case(MessageCode==\"51031\" OR MessageCode==\"51035\", \"success\", MessageCode IN (\"51032\",\"51033\",\"51034\"), \"failure\", MessageCode==\"51030\", \"started\", true(), \"snapshot\")\n| stats count latest(_time) as last_run, count(eval(status==\"success\")) as successes count(eval(status==\"failure\")) as failures latest(backup_size_mb) as size_mb by backup_type, backup_repository\n| eval days_since_success = round((now() - last_run) / 86400, 1)\n| where failures > 0 OR (status==\"snapshot\" AND days_since_success > 2) OR successes==0",
-  "description": "Detects ISE backup-job failures, missed scheduled backups (>48h without a successful backup), and degraded backups (partial / repository validation failures). Covers config backup AND operational-data backup as separate streams.",
-  "value": "ISE recovery requires a recent backup. Without a recent valid backup, restoration after PAN failure rebuilds the deployment from the last available, possibly weeks-old, backup — losing all policy work since. Auditing backup health is the primary control for ISE disaster-recovery readiness. Operational-data backup is required for forensic continuity of MnT events; missing this backup means audit data is gone if the MnT node fails.",
+  "description": "Alerts on Backup Validation anomalies for UC-17.1.47 with window `the scheduled window` on `index=nac` sourcetype `cisco:ise:syslog`. Combines `count` by `backup_type`, `backup_repository` and compares against `failures` > 0, or `days_since_success` > 2. Mapped to keywords Cisco, ISE, Backup, Job, Success for dashboard routing.",
+  "value": "Alerting on Cisco, ISE, Backup, Job, Success through UC-17.1.47 reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing `activity` early.",
   "implementation": "Confirm *Administrative and Operational Audit* category at INFO. Deploy OpenAPI poller every 1h. Schedule the search every 4h, search window `-12h@h to @h`, trigger on count > 0, throttle suppression on `backup_type` for 12h.",
   "visualization": "(1) Single value: days since last successful backup per type. (2) Calendar view: 90-day backup success/failure grid. (3) Top-N: most-failed repositories.",
   "cimModels": [
@@ -114,10 +116,36 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 Admin Guide — Backup and Restore",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "PCI DSS Document Library",
+      "url": "https://www.pcisecuritystandards.org/document_library/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1915",
+      "url": "https://splunkbase.splunk.com/app/1915",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Security (Splunkbase 1352)",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **First-backup-after-deployment** — Initial backup may take significantly longer than steady-state; suppress for 24h after first scheduled run. (b) **Repository network outage** — A NAS/SFTP outage causes 51034 (repository validation failed); cross-reference network maintenance. (c) **Partial backup during low-disk** — When MnT disk fills, operational-data backup falls back to partial. Cross-ref UC-17.1.29.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'Cisco ISE Backup Job Success and Operational-Data Backup Validation'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (platform lifecycle — ISE backup status monitoring, no adversary technique)"
   ],
@@ -135,7 +163,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Backup repository configured (Administration > Maintenance > Repository).\n• Scheduled backup configured (Administration > Maintenance > Backup & Restore > Schedule Backup).\n• `backup_repos.csv` lookup with `repository`, `criticality`.\n\nStep 1 — Configure data collection\nEnable *Administrative and Operational Audit* category at INFO.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 4h.\n\nStep 3 — Validate\nProvoke as above. Confirm fire.\n\nStep 4 — Operationalize\nDashboard \"ISE — Backup Health\":\n• Days-since-success per backup_type tile.\n• 90-day calendar view.\n• Repository top-N failures.\n\nMonthly attestation: ISE platform team signs off on backup success report.\n\nStep 5 — Troubleshooting\n• **Repository auth failure** — Re-store credential.\n• **Backup partial — operational data missing** — MnT disk full, cross-ref UC-17.1.29.\n• **Schedule never fires** — Schedule disabled in UI.",
+  "detailedImplementation": "Prerequisites\n• Backup repository configured (Administration > Maintenance > Repository).\n• Scheduled backup configured (Administration > Maintenance > Backup & Restore > Schedule Backup).\n• `backup_repos.csv` lookup with `repository`, `criticality`.\n\nStep 1 — Configure data collection\nEnable *Administrative and Operational Audit* category at INFO.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 4h.\n\nStep 3 — Validate\nProvoke as above. Confirm fire.\n\nStep 4 — Operationalize\nDashboard \"ISE — Backup Health\":\n• Days-since-success per backup_type tile.\n• 90-day calendar view.\n• Repository top-N failures.\n\nMonthly attestation: ISE platform team signs off on backup success report.\n\nStep 5 — Troubleshooting\n• **Repository auth failure** — Re-store credential.\n• **Backup partial — operational data missing** — MnT disk full, cross-ref UC-17.1.29.\n• **Schedule never fires** — Schedule disabled in UI.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog, cisco:ise:backup_status into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`backup_repository, backup_type, days_since_success, failures`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We make sure ISE's safety copy (the backup) actually completes every day. If the backup fails or skips a day, we ring the bell — without a recent backup, we couldn't restore ISE if something went wrong.",
+  "prerequisiteUseCases": [],
   "wave": "crawl"
 }

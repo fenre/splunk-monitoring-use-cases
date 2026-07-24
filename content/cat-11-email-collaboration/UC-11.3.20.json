@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Webex Licenses API (assigned/consumed counts), People API (user status), Meeting Summary Reports (active users)",
-  "app": "`ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Licenses API via HEC or custom modular input",
+  "exclusions": "Covers the detection logic documented for 'Webex License Utilization and Adoption Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_webex_license_utilization_and_adoption_tracking` (UC-11.3.20), SOC dashboard panel \"Operations — Webex License Utilization and Adoption Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.3.20 positive (Webex, License, Utilization, and, Adoption): ingest synthetic events into `index=webex` sourcetype='webex:licenses' where `count` grouped by `licenseName` satisfies detection threshold for 'Webex License Utilization and Adoption Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.3.20 negative (Adoption Tracking): ingest benign `webex` / `webex:licenses` events where `licenseName` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Webex License Utilization and Adoption Tracking'."
+  },
+  "dataSources": "Webex Licenses API (assigned/consumed counts), People API (user status), Meeting Summary Reports (active users) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Licenses API via HEC or custom modular input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=webex sourcetype=\"webex:licenses\"\n| stats latest(totalUnits) as total, latest(consumedUnits) as consumed by licenseName\n| eval available=total-consumed\n| eval utilization_pct=round(consumed/total*100, 1)\n| sort -utilization_pct\n| table licenseName, total, consumed, available, utilization_pct",
-  "description": "Compares assigned Webex licenses against actual usage to identify wasted spend. Organizations often over-provision Meetings, Calling, and Messaging licenses. Tracking adoption rates by department and user helps right-size license allocations, reclaim unused seats, and justify renewals. Combines license inventory data with meeting/calling activity to calculate true utilization rates.",
-  "value": "Compares assigned Webex licenses against actual usage to identify wasted spend. Organizations often over-provision Meetings, Calling, and Messaging licenses. Tracking adoption rates by department and user helps right-size license allocations, reclaim unused seats, and justify renewals. Combines license inventory data with meeting/calling activity to calculate true utilization rates.",
+  "description": "Monitors UC-11.3.20 for Webex, License, Utilization, and, Adoption over `index=webex` sourcetype `webex:licenses` with thresholds configured threshold. Groups `count` by `licenseName` each `the scheduled window`. Centered on Adoption Tracking indicators. Supports repeatable operations triage for 'Webex License Utilization and Adoption Tracking'.",
+  "value": "For 'Webex License Utilization and Adoption Tracking', UC-11.3.20 converts `activity` on `webex:licenses` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Poll the Webex Licenses API daily to track assigned vs. consumed license counts. Cross-reference with meeting and calling activity data to identify users who have licenses but haven't used them in 30/60/90 days. Create a lookup mapping users to departments for group-level reporting. Flag users inactive for >60 days as reclamation candidates. Report license utilization weekly to finance and IT leadership.",
   "visualization": "Bar chart (license utilization by type), Table (inactive users with assigned licenses), Timechart (license consumption trend), Single value panels (total cost, waste estimate).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "True-up, trial SKUs, and site consolidations; adoption swings after mergers.",
+  "knownFalsePositives": "1. **Maintenance window on `webex` (UC-11.3.20)** — Planned work for 'Webex License Utilization and Adoption Tracking' shifts `count` over `span=1h` while `licenseName` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `webex:licenses`** — Scheduled automation elevates `available` without crossing configured threshold for UC-11.3.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `licenseName`** — Health checks in `webex` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `webex:licenses`** — First 48h baseline for UC-11.3.20 on `licenseName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `licenseName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "github"
@@ -33,7 +55,13 @@
   "equipmentModels": [
     "cisco_webex"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Licenses API via HEC or custom modular input.\n• Ensure the following data sources are available: Webex Licenses API (assigned/consumed counts), People API (user status), Meeting Summary Reports (active users).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll the Webex Licenses API daily to track assigned vs. consumed license counts. Cross-reference with meeting and calling activity data to identify users who have licenses but haven't used them in 30/60/90 days. Create a lookup mapping users to departments for group-level reporting. Flag users inactive for >60 days as reclamation candidates. Report license utilization weekly to finance and IT leadership.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=webex sourcetype=\"webex:licenses\"\n| stats latest(totalUnits) as total, latest(consumedUnits) as consumed by licenseName\n| eval available=total-consumed\n| eval utilization_pct=round(consumed/total*100, 1)\n| sort -utilization_pct\n| table licenseName, total, consumed, available, utilization_pct\n```\n\nUnderstanding this SPL\n\n**Webex License Utilization and Adoption Tracking** — Compares assigned Webex licenses against actual usage to identify wasted spend. Organizations often over-provision Meetings, Calling, and Messaging licenses. Tracking adoption rates by department and user helps right-size license allocations, reclaim unused seats, and justify renewals. Combines license inventory data with meeting/calling activity to calculate true utilization rates.\n\nDocumented **Data sources**: Webex Licenses API (assigned/consumed counts), People API (user status), Meeting Summary Reports (active users). **App/TA** (typical add-on context): `ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Licenses API via HEC or custom modular input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: webex; **sourcetype**: webex:licenses. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=webex, sourcetype=\"webex:licenses\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by licenseName** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **available** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **utilization_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Webex License Utilization and Adoption Tracking**): table licenseName, total, consumed, available, utilization_pct\n\n\nStep 3 — Validate\nCompare with Cisco Webex Control Hub analytics, audit, and service status for the same time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (license utilization by type), Table (inactive users with assigned licenses), Timechart (license consumption trend), Single value panels (total cost, waste estimate).",
   "grandmaExplanation": "We track collaboration license use, so we buy only what we need and still have seats when everyone jumps on a call.",
-  "hardware": "Cisco Webex Meetings, Webex Calling, Webex Messaging"
+  "hardware": "Cisco Webex Meetings, Webex Calling, Webex Messaging",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

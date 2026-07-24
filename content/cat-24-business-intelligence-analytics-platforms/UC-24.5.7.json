@@ -8,33 +8,55 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Superset logs (`superset:app`), Metabase logs (`metabase:app`), Redash logs (`redash:app`), and embed client events (`bi:embed:client`).",
-  "app": "Superset/Metabase/Redash application and Celery worker logs via Universal Forwarder; application REST APIs and embed-SDK client telemetry via HEC.",
+  "exclusions": "Covers the detection logic documented for 'Superset Alert and Report Delivery Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_superset_alert_and_report_delivery_failures` (UC-24.5.7), SOC dashboard panel \"Operations — Superset Alert and Report Delivery Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.5.7 positive (Superset, Alert, and, Report, Delivery): ingest synthetic events into `index=bi` sourcetype='superset:app' where `count` grouped by `schedule` satisfies `failures` > 0 for 'Superset Alert and Report Delivery Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.5.7 negative (Delivery Failures): ingest benign `bi` / `superset:app` events where `schedule` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Superset Alert and Report Delivery Failures'."
+  },
+  "dataSources": "Superset logs (`superset:app`), Metabase logs (`metabase:app`), Redash logs (`redash:app`), and embed client events (`bi:embed:client`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Superset/Metabase/Redash application and Celery worker logs via Universal Forwarder; application REST APIs and embed-SDK client telemetry via HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=superset:app logger=\"superset.tasks.scheduler\" (\"alert\" OR \"report\") (\"error\" OR \"failed\")\n| rex \"(alert|report) '(?<schedule>[^']+)'\"\n| stats count as failures by schedule\n| where failures>0\n| sort - failures",
-  "description": "Detects Apache Superset scheduled alert and report delivery failures raised by the Celery beat scheduler, which otherwise fail without notifying recipients.",
-  "value": "Superset alerts and reports are the platform's proactive layer; catching delivery failures keeps automated notifications reliable.",
+  "description": "Alerts on Delivery Failures activity in UC-24.5.7 ('Superset Alert and Report Delivery Failures') from `index=bi` sourcetype `superset:app`. Rolls up `count` by `schedule` across `the scheduled window` and pages when `failures` > 0. Covers Superset, Alert, and, Report, Delivery. Operations operators treat UC-24.5.7 as the canonical signal.",
+  "value": "Operators running UC-24.5.7 on `superset:app` feeds shorten triage for Delivery Failures tied to 'Superset Alert and Report Delivery Failures', lowering operational risk and delayed incident response.",
   "implementation": "Ingest Superset scheduler logs; schedule hourly and alert on repeated failures per schedule. Verify the Celery worker and SMTP config on spikes.",
   "visualization": "Table of schedule by failures, timechart.",
   "cimModels": [],
   "references": [
     {
       "title": "Apache Superset — Configuring / logging",
-      "url": "https://superset.apache.org/docs/configuration/configuring-superset/"
+      "url": "https://superset.apache.org/docs/configuration/configuring-superset/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Metabase — Observability & logs",
-      "url": "https://www.metabase.com/docs/latest/installation-and-operation/observability"
+      "url": "https://www.metabase.com/docs/latest/installation-and-operation/observability",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.5.7)** — Planned work for 'Superset Alert and Report Delivery Failures' shifts `count` over `span=1h` while `schedule` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `superset:app`** — Scheduled automation elevates `src` without crossing `failures` > 0 for UC-24.5.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `schedule`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `superset:app`** — First 48h baseline for UC-24.5.7 on `schedule` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `schedule`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache"
   ],
   "equipmentModels": [
     "apache_httpd"
   ],
-  "grandmaExplanation": "We check that Superset's scheduled emails and alerts go out so people are not left without the update they expected."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Superset/Metabase/Redash application and Celery worker logs via Universal Forwarder; application REST APIs and embed-SDK client telemetry via HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=superset:app into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`failures, schedule`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We check that Superset's scheduled emails and alerts go out so people are not left without the update they expected.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

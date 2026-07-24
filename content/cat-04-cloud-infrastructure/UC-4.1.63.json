@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=aws:cloudwatch` (AWS/ECS — CPUUtilization, MemoryUtilization), `sourcetype=aws:cloudwatch:events` (service events)",
-  "app": "`Splunk_TA_aws`",
+  "exclusions": "Covers the detection logic documented for 'ECS Service Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ecs_service_health` (UC-4.1.63), SOC dashboard panel \"Operations — ECS Service Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-4.1.63 positive (ECS, Service, Health): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `count` grouped by `ClusterName`, `ServiceName`, `metric_name` satisfies `util` > 85 for 'ECS Service Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.63 negative (Service Health): ingest benign `aws` / `aws:cloudwatch` events where `ClusterName`, `ServiceName`, `metric_name` stays below `util` > 85, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'ECS Service Health'."
+  },
+  "dataSources": "`sourcetype=aws:cloudwatch` (AWS/ECS — CPUUtilization, MemoryUtilization), `sourcetype=aws:cloudwatch:events` (service events) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/ECS\" (metric_name=\"CPUUtilization\" OR metric_name=\"MemoryUtilization\")\n| stats latest(Average) as util by ClusterName, ServiceName, metric_name\n| where util > 85",
-  "description": "Service-level running count versus desired indicates deployment failures, capacity shortfall, or health check flapping.",
-  "value": "Service-level running count versus desired indicates deployment failures, capacity shortfall, or health check flapping.",
+  "description": "Monitors when Service Health criteria fire for 'ECS Service Health' (UC-4.1.63) in `index=aws` sourcetype `aws:cloudwatch`. Pipeline aggregates `count` by `ClusterName`, `ServiceName`, `metric_name` over `the scheduled window`. Alert logic enforces `util` > 85. Title terms: ECS, Service, Health. Eliminates manual hunting for UC-4.1.63 conditions.",
+  "value": "UC-4.1.63 helps teams contain ECS, Service, Health scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ingest ECS service events from EventBridge for steady-state issues. Dashboard desired vs running from `DescribeServices` snapshots if scripted. Alert on failed deployments or service unable to reach steady state.",
   "visualization": "Status grid (service health), Line chart (CPU/memory by service), Table (cluster, service, failures).",
   "cimModels": [
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "Splunk_TA_aws",
-      "url": "https://splunkbase.splunk.com/app/1876"
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned deploys, game-day tests, and vendor maintenance that you expect to move CPU, error, or lag metrics; compare with the change window.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.63)** — Planned work for 'ECS Service Health' shifts `count` over `span=1h` while `ClusterName`, `ServiceName`, `metric_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch`** — Scheduled automation elevates `ServiceName` without crossing `util` > 85 for UC-4.1.63. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ClusterName`, `ServiceName`, `metric_name`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-4.1.63 on `ClusterName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ClusterName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],
+  "equipmentModels": [
+    "aws_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudwatch` (AWS/ECS — CPUUtilization, MemoryUtilization), `sourcetype=aws:cloudwatch:events` (service events).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest ECS service events from EventBridge for steady-state issues. Dashboard desired vs running from `DescribeServices` snapshots if scripted. Alert on failed deployments or service unable to reach steady state.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/ECS\" (metric_name=\"CPUUtilization\" OR metric_name=\"MemoryUtilization\")\n| stats latest(Average) as util by ClusterName, ServiceName, metric_name\n| where util > 85\n```\n\nUnderstanding this SPL\n\n**ECS Service Health** — Service-level running count versus desired indicates deployment failures, capacity shortfall, or health check flapping.\n\nDocumented **Data sources**: `sourcetype=aws:cloudwatch` (AWS/ECS — CPUUtilization, MemoryUtilization), `sourcetype=aws:cloudwatch:events` (service events). **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by ClusterName, ServiceName, metric_name** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where util > 85` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (service health), Line chart (CPU/memory by service), Table (cluster, service, failures).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We keep an eye on ecs service health. The key performance numbers the cloud already exposes so the team can plan capacity and notice problems before user-visible outages. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first."
+  "grandmaExplanation": "We keep an eye on ecs service health. The key performance numbers the cloud already exposes so the team can plan capacity and notice problems before user-visible outages. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

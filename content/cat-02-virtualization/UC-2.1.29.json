@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=vmware:events`, cluster rule configuration",
-  "app": "`Splunk_TA_vmware`",
+  "exclusions": "Covers the detection logic documented for 'VM Affinity and Anti-Affinity Rule Violations' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_vm_affinity_and_anti_affinity_rule_violations` (UC-2.1.29), SOC dashboard panel \"Linux — VM Affinity and Anti-Affinity Rule Violations\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.1.29 positive (Affinity, and, Anti, Affinity, Rule): ingest synthetic events into `index=vmware` sourcetype='vmware:events' where `count` grouped by `entity` satisfies detection threshold for 'VM Affinity and Anti-Affinity Rule Violations'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.1.29 negative (Rule Violations): ingest benign `vmware` / `vmware:events` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 8 confirms zero alert rows for 'VM Affinity and Anti-Affinity Rule Violations'."
+  },
+  "dataSources": "`sourcetype=vmware:events`, cluster rule configuration Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
   "spl": "index=vmware sourcetype=\"vmware:events\" event_type=\"DrsRuleViolatedEvent\"\n| table _time, cluster, rule_name, vm_name, host, message\n| sort -_time",
-  "description": "Anti-affinity rules ensure redundant VMs (e.g., HA pairs, database replicas) run on different hosts. Rule violations mean a single host failure can take down both instances. Affinity rules keep related VMs together for performance. DRS may violate rules when resources are constrained.",
-  "value": "Anti-affinity rules ensure redundant VMs (e.g., HA pairs, database replicas) run on different hosts. Rule violations mean a single host failure can take down both instances. Affinity rules keep related VMs together for performance. DRS may violate rules when resources are constrained.",
+  "description": "Monitors UC-2.1.29 — Affinity, and, Anti, Affinity, Rule — using `index=vmware` sourcetype `vmware:events`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Rule Violations. Purpose-built for 'VM Affinity and Anti-Affinity Rule Violations' in Linux workflows.",
+  "value": "UC-2.1.29 accelerates insight into Rule Violations ('VM Affinity and Anti-Affinity Rule Violations') by tracking `activity` on `vmware:events` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Collect vCenter events via Splunk_TA_vmware. DRS logs rule violations as events. Also create a scripted input using PowerCLI to enumerate cluster rules and check current VM placement. Alert immediately on anti-affinity violations in production. Review affinity rule compliance weekly.",
   "visualization": "Table (violated rules), Status grid (rule compliance), Alert panel.",
   "cimModels": [
@@ -21,17 +27,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 3684",
+      "url": "https://splunkbase.splunk.com/app/3684",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Rule violations can show during rolling moves, DRS rebalancing, or host evacuations; treat as urgent only if the cluster cannot restore compliance on its own.",
+  "knownFalsePositives": "1. **Patch Tuesday on `vmware`** — Package managers spike `host` metrics for 'VM Affinity and Anti-Affinity Rule Violations'. Correlate with apt/yum logs in the same `vmware:events` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmware:events`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "vmware"
   ],
   "equipmentModels": [
+    "vmware_esxi",
     "vmware_ta_vmware",
     "vmware_vcenter"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`.\n• Ensure the following data sources are available: `sourcetype=vmware:events`, cluster rule configuration.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect vCenter events via Splunk_TA_vmware. DRS logs rule violations as events. Also create a scripted input using PowerCLI to enumerate cluster rules and check current VM placement. Alert immediately on anti-affinity violations in production. Review affinity rule compliance weekly.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:events\" event_type=\"DrsRuleViolatedEvent\"\n| table _time, cluster, rule_name, vm_name, host, message\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**VM Affinity and Anti-Affinity Rule Violations** — Anti-affinity rules ensure redundant VMs (e.g., HA pairs, database replicas) run on different hosts. Rule violations mean a single host failure can take down both instances. Affinity rules keep related VMs together for performance. DRS may violate rules when resources are constrained.\n\nDocumented **Data sources**: `sourcetype=vmware:events`, cluster rule configuration. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:events. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:events\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **VM Affinity and Anti-Affinity Rule Violations**): table _time, cluster, rule_name, vm_name, host, message\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (violated rules), Status grid (rule compliance), Alert panel.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We keep an eye on affinity and Anti-Affinity Rule Violations and raise the alarm before it drags down real work or real outages start."
+  "grandmaExplanation": "We keep an eye on affinity and Anti-Affinity Rule Violations and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

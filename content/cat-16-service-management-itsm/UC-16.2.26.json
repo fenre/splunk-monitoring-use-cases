@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "PagerDuty audit records for maintenance windows",
-  "app": "PagerDuty Audit API (v2) scripted input",
+  "exclusions": "Covers the detection logic documented for 'PagerDuty Maintenance Window Suppression Audit Trail' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_pagerduty_maintenance_window_suppression_audit_t` (UC-16.2.26), SOC dashboard panel \"Operations — PagerDuty Maintenance Window Suppression Audit Trail\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-16.2.26 positive (PagerDuty, Maintenance, Window, Suppression, Audit): ingest synthetic events into `index=alerts` sourcetype='pagerduty:audit' where `values` grouped by `actor_email`, `maintenance_id` satisfies detection threshold for 'PagerDuty Maintenance Window Suppression Audit Trail'. Validate filter `\"maintenance\" AND (\"create\" OR \"delete\" OR \"update\")`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.2.26 negative (Audit Trail): ingest benign `alerts` / `pagerduty:audit` events where `actor_email`, `maintenance_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'PagerDuty Maintenance Window Suppression Audit Trail'."
+  },
+  "dataSources": "PagerDuty audit records for maintenance windows Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "PagerDuty Audit API (v2) scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=alerts sourcetype=\"pagerduty:audit\" OR sourcetype=\"pagerduty:maintenance\"\n| search \"maintenance\" AND (\"create\" OR \"delete\" OR \"update\")\n| stats values(action) as actions, latest(_time) as t by actor_email, maintenance_id\n| sort -t",
-  "description": "Unauthorized maintenance suppressions hide real outages from paging.",
-  "value": "Supports SOC2 change evidence for suppression windows.",
+  "description": "Monitors UC-16.2.26 — PagerDuty, Maintenance, Window, Suppression, Audit — using `index=alerts` sourcetype `pagerduty:audit`, grouped by `actor_email`, `maintenance_id`. Outputs `values` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `\"maintenance\" AND (\"create\" OR \"delete\" OR \"update\")`. Purpose-built for 'PagerDuty Maintenance Window Suppression Audit Trail' in Operations workflows.",
+  "value": "UC-16.2.26 operationalises 'PagerDuty Maintenance Window Suppression Audit Trail' against `pagerduty:audit` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Restrict index permissions; include IP and user agent if available.",
   "visualization": "Table (actor × maintenance_id), Timeline.",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "PagerDuty App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3013"
+      "url": "https://splunkbase.splunk.com/app/3013",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Opsgenie for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3759"
+      "url": "https://splunkbase.splunk.com/app/3759",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Audit differences during long programs, data retention work, or new fields in the integration.",
+  "knownFalsePositives": "1. **Maintenance window on `alerts` (UC-16.2.26)** — Planned work for 'PagerDuty Maintenance Window Suppression Audit Trail' shifts `values` over `span=1h` while `actor_email`, `maintenance_id` remains in-scope. Applies filter `\"maintenance\" AND (\"create\" OR \"delete\" OR \"update\")`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `pagerduty:audit`** — Scheduled automation elevates `maintenance_id` without crossing configured threshold for UC-16.2.26. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `actor_email`, `maintenance_id`** — Health checks in `alerts` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pagerduty:audit`** — First 48h baseline for UC-16.2.26 on `actor_email` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `actor_email`, `exception_reason`, `valid_until`.",
   "equipment": [
     "pagerduty"
+  ],
+  "equipmentModels": [
+    "pagerduty_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,6 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure: PagerDuty Audit API (v2) scripted input.\n• Data: PagerDuty audit records for maintenance windows.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nRestrict index permissions; include IP and user agent if available.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts sourcetype=\"pagerduty:audit\" OR sourcetype=\"pagerduty:maintenance\"\n| search \"maintenance\" AND (\"create\" OR \"delete\" OR \"update\")\n| stats values(action) as actions, latest(_time) as t by actor_email, maintenance_id\n| sort -t\n```\n\nUnderstanding this search\nUnauthorized maintenance suppressions hide real outages from paging.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Table (actor × maintenance_id), Timeline.",
-  "grandmaExplanation": "We keep a clear trail of what we hid during a maintenance window, so we can show auditors and the team that silence was on purpose."
+  "detailedImplementation": "Prerequisites\n• Install and configure: PagerDuty Audit API (v2) scripted input.\n• Data: PagerDuty audit records for maintenance windows.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nRestrict index permissions; include IP and user agent if available.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts sourcetype=\"pagerduty:audit\" OR sourcetype=\"pagerduty:maintenance\"\n| search \"maintenance\" AND (\"create\" OR \"delete\" OR \"update\")\n| stats values(action) as actions, latest(_time) as t by actor_email, maintenance_id\n| sort -t\n```\n\nUnderstanding this search\nUnauthorized maintenance suppressions hide real outages from paging.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Table (actor × maintenance_id), Timeline.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (PagerDuty Audit API (v2) scripted input — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=pagerduty:audit, pagerduty:maintenance into alerts. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`actor_email, maintenance_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep a clear trail of what we hid during a maintenance window, so we can show auditors and the team that silence was on purpose.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

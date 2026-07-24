@@ -8,24 +8,50 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=proxy` `sourcetype=varnish:vsl` backend errors; `varnish:log` for notices",
-  "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes",
+  "exclusions": "Covers the detection logic documented for 'Varnish Backend Health Probe and Fetch Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_varnish_backend_health_probe_and_fetch_failures` (UC-5.14.10), SOC dashboard panel \"Operations — Varnish Backend Health Probe and Fetch Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.14.10 positive (Varnish, Backend, Health, Probe, and): ingest synthetic events into `index=proxy` sourcetype='varnish:vsl' where `count` grouped by `backend` satisfies detection threshold for 'Varnish Backend Health Probe and Fetch Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.14.10 negative (Fetch Failures): ingest benign `proxy` / `varnish:vsl` events where `backend` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Varnish Backend Health Probe and Fetch Failures'."
+  },
+  "dataSources": "`index=proxy` `sourcetype=varnish:vsl` backend errors; `varnish:log` for notices Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"varnish:vsl\"\n| regex _raw=\"(?i)(Backend fetch failed|FetchError|no healthy backend)\"\n| stats count by backend\n| sort - count",
-  "description": "Probe failures starve users even when edge CPUs look idle.",
-  "value": "Operations teams monitor Varnish backend health probe results and fetch failures, detecting sick backends and connection errors before they cause widespread cache misses.",
+  "description": "Monitors UC-5.14.10 — Varnish, Backend, Health, Probe, and — using `index=proxy` sourcetype `varnish:vsl`, grouped by `backend`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Fetch Failures. Purpose-built for 'Varnish Backend Health Probe and Fetch Failures' in Operations workflows.",
+  "value": "UC-5.14.10 accelerates insight into Fetch Failures ('Varnish Backend Health Probe and Fetch Failures') by tracking `activity` on `varnish:vsl` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Enable backend polling; include `Backend` VSL tags in forwarded logs.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
   "cimModels": [],
   "references": [
     {
       "title": "Vendor documentation",
-      "url": "https://varnish-cache.org/docs/trunk/reference/vcl-backend-health.html"
+      "url": "https://varnish-cache.org/docs/trunk/reference/vcl-backend-health.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Edge cases: multi-vendor mixes and ad hoc feeds can include lab traffic and partial visibility that mimics issues until scopes are defined. Tuning tip: match this to «Varnish Backend Health Probe and Fetch Failures» and exclude change windows, scans, and lab VLANs you already expect.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy` (UC-5.14.10)** — Planned work for 'Varnish Backend Health Probe and Fetch Failures' shifts `count` over `span=1h` while `backend` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `varnish:vsl`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.14.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `backend`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `varnish:vsl`** — First 48h baseline for UC-5.14.10 on `backend` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `backend`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog",
     "varnish"
+  ],
+  "equipmentModels": [
+    "syslog_generic",
+    "varnish_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -35,5 +61,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n* Varnish logs including backend probe and fetch events. Key fields: `Backend_health`, `BerespStatus`, `FetchError`, `BackendOpen`, `BackendClose`. Data in `index=proxy` with `sourcetype=varnish:log` or `sourcetype=varnish:access`.\n* Varnish health probes: configured per backend with `.probe { .url = \"/health\"; .interval = 5s; .timeout = 2s; .threshold = 3; .window = 5; }`. When a backend fails `threshold` probes out of `window`, Varnish marks it sick. Fetch failures occur when Varnish tries to connect to a backend and fails (TCP connect, timeout, HTTP error).\n\nStep 1 -- Configure data collection\nBackend health logging:\n```\n# VCL backend definition\nbackend web1 {\n    .host = \"10.0.0.1\";\n    .port = \"80\";\n    .probe = {\n        .url = \"/health\";\n        .interval = 5s;\n        .timeout = 2s;\n        .threshold = 3;\n        .window = 5;\n    }\n}\n```\nVerify:\n```spl\nindex=proxy (sourcetype=\"varnish:log\" OR sourcetype=\"varnish:access\") earliest=-4h\n| where match(_raw, \"(?i)Backend_health|FetchError|backend.*sick|backend.*healthy\")\n| stats count by _raw\n| head 20\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Backend health transitions and fetch failures:**\n```spl\nindex=proxy (sourcetype=\"varnish:log\" OR sourcetype=\"varnish:access\") earliest=-4h\n| where match(_raw, \"(?i)Backend_health|FetchError|backend.*(sick|healthy)|Beresp.*50[0-9]\")\n| eval event_type=case(match(_raw, \"(?i)Backend_health.*Still sick\"), \"STILL_SICK\", match(_raw, \"(?i)Backend_health.*sick\"), \"WENT_SICK\", match(_raw, \"(?i)Backend_health.*healthy\"), \"WENT_HEALTHY\", match(_raw, \"(?i)FetchError\"), \"FETCH_ERROR\", match(_raw, \"(?i)Beresp.*(502|503|504)\"), \"BACKEND_ERROR\", 1==1, \"OTHER\")\n| rex \"Backend_health\\s+-\\s+(?<backend>\\S+)\"\n| rex \"FetchError\\s+(?<fetch_error>.+?)$\"\n| stats count as events latest(_time) as last_seen by backend, event_type, fetch_error\n| eval severity=case(event_type=\"WENT_SICK\", \"CRITICAL -- backend marked sick\", event_type=\"STILL_SICK\", \"CRITICAL -- backend still sick\", event_type=\"FETCH_ERROR\", \"HIGH -- fetch errors\", 1==1, \"INFO\")\n| where severity != \"INFO\"\n| sort severity, -events\n```\n\nStep 3 -- Validate\n(a) `varnishadm backend.list` -- shows backend health status.\n(b) Stop a backend service and verify \"went sick\" appears in Splunk within probe interval.\n(c) `varnishlog -g raw -i Backend_health` -- live stream of probe results.\n\nStep 4 -- Operationalize\nDashboard (\"Varnish -- Backend Health\"):\n* Row 1 -- Single-value: \"Sick backends\", \"Fetch errors (4h)\", \"Backend transitions\".\n* Row 2 -- Backend state transition timeline.\n* Row 3 -- Fetch error breakdown.\n\nAlerting:\n* Critical (backend went sick): capacity reduced, failover in effect.\n* High (fetch error rate > 10/min): backend returning errors but still considered healthy.\n\nStep 5 -- Troubleshooting\n\n* **Backend sick but service is running** -- Probe URL may be wrong or returning non-2xx. Check: `curl -v http://<backend>/health`. Verify the response code matches what Varnish expects (default: 200).\n\n* **FetchError \"no backend connection\"** -- All backends are sick or maxconn reached. Check: (1) `varnishadm backend.list`, (2) backend TCP port is open, (3) firewall rules.\n\n* **Backend flapping (sick/healthy/sick)** -- Probe thresholds may be too tight. Increase `.window` and `.threshold` to tolerate brief hiccups.",
-  "grandmaExplanation": "We watch varnish backend health probe and fetch failures and catch issues early, before they turn into outages for the people who rely on the network."
+  "grandmaExplanation": "We watch varnish backend health probe and fetch failures and catch issues early, before they turn into outages for the people who rely on the network.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

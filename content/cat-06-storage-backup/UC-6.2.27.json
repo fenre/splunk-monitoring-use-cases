@@ -9,11 +9,17 @@
     "Resilience"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`rbd mirror pool status` JSON indexed as `ceph:pool` or custom `ceph:rbd` sourcetype",
-  "app": "Scripted input from mirror admin socket or `rbd mirror image status`",
+  "exclusions": "Covers the detection logic documented for 'Ceph RBD mirror image replay lag and split-brain flags' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ceph_rbd_mirror_image_replay_lag_and_split_brain` (UC-6.2.27), SOC dashboard panel \"Operations — Ceph RBD mirror image replay lag and split-brain flags\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.27 positive (Ceph, RBD, mirror, image, replay): ingest synthetic events into `index=storage` sourcetype='ceph:pool' where `max_lag` grouped by `image_name`, `cluster_name` satisfies `lag_sec` > 300 for 'Ceph RBD mirror image replay lag and split-brain flags'. Validate filter `rbd OR mirror`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.27 negative (brain flags): ingest benign `storage` / `ceph:pool` events where `image_name`, `cluster_name` stays below `lag_sec` > 300, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Ceph RBD mirror image replay lag and split-brain flags'."
+  },
+  "dataSources": "`rbd mirror pool status` JSON indexed as `ceph:pool` or custom `ceph:rbd` sourcetype Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Scripted input from mirror admin socket or `rbd mirror image status` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage (sourcetype=\"ceph:pool\" OR sourcetype=\"ceph:status\")\n| search rbd OR mirror\n| eval lag_sec=coalesce(replay_lag_seconds, bytes_behind, lag_seconds)\n| eval state=coalesce(mirror_state, state)\n| where match(state, \"(?i)error|split|stuck\") OR lag_sec > 300\n| stats max(lag_sec) as max_lag latest(state) as mirror_state by image_name, cluster_name\n| sort - max_lag",
-  "description": "RBD mirroring protects block workloads across clusters; replay lag or split-brain states mean DR copies are not trustworthy until repaired.",
-  "value": "Preserves block storage RPO for VMware and OpenStack estates using Ceph RBD.",
+  "description": "Monitors 'Ceph RBD mirror image replay lag and split-brain flags' (UC-6.2.27) using `index=storage` sourcetype `ceph:pool` via filter `rbd OR mirror` by aggregating `max_lag` grouped by `image_name`, `cluster_name` over `the scheduled window` and alerting when `lag_sec` > 300. Keywords: Ceph, RBD, mirror, image, replay. Focuses on brain flags behaviour so operations teams can triage UC-6.2.27 without ad-hoc log review.",
+  "value": "UC-6.2.27 accelerates insight into brain flags ('Ceph RBD mirror image replay lag and split-brain flags') by tracking `max_lag` on `ceph:pool` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Run mirror status commands under least-privilege keyring. Redact image names with PHI via `SED` in transforms if needed.",
   "visualization": "Table (image, lag, state), timeline.",
   "cimModels": [
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "Ceph Documentation — monitoring",
-      "url": "https://docs.ceph.com/en/latest/radosgw/"
+      "url": "https://docs.ceph.com/en/latest/radosgw/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Red Hat Ceph Storage — troubleshooting",
-      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/"
+      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Lag may increase during initial baseline transfers, scheduled resyncs, large volume moves, or upstream throttling.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.27)** — Planned work for 'Ceph RBD mirror image replay lag and split-brain flags' shifts `max_lag` over `span=1h` while `image_name`, `cluster_name` remains in-scope. Applies filter `rbd OR mirror`. Cross-check CMDB CHG.\n\n2. **Batch `max` on `ceph:pool`** — Scheduled automation elevates `cluster_name` without crossing `lag_sec` > 300 for UC-6.2.27. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `image_name`, `cluster_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:pool`** — First 48h baseline for UC-6.2.27 on `image_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `image_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ceph",
     "hardware_bmc"
@@ -45,5 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We track copy and mirror health so a planned outage or a bad link does not leave you with an old or broken remote copy when you need it most."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Scripted input from mirror admin socket or `rbd mirror image status` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ceph:pool, ceph:status into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cluster_name, image_name, lag_sec`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We track copy and mirror health so a planned outage or a bad link does not leave you with an old or broken remote copy when you need it most.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

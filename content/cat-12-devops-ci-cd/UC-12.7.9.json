@@ -9,11 +9,17 @@
     "Configuration"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=iac` `sourcetype=ansible:callback` with `ansible_facts` subset, or `sourcetype=ansible:result` embedding facts hash",
-  "app": "Custom facts callback (HEC) emitting host, fact_namespace, facts_sha256",
+  "exclusions": "Covers the detection logic documented for 'Ansible Custom Facts Collection Change Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ansible_custom_facts_collection_change_detection` (UC-12.7.9), SOC dashboard panel \"Operations — Ansible Custom Facts Collection Change Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.7.9 positive (Ansible, Custom, Facts, Collection, Change): ingest synthetic events into `index=iac` sourcetype='ansible:callback' where `values` grouped by `host`, `fact_namespace`, `values(fh)`, `fh_window` satisfies detection threshold for 'Ansible Custom Facts Collection Change Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.7.9 negative (Change Detection): ingest benign `iac` / `ansible:callback` events where `host`, `fact_namespace`, `values(fh)`, `fh_window` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Ansible Custom Facts Collection Change Detection'."
+  },
+  "dataSources": "`index=iac` `sourcetype=ansible:callback` with `ansible_facts` subset, or `sourcetype=ansible:result` embedding facts hash Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom facts callback (HEC) emitting host, fact_namespace, facts_sha256 — Universal Forwarder (Splunkbase 617)",
   "spl": "index=iac sourcetype=\"ansible:callback\" action=\"facts_snapshot\"\n| eval fh=coalesce(facts_sha256, facts_hash)\n| sort 0 host, fact_namespace, -_time\n| streamstats current=f window=2 global=f by host, fact_namespace values(fh) as fh_window\n| eval prior=mvindex(fh_window,1)\n| eval curr=mvindex(fh_window,0)\n| where isnotnull(prior) AND curr!=prior\n| table _time, host, fact_namespace, prior, curr, playbook",
-  "description": "Operator-defined facts (hardware classes, security posture tags, license tiers) often drive playbook branching; unexpected changes can mean tampering, golden-image drift, or failed middleware upgrades. Hashing normalized fact bundles makes diff detection searchable at fleet scale.",
-  "value": "Speeds root-cause analysis when automation starts skipping hosts or applying wrong templates after fact churn.",
+  "description": "Identifies Change Detection anomalies for UC-12.7.9 with window `the scheduled window` on `index=iac` sourcetype `ansible:callback`. Combines `values` by `host`, `fact_namespace`, `values(fh)`, `fh_window` and compares against configured threshold. Mapped to keywords Ansible, Custom, Facts, Collection, Change for dashboard routing.",
+  "value": "Alerting on Ansible, Custom, Facts, Collection, Change through UC-12.7.9 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Implement a lightweight callback that serializes selected fact keys, sorts keys, and SHA-256 hashes the JSON. Throttle to daily per host if volume is high. Exclude volatile facts (`date_time`, `ansible_date_time`).",
   "visualization": "Changelog table, Sankey (namespace transitions), alert list with drilldown to diff JSON in KV store.",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "Ansible — Facts",
-      "url": "https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_vars_facts.html"
+      "url": "https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_vars_facts.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Transient errors during platform maintenance, network blips, or certificate renewals on shared services.",
+  "knownFalsePositives": "1. **Maintenance window on `iac` (UC-12.7.9)** — Planned work for 'Ansible Custom Facts Collection Change Detection' shifts `values` over `span=1h` while `host`, `fact_namespace`, `values(fh)`, `fh_window` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `ansible:callback`** — Scheduled automation elevates `fact_namespace` without crossing configured threshold for UC-12.7.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `fact_namespace`, `values(fh)`, `fh_window`** — Health checks in `iac` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ansible:callback`** — First 48h baseline for UC-12.7.9 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ansible"
+  ],
+  "equipmentModels": [
+    "ansible_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-01",
@@ -42,5 +63,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch infrastructure-as-code runs and policy so changes to systems stay visible and governed."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom facts callback (HEC) emitting host, fact_namespace, facts_sha256 — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ansible:callback into iac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`fact_namespace, fh_window, host, values(fh)`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch infrastructure-as-code runs and policy so changes to systems stay visible and governed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

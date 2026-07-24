@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "pack_id": "personal-hec",
+  "purpose": "Reference scaffolding for cat-25 personal/hobbyist UCs ingesting vendor APIs via HEC (Splunkbase 617). Authors adapt — do not paste verbatim into sidecars.",
+  "lastReviewed": "2026-07-24",
+  "ta": {
+    "name": "Splunk HTTP Event Collector",
+    "splunkbaseId": 617,
+    "scope": "HEC token on indexer or heavy forwarder; index=personal with 90–365d retention."
+  },
+  "kfps": [
+    {
+      "scenario": "OAuth refresh token expired — connector stops polling but old events remain in index.",
+      "distinguish": "index=_internal sourcetype=splunkd group=http_event_collector shows 401; vendor API returns auth errors in connector log.",
+      "suppress": "Do not suppress — fix token in passwords.conf / env; optionally filter stale `_time` rows after re-auth."
+    },
+    {
+      "scenario": "Rest day or injury — zero activities is expected, not a ingestion failure.",
+      "distinguish": "Vendor app shows no workouts; index=personal has no rows for that calendar day.",
+      "suppress": "Personal choice — adjust alert to weekly goal only, not daily zero-activity."
+    },
+    {
+      "scenario": "Multi-device double-count — same workout synced from watch and phone.",
+      "distinguish": "Duplicate external_id or overlapping start_time from two sourcetypes.",
+      "suppress": "Dedup in SPL with `stats latest(*) by external_id` or filter one sourcetype via lookup."
+    },
+    {
+      "scenario": "Timezone bucket misalignment — weekly bins on UTC vs local training schedule.",
+      "distinguish": "Compare vendor weekly total to SPL `bin _time span=1w` with and without offset.",
+      "suppress": "Document local offset in detailedImplementation; do not use enterprise exception registers."
+    }
+  ],
+  "troubleshooting": [
+    {
+      "symptom": "Flatline in `index=personal` timechart",
+      "cause": "HEC token revoked or connector cron disabled",
+      "fix": "Renew token; check `systemctl status` / cron; search `_internal` HEC rejections"
+    },
+    {
+      "symptom": "NULL fields after vendor API change",
+      "cause": "JSON shape drift in webhook payload",
+      "fix": "Compare raw event with `head 1 | spath`; update connector field map before SPL"
+    }
+  ]
+}

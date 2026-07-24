@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Guardicore incident and deception events",
+  "exclusions": "Covers the detection logic documented for 'Akamai Guardicore Incident Investigation' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_akamai_guardicore_incident_investigation` (UC-17.3.52), SOC dashboard panel \"Network — Akamai Guardicore Incident Investigation\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.52 positive (Akamai, Guardicore, Incident, Investigation): ingest synthetic events into `index=microseg` sourcetype='guardicore:incident' where `values` grouped by `incident_id`, `severity`, `status` satisfies -7d for 'Akamai Guardicore Incident Investigation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.52 negative (Incident Investigation): ingest benign `microseg` / `guardicore:incident` events where `incident_id`, `severity`, `status` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 1 confirms zero alert rows for 'Akamai Guardicore Incident Investigation'."
+  },
+  "dataSources": "Guardicore incident and deception events Indexes: microseg. Sourcetypes: guardicore:incident. Key fields: incident_id, severity, status. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=microseg sourcetype=\"guardicore:incident\" earliest=-7d\n| stats count values(affected_assets) as assets values(attack_type) as types by incident_id, severity, status\n| sort -severity -count",
-  "description": "Guardicore generates security incidents when patterns of blocked connections, deception (honeypot) triggers, or policy violations suggest active threats. Incident-level correlation in Splunk supports rapid investigation with full process and network context.",
-  "value": "Incident response teams investigate Guardicore-detected security incidents — deception triggers (highest fidelity, confirmed attacker), lateral movement alerts, and policy violations at scale — using process-level timeline data to reconstruct attacker activity across microsegmented workloads.",
+  "description": "Monitors Incident Investigation activity in UC-17.3.52 ('Akamai Guardicore Incident Investigation') from `index=microseg` sourcetype `guardicore:incident`. Rolls up `values` by `incident_id`, `severity`, `status` across `the scheduled window` and pages when -7d. Covers Akamai, Guardicore, Incident, Investigation. Network operators treat UC-17.3.52 as the canonical signal.",
+  "value": "Operators running UC-17.3.52 on `guardicore:incident` feeds shorten triage for Incident Investigation tied to 'Akamai Guardicore Incident Investigation', lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Configure the Add-on to pull incident data via API. Correlate `affected_assets` with CMDB for impact assessment. Escalate critical-severity incidents immediately. Use deception triggers as high-fidelity IOCs — false positives are rare on decoys.",
   "visualization": "Table (active incidents), Timeline (incident progression), Bar chart (by severity), Single value (open critical incidents).",
   "cimModels": [],
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "Akamai Guardicore Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/7426"
+      "url": "https://splunkbase.splunk.com/app/7426",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Intrusion_Detection",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Maintenance window on `microseg` (UC-17.3.52)** — Planned work for 'Akamai Guardicore Incident Investigation' shifts `values` over `span=1h` while `incident_id`, `severity`, `status` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `guardicore:incident`** — Scheduled automation elevates `severity` without crossing configured threshold for UC-17.3.52. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `incident_id`, `severity`, `status`** — Health checks in `microseg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `guardicore:incident`** — First 48h baseline for UC-17.3.52 on `incident_id` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `incident_id`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1021",
     "T1046"
@@ -36,7 +54,16 @@
   "equipment": [
     "guardicore"
   ],
-  "detailedImplementation": "Prerequisites\n• Guardicore incident/alert events in `index=microseg` with `sourcetype=guardicore:syslog`. Key fields: `incident_id`, `incident_type` (lateral_movement/data_exfiltration/policy_violation/deception), `severity`, `src_ip`, `dst_ip`, `affected_labels`, `recommended_action`, `detection_method`.\n• Guardicore generates incidents from multiple detection methods: segmentation policy violations, deception (honeypot) triggers, behavioral analysis, and reputation-based alerts. Each incident includes context for investigation.\n\nStep 1 — Configure data collection\nVerify incident events:\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" earliest=-30d\n| where isnotnull(incident_id)\n| stats count by incident_type, severity\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Incident dashboard:\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" earliest=-7d\n| where isnotnull(incident_id)\n| dedup incident_id sortby -_time\n| stats count by incident_type, severity, detection_method\n| sort severity, - count\n```\n\nUnderstanding this SPL: Groups incidents by type, severity, and detection method. Deception triggers are the highest-fidelity signals — they mean something touched a honeypot, which has zero legitimate traffic. Lateral movement incidents combine multiple signals (new connections, port scanning, credential attempts). Policy violations at scale indicate either a misconfiguration or an active attack.\n\nIncident timeline for investigation:\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" incident_id=\"[INCIDENT_ID]\" earliest=-7d\n| sort _time\n| table _time, src_ip, dst_ip, dstPort, action, process_name, detection_method\n```\n\nStep 3 — Validate\n(a) In Guardicore Centra: Incidents tab. Compare incident list with Splunk.\n(b) Trigger a deception alert (access a honeypot). Verify the incident.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Incident count by type. Row 2 — Active incidents. Row 3 — Deception triggers.\nAlert: Immediate on deception triggers and Critical severity incidents.\n\nRunbook:\n1. **Deception trigger** — Confirmed attacker activity. Isolate source. Begin IR.\n2. **Lateral movement incident** — Verify affected workloads. Check for compromise.\n3. **Policy violation incident** — May be application change. Verify with owner first.\n\nStep 5 — Troubleshooting\n• **No incidents** — Incident generation may be disabled. Check Centra > Settings > Detection.\n• **Deception not available** — Requires Guardicore Deception module license.",
+  "equipmentModels": [
+    "guardicore_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Guardicore incident/alert events in `index=microseg` with `sourcetype=guardicore:syslog`. Key fields: `incident_id`, `incident_type` (lateral_movement/data_exfiltration/policy_violation/deception), `severity`, `src_ip`, `dst_ip`, `affected_labels`, `recommended_action`, `detection_method`.\n• Guardicore generates incidents from multiple detection methods: segmentation policy violations, deception (honeypot) triggers, behavioral analysis, and reputation-based alerts. Each incident includes context for investigation.\n\nStep 1 — Configure data collection\nVerify incident events:\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" earliest=-30d\n| where isnotnull(incident_id)\n| stats count by incident_type, severity\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Incident dashboard:\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" earliest=-7d\n| where isnotnull(incident_id)\n| dedup incident_id sortby -_time\n| stats count by incident_type, severity, detection_method\n| sort severity, - count\n```\n\nUnderstanding this SPL: Groups incidents by type, severity, and detection method. Deception triggers are the highest-fidelity signals — they mean something touched a honeypot, which has zero legitimate traffic. Lateral movement incidents combine multiple signals (new connections, port scanning, credential attempts). Policy violations at scale indicate either a misconfiguration or an active attack.\n\nIncident timeline for investigation:\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" incident_id=\"[INCIDENT_ID]\" earliest=-7d\n| sort _time\n| table _time, src_ip, dst_ip, dstPort, action, process_name, detection_method\n```\n\nStep 3 — Validate\n(a) In Guardicore Centra: Incidents tab. Compare incident list with Splunk.\n(b) Trigger a deception alert (access a honeypot). Verify the incident.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Incident count by type. Row 2 — Active incidents. Row 3 — Deception triggers.\nAlert: Immediate on deception triggers and Critical severity incidents.\n\nRunbook:\n1. **Deception trigger** — Confirmed attacker activity. Isolate source. Begin IR.\n2. **Lateral movement incident** — Verify affected workloads. Check for compromise.\n3. **Policy violation incident** — May be application change. Verify with owner first.\n\nStep 5 — Troubleshooting\n• **No incidents** — Incident generation may be disabled. Check Centra > Settings > Detection.\n• **Deception not available** — Requires Guardicore Deception module license.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Akamai Guardicore Add-on for Splunk (Splunkbase 7426)). Enable the modular input or HEC token that writes sourcetype=guardicore:incident into microseg. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`incident_id, severity, status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Guardicore not only blocks unauthorized traffic but also sets up decoy servers (honeypots) that no real user would ever access. When something touches a decoy, we know for certain it is an attacker, and we can trace exactly what they did, which servers they tried to reach, and stop them.",
-  "hardware": "Akamai Guardicore Centra, Guardicore Agents, Guardicore Deception"
+  "hardware": "Akamai Guardicore Centra, Guardicore Agents, Guardicore Deception",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

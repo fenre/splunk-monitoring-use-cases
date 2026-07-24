@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=fgt_utm` subtype IN (ips, virus, anomaly)",
-  "app": "`TA-fortinet_fortigate` (FortiSASE IPS/AV logs)",
+  "exclusions": "Covers the detection logic documented for 'FortiSASE Threat Detection Events (Fortinet)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_fortisase_threat_detection_events_fortinet` (UC-17.3.41), SOC dashboard panel \"Network — FortiSASE Threat Detection Events (Fortinet)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.41 positive (FortiSASE, Threat, Detection, Events, (Fortinet)): ingest synthetic events into `index=ids` sourcetype='fgt_utm' where `count` grouped by `attack`, `severity`, `user`, `srcip` satisfies -24h for 'FortiSASE Threat Detection Events (Fortinet)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.41 negative (Events (Fortinet)): ingest benign `ids` / `fgt_utm` events where `attack`, `severity`, `user`, `srcip` stays below -24h, or exclude the test entity via `network_exception_register.csv`. Variant 13 confirms zero alert rows for 'FortiSASE Threat Detection Events (Fortinet)'."
+  },
+  "dataSources": "`sourcetype=fgt_utm` subtype IN (ips, virus, anomaly) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`TA-fortinet_fortigate` (FortiSASE IPS/AV logs) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ids sourcetype=\"fgt_utm\" subtype IN (\"ips\",\"virus\",\"anomaly\") earliest=-24h\n| stats count by attack, severity, user, srcip, action\n| sort -count",
-  "description": "FortiSASE applies IPS, anti-malware, and sandboxing inline for all users. Threat events reveal attack vectors bypassing traditional perimeter security — critical for remote-first organizations.",
-  "value": "Security operations teams analyze FortiSASE IPS and anti-malware detections by severity and action, identifying actively blocked exploits, monitor-mode gaps where threats are detected but not prevented, and internal users triggering multiple threat signatures indicating compromise.",
+  "description": "Monitors UC-17.3.41 — FortiSASE, Threat, Detection, Events, (Fortinet) — using `index=ids` sourcetype `fgt_utm`, grouped by `attack`, `severity`, `user`, `srcip`. Outputs `count` each `the scheduled window`; alert when -24h. Primary focus: Events (Fortinet). Purpose-built for 'FortiSASE Threat Detection Events (Fortinet)' in Network workflows.",
+  "value": "UC-17.3.41 gives Network teams earlier visibility into Events (Fortinet) through `fgt_utm` feeds, lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Forward FortiSASE UTM logs. Map `attack` names to CVE and MITRE ATT&CK. Alert on critical-severity blocks. Correlate with FortiSandbox verdicts for zero-day detections.",
   "visualization": "Bar chart (threats by severity), Table (top attacks), Timeline (detection events), Pie chart (action distribution).",
   "cimModels": [],
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "CIM: Intrusion_Detection",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Vulnerability scanner signature matches** — Qualys/Tenable traffic triggers IPS/threat signatures for 'FortiSASE Threat Detection Events (Fortinet)'. Compare `src` against `scanner_ips` lookup.\n\n2. **Policy push during change window** — New deny rule generates expected blocks. Match firewall commit timestamp in change calendar.\n\n3. **Encrypted traffic inspection gap** — TLS-heavy apps bypass deep inspection; volume drop is operational, not a sensor failure.\n\n4. **Red-team C2 simulation** — Approved exercise from `pen_test_hosts.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src`, `signature_id`, `valid_until`.",
   "mitreAttack": [
     "T1562",
     "T1133"
@@ -35,7 +57,13 @@
   "equipmentModels": [
     "fortinet_fortigate"
   ],
-  "detailedImplementation": "Prerequisites\n• FortiSASE threat/IPS events in `index=fortisase` with `sourcetype=fortisase:ips` or `sourcetype=fortisase:av`. Key fields: `action` (detected/dropped/blocked), `attack` (IPS signature name), `severity` (critical/high/medium/low/info), `srcip`, `dstip`, `dstport`, `user`, `msg` (description), `ref` (FortiGuard reference URL).\n• FortiSASE inherits FortiGate's IPS engine with FortiGuard signature updates. It also includes inline anti-malware scanning with FortiSandbox integration for zero-day detection.\n\nStep 1 — Configure data collection\nVerify threat events:\n```spl\nindex=fortisase sourcetype IN (\"fortisase:ips\",\"fortisase:av\") earliest=-7d\n| stats count by sourcetype, severity\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Threat severity overview:\n```spl\nindex=fortisase sourcetype IN (\"fortisase:ips\",\"fortisase:av\") earliest=-24h\n| stats count dc(srcip) as sources dc(dstip) as targets by attack, severity, action\n| sort severity, - count\n```\n\nUnderstanding this SPL: Groups threat detections by signature, severity, and action. Critical/High severity IPS detections with 'dropped' action mean the threat was actively blocked. 'detected' (but not dropped) means the IPS is in monitor mode for that signature. Anti-malware detections indicate malicious files in transit.\n\nInternal threat sources:\n```spl\nindex=fortisase sourcetype IN (\"fortisase:ips\",\"fortisase:av\") earliest=-24h\n| where isnotnull(user)\n| stats count dc(attack) as unique_threats by user, srcip\n| where unique_threats > 3\n| sort - unique_threats\n```\n\nStep 3 — Validate\n(a) Download an EICAR test file. Verify AV detection.\n(b) In FortiSASE: Log & Report > Intrusion Prevention.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Threat severity distribution. Row 2 — Top signatures. Row 3 — Internal sources.\nAlert: Immediate on Critical severity IPS events.\n\nRunbook:\n1. **Critical IPS dropped** — Attack blocked. Verify target is patched.\n2. **IPS detected (not dropped)** — Review signature. Consider switching to block.\n3. **Internal user with many threats** — Possible compromise. Investigate endpoint.\n\nStep 5 — Troubleshooting\n• **No IPS events** — IPS profile may not be applied to the FortiSASE policy.\n• **All 'detected' not 'dropped'** — IPS may be in monitor mode. Switch to block for high severity.",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• FortiSASE threat/IPS events in `index=fortisase` with `sourcetype=fortisase:ips` or `sourcetype=fortisase:av`. Key fields: `action` (detected/dropped/blocked), `attack` (IPS signature name), `severity` (critical/high/medium/low/info), `srcip`, `dstip`, `dstport`, `user`, `msg` (description), `ref` (FortiGuard reference URL).\n• FortiSASE inherits FortiGate's IPS engine with FortiGuard signature updates. It also includes inline anti-malware scanning with FortiSandbox integration for zero-day detection.\n\nStep 1 — Configure data collection\nVerify threat events:\n```spl\nindex=fortisase sourcetype IN (\"fortisase:ips\",\"fortisase:av\") earliest=-7d\n| stats count by sourcetype, severity\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Threat severity overview:\n```spl\nindex=fortisase sourcetype IN (\"fortisase:ips\",\"fortisase:av\") earliest=-24h\n| stats count dc(srcip) as sources dc(dstip) as targets by attack, severity, action\n| sort severity, - count\n```\n\nUnderstanding this SPL: Groups threat detections by signature, severity, and action. Critical/High severity IPS detections with 'dropped' action mean the threat was actively blocked. 'detected' (but not dropped) means the IPS is in monitor mode for that signature. Anti-malware detections indicate malicious files in transit.\n\nInternal threat sources:\n```spl\nindex=fortisase sourcetype IN (\"fortisase:ips\",\"fortisase:av\") earliest=-24h\n| where isnotnull(user)\n| stats count dc(attack) as unique_threats by user, srcip\n| where unique_threats > 3\n| sort - unique_threats\n```\n\nStep 3 — Validate\n(a) Download an EICAR test file. Verify AV detection.\n(b) In FortiSASE: Log & Report > Intrusion Prevention.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Threat severity distribution. Row 2 — Top signatures. Row 3 — Internal sources.\nAlert: Immediate on Critical severity IPS events.\n\nRunbook:\n1. **Critical IPS dropped** — Attack blocked. Verify target is patched.\n2. **IPS detected (not dropped)** — Review signature. Consider switching to block.\n3. **Internal user with many threats** — Possible compromise. Investigate endpoint.\n\nStep 5 — Troubleshooting\n• **No IPS events** — IPS profile may not be applied to the FortiSASE policy.\n• **All 'detected' not 'dropped'** — IPS may be in monitor mode. Switch to block for high severity.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`TA-fortinet_fortigate` (FortiSASE IPS/AV logs) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=fgt_utm into ids. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action, attack, severity, srcip`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "FortiSASE's built-in protection catches cyberattacks and malware in our internet traffic. We track every detection — what was caught, how dangerous it was, and whether it was blocked or just logged — so we can ensure our defenses are actually stopping threats, not just watching them.",
-  "hardware": "FortiSASE (cloud), FortiClient (endpoint), FortiSandbox Cloud"
+  "hardware": "FortiSASE (cloud), FortiClient (endpoint), FortiSandbox Cloud",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

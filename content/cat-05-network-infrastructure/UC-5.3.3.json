@@ -9,21 +9,43 @@
     "Capacity"
   ],
   "splunkPillar": "Security",
-  "dataSources": "SNMP F5-BIGIP-LTM-MIB",
-  "app": "`Splunk_TA_f5-bigip`, SNMP",
+  "exclusions": "Covers the detection logic documented for 'Connection and Throughput Trending (F5 BIG-IP)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_connection_and_throughput_trending_f5_big_ip` (UC-5.3.3), SOC dashboard panel \"Operations — Connection and Throughput Trending (F5 BIG-IP)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.3.3 positive (Connection, and, Throughput, Trending, (F5): ingest synthetic events into `index=network` sourcetype='snmp:f5' where `connections` grouped by `virtual_server` satisfies detection threshold for 'Connection and Throughput Trending (F5 BIG-IP)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.3.3 negative (BIG IP)): ingest benign `network` / `snmp:f5` events where `virtual_server` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Connection and Throughput Trending (F5 BIG-IP)'."
+  },
+  "dataSources": "SNMP F5-BIGIP-LTM-MIB Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_f5-bigip`, SNMP — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"snmp:f5\"\n| timechart span=5m sum(clientside_curConns) as connections by virtual_server",
-  "description": "Reveals application demand patterns. Useful for capacity planning and DDoS detection.",
-  "value": "Application delivery teams trend F5 BIG-IP virtual server connections and throughput against capacity limits, detecting connection saturation and traffic anomalies before they impact application availability.",
+  "description": "Monitors risk tied to Connection, and, Throughput, Trending, (F5 through UC-5.3.3 on `index=network` sourcetype `snmp:f5`. Summarises `connections` grouped by `virtual_server` across `5m` before applying configured threshold. Operators tune 'Connection and Throughput Trending (F5 BIG-IP)' using UC-5.3.3 runbook steps.",
+  "value": "Tracking `connections` via UC-5.3.3 on `snmp:f5` feeds improves response to 'Connection and Throughput Trending (F5 BIG-IP)' and reduces operational risk and delayed incident response.",
   "implementation": "Poll F5 via SNMP or iControl REST for VIP statistics. Baseline patterns and alert on anomalies.",
   "visualization": "Line chart per VIP, Area chart (throughput), Table.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk_TA_f5-bigip",
-      "url": "https://splunkbase.splunk.com/app/2680"
+      "url": "https://splunkbase.splunk.com/app/2680",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Stats-only telemetry can spike during tests or polling changes; match to the device graphs before calling an incident.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.3.3)** — Planned work for 'Connection and Throughput Trending (F5 BIG-IP)' shifts `connections` over `span=5m` while `virtual_server` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snmp:f5`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.3.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `virtual_server`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:f5`** — First 48h baseline for UC-5.3.3 on `virtual_server` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `virtual_server`, `exception_reason`, `valid_until`.",
   "equipment": [
     "f5",
     "snmp"
@@ -32,6 +54,12 @@
     "f5_bigip",
     "snmp_generic"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Splunk Add-on for F5 BIG-IP (`Splunk_TA_f5-bigip`, Splunkbase 2680). F5 iControl REST API polled for LTM statistics or SNMP data in `index=network` with `sourcetype=f5:bigip:syslog` or `sourcetype=f5:bigip:api`. Key metrics: `clientside_cur_conns`, `clientside_tot_conns`, `clientside_bytes_in`, `clientside_bytes_out`, `clientside_pkts_in`, `clientside_pkts_out` per virtual server.\n\nStep 1 -- Configure data collection\nPoll F5 iControl REST (`/mgmt/tm/ltm/virtual/stats`) every 5 minutes via a scripted input or use SNMP polling for `ltmVirtualServStatClientCurConns` (OID 1.3.6.1.4.1.3375.2.2.10.2.3.1.12). Verify:\n```spl\nindex=network (sourcetype=\"f5:bigip:api\" OR sourcetype=\"f5:bigip:syslog\") earliest=-4h\n| where isnotnull(clientside_cur_conns) OR isnotnull(cur_connections)\n| stats latest(clientside_cur_conns) as conns by host, virtual_server\n| sort -conns\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Connection and throughput trending:**\n```spl\nindex=network (sourcetype=\"f5:bigip:api\" OR sourcetype=\"f5:bigip:syslog\") earliest=-24h\n| eval conns=coalesce(clientside_cur_conns, cur_connections)\n| eval bytes_in=coalesce(clientside_bytes_in, bytes_in)\n| eval bytes_out=coalesce(clientside_bytes_out, bytes_out)\n| bin _time span=5m\n| stats avg(conns) as avg_conns max(conns) as peak_conns sum(bytes_in) as total_in sum(bytes_out) as total_out by _time, host, virtual_server\n| eval throughput_mbps=round((total_in + total_out)*8/(1024*1024*300), 2)\n| lookup f5_vip_inventory.csv virtual_server OUTPUT application, tier, max_connections\n| eval conn_util=if(isnotnull(max_connections), round(100*peak_conns/max_connections, 1), null())\n| where conn_util > 70 OR peak_conns > 10000\n| eval status=case(conn_util > 90, \"CRITICAL\", conn_util > 70, \"WARNING\", peak_conns > 50000, \"HIGH_VOLUME\", 1==1, \"Monitor\")\n| sort -conn_util\n```\n\n**Anomaly detection (baseline comparison):**\n```spl\nindex=network (sourcetype=\"f5:bigip:api\" OR sourcetype=\"f5:bigip:syslog\") earliest=-24h\n| eval conns=coalesce(clientside_cur_conns, cur_connections)\n| bin _time span=15m\n| stats avg(conns) as avg_conns by _time, virtual_server\n| eventstats avg(avg_conns) as baseline stdev(avg_conns) as std by virtual_server\n| eval upper=baseline + (3*std)\n| where avg_conns > upper\n| eval anomaly=\"Connection spike: \".round(avg_conns,0).\" vs baseline \".round(baseline,0)\n```\n\nStep 3 -- Validate\n(a) In tmsh: `show ltm virtual <vs> stats` -- compare current connections with Splunk.\n(b) Generate load to a test VIP and verify connection count increases in Splunk.\n(c) Verify throughput calculation aligns with F5 Dashboard or SNMP data.\n\nStep 4 -- Operationalize\nDashboard (\"F5 -- Connections & Throughput\"):\n* Row 1 -- Single-value: \"Total connections (all VIPs)\", \"Peak VIP\", \"Total throughput (Mbps)\", \"VIPs near capacity\".\n* Row 2 -- Per-VIP connection utilization table.\n* Row 3 -- Connection trending timechart by top-5 VIPs.\n\nAlerting:\n* Warning (VIP connection utilization > 80%): approaching connection limit.\n* Info (connection anomaly > 3 sigma from baseline): unexpected traffic spike.\n\nStep 5 -- Troubleshooting\n\n* **Connection count increasing but throughput flat** -- Many idle/keep-alive connections. Check connection timeouts: `tmsh list ltm profile tcp idle-timeout`.\n\n* **Sudden spike in connections** -- Could be: (1) DDoS, (2) application retry storm, (3) legitimate traffic event. Correlate with source IP distribution.\n\n* **Connection limit hit** -- F5 enforces `connection-limit` per VIP. Check: `tmsh list ltm virtual <vs> connection-limit`. Increase or investigate why connections aren't closing.",
-  "grandmaExplanation": "We trend client counts and traffic from the appliance so a surprise spike, a quiet VIP, or a long drift is easy to see next to the same graphs in the device UI."
+  "grandmaExplanation": "We trend client counts and traffic from the appliance so a surprise spike, a quiet VIP, or a long drift is easy to see next to the same graphs in the device UI.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

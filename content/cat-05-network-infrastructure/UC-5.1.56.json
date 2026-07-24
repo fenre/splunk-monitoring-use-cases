@@ -8,25 +8,56 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=juniper:junos:structured`",
-  "app": "`Splunk_TA_juniper`, syslog",
+  "exclusions": "Covers the detection logic documented for 'Junos Chassis Alarm Monitoring (Juniper)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_junos_chassis_alarm_monitoring_juniper` (UC-5.1.56), SOC dashboard panel \"Operations — Junos Chassis Alarm Monitoring (Juniper)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.56 positive (Junos, Chassis, Alarm, Monitoring, (Juniper)): ingest synthetic events into `index=network` sourcetype='juniper:junos:structured' where `values` grouped by `host`, `fru_type` satisfies `alarm_events` > 0 for 'Junos Chassis Alarm Monitoring (Juniper)'. Validate filter `\"*Major*\" OR \"*Minor*\" OR severity=major OR severity=minor O`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.56 negative (Monitoring (Juniper)): ingest benign `network` / `juniper:junos:structured` events where `host`, `fru_type` stays below `alarm_events` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Junos Chassis Alarm Monitoring (Juniper)'."
+  },
+  "dataSources": "`sourcetype=juniper:junos:structured` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_juniper`, syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"juniper:junos:structured\"\n| search CHASSISD OR \"*chassis*\" OR ALARM OR \"*alarm*\"\n| search \"*Major*\" OR \"*Minor*\" OR severity=major OR severity=minor OR \"class major\" OR \"class minor\"\n| rex field=_raw max_match=0 \"(?i)fru\\s*type:\\s*(?<fru_type>[^,\\n]+)\"\n| stats count as alarm_events, values(_raw) as sample_messages by host, fru_type\n| where alarm_events > 0\n| sort -alarm_events",
-  "description": "Junos raises chassis alarms for power supply loss, fan failure, FPC or PIC offline, and temperature exceedances—conditions that often need on-site hardware work before service is fully restored. Ignoring these events lets a single failed component escalate into switch-wide thermal shutdown or loss of redundancy. A clear Splunk view of major and minor chassis alarms speeds dispatch to facilities and vendor support and shortens mean time to repair for edge and campus fabrics.",
-  "value": "NOC teams monitor Junos chassis alarms (major/minor) across FPC, PEM, fan, and routing engine components, detecting hardware conditions requiring immediate attention.",
+  "description": "Surfaces UC-5.1.56 — Junos, Chassis, Alarm, Monitoring, (Juniper) — using `index=network` sourcetype `juniper:junos:structured`, grouped by `host`, `fru_type`. Outputs `values` each `the scheduled window`; alert when `alarm_events` > 0. Filter chain includes filter `\"*Major*\" OR \"*Minor*\" OR severity=major OR severity=minor O`. Purpose-built for 'Junos Chassis Alarm Monitoring (Juniper)' in Operations workflows.",
+  "value": "UC-5.1.56 helps teams contain Junos, Chassis, Alarm, Monitoring, (Juniper) scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Forward Junos structured syslog to Splunk; install `Splunk_TA_juniper` for field normalization. Tune `search` terms to your facility naming (CHASSISD, craftd). Alert on first major alarm and on minor alarms that repeat on the same FRU within 24h. Enrich with CMDB site and rack for dispatch.",
   "visualization": "Chassis alarm table by host and FRU; timeline of major vs minor; single-value panel for open major alarms.",
   "cimModels": [],
   "references": [
     {
       "title": "CIM: Alerts",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Hardware sensor warnings during power redundancy testing, scheduled maintenance, or environmental swings. Lab gear often logs benign transitions.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.56)** — Planned work for 'Junos Chassis Alarm Monitoring (Juniper)' shifts `values` over `span=1h` while `host`, `fru_type` remains in-scope. Applies filter `\"*Major*\" OR \"*Minor*\" OR severity=major OR severity=minor O`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `juniper:junos:structured`** — Scheduled automation elevates `fru_type` without crossing `alarm_events` > 0 for UC-5.1.56. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `fru_type`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `juniper:junos:structured`** — First 48h baseline for UC-5.1.56 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog"
   ],
+  "equipmentModels": [
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Junos chassis alarm data from syslog. Data in `index=juniper` or `index=network` with `sourcetype=juniper:structured` or `sourcetype=syslog`. Key Junos syslog facilities: CHASSISD, ALARMD. CLI: `show chassis alarms`.\n* Junos chassis alarms: categorized as Major (red) or Minor (yellow). Major alarms indicate conditions requiring immediate attention (PSU failure, FPC offline, RE failure). Minor alarms indicate degraded conditions (temperature warning, fan speed low). Alarms persist until condition is cleared.\n\nStep 1 -- Configure data collection\n```\n# Junos configuration -- syslog forwarding\nset system syslog host <splunk-ip> any info\nset system syslog host <splunk-ip> chassis any\nset system syslog host <splunk-ip> match \"CHASSISD|ALARMD|alarm|FPC|PIC|RE|PEM|FAN\"\n\n# Splunk inputs.conf\n[udp://514]\nsourcetype = juniper:structured\nindex = juniper\n```\nVerify:\n```spl\nindex=juniper earliest=-30d\n| where match(_raw, \"(?i)CHASSISD|ALARMD|alarm|chassis.*alarm|major.*alarm|minor.*alarm\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Chassis alarm monitoring:**\n```spl\nindex=juniper earliest=-24h\n| where match(_raw, \"(?i)CHASSISD|ALARMD|alarm|FPC.*offline|FPC.*error|PEM.*fail|fan.*fail|RE.*fail\")\n| eval device=coalesce(host, device_name)\n| eval alarm_severity=case(\n    match(_raw, \"(?i)major|critical|red\"), \"MAJOR\",\n    match(_raw, \"(?i)minor|yellow|warning\"), \"MINOR\",\n    1==1, \"UNKNOWN\")\n| eval component=case(\n    match(_raw, \"(?i)FPC\"), \"FPC (Flexible PIC Concentrator)\",\n    match(_raw, \"(?i)PIC\"), \"PIC (Physical Interface Card)\",\n    match(_raw, \"(?i)RE|routing.engine\"), \"Routing Engine\",\n    match(_raw, \"(?i)PEM|power\"), \"Power Supply (PEM)\",\n    match(_raw, \"(?i)fan|FAN\"), \"Fan Tray\",\n    match(_raw, \"(?i)CB|control.board\"), \"Control Board\",\n    match(_raw, \"(?i)temp\"), \"Temperature\",\n    1==1, \"Chassis\")\n| eval alarm_state=if(match(_raw, \"(?i)clear|reset|gone|resolved\"), \"CLEARED\", \"ACTIVE\")\n| dedup device, component sortby -_time\n| where alarm_state=\"ACTIVE\"\n| eval severity=case(\n    alarm_severity=\"MAJOR\", \"CRITICAL -- major chassis alarm: \".component,\n    alarm_severity=\"MINOR\", \"WARNING -- minor chassis alarm: \".component,\n    1==1, \"INFO\")\n| table device, component, alarm_severity, alarm_state, _time, severity\n| sort severity\n```\n\nStep 3 -- Validate\n(a) CLI: `show chassis alarms` -- current active alarms.\n(b) CLI: `show chassis environment` -- temperature, fan, PSU status.\n(c) CLI: `show chassis fpc` -- FPC online/offline status.\n\nStep 4 -- Operationalize\nDashboard (\"Juniper -- Chassis Alarms\"):\n* Row 1 -- Single-value: \"Major alarms\", \"Minor alarms\", \"Devices alarmed\".\n* Row 2 -- Active alarm table.\n\nAlert: Critical (major chassis alarm): immediate hardware investigation.\n\nStep 5 -- Troubleshooting\n\n* **FPC offline** -- Check: `show chassis fpc`. May need reseating or RMA. If FPC is powered down, try: `request chassis fpc slot <n> online`.\n\n* **PEM failure** -- Power supply failed. Check redundancy status: `show chassis environment`. Replace PEM under maintenance contract.\n\n* **Fan failure** -- `show chassis environment` shows fan RPM. Reduced airflow causes temperature alarms. RMA fan tray. Monitor temperature while waiting for replacement.",
   "grandmaExplanation": "We help you know early when something looks wrong with junos chassis alarm monitoring so the team can act before it grows into a bigger outage.",
-  "hardware": "Juniper EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480/960, SRX4100/SRX4200/SRX4600"
+  "hardware": "Juniper EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480/960, SRX4100/SRX4200/SRX4600",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

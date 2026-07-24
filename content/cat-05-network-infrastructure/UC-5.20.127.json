@@ -8,24 +8,42 @@
     "Availability"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=juniper:junos` — Monitors IS-IS multi-topology (MT) for IPv6 adjacency health and Link State PDU (LSP) integrity. IS-IS is the IGP of choice for large ISP and data center networks running IPv6. Multi-topology IS-IS (RFC 5120) runs separate topologies for IPv4 and IPv6, allowing independent IPv6 routing decisions.",
-  "app": "Splunk Enterprise",
+  "exclusions": "Covers the detection logic documented for 'IS-IS for IPv6 (Multi-Topology IS-IS) Adjacency and LSP Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_is_is_for_ipv6_multi_topology_is_is_adjacency_an` (UC-5.20.127), SOC dashboard panel \"Operations — IS-IS for IPv6 (Multi-Topology IS-IS) Adjacency and LSP Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.127 positive (for, IPv6, (Multi, Topology, IS)): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `host`, `isis_event`, `is_ipv6_related` satisfies -24h for 'IS-IS for IPv6 (Multi-Topology IS-IS) Adjacency and LSP Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.127 negative (LSP Monitoring): ingest benign `network` / `cisco:ios` events where `host`, `isis_event`, `is_ipv6_related` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'IS-IS for IPv6 (Multi-Topology IS-IS) Adjacency and LSP Monitoring'."
+  },
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=juniper:junos` — Monitors IS-IS multi-topology (MT) for IPv6 adjacency health and Link State PDU (LSP) integrity. IS-IS is the IGP of choice for large ISP and data center networks running IPv6. Multi-topology IS-IS (RFC 5120) runs separate topologies for IPv4 and IPv6, allowing independent IPv6 routing decisions. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\" OR sourcetype=\"juniper:junos\") earliest=-24h\n  (\"%ISIS\" OR \"%CLNS\" OR \"is-is\")\n| eval isis_event=case(\n    match(_raw, \"(?i)ADJ.*DOWN|adjacency.*down\"), \"ADJ_DOWN\",\n    match(_raw, \"(?i)ADJ.*UP|adjacency.*up\"), \"ADJ_UP\",\n    match(_raw, \"(?i)LSP.*corrupt|checksum.*fail|LSP.*error\"), \"LSP_ERROR\",\n    match(_raw, \"(?i)authentication.*fail|auth.*mismatch\"), \"AUTH_FAILURE\",\n    match(_raw, \"(?i)MT.*ipv6|topology.*2\"), \"MT_IPV6_EVENT\",\n    1=1, \"OTHER\")\n| eval is_ipv6_related=if(match(_raw, \"(?i)ipv6|MT.*2|topology.*2|multi.?topology\"), 1, 0)\n| stats count as events by host, isis_event, is_ipv6_related\n| eval severity=case(\n    isis_event=\"ADJ_DOWN\" AND is_ipv6_related=1, \"CRITICAL — IS-IS IPv6 adjacency DOWN\",\n    isis_event=\"AUTH_FAILURE\", \"CRITICAL — IS-IS authentication failure\",\n    isis_event=\"LSP_ERROR\", \"HIGH — IS-IS LSP corruption detected\",\n    1=1, null())\n| where isnotnull(severity)\n| sort -events",
-  "description": "Monitors IS-IS multi-topology for IPv6 adjacency health, LSP integrity, and authentication status. IS-IS is the primary IGP for large-scale IPv6 deployments (ISPs, data centers). Multi-topology IS-IS runs separate IPv4 and IPv6 topologies, so IPv6 adjacency failures are independent of IPv4.",
-  "value": "IS-IS is the dominant IGP for large-scale IPv6 networks. Multi-topology IS-IS means IPv6 routing can fail independently of IPv4 — a router can have full IPv4 reachability while IPv6 routes are missing. Dedicated IS-IS IPv6 monitoring catches these independent failures that would be missed by monitoring only IPv4 routing health.",
+  "description": "Surfaces 'IS-IS for IPv6 (Multi-Topology IS-IS) Adjacency and LSP Monitoring' (UC-5.20.127) using `index=network` sourcetype `cisco:ios` by aggregating `count` grouped by `host`, `isis_event`, `is_ipv6_related` over `the scheduled window` and alerting when -24h. Keywords: for, IPv6, (Multi, Topology, IS). Focuses on LSP Monitoring behaviour so operations teams can triage UC-5.20.127 without ad-hoc log review.",
+  "value": "UC-5.20.127 accelerates insight into LSP Monitoring ('IS-IS for IPv6 (Multi-Topology IS-IS) Adjacency and LSP Monitoring') by tracking `activity` on `cisco:ios` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Monitor IS-IS adjacency events filtered for IPv6 multi-topology. Track LSP integrity and authentication.",
   "visualization": "(1) Table: IS-IS events by type. (2) Timeline: adjacency changes. (3) Single-value: authentication failures. (4) Topology map: IS-IS adjacency status.",
   "references": [
     {
       "title": "RFC 5308 — Routing IPv6 with IS-IS",
-      "url": "https://www.rfc-editor.org/rfc/rfc5308"
+      "url": "https://www.rfc-editor.org/rfc/rfc5308",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 5120 — IS-IS Multi-Topology Routing",
-      "url": "https://www.rfc-editor.org/rfc/rfc5120"
+      "url": "https://www.rfc-editor.org/rfc/rfc5120",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Planned maintenance.** IS-IS adjacency flaps during maintenance. Correlate with change windows.\n\n**Single-topology IS-IS.** If not using multi-topology, IPv4 and IPv6 share adjacencies. IPv6-specific events won't be distinguishable.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.127)** — Planned work for 'IS-IS for IPv6 (Multi-Topology IS-IS) Adjacency and LSP Monitoring' shifts `count` over `span=1h` while `host`, `isis_event`, `is_ipv6_related` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `isis_event` without crossing configured threshold for UC-5.20.127. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `isis_event`, `is_ipv6_related`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.127 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "juniper",
@@ -44,7 +62,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• IS-IS deployed with multi-topology for IPv6.\n• IS-IS logging enabled.\n\nStep 1 — Verify multi-topology IS-IS\n```\nrouter isis CORE\n address-family ipv6 unicast\n  multi-topology\n```\n\nStep 2 — Create monitoring searches\n```spl\nindex=network \"ISIS\" \"ipv6\" earliest=-24h | stats count by host, isis_event\n```\n\nStep 3 — Validate: Verify IS-IS IPv6 adjacencies with `show isis neighbors` and `show isis ipv6 route`.\n\nStep 4 — Operationalize\n**Dashboard:** IS-IS IPv6 health. **Alert:** IPv6 adjacency down — critical.\n\nStep 5 — Troubleshooting\n• IPv6 adjacency down but IPv4 up: Check multi-topology configuration. Verify `address-family ipv6` is enabled on the interface.",
+  "detailedImplementation": "Prerequisites\n• IS-IS deployed with multi-topology for IPv6.\n• IS-IS logging enabled.\n\nStep 1 — Verify multi-topology IS-IS\n```\nrouter isis CORE\n address-family ipv6 unicast\n  multi-topology\n```\n\nStep 2 — Create monitoring searches\n```spl\nindex=network \"ISIS\" \"ipv6\" earliest=-24h | stats count by host, isis_event\n```\n\nStep 3 — Validate: Verify IS-IS IPv6 adjacencies with `show isis neighbors` and `show isis ipv6 route`.\n\nStep 4 — Operationalize\n**Dashboard:** IS-IS IPv6 health. **Alert:** IPv6 adjacency down — critical.\n\nStep 5 — Troubleshooting\n• IPv6 adjacency down but IPv4 up: Check multi-topology configuration. Verify `address-family ipv6` is enabled on the interface.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ios, cisco:iosxe, juniper:junos into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, is_ipv6_related, isis_event, severity`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "IS-IS is the road map system used by the biggest postal networks. It keeps separate road maps for old (IPv4) and new (IPv6) addresses. We watch the IPv6 road map separately to make sure the routes for new-format letters are always correct, even if the old-format routes are fine.",
   "prerequisiteUseCases": [
     "UC-5.20.44"

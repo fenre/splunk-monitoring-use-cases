@@ -9,6 +9,8 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'NERC CIP Electronic Access Point Monitoring' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_nerc_cip_electronic_access_point_monitoring` (UC-10.14.16), SOC dashboard panel \"Security Infra — NERC CIP Electronic Access Point Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "compliance": [
     {
       "regulation": "nerc-cip",
@@ -24,11 +26,15 @@
       "provenance": "maintainer"
     }
   ],
-  "dataSources": "`index=ot_security` perimeter firewalls, VPN, jump hosts tagged `bes_asset=1`",
+  "controlTest": {
+    "positiveScenario": "UC-10.14.16 positive (NERC, CIP, Electronic, Access, Point): ingest synthetic events into `index=ot_security` sourcetype='ics:firewall' where `count` grouped by `eap_name`, `esp_id`, `src`, `user` satisfies detection threshold for 'NERC CIP Electronic Access Point Monitoring'. Validate lookup `cip_electronic_access_points`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.14.16 negative (Point Monitoring): ingest benign `ot_security` / `ics:firewall` events where `eap_name`, `esp_id`, `src`, `user` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 5 confirms zero alert rows for 'NERC CIP Electronic Access Point Monitoring'."
+  },
+  "dataSources": "`index=ot_security` perimeter firewalls, VPN, jump hosts tagged `bes_asset=1` Indexes: ot_security. Sourcetypes: ics:firewall. Key fields: action, dest, eap_name, eap_name esp_id, esp_id, src, user. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "OT Security Add-on for Splunk (Splunkbase 5151)",
   "spl": "index=ot_security sourcetype=\"ics:firewall\" bes_asset=1\n| lookup cip_electronic_access_points dest OUTPUT eap_name esp_id\n| where isnotnull(eap_name)\n| stats count earliest(_time) as first latest(_time) as last by eap_name, esp_id, src, user, action\n| eval cip_standard=\"CIP-005\"\n| table cip_standard, eap_name, esp_id, src, user, action, count, first, last",
-  "description": "Supports NERC CIP-005 by monitoring access to BES Cyber Systems at controlled Electronic Security Perimeter entry points for audit readiness and breach detection.",
-  "value": "Supports NERC CIP-005 by monitoring access to BES Cyber Systems at controlled Electronic Security Perimeter entry points for audit readiness and breach detection.",
+  "description": "Alerts on 'NERC CIP Electronic Access Point Monitoring' patterns (UC-10.14.16) sourced from `index=ot_security` sourcetype `ics:firewall`. Threshold bundle: configured threshold; aggregation grain: `eap_name`, `esp_id`, `src`, `user`; metrics: `count`. Enrichment path: lookup `cip_electronic_access_points`.",
+  "value": "UC-10.14.16 gives Security Infra teams earlier visibility into Point Monitoring through `ics:firewall` feeds, lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Map Splunk ES and OT Security Add-on NERC CIP dashboards to registered EAPs. Retain evidence per regional entity policy. Correlate with access authorization lists per CIP-005.",
   "visualization": "ESP topology summary, Timeline of EAP sessions, Compliance summary by site.",
   "cimModels": [
@@ -38,17 +44,41 @@
   "references": [
     {
       "title": "OT Security Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/5151"
+      "url": "https://splunkbase.splunk.com/app/5151",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Network_Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Compliance dashboards can go yellow during documentation lag, retroactive CIP baselines, or tool upgrades — verify the underlying control, not just the reporting day.",
+  "knownFalsePositives": "1. **Maintenance window on `ot_security` (UC-10.14.16)** — Planned work for 'NERC CIP Electronic Access Point Monitoring' shifts `count` over `span=1h` while `eap_name`, `esp_id`, `src`, `user` remains in-scope. Applies lookup `cip_electronic_access_points`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ics:firewall`** — Scheduled automation elevates `esp_id` without crossing configured threshold for UC-10.14.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `eap_name`, `esp_id`, `src`, `user`** — Health checks in `ot_security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ics:firewall`** — First 48h baseline for UC-10.14.16 on `eap_name` is unstable; join `cip_electronic_access_points` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `eap_name`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     "Splunk OT Security Add-on"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: OT Security Add-on for Splunk (Splunkbase 5151).\n• Ensure the following data sources are available: `index=ot_security` perimeter firewalls, VPN, jump hosts tagged `bes_asset=1`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap Splunk ES and OT Security Add-on NERC CIP dashboards to registered EAPs. Retain evidence per regional entity policy. Correlate with access authorization lists per CIP-005.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot_security sourcetype=\"ics:firewall\" bes_asset=1\n| lookup cip_electronic_access_points dest OUTPUT eap_name esp_id\n| where isnotnull(eap_name)\n| stats count earliest(_time) as first latest(_time) as last by eap_name, esp_id, src, user, action\n| eval cip_standard=\"CIP-005\"\n| table cip_standard, eap_name, esp_id, src, user, action, count, first, last\n```\n\nUnderstanding this SPL\n\n**NERC CIP Electronic Access Point Monitoring** — Supports NERC CIP-005 by monitoring access to BES Cyber Systems at controlled Electronic Security Perimeter entry points for audit readiness and breach detection.\n\nDocumented **Data sources**: `index=ot_security` perimeter firewalls, VPN, jump hosts tagged `bes_asset=1`. **App/TA** (typical add-on context): OT Security Add-on for Splunk (Splunkbase 5151). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot_security; **sourcetype**: ics:firewall. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot_security, sourcetype=\"ics:firewall\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnotnull(eap_name)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by eap_name, esp_id, src, user, action** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **cip_standard** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **NERC CIP Electronic Access Point Monitoring**): table cip_standard, eap_name, esp_id, src, user, action, count, first, last\n\nStep 3 — Validate\nCompare failed or disabled searches in Splunk to the **OT Security Add-on** configuration UI and the **Saved Searches** list so names and schedules line up. Spot-check one failure against `scheduler.log` around the run time.\n\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: ESP topology summary, Timeline of EAP sessions, Compliance summary by site.\n",
-  "grandmaExplanation": "We help prove we only let remote access the way the grid security standards say we should, in one place to audit."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: OT Security Add-on for Splunk (Splunkbase 5151).\n• Ensure the following data sources are available: `index=ot_security` perimeter firewalls, VPN, jump hosts tagged `bes_asset=1`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap Splunk ES and OT Security Add-on NERC CIP dashboards to registered EAPs. Retain evidence per regional entity policy. Correlate with access authorization lists per CIP-005.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot_security sourcetype=\"ics:firewall\" bes_asset=1\n| lookup cip_electronic_access_points dest OUTPUT eap_name esp_id\n| where isnotnull(eap_name)\n| stats count earliest(_time) as first latest(_time) as last by eap_name, esp_id, src, user, action\n| eval cip_standard=\"CIP-005\"\n| table cip_standard, eap_name, esp_id, src, user, action, count, first, last\n```\n\nUnderstanding this SPL\n\n**NERC CIP Electronic Access Point Monitoring** — Supports NERC CIP-005 by monitoring access to BES Cyber Systems at controlled Electronic Security Perimeter entry points for audit readiness and breach detection.\n\nDocumented **Data sources**: `index=ot_security` perimeter firewalls, VPN, jump hosts tagged `bes_asset=1`. **App/TA** (typical add-on context): OT Security Add-on for Splunk (Splunkbase 5151). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot_security; **sourcetype**: ics:firewall. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot_security, sourcetype=\"ics:firewall\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnotnull(eap_name)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by eap_name, esp_id, src, user, action** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **cip_standard** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **NERC CIP Electronic Access Point Monitoring**): table cip_standard, eap_name, esp_id, src, user, action, count, first, last\n\nStep 3 — Validate\nCompare failed or disabled searches in Splunk to the **OT Security Add-on** configuration UI and the **Saved Searches** list so names and schedules line up. Spot-check one failure against `scheduler.log` around the run time.\n\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: ESP topology summary, Timeline of EAP sessions, Compliance summary by site.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (OT Security Add-on for Splunk (Splunkbase 5151)). Enable the modular input or HEC token that writes sourcetype=ics:firewall into ot_security. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action, dest, eap_name, eap_name esp_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help prove we only let remote access the way the grid security standards say we should, in one place to audit.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

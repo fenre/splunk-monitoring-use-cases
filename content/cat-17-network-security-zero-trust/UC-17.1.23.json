@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'SonicWall NGFW IPS and Gateway Anti-Virus Alerts by Signature' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_sonicwall_ngfw_ips_and_gateway_anti_virus_alerts` (UC-17.1.23), SOC dashboard panel \"Network — SonicWall NGFW IPS and Gateway Anti-Virus Alerts by Signature\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.1.23 positive (SonicWall, NGFW, IPS, and, Gateway): ingest synthetic events into `index=netfw` sourcetype='dell:sonicwall' where `count` grouped by `src_ip`, `dest_ip`, `sig` satisfies `count` >= 5 for 'SonicWall NGFW IPS and Gateway Anti-Virus Alerts by Signature'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.23 negative (by Signature): ingest benign `netfw` / `dell:sonicwall` events where `src_ip`, `dest_ip`, `sig` stays below `count` >= 5, or exclude the test entity via `network_exception_register.csv`. Variant 15 confirms zero alert rows for 'SonicWall NGFW IPS and Gateway Anti-Virus Alerts by Signature'."
+  },
   "dataSources": "SonicWall firewall syslog (CIM Network Traffic / IDS), `sourcetype=dell:sonicwall` or `sourcetype=dell:sonicwall:firewall`",
   "app": "Dell SonicWall Add-on for Splunk (Splunkbase 6203)",
   "spl": "index=netfw (sourcetype=\"dell:sonicwall\" OR sourcetype=\"dell:sonicwall:firewall\") earliest=-24h\n| eval sig=coalesce(signature, msg, cat, threat_name)\n| eval src_ip=coalesce(src_ip, src, c_src)\n| eval dest_ip=coalesce(dest_ip, dst, c_dst)\n| where match(lower(sig),\"(?i)intrusion|ips|gateway anti|virus|sid\") OR match(_raw,\"(?i)priority.*(high|critical)\")\n| stats count by src_ip, dest_ip, sig\n| where count>=5\n| sort -count\n| head 40",
-  "description": "SonicWall deep packet inspection generates high-fidelity IPS and gateway anti-malware events. Clustering by signature and endpoint pair reveals active exploitation attempts, worm propagation, or policy gaps where expected traffic is misclassified.",
-  "value": "Security analysts cluster SonicWall IPS and Gateway Anti-Virus alerts by signature to identify automated attacks, worm propagation, and active exploitation attempts, prioritizing response based on CVE severity and MITRE ATT&CK technique mappings.",
+  "description": "Monitors UC-17.1.23 — SonicWall, NGFW, IPS, and, Gateway — using `index=netfw` sourcetype `dell:sonicwall`, grouped by `src_ip`, `dest_ip`, `sig`. Outputs `count` each `the scheduled window`; alert when `count` >= 5. Primary focus: by Signature. Purpose-built for 'SonicWall NGFW IPS and Gateway Anti-Virus Alerts by Signature' in Network workflows.",
+  "value": "UC-17.1.23 operationalises 'SonicWall NGFW IPS and Gateway Anti-Virus Alerts by Signature' against `dell:sonicwall` feeds so operators reduce unauthorized access, segmentation drift, and NAC policy failures without manual correlation.",
   "implementation": "Forward SonicWall syslog to Splunk via SC4S or a forwarder; set `linebreaking` per vendor guidance. Install Splunkbase app 6203 for field extractions. Validate whether your deployment uses `dell:sonicwall` or `dell:sonicwall:firewall`. Create lookups for pen-test windows and vulnerability-scanner subnets.",
   "visualization": "Table (signature, sources, destinations), Heatmap (time × signature), MITRE tagging overlay in ES if available.",
   "cimModels": [],
@@ -21,18 +27,34 @@
   "references": [
     {
       "title": "Splunk Connect for Syslog — Dell SonicWall",
-      "url": "https://splunk.github.io/splunk-connect-for-syslog/main/sources/vendor/Dell/sonicwall/"
+      "url": "https://splunk.github.io/splunk-connect-for-syslog/main/sources/vendor/Dell/sonicwall/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase — Dell SonicWall Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/6203"
+      "url": "https://splunkbase.splunk.com/app/6203",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Vulnerability scanner signature matches** — Qualys/Tenable traffic triggers IPS/threat signatures for 'SonicWall NGFW IPS and Gateway Anti-Virus Alerts by Signature'. Compare `src` against `scanner_ips` lookup.\n\n2. **Policy push during change window** — New deny rule generates expected blocks. Match firewall commit timestamp in change calendar.\n\n3. **Encrypted traffic inspection gap** — TLS-heavy apps bypass deep inspection; volume drop is operational, not a sensor failure.\n\n4. **Red-team C2 simulation** — Approved exercise from `pen_test_hosts.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src`, `signature_id`, `valid_until`.",
   "securityDomain": "threat",
   "equipment": [
     "sonicwall",
     "syslog"
+  ],
+  "equipmentModels": [
+    "sonicwall_generic",
+    "syslog_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,5 +64,7 @@
   ],
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• SonicWall NGFW syslog forwarding to a Splunk heavy forwarder. Data in `index=firewall` (or `index=nac` if grouped) with `sourcetype=syslog` or `sourcetype=sonicwall`. Key fields: `msg_id` (IPS event IDs like 82, 83), `pri`, `fw_action`, `Category`, `sid` (signature ID), `src`, `srcPort`, `dst`, `dstPort`, `proto`, `gw_av_sig` (AV signature name), `gw_av_action` (prevented/detected).\n• SonicWall syslog uses a key=value format. IPS events have `m=82` (IPS Prevention Alert) or `m=83` (IPS Detection Alert). Gateway Anti-Virus uses `m=24` (GAV). Enable syslog on the SonicWall: Log > Syslog > Add Server.\n• Create a `sonicwall_sig_severity.csv` lookup: `sig_id,sig_name,severity,cve,mitre_technique` mapping SonicWall signature IDs to context.\n\nStep 1 — Configure data collection\nEnable SonicWall syslog: Manage > Log Settings > Syslog > add the HF IP, port 514, facility Local0. Enable IPS, GAV, and Anti-Spyware log categories.\n\nVerify:\n```spl\nindex=firewall sourcetype=sonicwall earliest=-1h\n| where msg_id IN (\"82\",\"83\",\"24\")\n| stats count by msg_id\n```\nmsg_id=82: IPS Prevention, msg_id=83: IPS Detection, msg_id=24: GAV.\n\nStep 2 — Create the search and alert\n\nPrimary search — IPS/GAV signature clustering:\n```spl\nindex=firewall sourcetype=sonicwall earliest=-24h\n| where msg_id IN (\"82\",\"83\",\"24\")\n| eval alert_type=case(msg_id=\"82\", \"IPS-Prevent\", msg_id=\"83\", \"IPS-Detect\", msg_id=\"24\", \"GAV\")\n| stats count dc(src) as unique_sources dc(dst) as unique_targets values(Category) as categories by sid, alert_type\n| lookup sonicwall_sig_severity.csv sig_id as sid OUTPUT sig_name severity cve mitre_technique\n| sort - count\n```\n\nUnderstanding this SPL: Groups IPS and GAV alerts by signature, showing which signatures fire most often, against how many unique sources and targets, and what category they belong to. A single signature hitting many targets suggests a worm or automated scanner. A single signature from many sources suggests a widespread internet attack against a known vulnerability. The CVE and MITRE mappings from the lookup help prioritize response.\n\nCritical signature alert:\n```spl\nindex=firewall sourcetype=sonicwall earliest=-1h\n| where msg_id=\"82\" AND fw_action=\"prevented\"\n| lookup sonicwall_sig_severity.csv sig_id as sid OUTPUT severity\n| where severity=\"Critical\"\n| stats count by sid, src, dst, dstPort\n```\n\nStep 3 — Validate\n(a) In SonicWall: Log > View > filter by IPS. Compare signature IDs with Splunk.\n(b) Run an Nmap scan from a test host and verify IPS alerts appear.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Top 10 signatures by hit count. Row 2 — IPS Prevent vs Detect ratio. Row 3 — GAV detections with malware family.\nAlert: Immediate on Critical severity IPS prevention events.\n\nRunbook:\n1. **Critical IPS prevent** — Verify the blocked traffic was malicious. Check CVE for affected software.\n2. **IPS Detect (not prevent)** — Signature in detection-only mode. Consider switching to prevention.\n3. **GAV high volume from one source** — Internal host may be infected. Isolate and scan.\n\nStep 5 — Troubleshooting\n• **No IPS events** — IPS may not be licensed or enabled. Check SonicWall Security Services > Intrusion Prevention.\n• **All events are 'detected' not 'prevented'** — IPS may be in detection-only mode. Switch to prevention for critical signatures.",
-  "grandmaExplanation": "Our SonicWall firewall detects and blocks attacks based on known patterns. We group these detections by pattern type so we can see which attacks are most common and which are most dangerous, helping us decide where to focus our defenses."
+  "grandmaExplanation": "Our SonicWall firewall detects and blocks attacks based on known patterns. We group these detections by pattern type so we can see which attacks are most common and which are most dangerous, helping us decide where to focus our defenses.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

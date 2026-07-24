@@ -10,11 +10,17 @@
   ],
   "splunkPillar": "IT Operations",
   "industry": "Telecommunications",
-  "dataSources": "`index=voip` `sourcetype=asterisk:full` with `voicemail` subsystem, optional `sourcetype=asterisk:voicemail` custom metrics from `du -sk` scripted input",
-  "app": "Splunk Universal Forwarder on Asterisk/FreePBX host",
+  "exclusions": "Covers the detection logic documented for 'Asterisk Voicemail Storage Growth and MWI NOTIFY Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_asterisk_voicemail_storage_growth_and_mwi_notify` (UC-21.8.14), SOC dashboard panel \"Operations — Asterisk Voicemail Storage Growth and MWI NOTIFY Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-21.8.14 positive (Asterisk, Voicemail, Storage, Growth, and): ingest synthetic events into `index=voip` sourcetype='asterisk:full' where `count` grouped by `_time`, `host`, `mailbox` satisfies `err_count` > 10 for 'Asterisk Voicemail Storage Growth and MWI NOTIFY Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-21.8.14 negative (NOTIFY Failures): ingest benign `voip` / `asterisk:full` events where `_time`, `host`, `mailbox` stays below `err_count` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Asterisk Voicemail Storage Growth and MWI NOTIFY Failures'."
+  },
+  "dataSources": "`index=voip` `sourcetype=asterisk:full` with `voicemail` subsystem, optional `sourcetype=asterisk:voicemail` custom metrics from `du -sk` scripted input Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder on Asterisk/FreePBX host — Universal Forwarder (Splunkbase 617)",
   "spl": "index=voip sourcetype=asterisk:full voicemail OR MWI OR Mailbox\n| rex field=_raw \"(?i)mailbox\\s+(?<mailbox>\\S+)\"\n| bin _time span=1h\n| stats count as err_count by _time, host, mailbox\n| where err_count > 10",
-  "description": "Voicemail stores grow with retained compliance recordings; simultaneous MWI NOTIFY failures strand users without blinking lamps. Combining grep-friendly Asterisk logs with optional disk-usage metrics exposes both logical and physical capacity risk.",
-  "value": "Avoids voicemail outages during revenue-critical periods by alerting on storage pressure and MWI errors before spool partitions fill.",
+  "description": "Surfaces risk tied to Asterisk, Voicemail, Storage, Growth, and through UC-21.8.14 on `index=voip` sourcetype `asterisk:full`. Summarises `count` grouped by `_time`, `host`, `mailbox` across `1h` before applying `err_count` > 10. Operators tune 'Asterisk Voicemail Storage Growth and MWI NOTIFY Failures' using UC-21.8.14 runbook steps.",
+  "value": "Tracking `activity` via UC-21.8.14 on `asterisk:full` feeds improves response to 'Asterisk Voicemail Storage Growth and MWI NOTIFY Failures' and reduces operational risk and delayed incident response.",
   "implementation": "Forward Asterisk logs; tag voicemail-related lines. Alert when voicemail/MWI error strings exceed 10 per hour per mailbox. Separately schedule `index=os sourcetype=asterisk:voicemail_du` from `du -sk /var/spool/asterisk/voicemail` and alert when `voicemail_kb/1024/1024 > 50` (tune per disk). Integrate with retention jobs documented in runbooks.",
   "visualization": "Area chart (voicemail_gb), Table (mailboxes with errors), Single value (spool percent full if added).",
   "cimModels": [
@@ -24,16 +30,31 @@
   "references": [
     {
       "title": "Asterisk Documentation — Voicemail",
-      "url": "https://docs.asterisk.org/Configuration/Applications/Voicemail/"
+      "url": "https://docs.asterisk.org/Configuration/Applications/Voicemail/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "FreePBX Wiki — Voicemail Admin",
-      "url": "https://wiki.freepbx.org/display/PPS/Voicemail+Admin"
+      "url": "https://wiki.freepbx.org/display/PPS/Voicemail+Admin",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "MWI or storage noise during mailbox migrations, vmail backup jobs, IMAP bulk deletes, or storage expansion the PBX admin ran during a maintenance window.",
+  "knownFalsePositives": "1. **Maintenance window on `voip` (UC-21.8.14)** — Planned work for 'Asterisk Voicemail Storage Growth and MWI NOTIFY Failures' shifts `count` over `span=1h` while `_time`, `host`, `mailbox` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `asterisk:full`** — Scheduled automation elevates `host` without crossing `err_count` > 10 for UC-21.8.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `host`, `mailbox`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `asterisk:full`** — First 48h baseline for UC-21.8.14 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "asterisk"
+  ],
+  "equipmentModels": [
+    "asterisk_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,7 +63,9 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Separate partition monitoring if voicemail is on dedicated LVM.\n• Legal hold process before auto-purge.\n\nStep 1 — Normalize mailbox field to `extension@context`.\n\nStep 2 — Validate MWI errors by testing NOTIFY with `sip set debug` in lab.\n\nStep 3 — Dashboard for top 20 mailboxes by size.\n\nStep 4 — Automate ticket to PBX admin with disk free %.",
+  "detailedImplementation": "Prerequisites\n• Separate partition monitoring if voicemail is on dedicated LVM.\n• Legal hold process before auto-purge.\n\nStep 1 — Normalize mailbox field to `extension@context`.\n\nStep 2 — Validate MWI errors by testing NOTIFY with `sip set debug` in lab.\n\nStep 3 — Dashboard for top 20 mailboxes by size.\n\nStep 4 — Automate ticket to PBX admin with disk free %.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder on Asterisk/FreePBX host — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=asterisk:full into voip. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, err_count, host, mailbox`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch voicemail use and MWI health. We help you catch storage or sync issues before messages appear lost.",
-  "telcoUseCase": "Unified messaging hygiene — prevent `/var/spool/asterisk/voicemail` exhaustion and broken message-waiting lamps on SIP phones."
+  "prerequisiteUseCases": [],
+  "telcoUseCase": "Unified messaging hygiene — prevent `/var/spool/asterisk/voicemail` exhaustion and broken message-waiting lamps on SIP phones.",
+  "wave": "crawl"
 }

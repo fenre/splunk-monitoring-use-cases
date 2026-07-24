@@ -9,11 +9,17 @@
     "Cost"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Volume space breakdown in `purestorage:volume` (`snapshots`, `data`, `shared_space`)",
-  "app": "Pure Storage Unified Add-on for Splunk (5513)",
+  "exclusions": "Covers the detection logic documented for 'Pure Storage FlashArray volume snapshot space consumption trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_pure_storage_flasharray_volume_snapshot_space_co` (UC-6.1.72), SOC dashboard panel \"Operations — Pure Storage FlashArray volume snapshot space consumption trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.1.72 positive (Pure, Storage, FlashArray, volume, snapshot): ingest synthetic events into `index=storage` sourcetype='purestorage:volume' where `snapshot_bytes` grouped by `volume_name` satisfies `snap_b` > 0 for 'Pure Storage FlashArray volume snapshot space consumption trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.72 negative (consumption trending): ingest benign `storage` / `purestorage:volume` events where `volume_name` stays below `snap_b` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Pure Storage FlashArray volume snapshot space consumption trending'."
+  },
+  "dataSources": "Volume space breakdown in `purestorage:volume` (`snapshots`, `data`, `shared_space`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Pure Storage Unified Add-on for Splunk (5513) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"purestorage:volume\"\n| eval snap_b=coalesce(space_snapshots, snapshots_bytes, snapshot_space)\n| eval data_b=coalesce(space_data, data_bytes, logical_bytes)\n| eval snap_pct=if(data_b+snap_b>0, round(snap_b/(data_b+snap_b)*100,2), null())\n| timechart span=12h sum(snap_b) as snapshot_bytes by volume_name",
-  "description": "Runaway snapshot growth consumes effective capacity and can silently push arrays toward write cliff. Trending snapshot bytes per volume informs retention and offload policies.",
-  "value": "Prevents surprise purchase orders and shortens backup windows by catching snapshot sprawl early.",
+  "description": "Detects UC-6.1.72 — Pure, Storage, FlashArray, volume, snapshot — using `index=storage` sourcetype `purestorage:volume`, grouped by `volume_name`. Outputs `snapshot_bytes` each `12h`; alert when `snap_b` > 0. Primary focus: consumption trending. Purpose-built for 'Pure Storage FlashArray volume snapshot space consumption trending' in Operations workflows.",
+  "value": "For 'Pure Storage FlashArray volume snapshot space consumption trending', UC-6.1.72 converts `snapshot_bytes` on `purestorage:volume` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Ensure REST includes thin provisioning and snapshot breakdown fields. Use `predict` over 30d for capacity forecasting dashboards.",
   "visualization": "Area chart (snapshot bytes), table (volume, snap_pct).",
   "cimModels": [
@@ -24,20 +30,31 @@
   "references": [
     {
       "title": "Pure Storage Unified Add-on for Splunk (Splunkbase)",
-      "url": "https://splunkbase.splunk.com/app/5513"
+      "url": "https://splunkbase.splunk.com/app/5513",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Pure Storage Splunk reference",
-      "url": "https://support.purestorage.com/Solutions/Splunk/Splunk_Reference/Array_Monitoring_on_Splunk_with_PureStorage_Unified_App_and_TA"
+      "url": "https://support.purestorage.com/Solutions/Splunk/Splunk_Reference/Array_Monitoring_on_Splunk_with_PureStorage_Unified_App_and_TA",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Snapshot space grows with active data changes and retention; short jumps often follow backup or patch windows.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.72)** — Planned work for 'Pure Storage FlashArray volume snapshot space consumption trending' shifts `snapshot_bytes` over `span=12h` while `volume_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `purestorage:volume`** — Scheduled automation elevates `snap_b` without crossing `snap_b` > 0 for UC-6.1.72. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `volume_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `purestorage:volume`** — First 48h baseline for UC-6.1.72 on `volume_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `volume_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "pure_storage"
+  ],
+  "equipmentModels": [
+    "pure_storage_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -47,5 +64,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Pure Storage Unified Add-on for Splunk (5513) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=purestorage:volume into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`snap_b, snap_pct, volume_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

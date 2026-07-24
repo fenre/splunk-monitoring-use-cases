@@ -9,23 +9,55 @@
     "Operations"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`).",
-  "app": "Home ADS-B receiver (dump1090/readsb/tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC.",
-  "spl": "index=personal sourcetype=parkmobile:session duration_min>120\nstats sum(cost_usd) as overstay_cost by zone_name",
-  "description": "Totals ParkMobile parking cost from sessions exceeding two hours.",
-  "value": "Surfacing parkmobile session overstay cost helps you act before small issues become habits.",
+  "exclusions": "Covers personal hobby monitoring for 'ParkMobile Session Overstay Cost' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_parkmobile_session_overstay_cost` (UC-25.14.40), SOC dashboard panel \"Personal — ParkMobile Session Overstay Cost\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.14.40 positive (ParkMobile, Session, Overstay, Cost): ingest synthetic events into `index=personal` sourcetype='parkmobile:session' where `overstay_cost` grouped by `zone_name` satisfies `duration_min` > 120 for 'ParkMobile Session Overstay Cost'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.14.40 negative (Overstay Cost): ingest benign `personal` / `parkmobile:session` events where `zone_name` stays below `duration_min` > 120, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'ParkMobile Session Overstay Cost'."
+  },
+  "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Home ADS-B receiver (dump1090/readsb/tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=parkmobile:session duration_min>120\n| stats sum(cost_usd) as overstay_cost by zone_name",
+  "description": "Monitors UC-25.14.40 — ParkMobile, Session, Overstay, Cost — using `index=personal` sourcetype `parkmobile:session`, grouped by `zone_name`. Outputs `overstay_cost` each `the scheduled window`; alert when `duration_min` > 120. Primary focus: Overstay Cost. Purpose-built for 'ParkMobile Session Overstay Cost' in Personal workflows.",
+  "value": "UC-25.14.40 operationalises 'ParkMobile Session Overstay Cost' against `parkmobile:session` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Ingest the relevant travel, commute & flight-spotting export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It brings back when parkmobile session overstay cost matters for your routine."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.14.40)** — Connector for 'ParkMobile Session Overstay Cost' stops polling `parkmobile:session`; stale `overstay_cost` on `zone_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `overstay_cost` over `1w` is expected for UC-25.14.40, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `parkmobile:session`. Dedup with `stats latest(*) by zone_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `duration_min` > 120 for 'ParkMobile Session Overstay Cost'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Travel, Commute & Flight-Spotting — typical feeds: ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel doc.\n• **Sourcetypes in this search**: `parkmobile:session`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=parkmobile:session`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Home ADS-B receiver (dump1090/readsb/tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC..\n\n**Author notes:** Ingest the relevant travel, commute & flight-spotting export into `index=personal` and schedule this search weekly.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"parkmobile:session\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=parkmobile:session earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **ParkMobile Session Overstay Cost** over `personal` data (primarily `sourcetype=parkmobile:session`) across the full search range. It applies numeric thresholds on `duration_min` (> 120) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `duration_min`, `zone_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=parkmobile:session duration_min>120\n| stats sum(cost_usd) as overstay_cost by zone_name\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=parkmobile:session earliest=-7d\n| head 50\n| table duration_min, zone_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=parkmobile:session earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `duration_min` before alerting:\n\n```spl\nindex=personal sourcetype=parkmobile:session earliest=-30d\n| stats perc50(duration_min) AS p50 perc90(duration_min) AS p90 perc99(duration_min) AS p99 max(duration_min) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.14.40: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Or Chart Of Key Fields (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `parkmobile:session` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=parkmobile:session | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It brings back when parkmobile session overstay cost matters for your routine.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

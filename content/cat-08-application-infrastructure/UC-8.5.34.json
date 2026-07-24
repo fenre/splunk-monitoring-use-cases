@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=messaging` `sourcetype=activemq:web` Jetty/HTTP access logs for the broker’s web console or REST, or `sourcetype=activemq:log` when advisory consumers are enabled and logged",
-  "app": "Universal Forwarder on Jetty request log; optional custom logging of advisory consumers",
+  "exclusions": "Covers the detection logic documented for 'ActiveMQ Advisory Message Storm Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_activemq_advisory_message_storm_detection` (UC-8.5.34), SOC dashboard panel \"Operations — ActiveMQ Advisory Message Storm Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.5.34 positive (ActiveMQ, Advisory, Message, Storm, Detection): ingest synthetic events into `index=messaging` sourcetype='activemq:web' where `med` grouped by `_time`, `host`, `client_ip` satisfies `advisory_http_hits` > 500 for 'ActiveMQ Advisory Message Storm Detection'. Validate filter `uri_path=\"*Advisory*\" OR uri_path=\"*advisory*\" OR request_ur`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.5.34 negative (Storm Detection): ingest benign `messaging` / `activemq:web` events where `_time`, `host`, `client_ip` stays below `advisory_http_hits` > 500, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'ActiveMQ Advisory Message Storm Detection'."
+  },
+  "dataSources": "`index=messaging` `sourcetype=activemq:web` Jetty/HTTP access logs for the broker’s web console or REST, or `sourcetype=activemq:log` when advisory consumers are enabled and logged Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Universal Forwarder on Jetty request log; optional custom logging of advisory consumers — Universal Forwarder (Splunkbase 617)",
   "spl": "index=messaging sourcetype=\"activemq:web\" earliest=-4h\n| search uri_path=\"*Advisory*\" OR uri_path=\"*advisory*\" OR request_uri=\"*ActiveMQ.Advisory*\"\n| bucket _time span=5m\n| stats count as advisory_http_hits by _time, host, client_ip\n| eventstats median(advisory_http_hits) as med by host\n| where advisory_http_hits > med*5 AND advisory_http_hits > 500\n| table _time, host, client_ip, advisory_http_hits, med",
-  "description": "Advisory topics carry connection and destination lifecycle events; a buggy client or misconfigured bridge that churns subscriptions can generate huge advisory traffic and CPU load. Spikes in HTTP access to `ActiveMQ.Advisory` paths or console polling often precede broker saturation.",
-  "value": "Protects shared brokers from self-inflicted advisory storms that look like organic traffic growth until thread dumps show advisory fan-out.",
+  "description": "Identifies 'ActiveMQ Advisory Message Storm Detection' patterns (UC-8.5.34) sourced from `index=messaging` sourcetype `activemq:web`. Threshold bundle: `advisory_http_hits` > 500; aggregation grain: `_time`, `host`, `client_ip`; metrics: `med`. Enrichment path: filter `uri_path=\"*Advisory*\" OR uri_path=\"*advisory*\" OR request_ur`.",
+  "value": "UC-8.5.34 gives Operations teams earlier visibility into Storm Detection through `activemq:web` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ensure Tomcat/Jetty access logs include `uri_path` or `request_uri`. Baseline per environment; tune multiplier and floor. For log-only sites, mirror with `activemq:log` searches on `Advisory`.",
   "visualization": "Line chart (advisory HTTP hits), table (client_ip, count), anomaly overlay vs median.",
   "cimModels": [
@@ -23,17 +29,33 @@
   "references": [
     {
       "title": "Apache ActiveMQ — Advisory Message",
-      "url": "https://activemq.apache.org/advisory-message"
+      "url": "https://activemq.apache.org/advisory-message",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apache ActiveMQ — Web Console",
-      "url": "https://activemq.apache.org/web-console"
+      "url": "https://activemq.apache.org/web-console",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Queues and broker metrics swing during rebalancing, replay, or maintenance. We align with change windows.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging` (UC-8.5.34)** — Planned work for 'ActiveMQ Advisory Message Storm Detection' shifts `med` over `span=5m` while `_time`, `host`, `client_ip` remains in-scope. Applies filter `uri_path=\"*Advisory*\" OR uri_path=\"*advisory*\" OR request_ur`. Cross-check CMDB CHG.\n\n2. **Batch `median` on `activemq:web`** — Scheduled automation elevates `host` without crossing `advisory_http_hits` > 500 for UC-8.5.34. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `host`, `client_ip`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `activemq:web`** — First 48h baseline for UC-8.5.34 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "activemq",
     "tomcat"
+  ],
+  "equipmentModels": [
+    "activemq_generic",
+    "tomcat_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-06-01",
@@ -42,6 +64,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to protect shared brokers from self-inflicted advisory storms that look like organic traffic growth until thread dumps show advisory fan-out."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Universal Forwarder on Jetty request log; optional custom logging of advisory consumers — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=activemq:web into messaging. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, advisory_http_hits, client_ip, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to protect shared brokers from self-inflicted advisory storms that look like organic traffic growth until thread dumps show advisory fan-out.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

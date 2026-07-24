@@ -8,24 +8,42 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Multi-Cloud Network Performance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_multi_cloud_network_performance` (UC-5.9.31), SOC dashboard panel \"Operations — Multi-Cloud Network Performance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.9.31 positive (Multi, Cloud, Network, Performance): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `avg_latency`, `avg_loss`, `avg_jitter` grouped by `thousandeyes.source.agent.name`, `server.address`, `thousandeyes.test.name` satisfies detection threshold for 'Multi-Cloud Network Performance'. Validate macro `stream_index`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.9.31 negative (Network Performance): ingest benign `target_index` / `target_sourcetype` events where `thousandeyes.source.agent.name`, `server.address`, `thousandeyes.test.name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Multi-Cloud Network Performance'."
+  },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` with `thousandeyes.test.domain=\"cea\"` from `ta_cisco_thousandeyes` (Splunkbase 7719). Uses Agent-to-Server tests deployed from Enterprise Agents within each cloud provider (AWS, Azure, GCP) targeting services in other cloud providers or on-premises. Metrics: `network.latency` (seconds), `network.loss` (percentage), `network.jitter` (milliseconds). Cloud provider identification is achieved via test naming conventions (e.g., \"AWS-us-east-1-to-Azure-westeurope\") or ThousandEyes tags.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`stream_index` thousandeyes.test.type=\"agent-to-server\" thousandeyes.test.name=\"*cloud*\" OR thousandeyes.test.name=\"*AWS*\" OR thousandeyes.test.name=\"*Azure*\" OR thousandeyes.test.name=\"*GCP*\"\n| stats avg(network.latency) as avg_latency avg(network.loss) as avg_loss avg(network.jitter) as avg_jitter by thousandeyes.source.agent.name, server.address, thousandeyes.test.name\n| eval avg_latency_ms=round(avg_latency*1000,1)\n| sort -avg_latency_ms",
-  "description": "Monitors network performance between cloud providers (AWS ↔ Azure ↔ GCP) and between cloud and on-premises environments using ThousandEyes Enterprise Agents deployed within each cloud environment. Tracks cross-cloud latency, loss, and jitter to ensure multi-cloud interconnections meet application requirements.",
-  "value": "Multi-cloud architectures create invisible network dependencies between cloud providers. An application frontend in AWS calling a microservice in Azure traverses multiple provider networks, peering points, and backbone segments — any of which can degrade. Cloud provider native monitoring (CloudWatch, Azure Monitor, Stackdriver) only sees within their own boundary. ThousandEyes Enterprise Agents deployed in each cloud provide end-to-end cross-cloud visibility. This UC detects: inter-cloud peering degradation (AWS–Azure Express Route vs internet path), cloud region connectivity issues, and cross-cloud latency that violates application SLAs. Without this visibility, teams waste hours investigating application timeouts that are actually cross-cloud network latency issues.",
+  "description": "Detects when Network Performance criteria fire for 'Multi-Cloud Network Performance' (UC-5.9.31) in `index=target_index` sourcetype `configured sourcetype`. Pipeline aggregates `avg_latency`, `avg_loss`, `avg_jitter` by `thousandeyes.source.agent.name`, `server.address`, `thousandeyes.test.name` over `the scheduled window`. Alert logic enforces configured threshold. SPL signature: macro `stream_index`. Eliminates manual hunting for UC-5.9.31 conditions.",
+  "value": "UC-5.9.31 helps teams contain Multi, Cloud, Network, Performance scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Deploy Enterprise Agents in each cloud provider (as VMs, containers, or serverless). Create Agent-to-Server tests targeting key services in other clouds. Use consistent naming conventions for cloud identification.",
   "visualization": "(1) Matrix/heatmap: source cloud × destination cloud, showing average latency. (2) Table: cross-cloud paths sorted by latency. (3) Timechart: latency trending per cross-cloud path. (4) Single values: worst cross-cloud latency, highest cross-cloud loss.",
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes cloud monitoring",
-      "url": "https://www.thousandeyes.com/solutions/cloud"
+      "url": "https://www.thousandeyes.com/solutions/cloud",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Geographic latency.** Cross-cloud paths between distant regions (US-East to Asia-Pacific) inherently have high latency (120–250 ms). This is physics, not a problem. Compare against baseline for each specific path.\n\n**Cloud provider maintenance.** Cloud providers perform network maintenance that can temporarily increase latency or cause brief packet loss. Check provider status pages.\n\n**Test agent resource contention.** Enterprise Agents on undersized VMs may produce inconsistent results during periods of co-tenant resource contention. Use dedicated VM sizes recommended by ThousandEyes.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.9.31)** — Planned work for 'Multi-Cloud Network Performance' shifts `avg_latency`, `avg_loss`, `avg_jitter` over `span=1h` while `thousandeyes.source.agent.name`, `server.address`, `thousandeyes.test.name` remains in-scope. Applies macro `stream_index`. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `server.address` without crossing configured threshold for UC-5.9.31. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `thousandeyes.source.agent.name`, `server.address`, `thousandeyes.test.name`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.9.31 on `thousandeyes.source.agent.name` is unstable; join `stream_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `thousandeyes.source.agent.name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure",
     "cisco"

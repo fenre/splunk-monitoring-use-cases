@@ -9,28 +9,43 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "MicroStrategy DSS logs (`microstrategy:dsserror`), Cognos audit (`cognos:audit`), BusinessObjects audit (`businessobjects:audit`), Oracle Analytics usage (`oracle:analytics:usage`), ThoughtSpot audit (`thoughtspot:audit`), QuickSight CloudTrail (`aws:cloudtrail`).",
-  "app": "Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS.",
+  "exclusions": "Covers the detection logic documented for 'MicroStrategy Cube Publication Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_microstrategy_cube_publication_failures` (UC-24.6.7), SOC dashboard panel \"Operations — MicroStrategy Cube Publication Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.6.7 positive (MicroStrategy, Cube, Publication, Failures): ingest synthetic events into `index=bi` sourcetype='microstrategy:dsserror' where `count` grouped by `cube`, `project` satisfies `failures` > 0 for 'MicroStrategy Cube Publication Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.6.7 negative (Publication Failures): ingest benign `bi` / `microstrategy:dsserror` events where `cube`, `project` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'MicroStrategy Cube Publication Failures'."
+  },
+  "dataSources": "MicroStrategy DSS logs (`microstrategy:dsserror`), Cognos audit (`cognos:audit`), BusinessObjects audit (`businessobjects:audit`), Oracle Analytics usage (`oracle:analytics:usage`), ThoughtSpot audit (`thoughtspot:audit`), QuickSight CloudTrail (`aws:cloudtrail`). Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=bi sourcetype=microstrategy:dsserror (\"cube\" AND (\"publish\" OR \"refresh\") AND (\"fail\" OR \"error\"))\n| rex \"cube '(?<cube>[^']+)'\"\n| stats count as failures by cube, project\n| where failures>0\n| sort - failures",
-  "description": "Detects MicroStrategy Intelligent Cube publication and refresh failures, which leave reports and dossiers serving stale in-memory data.",
-  "value": "Intelligent Cubes back most MicroStrategy performance; a failed publish silently serves old data across every report on that cube.",
+  "description": "Alerts on UC-24.6.7 — MicroStrategy, Cube, Publication, Failures — using `index=bi` sourcetype `microstrategy:dsserror`, grouped by `cube`, `project`. Outputs `count` each `the scheduled window`; alert when `failures` > 0. Primary focus: Publication Failures. Purpose-built for 'MicroStrategy Cube Publication Failures' in Operations workflows.",
+  "value": "UC-24.6.7 operationalises 'MicroStrategy Cube Publication Failures' against `microstrategy:dsserror` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest DSSErrors logs; schedule hourly and alert on cube publication failures per project.",
   "visualization": "Table of cube/project by failures, timechart.",
   "cimModels": [],
   "references": [
     {
       "title": "MicroStrategy — Enterprise Manager / monitoring",
-      "url": "https://www2.microstrategy.com/producthelp/current/EnterpriseManager/en-us/Content/enterprise_manager.htm"
+      "url": "https://www2.microstrategy.com/producthelp/current/EnterpriseManager/en-us/Content/enterprise_manager.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IBM Cognos Analytics — Audit reporting",
-      "url": "https://www.ibm.com/docs/en/cognos-analytics"
+      "url": "https://www.ibm.com/docs/en/cognos-analytics",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.6.7)** — Planned work for 'MicroStrategy Cube Publication Failures' shifts `count` over `span=1h` while `cube`, `project` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `microstrategy:dsserror`** — Scheduled automation elevates `project` without crossing `failures` > 0 for UC-24.6.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cube`, `project`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `microstrategy:dsserror`** — First 48h baseline for UC-24.6.7 on `cube` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cube`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "oracle"
@@ -38,5 +53,12 @@
   "equipmentModels": [
     "oracle_oracle_db"
   ],
-  "grandmaExplanation": "We watch MicroStrategy's in-memory data refreshes so reports do not quietly serve old numbers."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=microstrategy:dsserror into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cube, failures, project`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch MicroStrategy's in-memory data refreshes so reports do not quietly serve old numbers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

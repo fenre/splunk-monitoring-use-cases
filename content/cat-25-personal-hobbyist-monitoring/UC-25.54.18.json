@@ -9,23 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Renovation tasks (`reno:task`), budget and receipts (`reno:budget`), material orders (`reno:material`), inspections (`reno:inspection`), contractor logs (`reno:contractor`).",
-  "app": "Home-renovation project management — task boards (Trello, Notion), budget and receipt trackers, material orders, and inspection / permit logs — streamed to Splunk HEC via APIs and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'DIY vs Contractor Hour Mix' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_diy_vs_contractor_hour_mix` (UC-25.54.18), SOC dashboard panel \"Personal — DIY vs Contractor Hour Mix\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.54.18 positive (DIY, Contractor, Hour, Mix): ingest synthetic events into `index=personal` sourcetype='reno:contractor' where `sum` grouped by `project_phase` satisfies detection threshold for 'DIY vs Contractor Hour Mix'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.54.18 negative (Hour Mix): ingest benign `personal` / `reno:contractor` events where `project_phase` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'DIY vs Contractor Hour Mix'."
+  },
+  "dataSources": "Renovation tasks (`reno:task`), budget and receipts (`reno:budget`), material orders (`reno:material`), inspections (`reno:inspection`), contractor logs (`reno:contractor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Home-renovation project management — task boards (Trello, Notion), budget and receipt trackers, material orders, and inspection / permit logs — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=reno:contractor\n| stats sum(eval(if(worker_type=\"diy\",hours_worked,0))) as diy_hours, sum(eval(if(worker_type=\"contractor\",hours_worked,0))) as contractor_hours by project_phase\n| eval diy_share_pct=round(100*diy_hours/(diy_hours+contractor_hours),1)\n| sort - diy_share_pct",
-  "description": "Shows which phases are mostly homeowner effort versus contracted labor.",
-  "value": "Hour mix helps explain budget savings, fatigue, and why some phases slip more than others.",
+  "description": "Detects 'DIY vs Contractor Hour Mix' patterns (UC-25.54.18) sourced from `index=personal` sourcetype `reno:contractor`. Threshold bundle: configured threshold; aggregation grain: `project_phase`; metrics: `sum`. Watch terms: DIY, Contractor, Hour, Mix.",
+  "value": "UC-25.54.18 gives Personal teams earlier visibility into Hour Mix through `reno:contractor` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Tag work logs by worker type and project phase; compute DIY share percentage for each phase.",
   "visualization": "Stacked bar chart of DIY versus contractor hours by phase.",
   "cimModels": [],
   "references": [
     {
       "title": "Project Management Institute — planning basics",
-      "url": "https://www.pmi.org/about/what-is-project-management"
+      "url": "https://www.pmi.org/about/what-is-project-management",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It surfaces how much of each project phase is being carried by you versus paid tradespeople."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.54.18)** — Connector for 'DIY vs Contractor Hour Mix' stops polling `reno:contractor`; stale `sum` on `project_phase` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected for UC-25.54.18, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reno:contractor`. Dedup with `stats latest(*) by project_phase`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'DIY vs Contractor Hour Mix'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Renovation & Project Management — typical feeds: Renovation tasks (`reno:task`), budget and receipts (`reno:budget`), material orders (`reno:material`), inspections (`reno:inspection`), contractor logs (`reno:contractor`)..\n• **Sourcetypes in this search**: `reno:contractor`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=reno:contractor`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Home-renovation project management — task boards (Trello, Notion), budget and receipt trackers, material orders, and inspection / permit logs — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Tag work logs by worker type and project phase; compute DIY share percentage for each phase.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"reno:contractor\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=reno:contractor earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **DIY vs Contractor Hour Mix** over `personal` data (primarily `sourcetype=reno:contractor`) across the full search range. The `sum` aggregation groups by `project_phase`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `project_phase`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=reno:contractor\n| stats sum(eval(if(worker_type=\"diy\",hours_worked,0))) as diy_hours, sum(eval(if(worker_type=\"contractor\",hours_worked,0))) as contractor_hours by project_phase\n| eval diy_share_pct=round(100*diy_hours/(diy_hours+contractor_hours),1)\n| sort - diy_share_pct\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=reno:contractor earliest=-7d\n| head 50\n| table project_phase\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=reno:contractor earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.54.18: Personal evidence` with the following panel layout:\n\n**Panel 1 — Stacked Bar Chart Of Diy Versus Contractor Hours By Phase (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `reno:contractor` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=reno:contractor | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It surfaces how much of each project phase is being carried by you versus paid tradespeople.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

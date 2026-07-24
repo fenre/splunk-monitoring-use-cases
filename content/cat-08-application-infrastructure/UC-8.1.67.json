@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`stats slabs` chunk stats ingested as `memcached:stats_slabs`",
-  "app": "Scripted `stats slabs` parser (per slab `chunk_size`, `total_pages`, `used_chunks`)",
+  "exclusions": "Covers the detection logic documented for 'Memcached Slab Class Memory Imbalance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_memcached_slab_class_memory_imbalance` (UC-8.1.67), SOC dashboard panel \"Operations — Memcached Slab Class Memory Imbalance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.1.67 positive (Memcached, Slab, Class, Memory, Imbalance): ingest synthetic events into `index=infrastructure` sourcetype='memcached:stats_slabs' where `max_waste` grouped by `host`, `slab_id` satisfies `pages` > 100, or `waste` > 60 for 'Memcached Slab Class Memory Imbalance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.67 negative (Memory Imbalance): ingest benign `infrastructure` / `memcached:stats_slabs` events where `host`, `slab_id` stays below `pages` > 100, or `waste` > 60, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Memcached Slab Class Memory Imbalance'."
+  },
+  "dataSources": "`stats slabs` chunk stats ingested as `memcached:stats_slabs` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Scripted `stats slabs` parser (per slab `chunk_size`, `total_pages`, `used_chunks`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=infrastructure sourcetype=\"memcached:stats_slabs\"\n| eval pages=tonumber(total_pages)\n| eval used=tonumber(used_chunks)\n| eval free=tonumber(free_chunks)\n| eval waste=if((used+free)>0, round(100*free/(used+free),1), null())\n| where pages > 100 AND waste > 60\n| stats max(waste) as max_waste by host, slab_id\n| sort -max_waste",
-  "description": "When many chunks in a slab class sit free while others are exhausted, memory is stranded in the wrong slab size—evictions rise without increasing effective capacity. `stats slabs` exposes that imbalance early.",
-  "value": "Guides tuning of slab growth, item sizes, or multi-tenant cache splits before ops teams buy RAM unnecessarily.",
+  "description": "Surfaces UC-8.1.67 — Memcached, Slab, Class, Memory, Imbalance — using `index=infrastructure` sourcetype `memcached:stats_slabs`, grouped by `host`, `slab_id`. Outputs `max_waste` each `the scheduled window`; alert when `pages` > 100, or `waste` > 60. Primary focus: Memory Imbalance. Purpose-built for 'Memcached Slab Class Memory Imbalance' in Operations workflows.",
+  "value": "UC-8.1.67 helps teams contain Memcached, Slab, Class, Memory, Imbalance scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Normalize slab IDs from `stats slabs` output. Poll during low traffic to reduce cost. Combine with application object-size histogram. Restarting memcached clears slabs—use only as last resort; prefer separate pools for different object sizes.",
   "visualization": "Heatmap (host × slab_id waste%), Table (top waste slabs).",
   "cimModels": [
@@ -23,12 +29,31 @@
   "references": [
     {
       "title": "Memcached — slabs",
-      "url": "https://github.com/memcached/memcached/wiki/Overview"
+      "url": "https://github.com/memcached/memcached/wiki/Overview",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Cache misses spike after cache flush, deploys with new cache keys, or during warm-up after restart. Compare with those events before treating as a fault.",
+  "knownFalsePositives": "1. **Maintenance window on `infrastructure` (UC-8.1.67)** — Planned work for 'Memcached Slab Class Memory Imbalance' shifts `max_waste` over `span=1h` while `host`, `slab_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `memcached:stats_slabs`** — Scheduled automation elevates `slab_id` without crossing `pages` > 100 for UC-8.1.67. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `slab_id`** — Health checks in `infrastructure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `memcached:stats_slabs`** — First 48h baseline for UC-8.1.67 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "memcached"
+  ],
+  "equipmentModels": [
+    "memcached_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -37,6 +62,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We watch for signs that guides tuning of slab growth, item sizes, or multi-tenant cache splits before ops teams buy RAM unnecessarily."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Scripted `stats slabs` parser (per slab `chunk_size`, `total_pages`, `used_chunks`) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=memcached:stats_slabs into infrastructure. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, pages, slab_id, waste`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for signs that guides tuning of slab growth, item sizes, or multi-tenant cache splits before ops teams buy RAM unnecessarily.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

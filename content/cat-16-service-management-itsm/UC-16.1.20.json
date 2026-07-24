@@ -8,6 +8,8 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Major Incident Post-Mortem Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_major_incident_post_mortem_compliance` (UC-16.1.20), SOC dashboard panel \"Operations — Major Incident Post-Mortem Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "compliance": [
     {
       "regulation": "apra-cps-234",
@@ -98,11 +100,15 @@
       "evidenceArtifact": "Saved search 'UC-16.1.20' running on Incidents with major_incident or u_major_incident, post-mortem fields, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
-  "dataSources": "Incidents with `major_incident` or `u_major_incident`, post-mortem fields",
-  "app": "`Splunk_TA_snow`",
+  "controlTest": {
+    "positiveScenario": "UC-16.1.20 positive (Major, Incident, Post, Mortem, Compliance): ingest synthetic events into `index=itsm` sourcetype='snow:incident' where `count` grouped by `entity` satisfies -90d for 'Major Incident Post-Mortem Compliance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.1.20 negative (Mortem Compliance): ingest benign `itsm` / `snow:incident` events where `entity` stays below -90d, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Major Incident Post-Mortem Compliance'."
+  },
+  "dataSources": "Incidents with `major_incident` or `u_major_incident`, post-mortem fields Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:incident\" u_major_incident=true state=\"closed\" earliest=-90d\n| eval pm_due=resolved_at + (7*86400)\n| eval compliant=if(post_mortem_completed=true OR now() <= pm_due OR isnotnull(u_post_mortem_date),1,0)\n| where post_mortem_completed=false AND now() > pm_due\n| table number, short_description, resolved_at, pm_due, assignment_group\n| sort resolved_at",
-  "description": "Verifies that major incidents have completed post-mortems within policy — extending generic PIR tracking with explicit compliance scoring for Sev1 programs.",
-  "value": "Verifies that major incidents have completed post-mortems within policy — extending generic PIR tracking with explicit compliance scoring for Sev1 programs.",
+  "description": "Identifies UC-16.1.20 — Major, Incident, Post, Mortem, Compliance — using `index=itsm` sourcetype `snow:incident`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when -90d. Primary focus: Mortem Compliance. Purpose-built for 'Major Incident Post-Mortem Compliance' in Operations workflows.",
+  "value": "UC-16.1.20 operationalises 'Major Incident Post-Mortem Compliance' against `snow:incident` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Align field names with your form (`u_post_mortem_complete`, tasks, etc.). Use related task table if post-mortem is a child task. Weekly report of breaches; executive summary of compliance %.",
   "visualization": "Table (non-compliant MIs), Single value (compliance %), Line chart (compliance trend).",
   "cimModels": [
@@ -112,14 +118,39 @@
   "references": [
     {
       "title": "Splunk_TA_snow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Late completion when a major event is still open, legal review slows close-out, or a new runbook is not followed yet.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.1.20)** — Planned work for 'Major Incident Post-Mortem Compliance' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:incident`** — Scheduled automation elevates `pm_due` without crossing configured threshold for UC-16.1.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident`** — First 48h baseline for UC-16.1.20 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],
+  "equipmentModels": [
+    "servicenow_generic"
+  ],
   "status": "verified",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_snow`.\n• Ensure the following data sources are available: Incidents with `major_incident` or `u_major_incident`, post-mortem fields.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAlign field names with your form (`u_post_mortem_complete`, tasks, etc.). Use related task table if post-mortem is a child task. Weekly report of breaches; executive summary of compliance %.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:incident\" u_major_incident=true state=\"closed\" earliest=-90d\n| eval pm_due=resolved_at + (7*86400)\n| eval compliant=if(post_mortem_completed=true OR now() <= pm_due OR isnotnull(u_post_mortem_date),1,0)\n| where post_mortem_completed=false AND now() > pm_due\n| table number, short_description, resolved_at, pm_due, assignment_group\n| sort resolved_at\n```\n\nUnderstanding this SPL\n\n**Major Incident Post-Mortem Compliance** — Verifies that major incidents have completed post-mortems within policy — extending generic PIR tracking with explicit compliance scoring for Sev1 programs.\n\nDocumented **Data sources**: Incidents with `major_incident` or `u_major_incident`, post-mortem fields. **App/TA** (typical add-on context): `Splunk_TA_snow`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:incident. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:incident\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **pm_due** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **compliant** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where post_mortem_completed=false AND now() > pm_due` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Major Incident Post-Mortem Compliance**): table number, short_description, resolved_at, pm_due, assignment_group\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with the ServiceNow list or form that matches this data (for example the incident, request, or problem view). Reconcile a few record numbers, states, and times. Confirm the add-on poll or export time lines up with what you see in the browser.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (non-compliant MIs), Single value (compliance %), Line chart (compliance trend).",
-  "grandmaExplanation": "We track whether the big events get a learning review, so the organization actually improves after the all-hands fire drill."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_snow`.\n• Ensure the following data sources are available: Incidents with `major_incident` or `u_major_incident`, post-mortem fields.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAlign field names with your form (`u_post_mortem_complete`, tasks, etc.). Use related task table if post-mortem is a child task. Weekly report of breaches; executive summary of compliance %.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:incident\" u_major_incident=true state=\"closed\" earliest=-90d\n| eval pm_due=resolved_at + (7*86400)\n| eval compliant=if(post_mortem_completed=true OR now() <= pm_due OR isnotnull(u_post_mortem_date),1,0)\n| where post_mortem_completed=false AND now() > pm_due\n| table number, short_description, resolved_at, pm_due, assignment_group\n| sort resolved_at\n```\n\nUnderstanding this SPL\n\n**Major Incident Post-Mortem Compliance** — Verifies that major incidents have completed post-mortems within policy — extending generic PIR tracking with explicit compliance scoring for Sev1 programs.\n\nDocumented **Data sources**: Incidents with `major_incident` or `u_major_incident`, post-mortem fields. **App/TA** (typical add-on context): `Splunk_TA_snow`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:incident. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:incident\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **pm_due** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **compliant** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where post_mortem_completed=false AND now() > pm_due` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Major Incident Post-Mortem Compliance**): table number, short_description, resolved_at, pm_due, assignment_group\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with the ServiceNow list or form that matches this data (for example the incident, request, or problem view). Reconcile a few record numbers, states, and times. Confirm the add-on poll or export time lines up with what you see in the browser.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (non-compliant MIs), Single value (compliance %), Line chart (compliance trend).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=snow:incident into itsm. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`compliant`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We track whether the big events get a learning review, so the organization actually improves after the all-hands fire drill.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

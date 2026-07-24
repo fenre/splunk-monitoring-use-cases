@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=aws:cloudwatch` (AWS/SNS — NumberOfNotificationsFailed), delivery status logs",
-  "app": "`Splunk_TA_aws`",
+  "exclusions": "Covers the detection logic documented for 'SNS Delivery Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_sns_delivery_failures` (UC-4.1.67), SOC dashboard panel \"Operations — SNS Delivery Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-4.1.67 positive (SNS, Delivery, Failures): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `failed` grouped by `TopicName` satisfies `failed` > 0 for 'SNS Delivery Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.67 negative (Delivery Failures): ingest benign `aws` / `aws:cloudwatch` events where `TopicName` stays below `failed` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'SNS Delivery Failures'."
+  },
+  "dataSources": "`sourcetype=aws:cloudwatch` (AWS/SNS — NumberOfNotificationsFailed), delivery status logs Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/SNS\" metric_name=\"NumberOfNotificationsFailed\"\n| timechart span=15m sum(Sum) as failed by TopicName\n| where failed > 0",
-  "description": "Failed SMS, email, or HTTP subscriptions break alerting and fan-out; monitoring delivery failures prevents silent notification loss.",
-  "value": "Failed SMS, email, or HTTP subscriptions break alerting and fan-out; monitoring delivery failures prevents silent notification loss.",
+  "description": "Identifies UC-4.1.67 for SNS, Delivery, Failures over `index=aws` sourcetype `aws:cloudwatch` with thresholds `failed` > 0. Groups `failed` by `TopicName` each `15m`. Centered on Delivery Failures indicators. Supports repeatable operations triage for 'SNS Delivery Failures'.",
+  "value": "For 'SNS Delivery Failures', UC-4.1.67 converts `failed` on `aws:cloudwatch` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Enable delivery status logging for HTTP/S endpoints. Ingest CloudWatch metrics per topic. Alert on any failed count sustained 15 minutes. Validate endpoint URLs and DLQ for failed deliveries if configured.",
   "visualization": "Line chart (failures by topic), Table (topic, failed count), Single value (total failures).",
   "cimModels": [
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "Splunk_TA_aws",
-      "url": "https://splunkbase.splunk.com/app/1876"
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned deploys, game-day tests, and vendor maintenance that you expect to move CPU, error, or lag metrics; compare with the change window.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.67)** — Planned work for 'SNS Delivery Failures' shifts `failed` over `span=15m` while `TopicName` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch`** — Scheduled automation elevates `src` without crossing `failed` > 0 for UC-4.1.67. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `TopicName`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-4.1.67 on `TopicName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `TopicName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],
+  "equipmentModels": [
+    "aws_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudwatch` (AWS/SNS — NumberOfNotificationsFailed), delivery status logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable delivery status logging for HTTP/S endpoints. Ingest CloudWatch metrics per topic. Alert on any failed count sustained 15 minutes. Validate endpoint URLs and DLQ for failed deliveries if configured.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/SNS\" metric_name=\"NumberOfNotificationsFailed\"\n| timechart span=15m sum(Sum) as failed by TopicName\n| where failed > 0\n```\n\nUnderstanding this SPL\n\n**SNS Delivery Failures** — Failed SMS, email, or HTTP subscriptions break alerting and fan-out; monitoring delivery failures prevents silent notification loss.\n\nDocumented **Data sources**: `sourcetype=aws:cloudwatch` (AWS/SNS — NumberOfNotificationsFailed), delivery status logs. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=15m** buckets with a separate series **by TopicName** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where failed > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (failures by topic), Table (topic, failed count), Single value (total failures).",
-  "grandmaExplanation": "We keep an eye on sns delivery failures. The key performance numbers the cloud already exposes so the team can plan capacity and notice problems before user-visible outages. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first."
+  "grandmaExplanation": "We keep an eye on sns delivery failures. The key performance numbers the cloud already exposes so the team can plan capacity and notice problems before user-visible outages. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

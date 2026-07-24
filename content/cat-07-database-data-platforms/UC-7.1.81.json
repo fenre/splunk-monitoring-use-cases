@@ -9,11 +9,17 @@
     "Audit"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Snowflake Row Access Policy and Dynamic Masking Evidence' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_snowflake_row_access_policy_and_dynamic_masking_` (UC-7.1.81), SOC dashboard panel \"Operations — Snowflake Row Access Policy and Dynamic Masking Evidence\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.81 positive (Snowflake, Row, Access, Policy, and): ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:access_history' where `queries`, `actors` grouped by `OBJECT_NAME`, `pol` satisfies `queries` > 0 for 'Snowflake Row Access Policy and Dynamic Masking Evidence'. Validate filter `POLICIES_APPLIED=* OR match(_raw,\"(?i)row access policy\") OR`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.81 negative (Masking Evidence): ingest benign `datawarehouse` / `snowflake:access_history` events where `OBJECT_NAME`, `pol` stays below `queries` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Snowflake Row Access Policy and Dynamic Masking Evidence'."
+  },
   "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY` `POLICIES_APPLIED` / masking metadata on `snowflake:access_history`",
   "app": "Splunk Add-on for Snowflake (Splunkbase 5390)",
   "spl": "index=datawarehouse sourcetype=\"snowflake:access_history\"\n| search POLICIES_APPLIED=* OR match(_raw,\"(?i)row access policy\") OR match(_raw,\"(?i)masking policy\")\n| eval pol=coalesce(POLICIES_APPLIED, policies_applied)\n| stats dc(QUERY_ID) as queries dc(USER_NAME) as actors by OBJECT_NAME, pol\n| where queries > 0\n| sort -queries",
-  "description": "Regulators and internal risk teams need proof that sensitive tables were accessed only under active row access or masking policies. Mining ACCESS_HISTORY for applied policy payloads demonstrates controls were in force for each query.",
-  "value": "Supports SOX, GDPR, and healthcare governance reviews without manual Snowflake UI sampling.",
+  "description": "Alerts on UC-7.1.81 — Snowflake, Row, Access, Policy, and — using `index=datawarehouse` sourcetype `snowflake:access_history`, grouped by `OBJECT_NAME`, `pol`. Outputs `queries`, `actors` each `the scheduled window`; alert when `queries` > 0. Filter chain includes filter `POLICIES_APPLIED=* OR match(_raw,\"(?i)row access policy\") OR`. Purpose-built for 'Snowflake Row Access Policy and Dynamic Masking Evidence' in Operations workflows.",
+  "value": "UC-7.1.81 operationalises 'Snowflake Row Access Policy and Dynamic Masking Evidence' against `snowflake:access_history` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ensure ACCESS_HISTORY export includes `POLICIES_APPLIED` JSON; use `spath` or indexed extraction in `props.conf` for policy names. Join to data dictionary for table classification. Restrict index to GRC roles. Document lag versus real time (ACCOUNT_USAGE latency).",
   "visualization": "Table (object, policy, queries, actors), Timeline.",
   "cimModels": [
@@ -22,17 +28,33 @@
   "references": [
     {
       "title": "Snowflake — Row access policies",
-      "url": "https://docs.snowflake.com/en/user-guide/security-row-intro"
+      "url": "https://docs.snowflake.com/en/user-guide/security-row-intro",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Snowflake — Dynamic data masking",
-      "url": "https://docs.snowflake.com/en/user-guide/security-column-intro"
+      "url": "https://docs.snowflake.com/en/user-guide/security-column-intro",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned access reviews, recertification, break-glass accounts, and vendor maintenance can emit privilege- or access-change events that match the rule but are already approved; require a change ticket for context.",
+  "knownFalsePositives": "1. **Maintenance window on `datawarehouse` (UC-7.1.81)** — Planned work for 'Snowflake Row Access Policy and Dynamic Masking Evidence' shifts `queries`, `actors` over `span=1h` while `OBJECT_NAME`, `pol` remains in-scope. Applies filter `POLICIES_APPLIED=* OR match(_raw,\"(?i)row access policy\") OR`. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `snowflake:access_history`** — Scheduled automation elevates `pol` without crossing `queries` > 0 for UC-7.1.81. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `OBJECT_NAME`, `pol`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snowflake:access_history`** — First 48h baseline for UC-7.1.81 on `OBJECT_NAME` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `OBJECT_NAME`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow",
     "snowflake"
+  ],
+  "equipmentModels": [
+    "servicenow_generic",
+    "snowflake_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -41,5 +63,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch Snowflake Row Access Policy and Dynamic Masking Evidence so we can keep this part of the data platform within the capacity and quality targets our teams expect."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Snowflake (Splunkbase 5390)). Enable the modular input or HEC token that writes sourcetype=snowflake:access_history into datawarehouse. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`OBJECT_NAME, pol, queries`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch Snowflake Row Access Policy and Dynamic Masking Evidence so we can keep this part of the data platform within the capacity and quality targets our teams expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

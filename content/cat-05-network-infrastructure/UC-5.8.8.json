@@ -8,21 +8,43 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Any `snmp:*` metric sourcetype with steady poll interval (compare metadata to poller config)",
-  "app": "Splunk core (metadata search)",
+  "exclusions": "Covers the detection logic documented for 'SNMP Polling Gap Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_snmp_polling_gap_detection` (UC-5.8.8), SOC dashboard panel \"Operations — SNMP Polling Gap Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.8.8 positive (SNMP, Polling, Gap, Detection): ingest synthetic events into `index=network` sourcetype='snmp:*' where `count` grouped by `host`, `sourcetype`, `_time` satisfies `gap_pct` > 20 for 'SNMP Polling Gap Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.8.8 negative (Gap Detection): ingest benign `network` / `snmp:*` events where `host`, `sourcetype`, `_time` stays below `gap_pct` > 20, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'SNMP Polling Gap Detection'."
+  },
+  "dataSources": "Any `snmp:*` metric sourcetype with steady poll interval (compare metadata to poller config) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk core (metadata search) — Universal Forwarder (Splunkbase 617)",
   "spl": "| tstats count where index=network sourcetype=\"snmp:*\" by host, sourcetype, _time span=10m\n| stats range(_time) as time_range, count as poll_count by host, sourcetype\n| eval expected_polls=round(time_range/300,0)\n| eval gap_pct=round((1-poll_count/expected_polls)*100,1)\n| where gap_pct > 20 | sort -gap_pct",
-  "description": "Missing SNMP polls create gaps in monitoring data. Detecting polling failures ensures metrics dashboards remain accurate.",
-  "value": "Network operations teams detect SNMP polling gaps that create silent monitoring blind spots, ensuring continuous visibility into all monitored network devices and identifying polling infrastructure failures.",
+  "description": "Monitors UC-5.8.8 — SNMP, Polling, Gap, Detection — using `index=network` sourcetype `snmp:*`, grouped by `host`, `sourcetype`, `_time`. Outputs `count` each `10m`; alert when `gap_pct` > 20. Primary focus: Gap Detection. Purpose-built for 'SNMP Polling Gap Detection' in Operations workflows.",
+  "value": "Alerting on SNMP, Polling, Gap, Detection through UC-5.8.8 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Track SNMP data arrival per device using `tstats`. Compare expected vs. actual poll count. Alert when gap exceeds 20%. Investigate SNMP community/credential issues.",
   "visualization": "Table (device, expected, actual, gap %), Single value (devices with gaps), Heatmap.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Maintenance silences, discovery pauses, and metric-store lag can under-count expected polls; verify the poller, not just Splunk, when gaps appear.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.8.8)** — Planned work for 'SNMP Polling Gap Detection' shifts `count` over `span=10m` while `host`, `sourcetype`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:*`** — Scheduled automation elevates `sourcetype` without crossing `gap_pct` > 20 for UC-5.8.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `sourcetype`, `_time`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:*`** — First 48h baseline for UC-5.8.8 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "dell_emc",
     "snmp"
@@ -30,6 +52,12 @@
   "equipmentModels": [
     "snmp_generic"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• SNMP polling infrastructure sending device metrics to Splunk at regular intervals. Common approaches: (1) SC4SNMP polling OIDs and sending via HEC, (2) Telegraf SNMP plugin → Splunk HEC, (3) custom scripts polling via pysnmp and forwarding to Splunk. Data in `index=snmp` (or `index=network`) with `sourcetype=sc4snmp:metrics` or `sourcetype=snmp:poll`.\n• Key fields: `host` (polled device), `oid` (polled OID), `value`, `poll_time`, `community`/`context_name`. Expected polling interval: typically 5 minutes (300s) for most OIDs, 1 minute for critical metrics.\n• SNMP polling gaps indicate: (1) the polled device is unreachable (down, network issue), (2) the polling infrastructure itself has a problem (SC4SNMP down, credential issue), (3) SNMP timeout (device overloaded, slow response). Gaps in polling = gaps in monitoring visibility.\n\nStep 1 — Configure data collection\nVerify polling data:\n```spl\nindex=snmp (sourcetype=\"sc4snmp:metrics\" OR sourcetype=\"snmp:poll\") earliest=-15m\n| stats count by host\n| sort -count\n```\nEach host should show a consistent count proportional to the polling interval and number of OIDs.\n\nStep 2 — Create the search and alert\n\n**Primary search — Polling gap detection:**\n```spl\nindex=snmp (sourcetype=\"sc4snmp:metrics\" OR sourcetype=\"snmp:poll\") earliest=-2h\n| bin _time span=5m\n| stats count as polls dc(oid) as oids_polled by _time, host\n| streamstats window=2 current=t range(polls) as poll_variance by host\n| eventstats avg(polls) as avg_polls by host\n| eval expected_polls=avg_polls\n| eval gap_detected=if(polls < expected_polls * 0.3, 1, 0)\n| where gap_detected=1\n| lookup snmp_device_inventory.csv src as host OUTPUT hostname device_type location tier\n| eval device_label=coalesce(hostname, host)\n| table _time, device_label, device_type, location, tier, polls, expected_polls\n| sort tier, -_time\n```\n\nUnderstanding this SPL: SNMP polling gaps are silent failures — if the poller can't reach a device, no alert fires (unlike traps which are device-initiated). This creates a dangerous monitoring blind spot. The search establishes a per-device polling baseline and flags any 5-minute window where actual polls drop below 30% of expected. A complete gap (polls=0) means total loss of visibility for that device.\n\n**Polling infrastructure health:**\n```spl\nindex=snmp (sourcetype=\"sc4snmp:metrics\" OR sourcetype=\"snmp:poll\") earliest=-1h\n| bin _time span=5m\n| stats dc(host) as devices_polled count as total_polls by _time\n| eventstats avg(devices_polled) as avg_devices\n| eval device_coverage_pct=round(100*devices_polled/avg_devices, 1)\n| where device_coverage_pct < 90\n```\n\n**SNMP timeout tracking:**\n```spl\nindex=_internal sourcetype=splunkd \"snmp\" (\"timeout\" OR \"error\" OR \"unreachable\") earliest=-4h\n| stats count by host, log_level, message\n| sort -count\n```\n\nStep 3 — Validate\n(a) Shut down SNMP on a test device (`no snmp-server`) and verify a polling gap appears in Splunk within 2 polling intervals.\n(b) Verify polling baseline: for a device polled every 5 minutes with 10 OIDs, you should see ~10 events per 5-minute window.\n(c) Cross-check with the SNMP polling tool's own health metrics (SC4SNMP stats endpoint, Telegraf internal metrics).\n\nStep 4 — Operationalize\nDashboard (\"SNMP Polling Health\"):\n• Row 1 — Single-value tiles: \"Devices polled (15m)\", \"Polling gaps detected\", \"Device coverage %\", \"SNMP timeouts\".\n• Row 2 — Polling gap table: device, type, location, tier, last poll time, gap duration.\n• Row 3 — Polling coverage trending: devices polled per 5-minute window over 24h.\n• Row 4 — SNMP timeout tracking from internal logs.\n\nAlerting:\n• Critical (Tier1 device polling gap > 15 minutes): loss of monitoring visibility for critical device.\n• High (device coverage drops below 80%): polling infrastructure issue.\n• Warning (any polling gap > 10 minutes): investigate device or network reachability.\n\nStep 5 — Troubleshooting\n\n• **All devices show polling gaps simultaneously** — The polling infrastructure itself is down (SC4SNMP container crashed, Telegraf stopped). Check the poller's own health first.\n\n• **Single device has gaps but is pingable** — SNMP may be disabled or the community string changed on the device. Verify with: `snmpwalk -v 2c -c <community> <device_ip> sysDescr`.\n\n• **Intermittent gaps correlating with time of day** — The polling infrastructure may be overloaded during peak hours (too many OIDs to poll within the interval). Reduce OID count or add polling capacity.",
-  "grandmaExplanation": "We notice when regular SNMP checks stop showing up, which usually means a password, path, or agent problem before the graphs go blank in a real incident."
+  "grandmaExplanation": "We notice when regular SNMP checks stop showing up, which usually means a password, path, or agent problem before the graphs go blank in a real incident.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

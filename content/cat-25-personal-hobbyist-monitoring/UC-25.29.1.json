@@ -9,26 +9,55 @@
     "Business"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`).",
-  "app": "Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Weekly Gaming Time vs Self-Set Limit' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_weekly_gaming_time_vs_self_set_limit` (UC-25.29.1), SOC dashboard panel \"Personal — Weekly Gaming Time vs Self-Set Limit\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.29.1 positive (Weekly, Gaming, Time, Self, Set): ingest synthetic events into `index=personal` sourcetype='game:session' where `played` grouped by `_time` satisfies detection threshold for 'Weekly Gaming Time vs Self-Set Limit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.29.1 negative (Set Limit): ingest benign `personal` / `game:session` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Weekly Gaming Time vs Self-Set Limit'."
+  },
+  "dataSources": "Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=game:session\n| bin _time span=1w\n| stats sum(minutes) as played by _time\n| eval hours=round(played/60,1), limit_h=10, over=if(hours>limit_h,1,0)\n| sort - _time",
-  "description": "Adds up how many hours you spent gaming each week and compares it to a limit you set for yourself.",
-  "value": "A visible weekly total against a personal cap keeps a hobby from quietly eating whole evenings without you noticing.",
+  "description": "Monitors UC-25.29.1 — Weekly, Gaming, Time, Self, Set — using `index=personal` sourcetype `game:session`, grouped by `_time`. Outputs `played` each `1w`; alert when configured threshold. Primary focus: Set Limit. Purpose-built for 'Weekly Gaming Time vs Self-Set Limit' in Personal workflows.",
+  "value": "For 'Weekly Gaming Time vs Self-Set Limit', UC-25.29.1 converts `played` on `game:session` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Pull playtime from Steam/PSN/Xbox APIs into `index=personal`; alert when the weekly total crosses your limit.",
   "visualization": "Column chart of weekly gaming hours with a limit line.",
   "cimModels": [],
   "references": [
     {
       "title": "Steam — Web API",
-      "url": "https://steamcommunity.com/dev"
+      "url": "https://steamcommunity.com/dev",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.29.1)** — Connector for 'Weekly Gaming Time vs Self-Set Limit' stops polling `game:session`; stale `played` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `played` over `1w` is expected for UC-25.29.1, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `game:session`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Weekly Gaming Time vs Self-Set Limit'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],
-  "grandmaExplanation": "It adds up your gaming hours each week and tells you if you have gone over the limit you set yourself."
+  "equipmentModels": [
+    "asterisk_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Games & Tabletop — typical feeds: Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`)..\n• **Sourcetypes in this search**: `game:session`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=game:session`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs..\n\n**Author notes:** Pull playtime from Steam/PSN/Xbox APIs into `index=personal`; alert when the weekly total crosses your limit.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"game:session\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=game:session earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Weekly Gaming Time vs Self-Set Limit** over `personal` data (primarily `sourcetype=game:session`) across the full search range. The `sum` aggregation groups by `_time`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=game:session\n| bin _time span=1w\n| stats sum(minutes) as played by _time\n| eval hours=round(played/60,1), limit_h=10, over=if(hours>limit_h,1,0)\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=game:session earliest=-7d\n| head 50\n| table _time\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=game:session earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.29.1: Personal evidence` with the following panel layout:\n\n**Panel 1 — Column Chart Of Weekly Gaming Hours With A Limit Line (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `game:session` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=game:session | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It adds up your gaming hours each week and tells you if you have gone over the limit you set yourself.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

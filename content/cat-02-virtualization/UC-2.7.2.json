@@ -9,11 +9,17 @@
     "Reliability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=pve` `sourcetype=\"proxmox:backup\"` — vzdump: `jobid`, `vmid`, `mode`, `status`, `duration_sec`, `size_bytes`, `storage`, `errmsg`",
-  "app": "Splunk Universal Forwarder tailing `/var/log/vzdump.log` or journal `vzdump`; optional Splunk Connect for Syslog to a central collector",
+  "exclusions": "Covers the detection logic documented for 'Proxmox VE vzdump Backup Duration Trending and Failure Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_proxmox_ve_vzdump_backup_duration_trending_and_f` (UC-2.7.2), SOC dashboard panel \"Linux — Proxmox VE vzdump Backup Duration Trending and Failure Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.7.2 positive (Proxmox, vzdump, Backup, Duration, Trending): ingest synthetic events into `index=pve` sourcetype='proxmox:backup' where `ok_jobs`, `avg_dur` grouped by `storage`, `_time` satisfies `failed` > 0, or `p95_dur` > 14400 for 'Proxmox VE vzdump Backup Duration Trending and Failure Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.7.2 negative (Failure Detection): ingest benign `pve` / `proxmox:backup` events where `storage`, `_time` stays below `failed` > 0, or `p95_dur` > 14400, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 4 confirms zero alert rows for 'Proxmox VE vzdump Backup Duration Trending and Failure Detection'."
+  },
+  "dataSources": "`index=pve` `sourcetype=\"proxmox:backup\"` — vzdump: `jobid`, `vmid`, `mode`, `status`, `duration_sec`, `size_bytes`, `storage`, `errmsg` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder tailing `/var/log/vzdump.log` or journal `vzdump`; optional Splunk Connect for Syslog to a central collector — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pve sourcetype=\"proxmox:backup\" earliest=-7d@d latest=now\n| eval dur=tonumber(coalesce(duration_sec, duration, job_duration_sec))\n| eval ok=if(match(lower(coalesce(status, result)), \"(?i)ok|success|finished\"), 1, 0)\n| bin _time span=1d\n| stats count as jobs, sum(ok) as ok_jobs, avg(dur) as avg_dur, perc95(dur) as p95_dur,\n    sum(eval(if(ok==0,1,0))) as failed by storage, _time\n| where failed>0 OR p95_dur>14400\n| table _time, storage, jobs, ok_jobs, failed, avg_dur, p95_dur",
-  "description": "Backup jobs that run too long or fail quietly break restore-point SLAs. vzdump emits explicit completion status and timings; trending them exposes storage bottlenecks, snapshot locks, and guest I/O storms before the next compliance audit or recovery drill.",
-  "value": "Protects recoverability commitments and prioritizes remediation on the slowest backup targets first.",
+  "description": "Monitors risk tied to Proxmox, vzdump, Backup, Duration, Trending through UC-2.7.2 on `index=pve` sourcetype `proxmox:backup`. Summarises `ok_jobs`, `avg_dur` grouped by `storage`, `_time` across `1d` before applying `failed` > 0, or `p95_dur` > 14400. Operators tune 'Proxmox VE vzdump Backup Duration Trending and Failure Detection' using UC-2.7.2 runbook steps.",
+  "value": "Tracking `ok_jobs`, `avg_dur` via UC-2.7.2 on `proxmox:backup` feeds improves response to 'Proxmox VE vzdump Backup Duration Trending and Failure Detection' and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Parse vzdump lines into structured fields. Baseline p95 duration per `storage`. Alert on any `failed` job or p95 beyond the overnight window. For failures, drill into `proxmox:task` UPIDs matching the same `jobid` timestamp.",
   "visualization": "Stacked column ok vs failed jobs; line chart p95 duration; table of latest errors with vmid.",
   "cimModels": [
@@ -22,14 +28,35 @@
   "references": [
     {
       "title": "Proxmox VZDump Backup",
-      "url": "https://pve.proxmox.com/wiki/"
+      "url": "https://pve.proxmox.com/wiki/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Nutanix Prism alerts and jobs can line up with disk rebuilds, rolling upgrades, or RF changes; wait for the cluster task list to show completion before over-reacting to transient counters.",
+  "knownFalsePositives": "1. **Patch Tuesday on `pve`** — Package managers spike `storage` metrics for 'Proxmox VE vzdump Backup Duration Trending and Failure Detection'. Correlate with apt/yum logs in the same `proxmox:backup` window.\n\n2. **Nightly backup I/O on `storage`** — Predictable `sum` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `proxmox:backup`** — Nagios/Zabbix polls `storage` and mimics sustained load without crossing `failed` > 0.\n\n4. **New host onboarding** — `storage` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `storage`, `valid_until`.",
   "equipment": [
     "m365",
     "proxmox",
     "syslog"
+  ],
+  "equipmentModels": [
+    "m365_generic",
+    "proxmox_generic",
+    "syslog_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -38,5 +65,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We track whether nightly copies of your virtual servers finish on time and succeed, so you still have a good snapshot if something goes wrong later."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder tailing `/var/log/vzdump.log` or journal `vzdump`; optional Splunk Connect for Syslog to a central collector — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=proxmox:backup into pve. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, failed, ok, p95_dur`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We track whether nightly copies of your virtual servers finish on time and succeed, so you still have a good snapshot if something goes wrong later.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

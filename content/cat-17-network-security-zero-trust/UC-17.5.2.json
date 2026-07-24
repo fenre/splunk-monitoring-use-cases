@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Forcepoint DLP Policy Violations by Severity and Data Pattern (`forcepoint:dlp`)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_forcepoint_dlp_policy_violations_by_severity_and` (UC-17.5.2), SOC dashboard panel \"Network — Forcepoint DLP Policy Violations by Severity and Data Pattern (`forcepoint:dlp`)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.5.2 positive (Forcepoint, DLP, Policy, Violations, Severity): ingest synthetic events into `index=dlp` sourcetype='forcepoint:dlp' where `count` grouped by `policy_name`, `severity`, `data_pattern` satisfies -7d for 'Forcepoint DLP Policy Violations by Severity and Data Pattern (`forcepoint:dlp`)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.5.2 negative (Pattern (`forcepoint:dlp`)): ingest benign `dlp` / `forcepoint:dlp` events where `policy_name`, `severity`, `data_pattern` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 1 confirms zero alert rows for 'Forcepoint DLP Policy Violations by Severity and Data Pattern (`forcepoint:dlp`)'."
+  },
   "dataSources": "Forcepoint cloud SSE (`forcepoint:one`), on-prem Web Security (`websense:cg:kv`), Email (`forcepoint:email:kv`), DLP (`forcepoint:dlp`)",
   "app": "Forcepoint Insights SIEM App (Splunkbase 8053); Forcepoint Web Security TA (`websense:cg:kv`); Email Security KV (`forcepoint:email:kv`)",
   "spl": "index=dlp sourcetype=\"forcepoint:dlp\" earliest=-7d\n| stats count by policy_name, severity, data_pattern\n| sort -count",
-  "description": "DLP is about preventing regulated data from leaving; severity-ranked views prioritize incidents that could become breach notifications.",
-  "value": "Data protection and compliance teams monitor DLP policy violations by severity and data type, prioritize investigations for high-risk data patterns (PCI, PII), and identify repeat offenders or emerging exfiltration channels.",
+  "description": "Detects Pattern (`forcepoint:dlp`) activity in UC-17.5.2 ('Forcepoint DLP Policy Violations by Severity and Data Pattern (`forcepoint:dlp`)') from `index=dlp` sourcetype `forcepoint:dlp`. Rolls up `count` by `policy_name`, `severity`, `data_pattern` across `the scheduled window` and pages when -7d. Covers Forcepoint, DLP, Policy, Violations, Severity. Network operators treat UC-17.5.2 as the canonical signal.",
+  "value": "Operators running UC-17.5.2 on `forcepoint:dlp` feeds shorten triage for Pattern (`forcepoint:dlp`) tied to 'Forcepoint DLP Policy Violations by Severity and Data Pattern (`forcepoint:dlp`)', lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Install the Insights SIEM app, configure HEC inputs per product line, and align indexes (`proxy`, `email`, `dlp`, `sase`). Normalize usernames to enterprise SAMAccountName.",
   "visualization": "Heatmap (severity × pattern), timeline.",
   "cimModels": [],
@@ -21,17 +27,32 @@
   "references": [
     {
       "title": "Splunkbase — Forcepoint Insights SIEM App",
-      "url": "https://splunkbase.splunk.com/app/8053"
+      "url": "https://splunkbase.splunk.com/app/8053",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Forcepoint Web Security",
-      "url": "https://splunkbase.splunk.com/app/3245"
+      "url": "https://splunkbase.splunk.com/app/3245",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "DLP hits from authorized data exports, finance reports, contracts with PII content sent to vendors.",
+  "knownFalsePositives": "1. **Maintenance window on `dlp` (UC-17.5.2)** — Planned work for 'Forcepoint DLP Policy Violations by Severity and Data Pattern (`forcepoint:dlp`)' shifts `count` over `span=1h` while `policy_name`, `severity`, `data_pattern` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `forcepoint:dlp`** — Scheduled automation elevates `severity` without crossing configured threshold for UC-17.5.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `policy_name`, `severity`, `data_pattern`** — Health checks in `dlp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `forcepoint:dlp`** — First 48h baseline for UC-17.5.2 on `policy_name` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `policy_name`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "forcepoint"
+  ],
+  "equipmentModels": [
+    "forcepoint_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n• Forcepoint DLP Add-on for Splunk (Splunkbase 6507) or syslog integration from Forcepoint DLP appliance.\n• Data in `index=dlp` with `sourcetype=forcepoint:dlp`. Key fields: `policy_name`, `severity` (high/medium/low), `data_pattern` (e.g., 'Credit Card Numbers', 'Social Security Numbers', 'Source Code'), `user`, `src_ip`, `channel` (email/web/endpoint/network), `action` (block/encrypt/audit/quarantine), `file_name`, `destination`.\n• Forcepoint DLP deployed with at least one active policy. Policies can target data channels: Web, Email, Endpoint, Network, and Cloud Applications.\n• Create a `fp_dlp_policies.csv` lookup: `policy_name,regulation,data_owner,escalation_contact` mapping policies to regulatory context.\n\nStep 1 — Configure data collection\nConfigure Forcepoint DLP to forward incidents to Splunk via syslog (CEF or key-value format) or the DLP TA's REST API input.\n\nVerify:\n```spl\nindex=dlp sourcetype=\"forcepoint:dlp\" earliest=-7d\n| stats count by severity, channel, action\n```\nYou should see violations across channels and severity levels. If only 'low' severity: review DLP policy configuration — high-severity patterns may not be configured.\n\nStep 2 — Create the search and alert\n\nPrimary search — DLP violations by severity and data pattern:\n```spl\nindex=dlp sourcetype=\"forcepoint:dlp\" earliest=-7d\n| stats count as violations dc(user) as unique_users dc(destination) as unique_destinations by policy_name, severity, data_pattern, channel\n| lookup fp_dlp_policies.csv policy_name OUTPUT regulation data_owner\n| eval risk=case(severity=\"high\" AND violations>10, \"CRITICAL\", severity=\"high\", \"HIGH\", severity=\"medium\", \"MEDIUM\", 1==1, \"LOW\")\n| sort - risk, - violations\n```\n\nUnderstanding this SPL: Groups DLP violations by the triggering policy, severity, and detected data pattern. High-severity violations for regulated data patterns (PCI, PII, HIPAA) require immediate attention. The `channel` field reveals the exfiltration vector — email, web upload, USB, or cloud storage. Multiple unique destinations suggest deliberate data staging.\n\nUser-centric view:\n```spl\nindex=dlp sourcetype=\"forcepoint:dlp\" earliest=-30d\n| where severity IN (\"high\", \"medium\")\n| stats count as violations dc(data_pattern) as patterns dc(channel) as channels values(data_pattern) as pattern_list by user\n| where violations > 5\n| sort - violations\n```\n\nStep 3 — Validate\n(a) In Forcepoint Security Manager: Data Security > Incidents. Compare the incident count and severity distribution with Splunk.\n(b) Generate a test DLP violation: send a test email with a fake credit card number pattern. Verify it appears in Splunk.\n(c) Validate data pattern accuracy: review 5 high-severity incidents in Forcepoint and confirm the detected pattern matches the actual content.\n\nStep 4 — Operationalize\nDashboard (\"Forcepoint — DLP Overview\"):\n• Row 1 — Single-value tiles: \"High-severity violations (7d)\", \"Unique users involved\", \"Top data pattern\".\n• Row 2 — Timechart: violations by severity over 30 days.\n• Row 3 — Table: policy, data pattern, severity, channel, violations, users.\n\nAlert: Immediate alert for any high-severity DLP violation. Daily digest for medium-severity.\n\nRunbook:\n1. **High-severity PCI data detected** — Immediate containment. Block the channel. Investigate whether data was actually exfiltrated or only detected.\n2. **Repeat offender (same user, multiple violations)** — Could be intentional data theft or lack of awareness. Escalate to HR/legal for intentional cases; send awareness training for accidental.\n3. **New data pattern appearing** — A previously uncategorized data type is being detected. Review and refine the DLP policy.\n\nStep 5 — Troubleshooting\n• **No DLP events** — The DLP appliance may not be sending syslog, or the TA's API input is misconfigured. Check connectivity.\n• **`data_pattern` is generic** — The DLP policy may be using broad patterns. Refine policies with more specific regular expressions.\n• **False positives on 'Credit Card Numbers'** — Common with order numbers, serial numbers. Tune the DLP fingerprint with Luhn validation and context requirements.",
-  "grandmaExplanation": "We watch for when someone tries to send sensitive information like credit card numbers or personal data outside the company, so we can stop it and investigate."
+  "grandmaExplanation": "We watch for when someone tries to send sensitive information like credit card numbers or personal data outside the company, so we can stop it and investigate.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

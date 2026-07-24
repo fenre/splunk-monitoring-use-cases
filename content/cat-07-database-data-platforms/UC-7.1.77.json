@@ -9,11 +9,17 @@
     "Governance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Snowflake Data Sharing and Secure View Access Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_snowflake_data_sharing_and_secure_view_access_au` (UC-7.1.77), SOC dashboard panel \"Operations — Snowflake Data Sharing and Secure View Access Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.77 positive (Snowflake, Data, Sharing, and, Secure): ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:access_history' where `queries`, `actors`, `roles` grouped by `DIRECT_OBJECTS_ACCESSED`, `_time` satisfies `queries` > 0 for 'Snowflake Data Sharing and Secure View Access Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.77 negative (Access Audit): ingest benign `datawarehouse` / `snowflake:access_history` events where `DIRECT_OBJECTS_ACCESSED`, `_time` stays below `queries` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Snowflake Data Sharing and Secure View Access Audit'."
+  },
   "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY` with share and view object domains on `snowflake:access_history`",
   "app": "Splunk Add-on for Snowflake (Splunkbase 5390) ACCESS_HISTORY input",
   "spl": "index=datawarehouse sourcetype=\"snowflake:access_history\"\n| eval dom=upper(coalesce(OBJECT_DOMAIN, object_domain))\n| where dom=\"VIEW\" OR match(_raw,\"(?i)share\")\n| stats dc(QUERY_ID) as queries dc(USER_NAME) as actors dc(ROLE_NAME) as roles values(OBJECT_NAME) as objects by DIRECT_OBJECTS_ACCESSED, _time\n| where queries > 0",
-  "description": "Consumer queries against secure views and shared objects are high-risk exfiltration paths because they bypass some traditional table ACL models. Retaining ACCESS_HISTORY in Splunk supports investigations when a share’s scope was wider than intended.",
-  "value": "Strengthens data-governance programs for regulated datasets shared across business units or external partners.",
+  "description": "Monitors UC-7.1.77 — Snowflake, Data, Sharing, and, Secure — using `index=datawarehouse` sourcetype `snowflake:access_history`, grouped by `DIRECT_OBJECTS_ACCESSED`, `_time`. Outputs `queries`, `actors`, `roles` each `the scheduled window`; alert when `queries` > 0. Primary focus: Access Audit. Purpose-built for 'Snowflake Data Sharing and Secure View Access Audit' in Operations workflows.",
+  "value": "UC-7.1.77 operationalises 'Snowflake Data Sharing and Secure View Access Audit' against `snowflake:access_history` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Schedule ACCESS_HISTORY with columns `OBJECT_DOMAIN`, `DIRECT_OBJECTS_ACCESSED`, `BASE_OBJECTS_ACCESSED`, `USER_NAME`, `ROLE_NAME`. Enrich with a lookup of approved share consumers. Retain according to legal hold policy; restrict index ACLs. Validate JSON/array fields are flattened for search.",
   "visualization": "Table (objects, actors, roles), Timeline (queries), Sankey optional with enrichment.",
   "cimModels": [
@@ -22,17 +28,33 @@
   "references": [
     {
       "title": "Snowflake — Data sharing overview",
-      "url": "https://docs.snowflake.com/en/user-guide/data-sharing-intro"
+      "url": "https://docs.snowflake.com/en/user-guide/data-sharing-intro",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Snowflake ACCESS_HISTORY",
-      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/access_history"
+      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/access_history",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned access reviews, recertification, break-glass accounts, and vendor maintenance can emit privilege- or access-change events that match the rule but are already approved; require a change ticket for context.",
+  "knownFalsePositives": "1. **Maintenance window on `datawarehouse` (UC-7.1.77)** — Planned work for 'Snowflake Data Sharing and Secure View Access Audit' shifts `queries`, `actors`, `roles` over `span=1h` while `DIRECT_OBJECTS_ACCESSED`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `snowflake:access_history`** — Scheduled automation elevates `_time` without crossing `queries` > 0 for UC-7.1.77. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `DIRECT_OBJECTS_ACCESSED`, `_time`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snowflake:access_history`** — First 48h baseline for UC-7.1.77 on `DIRECT_OBJECTS_ACCESSED` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `DIRECT_OBJECTS_ACCESSED`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow",
     "snowflake"
+  ],
+  "equipmentModels": [
+    "servicenow_generic",
+    "snowflake_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -41,5 +63,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch Snowflake Data Sharing and Secure View Access Audit so we can keep this part of the data platform within the capacity and quality targets our teams expect."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Snowflake (Splunkbase 5390) ACCESS_HISTORY input). Enable the modular input or HEC token that writes sourcetype=snowflake:access_history into datawarehouse. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`DIRECT_OBJECTS_ACCESSED, _time, queries`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch Snowflake Data Sharing and Secure View Access Audit so we can keep this part of the data platform within the capacity and quality targets our teams expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

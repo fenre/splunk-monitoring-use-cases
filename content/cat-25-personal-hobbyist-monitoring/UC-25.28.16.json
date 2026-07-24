@@ -8,27 +8,55 @@
     "Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Bar-velocity reps (`vbt:rep`), sprint reps (`sprint:rep`), serve attempts (`serve:attempt`), pickleball rallies (`pickleball:rally`), swim sets (`swim:set`), archery ends (`archery:end`), balance trials (`balance:trial`), and batting reps (`batting:rep`).",
-  "app": "Sports and skill telemetry from VBT devices, sprint timers, serve trackers, swim logs, archery apps, balance trainers, and batting sensors streamed to Splunk HEC via APIs and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Archery Grouping Radius Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_archery_grouping_radius_trend` (UC-25.28.16), SOC dashboard panel \"Personal — Archery Grouping Radius Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.28.16 positive (Archery, Grouping, Radius, Trend): ingest synthetic events into `index=personal` sourcetype='archery:end' where `avg_group_radius_cm` grouped by `bow`, `session_id` satisfies detection threshold for 'Archery Grouping Radius Trend'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.28.16 negative (Radius Trend): ingest benign `personal` / `archery:end` events where `bow`, `session_id` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 9 confirms zero alert rows for 'Archery Grouping Radius Trend'."
+  },
+  "dataSources": "Bar-velocity reps (`vbt:rep`), sprint reps (`sprint:rep`), serve attempts (`serve:attempt`), pickleball rallies (`pickleball:rally`), swim sets (`swim:set`), archery ends (`archery:end`), balance trials (`balance:trial`), and batting reps (`batting:rep`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Sports and skill telemetry from VBT devices, sprint timers, serve trackers, swim logs, archery apps, balance trainers, and batting sensors streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=archery:end\n| stats avg(group_radius_cm) as avg_group_radius_cm by bow session_id\n| sort avg_group_radius_cm",
-  "description": "Tracks average grouping radius by bow and session so accuracy improvements are easy to see.",
-  "value": "Group radius is one of the clearest skill signals because it tells you how tightly your shots cluster even before scoring changes.",
+  "description": "Alerts on UC-25.28.16 — Archery, Grouping, Radius, Trend — using `index=personal` sourcetype `archery:end`, grouped by `bow`, `session_id`. Outputs `avg_group_radius_cm` each `the scheduled window`; alert when configured threshold. Primary focus: Radius Trend. Purpose-built for 'Archery Grouping Radius Trend' in Personal workflows.",
+  "value": "Operators running UC-25.28.16 on `archery:end` feeds shorten triage for Radius Trend tied to 'Archery Grouping Radius Trend', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Export session and grouping measurements from an archery scoring app or manual target analysis.",
   "visualization": "Line chart of average grouping radius by bow and session.",
   "cimModels": [],
   "references": [
     {
       "title": "TrainingPeaks - training analytics",
-      "url": "https://www.trainingpeaks.com/"
+      "url": "https://www.trainingpeaks.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "GoldenCheetah - open cycling analytics",
-      "url": "https://www.goldencheetah.org/"
+      "url": "https://www.goldencheetah.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It ranks whether your arrows are grouping more tightly over time."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.28.16)** — Connector for 'Archery Grouping Radius Trend' stops polling `archery:end`; stale `avg_group_radius_cm` on `bow`, `session_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_group_radius_cm` over `1w` is expected for UC-25.28.16, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `archery:end`. Dedup with `stats latest(*) by bow`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Archery Grouping Radius Trend'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Sports, Skills & Training Telemetry — typical feeds: Bar-velocity reps (`vbt:rep`), running gait (`gait:metric`), hangboard sessions (`hangboard:session`), golf-swing metrics (`golfswing:metric`), power-meter intervals (`powermeter:interval`), basketbal.\n• **Sourcetypes in this search**: `archery:end`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=archery:end`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Sports and skill sensors — velocity-based-training bar trackers, running-form IMUs, climbing hangboard load cells, golf launch monitors, cycling power meters, and computer-vision shot trackers — logged to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Export session and grouping measurements from an archery scoring app or manual target analysis.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"archery:end\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=archery:end earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Archery Grouping Radius Trend** over `personal` data (primarily `sourcetype=archery:end`) across the full search range. The `avg` aggregation groups by `bow`, `session_id`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `bow`, `session_id`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=archery:end\n| stats avg(group_radius_cm) as avg_group_radius_cm by bow session_id\n| sort avg_group_radius_cm\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=archery:end earliest=-7d\n| head 50\n| table bow, session_id\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=archery:end earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.28.16: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Average Grouping Radius By Bow And Session (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `archery:end` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=archery:end | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It ranks whether your arrows are grouping more tightly over time.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

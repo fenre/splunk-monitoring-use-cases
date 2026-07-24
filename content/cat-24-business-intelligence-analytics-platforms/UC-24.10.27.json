@@ -9,27 +9,55 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "OpenMetadata audit (`openmetadata:audit`).",
-  "app": "OpenMetadata audit and activity events via the OpenMetadata API to HEC.",
+  "exclusions": "Covers the detection logic documented for 'OpenMetadata Error-Rate Trend Anomaly' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_openmetadata_error_rate_trend_anomaly` (UC-24.10.27), SOC dashboard panel \"Operations — OpenMetadata Error-Rate Trend Anomaly\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.10.27 positive (OpenMetadata, Error, Rate, Trend, Anomaly): ingest synthetic events into `index=bi` sourcetype='openmetadata:audit' where `avg_rate`, `sd_rate` grouped by `_time` satisfies `responseCode` >= 400 for 'OpenMetadata Error-Rate Trend Anomaly'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.10.27 negative (Trend Anomaly): ingest benign `bi` / `openmetadata:audit` events where `_time` stays below `responseCode` >= 400, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'OpenMetadata Error-Rate Trend Anomaly'."
+  },
+  "dataSources": "OpenMetadata audit (`openmetadata:audit`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "OpenMetadata audit and activity events via the OpenMetadata API to HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=openmetadata:audit\n| bin _time span=1h\n| stats count as events, sum(eval(responseCode>=400)) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
-  "description": "Baselines the hourly error rate for OpenMetadata and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
-  "value": "An error-rate spike is the earliest signal that OpenMetadata is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "description": "Detects risk tied to OpenMetadata, Error, Rate, Trend, Anomaly through UC-24.10.27 on `index=bi` sourcetype `openmetadata:audit`. Summarises `avg_rate`, `sd_rate` grouped by `_time` across `1h` before applying `responseCode` >= 400. Operators tune 'OpenMetadata Error-Rate Trend Anomaly' using UC-24.10.27 runbook steps.",
+  "value": "Tracking `avg_rate`, `sd_rate` via UC-24.10.27 on `openmetadata:audit` feeds improves response to 'OpenMetadata Error-Rate Trend Anomaly' and reduces operational risk and delayed incident response.",
   "implementation": "Ingest OpenMetadata logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
   "visualization": "Timechart of OpenMetadata error rate with anomaly band.",
   "cimModels": [],
   "references": [
     {
       "title": "OpenMetadata — Documentation",
-      "url": "https://docs.open-metadata.org/"
+      "url": "https://docs.open-metadata.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "OpenMetadata — Auditing",
-      "url": "https://docs.open-metadata.org/latest/how-to-guides/admin-guide"
+      "url": "https://docs.open-metadata.org/latest/how-to-guides/admin-guide",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We learn what a normal amount of OpenMetadata errors looks like and warn you only when something is genuinely going wrong."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.10.27)** — Planned work for 'OpenMetadata Error-Rate Trend Anomaly' shifts `avg_rate`, `sd_rate` over `span=1h` while `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `openmetadata:audit`** — Scheduled automation elevates `error_rate` without crossing `responseCode` >= 400 for UC-24.10.27. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `openmetadata:audit`** — First 48h baseline for UC-24.10.27 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (OpenMetadata audit and activity events via the OpenMetadata API to HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=openmetadata:audit into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, responseCode`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We learn what a normal amount of OpenMetadata errors looks like and warn you only when something is genuinely going wrong.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

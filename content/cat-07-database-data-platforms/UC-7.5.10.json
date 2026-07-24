@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=opensearch:snapshot`",
-  "app": "Custom scripted input (`_snapshot/_status`, `_cat/snapshots`)",
+  "exclusions": "Covers the detection logic documented for 'OpenSearch Snapshot / Backup Status' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_opensearch_snapshot_backup_status` (UC-7.5.10), SOC dashboard panel \"Operations — OpenSearch Snapshot / Backup Status\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.5.10 positive (OpenSearch, Snapshot, Backup, Status): ingest synthetic events into `index=database` sourcetype='opensearch:snapshot' where `count` grouped by `entity` satisfies detection threshold for 'OpenSearch Snapshot / Backup Status'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.5.10 negative (Backup Status): ingest benign `database` / `opensearch:snapshot` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'OpenSearch Snapshot / Backup Status'."
+  },
+  "dataSources": "`sourcetype=opensearch:snapshot` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (`_snapshot/_status`, `_cat/snapshots`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"opensearch:snapshot\"\n| eval end_epoch=if(isnotnull(end_time), end_time, _time)\n| eval stale=if(state=\"SUCCESS\" AND end_epoch < relative_time(now(),\"-25h\"),1,0)\n| where state IN (\"FAILED\",\"PARTIAL\") OR stale=1\n| table repository, snapshot, state, end_epoch, stale",
-  "description": "Failed or missing snapshots break restore and compliance RPO; monitoring repository and snapshot completion protects against silent backup gaps.",
-  "value": "Failed or missing snapshots break restore and compliance RPO; monitoring repository and snapshot completion protects against silent backup gaps.",
+  "description": "Detects UC-7.5.10 — OpenSearch, Snapshot, Backup, Status — using `index=database` sourcetype `opensearch:snapshot`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Backup Status. Purpose-built for 'OpenSearch Snapshot / Backup Status' in Operations workflows.",
+  "value": "UC-7.5.10 gives Operations teams earlier visibility into Backup Status through `opensearch:snapshot` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest snapshot completion events from `_snapshot/<repo>/_all` or SLM/ISM policy history. Alert on `FAILED` or `PARTIAL` snapshots. Verify last successful snapshot per policy is within SLA (e.g., 24h). Monitor repository connectivity and `read_only` state.",
   "visualization": "Table (repository, last snapshot, state), Timeline (snapshot jobs), Single value (hours since last success).",
   "cimModels": [
@@ -21,16 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned full or differential backups, log backup bursts, and restore drills can spike I/O and job duration; suppress or threshold against the known backup window.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.5.10)** — Planned work for 'OpenSearch Snapshot / Backup Status' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `opensearch:snapshot`** — Scheduled automation elevates `end_epoch` without crossing configured threshold for UC-7.5.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `opensearch:snapshot`** — First 48h baseline for UC-7.5.10 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "elasticsearch"
   ],
   "equipmentModels": [
     "elasticsearch_opensearch"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we confirm in OpenSearch Dashboards and `_cat` / `_stats` APIs so index size and merge pressure match what Splunk shows.\n• Install and configure the required add-on or app: Custom scripted input (`_snapshot/_status`, `_cat/snapshots`).\n• Ensure the following data sources are available: `sourcetype=opensearch:snapshot`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest snapshot completion events from `_snapshot/<repo>/_all` or SLM/ISM policy history. Alert on `FAILED` or `PARTIAL` snapshots. Verify last successful snapshot per policy is within SLA (e.g., 24h). Monitor repository connectivity and `read_only` state.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"opensearch:snapshot\"\n| eval end_epoch=if(isnotnull(end_time), end_time, _time)\n| eval stale=if(state=\"SUCCESS\" AND end_epoch < relative_time(now(),\"-25h\"),1,0)\n| where state IN (\"FAILED\",\"PARTIAL\") OR stale=1\n| table repository, snapshot, state, end_epoch, stale\n```\n\nUnderstanding this SPL\n\n**OpenSearch Snapshot / Backup Status** — Failed or missing snapshots break restore and compliance RPO; monitoring repository and snapshot completion protects against silent backup gaps.\n\nDocumented **Data sources**: `sourcetype=opensearch:snapshot`. **App/TA** (typical add-on context): Custom scripted input (`_snapshot/_status`, `_cat/snapshots`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: opensearch:snapshot. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"opensearch:snapshot\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **end_epoch** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **stale** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where state IN (\"FAILED\",\"PARTIAL\") OR stale=1` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **OpenSearch Snapshot / Backup Status**): table repository, snapshot, state, end_epoch, stale\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (repository, last snapshot, state), Timeline (snapshot jobs), Single value (hours since last success).",
-  "grandmaExplanation": "We check backup and snapshot success and growth so we can trust restores and long-term storage plans for regulation and for real incidents."
+  "grandmaExplanation": "We check backup and snapshot success and growth so we can trust restores and long-term storage plans for regulation and for real incidents.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Gateway or connector metrics (alarm queue depth, event count)",
-  "app": "OPC-UA gateway, Edge Hub OPC-UA connector",
+  "exclusions": "Covers the detection logic documented for 'OPC-UA Alarms and Events Queue Depth' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_opc_ua_alarms_and_events_queue_depth` (UC-14.5.7), SOC dashboard panel \"Operations — OPC-UA Alarms and Events Queue Depth\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.5.7 positive (OPC, Alarms, and, Events, Queue): ingest synthetic events into `index=edge-hub-data` sourcetype='opcua_metrics' where `count` grouped by `host`, `endpoint` satisfies `queue` > 100, or `pending` > 500 for 'OPC-UA Alarms and Events Queue Depth'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.5.7 negative (Queue Depth): ingest benign `edge-hub-data` / `opcua_metrics` events where `host`, `endpoint` stays below `queue` > 100, or `pending` > 500, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'OPC-UA Alarms and Events Queue Depth'."
+  },
+  "dataSources": "Gateway or connector metrics (alarm queue depth, event count) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "OPC-UA gateway, Edge Hub OPC-UA connector — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-data OR index=ot sourcetype=opcua_metrics\n| stats latest(alarm_queue_depth) as queue, latest(events_pending) as pending by host, endpoint\n| where queue > 100 OR pending > 500\n| table host endpoint queue pending",
-  "description": "OPC-UA alarm/event queues that grow indicate slow consumption or overflow risk. Overflow can drop critical alarms; depth trending supports connector and gateway sizing.",
-  "value": "OPC-UA alarm/event queues that grow indicate slow consumption or overflow risk. Overflow can drop critical alarms; depth trending supports connector and gateway sizing.",
+  "description": "Surfaces Queue Depth activity in UC-14.5.7 ('OPC-UA Alarms and Events Queue Depth') from `index=edge-hub-data` sourcetype `opcua_metrics`. Rolls up `count` by `host`, `endpoint` across `the scheduled window` and pages when `queue` > 100, or `pending` > 500. Covers OPC, Alarms, and, Events, Queue. Operations operators treat UC-14.5.7 as the canonical signal.",
+  "value": "Operators running UC-14.5.7 on `opcua_metrics` feeds shorten triage for Queue Depth tied to 'OPC-UA Alarms and Events Queue Depth', lowering operational risk and delayed incident response.",
   "implementation": "Expose alarm/event queue depth from OPC-UA gateway or Edge Hub connector (if available). Ingest as metric. Alert when queue depth exceeds 100 or pending events >500. Tune subscription and sampling rate if queue grows persistently.",
   "visualization": "Gauge (queue depth), Line chart (queue over time), Table (endpoints over threshold).",
   "cimModels": [
@@ -22,17 +28,43 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Alarm and event queue depth spikes during bursty process alarms, batch downloads, or subscription tuning.",
+  "knownFalsePositives": "1. **Maintenance window on `edge-hub-data` (UC-14.5.7)** — Planned work for 'OPC-UA Alarms and Events Queue Depth' shifts `count` over `span=1h` while `host`, `endpoint` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `opcua_metrics`** — Scheduled automation elevates `endpoint` without crossing `queue` > 100 for UC-14.5.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `endpoint`** — Health checks in `edge-hub-data` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `opcua_metrics`** — First 48h baseline for UC-14.5.7 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub",
     "opcua"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic",
+    "opcua_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Edge Hub"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: OPC-UA gateway, Edge Hub OPC-UA connector.\n• Ensure the following data sources are available: Gateway or connector metrics (alarm queue depth, event count).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nExpose alarm/event queue depth from OPC-UA gateway or Edge Hub connector (if available). Ingest as metric. Alert when queue depth exceeds 100 or pending events >500. Tune subscription and sampling rate if queue grows persistently.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-data OR index=ot sourcetype=opcua_metrics\n| stats latest(alarm_queue_depth) as queue, latest(events_pending) as pending by host, endpoint\n| where queue > 100 OR pending > 500\n| table host endpoint queue pending\n```\n\nUnderstanding this SPL\n\n**OPC-UA Alarms and Events Queue Depth** — OPC-UA alarm/event queues that grow indicate slow consumption or overflow risk. Overflow can drop critical alarms; depth trending supports connector and gateway sizing.\n\nDocumented **Data sources**: Gateway or connector metrics (alarm queue depth, event count). **App/TA** (typical add-on context): OPC-UA gateway, Edge Hub OPC-UA connector. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-data, ot; **sourcetype**: opcua_metrics. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-data, index=ot, sourcetype=opcua_metrics. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, endpoint** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where queue > 100 OR pending > 500` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **OPC-UA Alarms and Events Queue Depth**): table host endpoint queue pending\n\nStep 3 — Validate\nRun the search for a time range where you know sessions were active, then compare the same nodes and clients in an industrial client such as UA Expert. Spot-check certificate and session fields against the server.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (queue depth), Line chart (queue over time), Table (endpoints over threshold).",
-  "grandmaExplanation": "We watch alarm and event queues on the industrial server so a backlog does not mean we miss a safety or process alert."
+  "grandmaExplanation": "We watch alarm and event queues on the industrial server so a backlog does not mean we miss a safety or process alert.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

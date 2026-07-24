@@ -9,26 +9,55 @@
     "Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Baby feeds (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), chore completions (`chore:completion`), allowance ledger (`allowance:ledger`), family calendar (`family:calendar`), growth measurements (`growth:measurement`), screen time (`screentime:usage`).",
-  "app": "Baby-tracking app exports (Huckleberry/Baby Daybook), chore and allowance boards, shared family calendars, screen-time reports, and growth logs via Splunk HEC scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Cozi Calendar Event Failure Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_cozi_calendar_event_failure_rate` (UC-25.23.56), SOC dashboard panel \"Personal — Cozi Calendar Event Failure Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.23.56 positive (Cozi, Calendar, Event, Failure, Rate): ingest synthetic events into `index=personal` sourcetype='cozi:event' where `failed_events` grouped by `member_name` satisfies detection threshold for 'Cozi Calendar Event Failure Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.23.56 negative (Failure Rate): ingest benign `personal` / `cozi:event` events where `member_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'Cozi Calendar Event Failure Rate'."
+  },
+  "dataSources": "Baby feeds (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), chore completions (`chore:completion`), allowance ledger (`allowance:ledger`), family calendar (`family:calendar`), growth measurements (`growth:measurement`), screen time (`screentime:usage`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Baby-tracking app exports (Huckleberry/Baby Daybook), chore and allowance boards, shared family calendars, screen-time reports, and growth logs via Splunk HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=cozi:event\n| eval status_value=lower(coalesce(event_status,\"unknown\"))\n| eval failed=if(match(status_value,\"error|fail|alert|overdue|late|stale|breach\"),1,0)\n| stats count as events, sum(failed) as failed_events by member_name\n| eval failure_pct=round(100*failed_events/events,1)\n| sort - failure_pct - failed_events",
-  "description": "Measures how often Cozi calendar event records land in an unhealthy or exception state for each member.",
-  "value": "A plain failure-rate view highlights noisy devices, flaky automations, and habits that repeatedly slip.",
+  "description": "Detects UC-25.23.56 for Cozi, Calendar, Event, Failure, Rate over `index=personal` sourcetype `cozi:event` with thresholds configured threshold. Groups `failed_events` by `member_name` each `the scheduled window`. Centered on Failure Rate indicators. Supports repeatable personal triage for 'Cozi Calendar Event Failure Rate'.",
+  "value": "For 'Cozi Calendar Event Failure Rate', UC-25.23.56 converts `failed_events` on `cozi:event` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Normalize event_status values into good or bad states and review the failure percentage per member.",
   "visualization": "Bar chart of failure percentage by entity.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.23.56)** — Connector for 'Cozi Calendar Event Failure Rate' stops polling `cozi:event`; stale `failed_events` on `member_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `failed_events` over `1w` is expected for UC-25.23.56, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `cozi:event`. Dedup with `stats latest(*) by member_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Cozi Calendar Event Failure Rate'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],
-  "grandmaExplanation": "It notes which parts of your Cozi calendar event data keep ending up in a bad state instead of working cleanly."
+  "equipmentModels": [
+    "asterisk_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Family, Baby & Household Chaos — typical feeds: Baby feeds (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), chore completions (`chore:completion`), allowance ledger (`allowance:ledger`), family calendar (`family:calendar`.\n• **Sourcetypes in this search**: `cozi:event`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=cozi:event`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Baby-tracking app exports (Huckleberry/Baby Daybook), chore and allowance boards, shared family calendars, screen-time reports, and growth logs via Splunk HEC scripted inputs..\n\n**Author notes:** Normalize event_status values into good or bad states and review the failure percentage per member.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"cozi:event\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=cozi:event earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Cozi Calendar Event Failure Rate** over `personal` data (primarily `sourcetype=cozi:event`) across the full search range. The `sum` aggregation groups by `member_name`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `failed`, `member_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=cozi:event\n| eval status_value=lower(coalesce(event_status,\"unknown\"))\n| eval failed=if(match(status_value,\"error|fail|alert|overdue|late|stale|breach\"),1,0)\n| stats count as events, sum(failed) as failed_events by member_name\n| eval failure_pct=round(100*failed_events/events,1)\n| sort - failure_pct - failed_events\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=cozi:event earliest=-7d\n| head 50\n| table failed, member_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=cozi:event earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.23.56: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Failure Percentage By Entity (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `cozi:event` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=cozi:event | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It notes which parts of your Cozi calendar event data keep ending up in a bad state instead of working cleanly.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

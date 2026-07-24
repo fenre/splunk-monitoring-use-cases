@@ -8,11 +8,17 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=syslog`",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Covers the detection logic documented for 'Syslog Flood Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_syslog_flood_detection` (UC-1.1.89), SOC dashboard panel \"Linux — Syslog Flood Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.89 positive (Syslog, Flood, Detection): ingest synthetic events into `index=os` sourcetype='syslog' where `count` grouped by `host`, `_time` satisfies `count` > 10000 for 'Syslog Flood Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.89 negative (Flood Detection): ingest benign `os` / `syslog` events where `host`, `_time` stays below `count` > 10000, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 2 confirms zero alert rows for 'Syslog Flood Detection'."
+  },
+  "dataSources": "`sourcetype=syslog` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=syslog host=*\n| bin _time span=5m\n| stats count by host, _time\n| where count>10000",
-  "description": "Buckets **syslog** volume per **host** in **5**-**minute** intervals and flags any interval over **10**k events—tune to your daily **p99** once you have a baseline.",
-  "value": "Log floods burn **ingest** license, mask **security** lines in noise, and often come from **looping** apps or **debug** left on after an incident.",
+  "description": "Detects UC-1.1.89 for Syslog, Flood, Detection over `index=os` sourcetype `syslog` with thresholds `count` > 10000. Groups `count` by `host`, `_time` each `5m`. Centered on Flood Detection indicators. Supports repeatable linux triage for 'Syslog Flood Detection'.",
+  "value": "For 'Syslog Flood Detection', UC-1.1.89 converts `activity` on `syslog` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Replace the static **10**k with `| eventstats median(count) as med by host | where count>20*med` for an adaptive version; add **ignore** **host** patterns for known **noisy** appliances if policy allows.",
   "visualization": "Timechart, Alert",
   "cimModels": [
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**SIEM** **forwarders** that batch; **k8s** **node** **syslog** during **rollouts**; too-low **10**k on a **log** **aggregator**—run this **per** **source** **type** child, not on the **agg** only, or you will never learn the true offender.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Syslog Flood Detection'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 10000.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "kubernetes",
     "linux",
@@ -37,6 +55,12 @@
   "equipmentModels": [
     "kubernetes_helm"
   ],
-  "detailedImplementation": "Prerequisites\n• Accurate **host** field; for **K8s**, you may instead run the same SPL on **`namespace`** in a different use case.\n\n**SPL** — Replaces the invalid `where count>10000 in 5 minute window` pattern with a proper **bin** + **stats**.\n\n\nStep 3 — Validate\n`tcpdump` **not** required first—on the host, `journalctl --since` rate or **rsyslog** **impstats** if you use them; compare to the **count** in Splunk for the **bin**.\n\nStep 4 — Operationalize\nThrottle at the **forwarder** after you identify the **facility** causing the burst.\n\n",
-  "grandmaExplanation": "We help you know when one machine suddenly starts writing a truly huge diary, so a broken program or attack does not fill the log system and hide other problems."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Accurate **host** field; for **K8s**, you may instead run the same SPL on **`namespace`** in a different use case.\n\n**SPL** — Replaces the invalid `where count>10000 in 5 minute window` pattern with a proper **bin** + **stats**.\n\n\nStep 3 — Validate\n`tcpdump` **not** required first—on the host, `journalctl --since` rate or **rsyslog** **impstats** if you use them; compare to the **count** in Splunk for the **bin**.\n\nStep 4 — Operationalize\nThrottle at the **forwarder** after you identify the **facility** causing the burst.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=syslog into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you know when one machine suddenly starts writing a truly huge diary, so a broken program or attack does not fill the log system and hide other problems.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

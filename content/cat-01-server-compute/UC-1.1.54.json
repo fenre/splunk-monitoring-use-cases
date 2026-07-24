@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=custom:netns` (enumeration of `/var/run/netns/` or `ip netns` output)",
-  "app": "`Splunk_TA_nix` with a custom scripted input for namespace inventory",
+  "exclusions": "Covers the detection logic documented for 'Network Namespace Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_network_namespace_monitoring` (UC-1.1.54), SOC dashboard panel \"Linux — Network Namespace Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.54 positive (Network, Namespace, Monitoring): ingest synthetic events into `index=os` sourcetype='custom:netns' where `netns_count` grouped by `host` satisfies `netns_count` > 10 for 'Network Namespace Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.54 negative (Namespace Monitoring): ingest benign `os` / `custom:netns` events where `host` stays below `netns_count` > 10, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 8 confirms zero alert rows for 'Network Namespace Monitoring'."
+  },
+  "dataSources": "`sourcetype=custom:netns` (enumeration of `/var/run/netns/` or `ip netns` output) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` with a custom scripted input for namespace inventory — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:netns host=*\n| stats dc(netns_name) as netns_count by host\n| where netns_count > 10",
-  "description": "Counts how many distinct network namespace names appear per host in the collection window; unusually high counts can mean container sprawl or unexpected new namespaces worth reviewing.",
-  "value": "Unexpected growth in namespaces often lines up with orchestration drift, manual experiments, or activity you want your security or platform team to confirm, before isolation assumptions break.",
+  "description": "Alerts on UC-1.1.54 — Network, Namespace, Monitoring — using `index=os` sourcetype `custom:netns`, grouped by `host`. Outputs `netns_count` each `the scheduled window`; alert when `netns_count` > 10. Primary focus: Namespace Monitoring. Purpose-built for 'Network Namespace Monitoring' in Linux workflows.",
+  "value": "UC-1.1.54 accelerates insight into Namespace Monitoring ('Network Namespace Monitoring') by tracking `netns_count` on `custom:netns` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Run a periodic script that lists netns names (or IDs) and ships one row per namespace. Adjust the `where count > 10` threshold to your container density; very dense worker nodes may need per–node group baselines instead of a global number.",
   "visualization": "Table, Alert",
   "cimModels": [
@@ -21,17 +27,38 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Kubernetes or Mesos nodes that legitimately create many short-lived namespaces during rolling upgrades; CI hosts that spin up dozens of netns for tests; threshold set for bare metal but applied to dense multi-tenant workers without retuning.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Network Namespace Monitoring'. Correlate with apt/yum logs in the same `custom:netns` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `dc` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:netns`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `netns_count` > 10.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• Install `Splunk_TA_nix` and a script with permission to read `/var/run/netns` or run `ip netns list` under **sudo** via a secured forwarder.\n\nStep 1 — Configure data collection\nEmit `host`, `netns_name`, and optional creation metadata if you track it outside the default search.\n\nStep 2 — Create the search and alert\n\n```spl\nindex=os sourcetype=custom:netns host=*\n| stats dc(netns_name) as netns_count by host\n| where netns_count > 10\n```\n\nPrefer `dc()` if your script sends one event per namespace per poll; if you already aggregate, keep the original `stats count` pattern. Set the threshold per environment.\n\n**Understanding this SPL** — Highlights hosts with more distinct namespaces than you expect for a steady-state profile.\n\n\nStep 3 — Validate\nOn-box, run `ip netns` or `ls /var/run/netns` and compare counts to the latest forwarder event; check orchestration layer for expected churn.\n\nStep 4 — Operationalize\nIntegrate with change records and container inventory; route unexpected growth to security for review on sensitive segments.\n\n",
-  "grandmaExplanation": "We help you notice when a server suddenly has far more separate network spaces than usual, which is worth a second look on machines that should stay simple and predictable."
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install `Splunk_TA_nix` and a script with permission to read `/var/run/netns` or run `ip netns list` under **sudo** via a secured forwarder.\n\nStep 1 — Configure data collection\nEmit `host`, `netns_name`, and optional creation metadata if you track it outside the default search.\n\nStep 2 — Create the search and alert\n\n```spl\nindex=os sourcetype=custom:netns host=*\n| stats dc(netns_name) as netns_count by host\n| where netns_count > 10\n```\n\nPrefer `dc()` if your script sends one event per namespace per poll; if you already aggregate, keep the original `stats count` pattern. Set the threshold per environment.\n\n**Understanding this SPL** — Highlights hosts with more distinct namespaces than you expect for a steady-state profile.\n\n\nStep 3 — Validate\nOn-box, run `ip netns` or `ls /var/run/netns` and compare counts to the latest forwarder event; check orchestration layer for expected churn.\n\nStep 4 — Operationalize\nIntegrate with change records and container inventory; route unexpected growth to security for review on sensitive segments.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` with a custom scripted input for namespace inventory — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=custom:netns into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, netns_count`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you notice when a server suddenly has far more separate network spaces than usual, which is worth a second look on machines that should stay simple and predictable.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

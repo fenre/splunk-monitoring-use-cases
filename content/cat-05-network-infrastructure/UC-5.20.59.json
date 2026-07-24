@@ -9,32 +9,42 @@
     "Performance"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'MAP-E/MAP-T and DS-Lite IPv4-as-a-Service Health Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_map_e_map_t_and_ds_lite_ipv4_as_a_service_health` (UC-5.20.59), SOC dashboard panel \"Operations — MAP-E/MAP-T and DS-Lite IPv4-as-a-Service Health Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.59 positive (MAP, MAP, and, Lite, IPv4): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `mechanism`, `host` satisfies `port_exhaustions` > 0 for 'MAP-E/MAP-T and DS-Lite IPv4-as-a-Service Health Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.59 negative (Health Monitoring): ingest benign `network` / `cisco:ios` events where `mechanism`, `host` stays below `port_exhaustions` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'MAP-E/MAP-T and DS-Lite IPv4-as-a-Service Health Monitoring'."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=juniper:junos` containing MAP-E, MAP-T, or DS-Lite translation events and counters. These are stateless (MAP-E/MAP-T) and stateful (DS-Lite, Lightweight 4over6) IPv4-as-a-Service transition mechanisms used by ISPs and large enterprises to provide IPv4 connectivity over an IPv6-only infrastructure:\n\n**MAP-E (Mapping of Address and Port using Encapsulation, RFC 7597):**\n- Encapsulates IPv4 packets in IPv6 for transport\n- Stateless — port-set allocation based on MAP rules, no per-flow state at the provider\n- Each CPE gets an IPv4 address + port range (e.g., 203.0.113.1:1024-2047)\n- Scales better than stateful NAT because no central state table\n\n**MAP-T (Mapping of Address and Port using Translation, RFC 7599):**\n- Translates IPv4 to IPv6 headers (double NAT46+NAT64), no encapsulation\n- Also stateless — same port-set allocation as MAP-E\n- Lower overhead than MAP-E (no encapsulation header)\n\n**DS-Lite (Dual-Stack Lite, RFC 6333):**\n- Encapsulates IPv4 in IPv6 from CPE to AFTR (Address Family Transition Router)\n- Stateful — AFTR maintains per-flow NAT44 state\n- AFTR is a central bottleneck and scaling challenge\n\n**Lw4o6 (Lightweight 4over6, RFC 7596):**\n- Like DS-Lite but with per-subscriber port-restricted NAT at the CPE\n- Reduces AFTR state to per-subscriber instead of per-flow\n\nThese mechanisms are deployed at scale by major ISPs worldwide to extend IPv4 lifetime over IPv6-only infrastructure.",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812).",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"juniper:junos\")\n  (\"MAP-E\" OR \"MAP-T\" OR \"DS-Lite\" OR \"AFTR\" OR \"softwire\" OR \"lw4o6\" OR \"map-rule\")\n  earliest=-24h\n| eval mechanism=case(\n    match(_raw, \"(?i)MAP-E|map.?encap\"), \"MAP-E\",\n    match(_raw, \"(?i)MAP-T|map.?trans\"), \"MAP-T\",\n    match(_raw, \"(?i)DS-Lite|AFTR|softwire\"), \"DS-Lite\",\n    match(_raw, \"(?i)lw4o6|lightweight\"), \"Lw4o6\",\n    1=1, \"unknown\")\n| eval event_type=case(\n    match(_raw, \"(?i)fail|error|drop|denied\"), \"failure\",\n    match(_raw, \"(?i)create|start|session\"), \"session_create\",\n    match(_raw, \"(?i)delete|expire|timeout\"), \"session_delete\",\n    match(_raw, \"(?i)port.?exhaust|pool.?exhaust\"), \"port_exhaustion\",\n    1=1, \"other\")\n| stats count as events count(eval(event_type=\"failure\")) as failures count(eval(event_type=\"port_exhaustion\")) as port_exhaustions by mechanism, host\n| eval health=case(\n    port_exhaustions > 0, \"CRITICAL — port exhaustion\",\n    failures > events * 0.05, \"WARNING — failure rate above 5%\",\n    1=1, \"OK\")",
-  "description": "Monitors the health of IPv4-as-a-Service transition mechanisms (MAP-E, MAP-T, DS-Lite, Lightweight 4over6) that provide IPv4 connectivity over IPv6-only infrastructure. These mechanisms are deployed at scale in ISP and large enterprise environments where IPv4 address exhaustion drives migration to IPv6-only transport with IPv4 provided as a service. Translation/encapsulation failures directly impact IPv4 connectivity for potentially millions of subscribers.",
-  "value": "IPv4-as-a-Service mechanisms are the lifeline for IPv4 connectivity in IPv6-primary networks. When MAP-E port-set allocation fails, subscribers lose the ability to reach IPv4-only services. When a DS-Lite AFTR's state table is exhausted, new IPv4 connections are rejected. These failures are invisible at the IPv6 layer — IPv6 works perfectly while IPv4 breaks. Monitoring these transition mechanisms is essential for maintaining IPv4 service quality during the transition period.",
+  "description": "Alerts on UC-5.20.59 — MAP, MAP, and, Lite, IPv4 — using `index=network` sourcetype `cisco:ios`, grouped by `mechanism`, `host`. Outputs `count` each `the scheduled window`; alert when `port_exhaustions` > 0. Primary focus: Health Monitoring. Purpose-built for 'MAP-E/MAP-T and DS-Lite IPv4-as-a-Service Health Monitoring' in Operations workflows.",
+  "value": "UC-5.20.59 operationalises 'MAP-E/MAP-T and DS-Lite IPv4-as-a-Service Health Monitoring' against `cisco:ios` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Collect MAP-E/MAP-T rule events, DS-Lite AFTR session logs, and port/address pool utilization metrics. Track session creation/deletion rates, failure rates, and resource utilization. Alert on port exhaustion, high failure rates, and AFTR health issues.",
   "visualization": "(1) Single-value: active translations, failure rate, port pool utilization. (2) Timechart: session creation/deletion rates by mechanism. (3) Gauge: port pool utilization per AFTR or MAP-E border relay. (4) Table: per-subscriber issues (port exhaustion, failures).",
   "references": [
     {
       "title": "RFC 7597 — Mapping of Address and Port with Encapsulation (MAP-E)",
-      "url": "https://www.rfc-editor.org/rfc/rfc7597"
+      "url": "https://www.rfc-editor.org/rfc/rfc7597",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 7599 — Mapping of Address and Port using Translation (MAP-T)",
-      "url": "https://www.rfc-editor.org/rfc/rfc7599"
+      "url": "https://www.rfc-editor.org/rfc/rfc7599",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 6333 — Dual-Stack Lite Broadband Deployments Following IPv4 Exhaustion",
-      "url": "https://www.rfc-editor.org/rfc/rfc6333"
+      "url": "https://www.rfc-editor.org/rfc/rfc6333",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 7596 — Lightweight 4over6: An Extension to the Dual-Stack Lite Architecture",
-      "url": "https://www.rfc-editor.org/rfc/rfc7596"
+      "url": "https://www.rfc-editor.org/rfc/rfc7596",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**CGN port churn.** High-use applications (gaming, streaming, peer-to-peer) consume many ports. Rapid port allocation and release is normal for these workloads and not an indication of port exhaustion.\n\n**Session timeout cleanup.** DS-Lite AFTR and MAP-E border relays periodically clean up expired sessions. Bulk session deletion events during cleanup cycles are normal.\n\n**Subscriber CPE reboots.** When a CPE reboots, its existing sessions may be cleaned up at the AFTR/relay, producing a spike in session deletion events.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.59)** — Planned work for 'MAP-E/MAP-T and DS-Lite IPv4-as-a-Service Health Monitoring' shifts `count` over `span=1h` while `mechanism`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `host` without crossing `port_exhaustions` > 0 for UC-5.20.59. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `mechanism`, `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.59 on `mechanism` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `mechanism`, `exception_reason`, `valid_until`.",
   "equipment": [
     "a10",
     "cisco",

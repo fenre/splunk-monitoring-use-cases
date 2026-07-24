@@ -9,27 +9,55 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Relationship check-ins (`relationship:checkin`), date nights (`datenight:log`), gift ideas (`giftidea:item`), keep-in-touch contacts (`keptintouch:contact`).",
-  "app": "Relationship and togetherness logs — shared check-in apps, date-night and gift-idea lists, and stay-in-touch reminders — sent to Splunk HEC via scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Relationship Check-In Drift After Busy Weeks' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_relationship_check_in_drift_after_busy_weeks` (UC-25.32.16), SOC dashboard panel \"Personal — Relationship Check-In Drift After Busy Weeks\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.32.16 positive (Relationship, Check, Drift, After, Busy): ingest synthetic events into `index=personal` sourcetype='relationship:checkin' where `avg_score`, `trailing_checkins` grouped by `_time` satisfies detection threshold for 'Relationship Check-In Drift After Busy Weeks'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.32.16 negative (Busy Weeks): ingest benign `personal` / `relationship:checkin` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Relationship Check-In Drift After Busy Weeks'."
+  },
+  "dataSources": "Relationship check-ins (`relationship:checkin`), date nights (`datenight:log`), gift ideas (`giftidea:item`), keep-in-touch contacts (`keptintouch:contact`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Relationship and togetherness logs — shared check-in apps, date-night and gift-idea lists, and stay-in-touch reminders — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=relationship:checkin\n| bin _time span=1w\n| stats count as checkins, avg(score) as avg_score by _time\n| streamstats window=4 avg(checkins) as trailing_checkins\n| eval low_contact=if(checkins<trailing_checkins*0.5,1,0)\n| sort - _time",
-  "description": "Flags weeks where relationship check-ins dropped sharply compared with your recent norm.",
-  "value": "A sudden fall in check-ins is often the first sign that coordination and emotional maintenance are slipping.",
+  "description": "Identifies UC-25.32.16 — Relationship, Check, Drift, After, Busy — using `index=personal` sourcetype `relationship:checkin`, grouped by `_time`. Outputs `avg_score`, `trailing_checkins` each `1w`; alert when configured threshold. Primary focus: Busy Weeks. Purpose-built for 'Relationship Check-In Drift After Busy Weeks' in Personal workflows.",
+  "value": "For 'Relationship Check-In Drift After Busy Weeks', UC-25.32.16 converts `avg_score`, `trailing_checkins` on `relationship:checkin` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Track check-ins in `index=personal`; compare each week with the trailing four-week baseline.",
   "visualization": "Weekly chart of check-in volume with anomaly highlighting.",
   "cimModels": [],
   "references": [
     {
       "title": "Home Assistant — REST integration",
-      "url": "https://www.home-assistant.io/integrations/rest/"
+      "url": "https://www.home-assistant.io/integrations/rest/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Gottman Institute — relationships",
-      "url": "https://www.gottman.com/"
+      "url": "https://www.gottman.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It ranks when the little check-ins that keep a relationship steady suddenly drop away during a busy stretch."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.32.16)** — Connector for 'Relationship Check-In Drift After Busy Weeks' stops polling `relationship:checkin`; stale `avg_score`, `trailing_checkins` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_score`, `trailing_checkins` over `1w` is expected for UC-25.32.16, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `relationship:checkin`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Relationship Check-In Drift After Busy Weeks'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Relationships & Togetherness — typical feeds: Relationship check-ins (`relationship:checkin`), date nights (`datenight:log`), gift ideas (`giftidea:item`), keep-in-touch contacts (`keptintouch:contact`)..\n• **Sourcetypes in this search**: `relationship:checkin`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=relationship:checkin`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Relationship and togetherness logs — shared check-in apps, date-night and gift-idea lists, and stay-in-touch reminders — sent to Splunk HEC via scripted inputs..\n\n**Author notes:** Track check-ins in `index=personal`; compare each week with the trailing four-week baseline.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"relationship:checkin\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=relationship:checkin earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Relationship Check-In Drift After Busy Weeks** over `personal` data (primarily `sourcetype=relationship:checkin`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `_time`, `low_contact`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=relationship:checkin\n| bin _time span=1w\n| stats count as checkins, avg(score) as avg_score by _time\n| streamstats window=4 avg(checkins) as trailing_checkins\n| eval low_contact=if(checkins<trailing_checkins*0.5,1,0)\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=relationship:checkin earliest=-7d\n| head 50\n| table _time, low_contact\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=relationship:checkin earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.32.16: Personal evidence` with the following panel layout:\n\n**Panel 1 — Weekly Chart Of Check-In Volume With Anomaly Highlighting (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `relationship:checkin` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=relationship:checkin | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It ranks when the little check-ins that keep a relationship steady suddenly drop away during a busy stretch.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

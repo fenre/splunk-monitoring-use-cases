@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Akamai Guardicore Blocked Inter-Zone Communication Attempts (`guardicore:network`)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_akamai_guardicore_blocked_inter_zone_communicati` (UC-17.6.10), SOC dashboard panel \"Network — Akamai Guardicore Blocked Inter-Zone Communication Attempts (`guardicore:network`)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.6.10 positive (Akamai, Guardicore, Blocked, Inter, Zone): ingest synthetic events into `index=microseg` sourcetype='guardicore:network' where `count` grouped by `src_zone`, `dst_zone`, `policy_name` satisfies -24h for 'Akamai Guardicore Blocked Inter-Zone Communication Attempts (`guardicore:network`)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.6.10 negative (Attempts (`guardicore:network`)): ingest benign `microseg` / `guardicore:network` events where `src_zone`, `dst_zone`, `policy_name` stays below -24h, or exclude the test entity via `network_exception_register.csv`. Variant 3 confirms zero alert rows for 'Akamai Guardicore Blocked Inter-Zone Communication Attempts (`guardicore:network`)'."
+  },
   "dataSources": "Guardicore Centra exports: `guardicore:network`, `guardicore:agent`, `guardicore:incident`, `guardicore:policy`, `guardicore:deception`",
   "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=microseg sourcetype=\"guardicore:network\" earliest=-24h\n| where match(lower(action),\"(?i)block|deny|drop\")\n| stats count by src_zone, dst_zone, policy_name\n| sort -count",
-  "description": "Blocked flows prove enforcement is live and highlight noisy legacy apps.",
-  "value": "Security and network teams validate that enforcement policies are actively blocking unauthorized inter-zone traffic, proving segmentation effectiveness while identifying legitimate traffic that needs policy exceptions.",
+  "description": "Detects when Attempts (`guardicore:network`) criteria fire for 'Akamai Guardicore Blocked Inter-Zone Communication Attempts (`guardicore:network`)' (UC-17.6.10) in `index=microseg` sourcetype `guardicore:network`. Pipeline aggregates `count` by `src_zone`, `dst_zone`, `policy_name` over `the scheduled window`. Alert logic enforces -24h. Title terms: Akamai, Guardicore, Blocked, Inter, Zone. Eliminates manual hunting for UC-17.6.10 conditions.",
+  "value": "UC-17.6.10 helps teams contain Akamai, Guardicore, Blocked, Inter, Zone scenarios and reduce unauthorized access, segmentation drift, and NAC policy failures before incidents compound.",
   "implementation": "Install the add-on, configure API polling intervals appropriate to API limits, and map assets to CMDB for enrichment lookups.",
   "visualization": "Heatmap (zones), table.",
   "cimModels": [],
@@ -22,18 +28,34 @@
   "references": [
     {
       "title": "Splunkbase — Akamai Guardicore Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/7426"
+      "url": "https://splunkbase.splunk.com/app/7426",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Akamai Guardicore documentation",
-      "url": "https://www.akamai.com/products/guardicore"
+      "url": "https://www.akamai.com/products/guardicore",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Maintenance window on `microseg` (UC-17.6.10)** — Planned work for 'Akamai Guardicore Blocked Inter-Zone Communication Attempts (`guardicore:network`)' shifts `count` over `span=1h` while `src_zone`, `dst_zone`, `policy_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `guardicore:network`** — Scheduled automation elevates `dst_zone` without crossing configured threshold for UC-17.6.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_zone`, `dst_zone`, `policy_name`** — Health checks in `microseg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `guardicore:network`** — First 48h baseline for UC-17.6.10 on `src_zone` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src_zone`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "guardicore",
     "m365"
+  ],
+  "equipmentModels": [
+    "guardicore_generic",
+    "m365_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -43,5 +65,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n• Akamai Guardicore Add-on for Splunk (Splunkbase 7426) v3.x collecting network flow events with enforcement data.\n• Data in `index=microseg` with `sourcetype=guardicore:network`. Key fields: `action` (block/allow/alert), `src_ip`, `dst_ip`, `src_segment`, `dst_segment`, `dst_port`, `protocol`, `process_name`, `policy_name`.\n• Enforcement mode enabled on at least some policies. In Reveal-only mode, flows are logged but not blocked — the `action` field will show `allow` or `alert` but never `block`.\n• Create a `gc_segments.csv` lookup: `segment_name,zone,environment,criticality` to enrich segment context.\n\nStep 1 — Configure data collection\nVerify blocked events are present:\n```spl\nindex=microseg sourcetype=\"guardicore:network\" earliest=-24h\n| where action=\"block\"\n| stats count by src_segment, dst_segment, dst_port\n| sort - count\n```\nIf zero blocks but enforcement is active: all traffic matches allow rules (unlikely in a complex environment), or the policies are too permissive.\n\nStep 2 — Create the search and alert\n\nPrimary search — Blocked inter-zone traffic analysis:\n```spl\nindex=microseg sourcetype=\"guardicore:network\" earliest=-24h\n| where action=\"block\" AND src_segment!=dst_segment\n| stats count as blocks dc(src_ip) as sources dc(dst_ip) as targets values(dst_port) as ports values(process_name) as processes by src_segment, dst_segment, policy_name\n| lookup gc_segments.csv segment_name as dst_segment OUTPUT zone criticality\n| eval enforcement_value=case(criticality=\"critical\", \"Protecting critical assets\", criticality=\"high\", \"Enforcing isolation\", 1==1, \"Standard enforcement\")\n| sort - blocks\n```\n\nUnderstanding this SPL: Shows which inter-zone flows are being actively blocked by enforcement policies. High block counts from the same source segment to a critical segment indicate either persistent misconfiguration (legitimate traffic being blocked) or an active attack being successfully contained. The `processes` field differentiates: legitimate application processes suggest policy tuning is needed; unexpected processes suggest security enforcement is working correctly.\n\nBlock rate trending:\n```spl\nindex=microseg sourcetype=\"guardicore:network\" earliest=-7d\n| where action=\"block\"\n| timechart span=1h count as blocks by dst_segment limit=10\n```\n\nStep 3 — Validate\n(a) In Guardicore Centra: Reveal > Policy Map > select an enforced policy > View Blocked Connections. Compare with Splunk.\n(b) Test: attempt a connection from one segment to a blocked port in another segment. Verify the block appears in Splunk.\n(c) Verify that blocked traffic from legitimate applications is identified for policy tuning.\n\nStep 4 — Operationalize\nDashboard (\"Guardicore — Enforcement Blocks\"):\n• Row 1 — Single-value tiles: \"Total blocks (24h)\", \"Source segments blocked\", \"Policies enforcing\".\n• Row 2 — Timechart: blocks over 7 days by destination segment.\n• Row 3 — Table: segment pair, policy, block count, ports, processes.\n\nAlert: Trigger when blocks to a critical segment increase 5x over the hourly average (potential attack being contained).\n\nRunbook:\n1. **High blocks from known application** — Policy is blocking legitimate traffic. Create a targeted allow rule for the specific process and port combination.\n2. **Sustained blocks from unknown processes** — Enforcement is successfully containing unauthorized traffic. Investigate the source for compromise.\n3. **Block count drops to zero** — Enforcement may have been disabled. Cross-check with UC-17.6.7 (Policy Change Audit).\n\nStep 5 — Troubleshooting\n• **No block events but policies are in enforce mode** — All traffic may be matching allow rules. Review the policy rule order — a broad allow rule near the top may be catching everything.\n• **Blocks causing application outages** — Move the policy to alert-only mode, fix the allow rules, then re-enable enforcement.\n• **Block events missing `process_name`** — The source asset may not have a Guardicore agent (agentless enforcement). Network-level blocks do not include process context.",
-  "grandmaExplanation": "We track what connections our network security walls are actively stopping, which proves the walls are working and helps us fix cases where they accidentally block something they should not."
+  "grandmaExplanation": "We track what connections our network security walls are actively stopping, which proves the walls are working and helps us fix cases where they accidentally block something they should not.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

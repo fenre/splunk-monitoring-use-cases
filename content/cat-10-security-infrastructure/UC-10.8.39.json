@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Heartbeat or last-event timestamp per source type",
-  "app": "All security data source TAs",
+  "exclusions": "Covers the detection logic documented for 'Security Tool Availability and Heartbeat' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_security_tool_availability_and_heartbeat` (UC-10.8.39), SOC dashboard panel \"Security Infra — Security Tool Availability and Heartbeat\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.8.39 positive (Security, Tool, Availability, and, Heartbeat): ingest synthetic events into `index=_internal` sourcetype='target_sourcetype' where `count` grouped by `host`, `sourcetype` satisfies `gap` > 900 for 'Security Tool Availability and Heartbeat'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.8.39 negative (and Heartbeat): ingest benign `_internal` / `target_sourcetype` events where `host`, `sourcetype` stays below `gap` > 900, or exclude the test entity via `soc_exception_register.csv`. Variant 4 confirms zero alert rows for 'Security Tool Availability and Heartbeat'."
+  },
+  "dataSources": "Heartbeat or last-event timestamp per source type Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "All security data source TAs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=_internal source=*heartbeat* OR index=main sourcetype=*\n| stats latest(_time) as last_seen by host, sourcetype\n| eval gap=now()-last_seen\n| where gap > 900\n| table host, sourcetype, last_seen, gap",
-  "description": "Security tools that stop reporting indicate outage or tampering. Heartbeat monitoring ensures continuous visibility and alerts on missing data.",
-  "value": "Security tools that stop reporting indicate outage or tampering. Heartbeat monitoring ensures continuous visibility and alerts on missing data.",
+  "description": "Surfaces risk tied to Security, Tool, Availability, and, Heartbeat through UC-10.8.39 on `index=_internal` sourcetype `configured sourcetype`. Summarises `count` grouped by `host`, `sourcetype` across `the scheduled window` before applying `gap` > 900. Operators tune 'Security Tool Availability and Heartbeat' using UC-10.8.39 runbook steps.",
+  "value": "Tracking `activity` via UC-10.8.39 on UC-10.8.39 search results improves response to 'Security Tool Availability and Heartbeat' and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Use Splunk heartbeat or last-seen per host/sourcetype. Alert when any critical source has not reported for >15 minutes. Maintain source inventory and expected reporting interval.",
   "visualization": "Table (sources with gap), Single value (sources missing), Status grid (host × sourcetype).",
   "cimModels": [
@@ -21,10 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Internal CAs, dev/test, IoT, or air-gapped systems using self-signed or private PKI; govern with inventory and allowlists, not a single unscoped alert.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: All security data source TAs.\n• Ensure the following data sources are available: Heartbeat or last-event timestamp per source type.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse Splunk heartbeat or last-seen per host/sourcetype. Alert when any critical source has not reported for >15 minutes. Maintain source inventory and expected reporting interval.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal source=*heartbeat* OR index=main sourcetype=*\n| stats latest(_time) as last_seen by host, sourcetype\n| eval gap=now()-last_seen\n| where gap > 900\n| table host, sourcetype, last_seen, gap\n```\n\nUnderstanding this SPL\n\n**Security Tool Availability and Heartbeat** — Security tools that stop reporting indicate outage or tampering. Heartbeat monitoring ensures continuous visibility and alerts on missing data.\n\nDocumented **Data sources**: Heartbeat or last-event timestamp per source type. **App/TA** (typical add-on context): All security data source TAs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal, main; **sourcetype**: *. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal, index=main, sourcetype=*. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, sourcetype** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **gap** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where gap > 900` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Security Tool Availability and Heartbeat**): table host, sourcetype, last_seen, gap\n\n\nStep 3 — Validate\nCompare with certificate authority records, an inventory of endpoints, or `openssl x509 -text` on a sample file so expiry and subject data in Splunk match the source of truth.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (sources with gap), Single value (sources missing), Status grid (host × sourcetype).",
-  "grandmaExplanation": "Security tools that stop reporting indicate outage or tampering — so we know when protection is off, out of date, or bypassed."
+  "knownFalsePositives": "1. **Maintenance window on `_internal` (UC-10.8.39)** — Planned work for 'Security Tool Availability and Heartbeat' shifts `count` over `span=1h` while `host`, `sourcetype` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `sourcetype` without crossing `gap` > 900 for UC-10.8.39. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `sourcetype`** — Health checks in `_internal` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-10.8.39 on `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: All security data source TAs.\n• Ensure the following data sources are available: Heartbeat or last-event timestamp per source type.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse Splunk heartbeat or last-seen per host/sourcetype. Alert when any critical source has not reported for >15 minutes. Maintain source inventory and expected reporting interval.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal source=*heartbeat* OR index=main sourcetype=*\n| stats latest(_time) as last_seen by host, sourcetype\n| eval gap=now()-last_seen\n| where gap > 900\n| table host, sourcetype, last_seen, gap\n```\n\nUnderstanding this SPL\n\n**Security Tool Availability and Heartbeat** — Security tools that stop reporting indicate outage or tampering. Heartbeat monitoring ensures continuous visibility and alerts on missing data.\n\nDocumented **Data sources**: Heartbeat or last-event timestamp per source type. **App/TA** (typical add-on context): All security data source TAs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal, main; **sourcetype**: *. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal, index=main, sourcetype=*. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, sourcetype** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **gap** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where gap > 900` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Security Tool Availability and Heartbeat**): table host, sourcetype, last_seen, gap\n\n\nStep 3 — Validate\nCompare with certificate authority records, an inventory of endpoints, or `openssl x509 -text` on a sample file so expiry and subject data in Splunk match the source of truth.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (sources with gap), Single value (sources missing), Status grid (host × sourcetype).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (All security data source TAs — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into _internal, main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`gap, host, sourcetype`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "Security tools that stop reporting indicate outage or tampering — so we know when protection is off, out of date, or bypassed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

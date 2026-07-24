@@ -8,24 +8,42 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=network sourcetype=netflow` — Detects misuse of the IPv6 Flow Label field (20 bits in the IPv6 header, RFC 6437) for covert channel communication. The Flow Label should be set uniformly random per flow; non-random patterns, encoded data, or zero values on all flows may indicate either misconfiguration or deliberate covert channel use.",
-  "app": "Splunk Enterprise Security",
+  "exclusions": "Covers the detection logic documented for 'IPv6 Flow Label Misuse and Covert Channel Detection (RFC 6437)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_flow_label_misuse_and_covert_channel_detect` (UC-5.20.140), SOC dashboard panel \"Operations — IPv6 Flow Label Misuse and Covert Channel Detection (RFC 6437)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.140 positive (IPv6, Flow, Label, Misuse, and): ingest synthetic events into `index=network` sourcetype='netflow' where `unique_labels`, `avg_label`, `stdev_label` grouped by `src` satisfies `flows` > 100, `label_ratio` < 0.01, `flows` > 100, or `stdev_label` < 100 for 'IPv6 Flow Label Misuse and Covert Channel Detection (RFC 6437)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.140 negative ((RFC 6437)): ingest benign `network` / `netflow` events where `src` stays below `flows` > 100, `label_ratio` < 0.01, `flows` > 100, or `stdev_label` < 100, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'IPv6 Flow Label Misuse and Covert Channel Detection (RFC 6437)'."
+  },
+  "dataSources": "`index=network sourcetype=netflow` — Detects misuse of the IPv6 Flow Label field (20 bits in the IPv6 header, RFC 6437) for covert channel communication. The Flow Label should be set uniformly random per flow; non-random patterns, encoded data, or zero values on all flows may indicate either misconfiguration or deliberate covert channel use. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"netflow\" earliest=-24h\n| eval is_ipv6=if(match(src, \":\") OR match(dest, \":\"), 1, 0)\n| where is_ipv6=1\n| eval flow_label=if(isnotnull(flow_label), flow_label, 0)\n| stats count as flows dc(flow_label) as unique_labels avg(flow_label) as avg_label stdev(flow_label) as stdev_label by src\n| eval label_ratio=round(unique_labels/flows, 4)\n| eval anomaly=case(\n    unique_labels=1 AND flows > 100 AND flow_label=0, \"ALL_ZERO — \" . flows . \" flows with flow_label=0 — legacy behaviour or misconfiguration\",\n    label_ratio < 0.01 AND flows > 100, \"LOW_DIVERSITY — only \" . unique_labels . \" labels across \" . flows . \" flows — possible encoding\",\n    stdev_label < 100 AND flows > 100, \"LOW_ENTROPY — flow labels have suspiciously low randomness\",\n    1=1, null())\n| where isnotnull(anomaly)\n| sort -flows",
-  "description": "Detects misuse of the IPv6 Flow Label field for covert channel communication. The 20-bit Flow Label should be uniformly random per flow (RFC 6437). Non-random patterns indicate either misconfiguration or deliberate covert channel encoding. Also detects all-zero Flow Labels, which while valid, reduce QoS effectiveness.",
-  "value": "The IPv6 Flow Label is a 20-bit field that traverses the network unchanged by routers. This makes it an attractive covert channel for data exfiltration or C2 communication. Because most security tools ignore the Flow Label, it can carry encoded data undetected. Monitoring Flow Label entropy identifies both covert channels and misconfigured stacks that don't set Flow Labels properly.",
+  "description": "Detects UC-5.20.140 — IPv6, Flow, Label, Misuse, and — using `index=network` sourcetype `netflow`, grouped by `src`. Outputs `unique_labels`, `avg_label`, `stdev_label` each `the scheduled window`; alert when `flows` > 100, `label_ratio` < 0.01, `flows` > 100, or `stdev_label` < 100. Primary focus: (RFC 6437). Purpose-built for 'IPv6 Flow Label Misuse and Covert Channel Detection (RFC 6437)' in Operations workflows.",
+  "value": "UC-5.20.140 accelerates insight into (RFC 6437) ('IPv6 Flow Label Misuse and Covert Channel Detection (RFC 6437)') by tracking `unique_labels`, `avg_label`, `stdev_label` on `netflow` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Analyze Flow Label diversity and entropy per source. Alert on anomalous patterns.",
   "visualization": "(1) Histogram: Flow Label distribution. (2) Table: sources with anomalous labels. (3) Single-value: % of flows with zero labels.",
   "references": [
     {
       "title": "RFC 6437 — IPv6 Flow Label Specification",
-      "url": "https://www.rfc-editor.org/rfc/rfc6437"
+      "url": "https://www.rfc-editor.org/rfc/rfc6437",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IPv6 Flow Labels as Covert Channel — Academic Research",
-      "url": "https://doi.org/"
+      "url": "https://doi.org/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Legacy stacks.** Older IPv6 implementations set Flow Label to zero on all packets. This is valid per RFC 6437 but reduces QoS effectiveness.\n\n**Load balancers.** Some load balancers set specific Flow Label patterns for ECMP distribution. These are legitimate.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.140)** — Planned work for 'IPv6 Flow Label Misuse and Covert Channel Detection (RFC 6437)' shifts `unique_labels`, `avg_label`, `stdev_label` over `span=1h` while `src` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `netflow`** — Scheduled automation elevates `is_ipv6` without crossing `flows` > 100 for UC-5.20.140. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netflow`** — First 48h baseline for UC-5.20.140 on `src` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "juniper",
@@ -43,7 +61,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• NetFlow/IPFIX exporting Flow Label field.\n• Note: Not all NetFlow implementations export the Flow Label.\n\nStep 1 — Verify NetFlow exports include Flow Label.\n\nStep 2 — Baseline normal Flow Label distribution.\n\nStep 3 — Validate: Generate test traffic with known Flow Labels. Verify detection.\n\nStep 4 — Operationalize\n**Dashboard:** Flow Label analysis. **Alert:** Low-entropy Flow Labels — investigate.\n\nStep 5 — Troubleshooting\n• Zero Flow Labels: Usually harmless but indicate the source stack doesn't implement RFC 6437. Update OS/firmware.\n• Encoded data in labels: Investigate the source for malware or unauthorized tools.",
+  "detailedImplementation": "Prerequisites\n• NetFlow/IPFIX exporting Flow Label field.\n• Note: Not all NetFlow implementations export the Flow Label.\n\nStep 1 — Verify NetFlow exports include Flow Label.\n\nStep 2 — Baseline normal Flow Label distribution.\n\nStep 3 — Validate: Generate test traffic with known Flow Labels. Verify detection.\n\nStep 4 — Operationalize\n**Dashboard:** Flow Label analysis. **Alert:** Low-entropy Flow Labels — investigate.\n\nStep 5 — Troubleshooting\n• Zero Flow Labels: Usually harmless but indicate the source stack doesn't implement RFC 6437. Update OS/firmware.\n• Encoded data in labels: Investigate the source for malware or unauthorized tools.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=netflow into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`anomaly, flow_label, flows, is_ipv6`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Every IPv6 packet has a small label, like a shipping tag. It should be a random number for each conversation. If someone is writing secret messages on these tags instead of random numbers, they could be smuggling data out of the network. We check that these tags look properly random and flag any suspicious patterns.",
   "prerequisiteUseCases": [
     "UC-5.20.98"

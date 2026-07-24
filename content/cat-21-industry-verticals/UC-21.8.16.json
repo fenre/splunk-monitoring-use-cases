@@ -10,11 +10,17 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Telecommunications",
-  "dataSources": "`index=voip` `sourcetype=asterisk:ami` `Event=CoreShowChannelsComplete` snapshots or scripted `asterisk -rx \"core show channels count\"` metrics",
-  "app": "AMI polling script + Universal Forwarder, optional SNMP if exported",
+  "exclusions": "Covers the detection logic documented for 'Asterisk Active Channel Saturation vs Licensed Session Ceiling' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_asterisk_active_channel_saturation_vs_licensed_s` (UC-21.8.16), SOC dashboard panel \"Operations — Asterisk Active Channel Saturation vs Licensed Session Ceiling\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-21.8.16 positive (Asterisk, Active, Channel, Saturation, Licensed): ingest synthetic events into `index=voip` sourcetype='asterisk:ami' where `count` grouped by `entity` satisfies `util_pct` > 85 for 'Asterisk Active Channel Saturation vs Licensed Session Ceiling'. Validate lookup `asterisk_license_limits`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-21.8.16 negative (Session Ceiling): ingest benign `voip` / `asterisk:ami` events where `entity` stays below `util_pct` > 85, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Asterisk Active Channel Saturation vs Licensed Session Ceiling'."
+  },
+  "dataSources": "`index=voip` `sourcetype=asterisk:ami` `Event=CoreShowChannelsComplete` snapshots or scripted `asterisk -rx \"core show channels count\"` metrics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "AMI polling script + Universal Forwarder, optional SNMP if exported — Universal Forwarder (Splunkbase 617)",
   "spl": "index=voip sourcetype=asterisk:ami Event=\"CoreShowChannelsComplete\"\n| lookup asterisk_license_limits host OUTPUT session_license_limit AS license_ceiling\n| eval active=tonumber(ListItems), license_ceiling=tonumber(license_ceiling)\n| eval util_pct=round(100*active/nullif(license_ceiling,0),2)\n| where util_pct > 85\n| table _time, host, active, license_ceiling, util_pct\n| sort - util_pct",
-  "description": "When concurrent channels approach licensed or CPU limits, new calls receive congestion tones even though individual trunks look healthy. Ingesting periodic AMI channel inventory provides a leading indicator before busy-hour meltdown.",
-  "value": "Protects revenue and emergency call completion by triggering capacity augments or rerouting before hard blocking begins.",
+  "description": "Surfaces UC-21.8.16 — Asterisk, Active, Channel, Saturation, Licensed — using `index=voip` sourcetype `asterisk:ami`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `util_pct` > 85. Filter chain includes lookup `asterisk_license_limits`. Purpose-built for 'Asterisk Active Channel Saturation vs Licensed Session Ceiling' in Operations workflows.",
+  "value": "UC-21.8.16 operationalises 'Asterisk Active Channel Saturation vs Licensed Session Ceiling' against `asterisk:ami` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Poll AMI `Action: CoreShowChannels` and capture `ListItems` from the completing event, or run CLI `core show channels` every minute via scripted input emitting `active_channels`. Maintain a lookup `session_license_limit` per `host` (commercial Asterisk or appliance cap). Alert above 85% utilization for 10 minutes. Cross-check CPU from OS metrics.",
   "visualization": "Gauge (util_pct), Line chart (active vs ceiling), Table (forecasted exhaust).",
   "cimModels": [
@@ -24,14 +30,26 @@
   "references": [
     {
       "title": "Asterisk Wiki — AMI Actions (CoreShowChannels)",
-      "url": "https://wiki.asterisk.org/"
+      "url": "https://wiki.asterisk.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Docs: Run shell scripts as scripted inputs",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Channel peaks during marketing or emergency public-service announcements, holiday peaks, or absorbed traffic from a node in maintenance the capacity plan allowed.",
+  "knownFalsePositives": "1. **Maintenance window on `voip` (UC-21.8.16)** — Planned work for 'Asterisk Active Channel Saturation vs Licensed Session Ceiling' shifts `count` over `span=1h` while `host` remains in-scope. Applies lookup `asterisk_license_limits`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `asterisk:ami`** — Scheduled automation elevates `active` without crossing `util_pct` > 85 for UC-21.8.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `asterisk:ami`** — First 48h baseline for UC-21.8.16 on `host` is unstable; join `asterisk_license_limits` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "asterisk",
     "snmp"
@@ -46,7 +64,9 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Lookup CSV `asterisk_license_limits.csv` with host, session_license_limit.\n• `inputlookup` join in SPL if not embedded in events.\n\nStep 1 — Use `lookup` command: `| lookup asterisk_license_limits host OUTPUT session_license_limit`.\n\nStep 2 — Validate AMI parsing against `asterisk -rx` manual count.\n\nStep 3 — Seasonal busy-hour overlay on dashboard.\n\nStep 4 — Escalation runbook to add SIP trunks or VMs.",
+  "detailedImplementation": "Prerequisites\n• Lookup CSV `asterisk_license_limits.csv` with host, session_license_limit.\n• `inputlookup` join in SPL if not embedded in events.\n\nStep 1 — Use `lookup` command: `| lookup asterisk_license_limits host OUTPUT session_license_limit`.\n\nStep 2 — Validate AMI parsing against `asterisk -rx` manual count.\n\nStep 3 — Seasonal busy-hour overlay on dashboard.\n\nStep 4 — Escalation runbook to add SIP trunks or VMs.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (AMI polling script + Universal Forwarder, optional SNMP if exported — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=asterisk:ami into voip. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, session_license_limit AS license_ceiling, util_pct`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch live voice channels against license limits. We help you catch saturation before new calls fail outright.",
-  "telcoUseCase": "Trunk sizing for service providers — compare live channel usage from AMI `CoreShowChannels` snapshots to commercial license limits or engineered busy hour."
+  "prerequisiteUseCases": [],
+  "telcoUseCase": "Trunk sizing for service providers — compare live channel usage from AMI `CoreShowChannels` snapshots to commercial license limits or engineered busy hour.",
+  "wave": "crawl"
 }

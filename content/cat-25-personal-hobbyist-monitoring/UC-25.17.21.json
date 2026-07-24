@@ -9,46 +9,70 @@
     "Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Maker telemetry (`bambulab:job`, `prusaconnect:printer`, `octoprint:job`, `klipper:telemetry`, `laserweb:job`, `cnc:job`, `cnc:coolant`, `filament:spool`, `workshop:air`).",
-  "app": "Bambu Lab printers, Prusa Connect, OctoPrint, Moonraker, LaserWeb, CNC.js, drybox sensors, and workshop telemetry via MQTT and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Laser Exhaust Underperformance' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_laser_exhaust_underperformance` (UC-25.17.21), SOC dashboard panel \"Personal — Laser Exhaust Underperformance\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.17.21 positive (Laser, Exhaust, Underperformance): ingest synthetic events into `index=personal` sourcetype='laserweb:job' where `avg_exhaust_cfm`, `min_exhaust_cfm` grouped by `cutter` satisfies `avg_exhaust_cfm` < 250, or `min_exhaust_cfm` < 200 for 'Laser Exhaust Underperformance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.17.21 negative (Exhaust Underperformance): ingest benign `personal` / `laserweb:job` events where `cutter` stays below `avg_exhaust_cfm` < 250, or `min_exhaust_cfm` < 200, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'Laser Exhaust Underperformance'."
+  },
+  "dataSources": "Maker telemetry (`bambulab:job`, `prusaconnect:printer`, `octoprint:job`, `klipper:telemetry`, `laserweb:job`, `cnc:job`, `cnc:coolant`, `filament:spool`, `workshop:air`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Bambu Lab printers, Prusa Connect, OctoPrint, Moonraker, LaserWeb, CNC.js, drybox sensors, and workshop telemetry via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=laserweb:job\n| stats avg(exhaust_cfm) as avg_exhaust_cfm, min(exhaust_cfm) as min_exhaust_cfm by cutter\n| where avg_exhaust_cfm<250 OR min_exhaust_cfm<200\n| sort avg_exhaust_cfm",
-  "description": "Uses LaserWeb job telemetry telemetry to monitor whether exhaust airflow is staying inside the safe range in index=personal.",
-  "value": "Splunk turns the feed into an operational check for extraction systems that are too weak for clean cutting, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Alerts on 'Laser Exhaust Underperformance' patterns (UC-25.17.21) sourced from `index=personal` sourcetype `laserweb:job`. Threshold bundle: `avg_exhaust_cfm` < 250, or `min_exhaust_cfm` < 200; aggregation grain: `cutter`; metrics: `avg_exhaust_cfm`, `min_exhaust_cfm`. Watch terms: Laser, Exhaust, Underperformance.",
+  "value": "UC-25.17.21 gives Personal teams earlier visibility into Exhaust Underperformance through `laserweb:job` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest LaserWeb job telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Cutter table of average and minimum exhaust flow.",
   "cimModels": [],
   "references": [
     {
       "title": "Bambu Lab wiki",
-      "url": "https://wiki.bambulab.com/"
+      "url": "https://wiki.bambulab.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Prusa Connect",
-      "url": "https://connect.prusa3d.com/"
+      "url": "https://connect.prusa3d.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "OctoPrint API",
-      "url": "https://docs.octoprint.org/en/master/api/index.html"
+      "url": "https://docs.octoprint.org/en/master/api/index.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Moonraker API",
-      "url": "https://moonraker.readthedocs.io/en/latest/web_api/"
+      "url": "https://moonraker.readthedocs.io/en/latest/web_api/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "LaserWeb",
-      "url": "https://github.com/LaserWeb/LaserWeb4"
+      "url": "https://github.com/LaserWeb/LaserWeb4",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CNC.js",
-      "url": "https://cnc.js.org/"
+      "url": "https://cnc.js.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.17.21)** — Connector for 'Laser Exhaust Underperformance' stops polling `laserweb:job`; stale `avg_exhaust_cfm`, `min_exhaust_cfm` on `cutter` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_exhaust_cfm`, `min_exhaust_cfm` over `1w` is expected for UC-25.17.21, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `laserweb:job`. Dedup with `stats latest(*) by cutter`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_exhaust_cfm` < 250 for 'Laser Exhaust Underperformance'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It records whether exhaust airflow is staying inside the safe range so you can spot extraction systems that are too weak for clean cutting before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Making, 3D Printing & Workshop — typical feeds: Print jobs (`octoprint:job`), printer firmware telemetry (`printer:telemetry`), filament spools (`filament:spool`), CNC/laser jobs (`cnc:job`), workshop air (`workshop:air`), cordless tool batteries (.\n• **Sourcetypes in this search**: `laserweb:job`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=laserweb:job`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** OctoPrint / Klipper (Moonraker) print servers, printer firmware telemetry, filament spool tracking, CNC/laser job logs, and workshop air/tool sensors via HEC and MQTT..\n\n**Author notes:** Ingest LaserWeb job telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"laserweb:job\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=laserweb:job earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Laser Exhaust Underperformance** over `personal` data (primarily `sourcetype=laserweb:job`) across the full search range. It applies numeric thresholds on `avg_exhaust_cfm` (< 250) after avg, min — tune these constants to your household baseline.\n\n**Fields this search depends on:** `avg_exhaust_cfm`, `cutter`, `min_exhaust_cfm`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=laserweb:job\n| stats avg(exhaust_cfm) as avg_exhaust_cfm, min(exhaust_cfm) as min_exhaust_cfm by cutter\n| where avg_exhaust_cfm<250 OR min_exhaust_cfm<200\n| sort avg_exhaust_cfm\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=laserweb:job earliest=-7d\n| head 50\n| table avg_exhaust_cfm, cutter, min_exhaust_cfm\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=laserweb:job earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `avg_exhaust_cfm` before alerting:\n\n```spl\nindex=personal sourcetype=laserweb:job earliest=-30d\n| stats perc50(avg_exhaust_cfm) AS p50 perc90(avg_exhaust_cfm) AS p90 perc99(avg_exhaust_cfm) AS p99 max(avg_exhaust_cfm) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.17.21: Personal evidence` with the following panel layout:\n\n**Panel 1 — Cutter Table Of Average And Minimum Exhaust Flow (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `laserweb:job` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=laserweb:job | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It records whether exhaust airflow is staying inside the safe range so you can spot extraction systems that are too weak for clean cutting before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

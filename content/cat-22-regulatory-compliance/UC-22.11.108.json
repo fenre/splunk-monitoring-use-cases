@@ -27,28 +27,40 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Disable SXP peer to a CDE NAD. Evidence captured.",
-    "negativeScenario": "All SXP healthy. Empty result; control attested."
+    "positiveScenario": "UC-22.11.108 positive (PCI, DSS, v4.0, 1.4.5, TrustSec): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `count` grouped by `sxp_peer`, `MessageCode` satisfies -1d for 'PCI DSS v4.0 1.4.5 — TrustSec Segmentation Enforcement Evidence'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.108 negative (Enforcement Evidence): ingest benign `nac` / `cisco:ise:syslog` events where `sxp_peer`, `MessageCode` stays below -1d, or exclude the test entity via `compliance_exception_register.csv`. Variant 11 confirms zero alert rows for 'PCI DSS v4.0 1.4.5 — TrustSec Segmentation Enforcement Evidence'."
   },
-  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` codes 87060/87061 (SXP) + UC-17.1.36 + UC-17.1.76 outputs.",
-  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915).",
+  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` codes 87060/87061 (SXP) + UC-17.1.36 + UC-17.1.76 outputs. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). (Splunkbase) — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (87060, 87061, 87062) earliest=-1d\n| stats count by sxp_peer, MessageCode\n| eval pcidss_clause=\"1.4.5\", control=\"CDE_Segmentation\"\n| collect index=audit_evidence",
-  "description": "We continuously evidence PCI DSS v4.0 1.4.5 — CDE segmentation enforcement via TrustSec SXP/SGT health.",
-  "value": "Runtime SXP failures or SGT mismatches break CDE segmentation invisibly. Daily evidence to audit_evidence ensures the QSA can confirm segmentation was continuously operating, not just configured.",
+  "description": "Identifies UC-22.11.108 — PCI, DSS, v4.0, 1.4.5, TrustSec — using `index=nac` sourcetype `cisco:ise:syslog`, grouped by `sxp_peer`, `MessageCode`. Outputs `count` each `the scheduled window`; alert when -1d. Primary focus: Enforcement Evidence. Purpose-built for 'PCI DSS v4.0 1.4.5 — TrustSec Segmentation Enforcement Evidence' in Compliance workflows.",
+  "value": "UC-22.11.108 helps teams contain PCI, DSS, v4.0, 1.4.5, TrustSec scenarios and reduce audit findings, regulatory gaps, and attestation delays before incidents compound.",
   "implementation": "Daily. Coordinate with UC-17.1.36 and UC-17.1.76 deployment.",
   "visualization": "PCI 1.4.5 panel: SXP-peer health gauge; SGT mismatch table; GBP drift count.",
   "cimModels": [],
   "references": [
     {
       "title": "PCI DSS v4.0",
-      "url": "https://www.pcisecuritystandards.org/document_library/"
+      "url": "https://www.pcisecuritystandards.org/document_library/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "UC-17.1.36 — TrustSec / SGT Mismatch and SXP Listener Health",
-      "url": "../cat-17-network-security-zero-trust/UC-17.1.36.json"
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.36.json",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "NIST Cybersecurity Framework",
+      "url": "https://www.nist.gov/cyberframework",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "ISO/IEC 27001 Information Security",
+      "url": "https://www.iso.org/standard/27001",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. Brief SXP peer flaps during scheduled NAD reboots.",
+  "knownFalsePositives": "1. **Authorised PCI DSS control testing** — Internal audit exercises 'PCI DSS v4.0 1.4.5 — TrustSec Segmentation Enforcement Evidence' (UC-22.11.108) on `sxp_peer` during scheduled clause 1.4.5 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=nac` `cisco:ise:syslog` without crossing evidence threshold. Cross-check engagement letter in `pci_dss_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `nac` for `sxp_peer`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `sxp_peer` during normal service delivery.\n\n**Suppression mechanism:** `pci_dss_exception_register.csv` keyed on `sxp_peer`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "requiredFields": [
     "_time",
     "sxp_peer",
@@ -70,6 +82,8 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.36 + UC-17.1.76 operational.\n- `audit_evidence` with 1y+ retention.\n\n## Step 1 — Data\n\nVia Cisco ISE add-on.\n\n## Step 2 — Implementation\n\n```ini\n[UC-22.11.108: PCI 1.4.5 — Segmentation Enforcement Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.11.108,reg=PCIDSS,clause=1.4.5\n```\n\n## Step 3 — Validate\n\nDeliberately drop an SXP peer; confirm evidence captured.\n\n## Step 4 — Operationalize\n\nPCI 1.4.5 dashboard.\n\n## Step 5 — Audit\n\nQuarterly evidence pack with QSA review.",
-  "grandmaExplanation": "We continuously evidence PCI DSS v4.0 1.4.5 — CDE segmentation enforcement via TrustSec SXP/SGT health. That is important for the audit, where proof needs to line up with what the rules expect."
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.36 + UC-17.1.76 operational.\n- `audit_evidence` with 1y+ retention.\n\n## Step 1 — Data\n\nVia Cisco ISE add-on.\n\n## Step 2 — Implementation\n\n```ini\n[UC-22.11.108: PCI 1.4.5 — Segmentation Enforcement Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.11.108,reg=PCIDSS,clause=1.4.5\n```\n\n## Step 3 — Validate\n\nDeliberately drop an SXP peer; confirm evidence captured.\n\n## Step 4 — Operationalize\n\nPCI 1.4.5 dashboard.\n\n## Step 5 — Audit\n\nQuarterly evidence pack with QSA review.\n\n**Ecosystem integration:** Forward compliance detections to Splunk SOAR for automated incident triage and escalation playbooks. Enrich events with asset context from ServiceNow CMDB. Cross-reference with CrowdStrike Falcon or Microsoft Defender for Endpoint for host forensics and threat detection context. Integrate Okta or Azure AD identity context to determine if the acting user had appropriate authorisation. Feed validated findings into the GRC platform (e.g., RSA Archer, ServiceNow GRC, or AuditBoard) for regulatory compliance tracking and audit evidence management.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). (Splunkbase) — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac, audit_evidence. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`MessageCode, sxp_peer`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We continuously evidence PCI DSS v4.0 1.4.5 — CDE segmentation enforcement via TrustSec SXP/SGT health. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,30 +8,55 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Kafka Connect REST status (`kafkaconnect:status`), worker logs (`kafkaconnect:worker`), and JMX source/sink metrics (`kafkaconnect:jmx`).",
-  "app": "Kafka Connect REST API (`/connectors`, `/connectors/{name}/status`) via HEC scripted inputs; Connect worker logs and JMX metrics.",
+  "exclusions": "Covers the detection logic documented for 'Kafka Connect Task Failed State' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_kafka_connect_task_failed_state` (UC-24.8.14), SOC dashboard panel \"Operations — Kafka Connect Task Failed State\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.8.14 positive (Kafka, Connect, Task, Failed, State): ingest synthetic events into `index=bi` sourcetype='kafkaconnect:status' where `sum` grouped by `connector` satisfies `failed_tasks` > 0 for 'Kafka Connect Task Failed State'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.8.14 negative (Failed State): ingest benign `bi` / `kafkaconnect:status` events where `connector` stays below `failed_tasks` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Kafka Connect Task Failed State'."
+  },
+  "dataSources": "Kafka Connect REST status (`kafkaconnect:status`), worker logs (`kafkaconnect:worker`), and JMX source/sink metrics (`kafkaconnect:jmx`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Kafka Connect REST API (`/connectors`, `/connectors/{name}/status`) via HEC scripted inputs; Connect worker logs and JMX metrics. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=kafkaconnect:status\n| stats latest(connector_state) as conn_state, sum(eval(task_state=\"FAILED\")) as failed_tasks, count as total_tasks by connector\n| where failed_tasks>0 OR conn_state=\"FAILED\"\n| sort - failed_tasks",
-  "description": "Polls the Kafka Connect status API and flags connectors with any task in FAILED state, which stops that partition of the data flow until restarted.",
-  "value": "A single failed task silently halts part of a streaming pipeline; status polling catches it because failed tasks are not auto-restarted by default.",
+  "description": "Identifies UC-24.8.14 — Kafka, Connect, Task, Failed, State — using `index=bi` sourcetype `kafkaconnect:status`, grouped by `connector`. Outputs `sum` each `the scheduled window`; alert when `failed_tasks` > 0. Primary focus: Failed State. Purpose-built for 'Kafka Connect Task Failed State' in Operations workflows.",
+  "value": "UC-24.8.14 gives Operations teams earlier visibility into Failed State through `kafkaconnect:status` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Poll `/connectors/{name}/status` into HEC; schedule every 5 minutes and alert on any FAILED task for a production connector.",
   "visualization": "Table of connector by failed tasks, status panel.",
   "cimModels": [],
   "references": [
     {
       "title": "Kafka Connect — REST API",
-      "url": "https://kafka.apache.org/documentation/#connect_rest"
+      "url": "https://kafka.apache.org/documentation/#connect_rest",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Kafka Connect — Monitoring",
-      "url": "https://kafka.apache.org/documentation/#connect_monitoring"
+      "url": "https://kafka.apache.org/documentation/#connect_monitoring",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.8.14)** — Planned work for 'Kafka Connect Task Failed State' shifts `sum` over `span=1h` while `connector` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `kafkaconnect:status`** — Scheduled automation elevates `src` without crossing `failed_tasks` > 0 for UC-24.8.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `connector`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafkaconnect:status`** — First 48h baseline for UC-24.8.14 on `connector` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `connector`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka"
   ],
-  "grandmaExplanation": "We watch the streaming data connectors and flag any part that has failed, since it will stay stopped until someone restarts it."
+  "equipmentModels": [
+    "kafka_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Kafka Connect REST API (`/connectors`, `/connectors/{name}/status`) via HEC scripted inputs; Connect worker logs and JMX metrics. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=kafkaconnect:status into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`connector, failed_tasks`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the streaming data connectors and flag any part that has failed, since it will stay stopped until someone restarts it.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

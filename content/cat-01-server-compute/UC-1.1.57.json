@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=custom:arp` (one row per poll with `arp_entry_count` and optional `gc_thresh` for dynamic limits)",
-  "app": "`Splunk_TA_nix` with a custom scripted input counting `/proc/net/arp` entries",
+  "exclusions": "Covers the detection logic documented for 'ARP Table Overflow Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_arp_table_overflow_detection` (UC-1.1.57), SOC dashboard panel \"Linux — ARP Table Overflow Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.57 positive (ARP, Table, Overflow, Detection): ingest synthetic events into `index=os` sourcetype='custom:arp' where `count` grouped by `host` satisfies detection threshold for 'ARP Table Overflow Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.57 negative (Overflow Detection): ingest benign `os` / `custom:arp` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 14 confirms zero alert rows for 'ARP Table Overflow Detection'."
+  },
+  "dataSources": "`sourcetype=custom:arp` (one row per poll with `arp_entry_count` and optional `gc_thresh` for dynamic limits) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` with a custom scripted input counting `/proc/net/arp` entries — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:arp host=*\n| stats latest(arp_entry_count) as arp_entry_count, latest(max_entries) as max_entries by host\n| eval max_entries=coalesce(max_entries, 1024)\n| where arp_entry_count > (max_entries * 0.8)",
-  "description": "Compares the live ARP cache size to a configured or sampled maximum, alerting when the table is most of the way to exhaustion—whether from scans, virtual churn, or mis-set limits.",
-  "value": "A full ARP table stops new on-net conversations cold; this control buys time to raise `gc_thresh*`, find spoofing, or break L2 storms before a host goes dark.",
+  "description": "Surfaces UC-1.1.57 — ARP, Table, Overflow, Detection — using `index=os` sourcetype `custom:arp`, grouped by `host`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Overflow Detection. Purpose-built for 'ARP Table Overflow Detection' in Linux workflows.",
+  "value": "Alerting on ARP, Table, Overflow, Detection through UC-1.1.57 reduces capacity incidents, patch regressions, and service outages by surfacing `activity` early.",
   "implementation": "Count non-header lines in `/proc/net/arp` (or your script’s equivalent) into `arp_entry_count`. Set `max_entries` from a maintained lookup or from `/proc/sys/net/ipv4/neigh/default/gc_thresh3` on hosts where that maps to your policy; the sample SPL used a static `max_entries=1024` before—prefer dynamic `max_entries` to avoid one-size-fits-all false work.",
   "visualization": "Gauge, Alert",
   "cimModels": [
@@ -21,17 +27,38 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "VM mobility or anycast designs with legitimately huge neighbor tables; a too-low `max_entries` constant; duplicate polls double-counting if you emit multiple sourcetypes to the same index without host keys.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'ARP Table Overflow Detection'. Correlate with apt/yum logs in the same `custom:arp` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:arp`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• Provide both **arp_entry_count** and a realistic **max_entries** per host class (lookup CSV or field from the same script that reads `gc_thresh` values).\n\nStep 1 — Configure data collection\nRun every minute on hypervisors and routers where ARP pressure first appears. Document IPv4 vs IPv6 if you split families.\n\nStep 2 — Create the search and alert\nThe SPL in the JSON body expects both fields. If you still use a static max, set `| eval max_entries=coalesce(max_entries,1024)` after **stats**.\n\n**Understanding this SPL** — Simple utilization check with guard `max_entries>0` to avoid divide-by-zero artifacts.\n\n\nStep 3 — Validate\nCompare `arp_entry_count` to `wc -l /proc/net/arp` minus the header, and to `ip neigh show | wc` for humans on the same second.\n\nStep 4 — Operationalize\nWhen paging, also capture `dmesg` for **neighbour table overflow** lines and work with the network team on VLAN design or storm control.\n\n",
-  "grandmaExplanation": "We watch how full the local address list is, because when that list is full, the server can’t place new devices on the map and traffic stops making sense."
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Provide both **arp_entry_count** and a realistic **max_entries** per host class (lookup CSV or field from the same script that reads `gc_thresh` values).\n\nStep 1 — Configure data collection\nRun every minute on hypervisors and routers where ARP pressure first appears. Document IPv4 vs IPv6 if you split families.\n\nStep 2 — Create the search and alert\nThe SPL in the JSON body expects both fields. If you still use a static max, set `| eval max_entries=coalesce(max_entries,1024)` after **stats**.\n\n**Understanding this SPL** — Simple utilization check with guard `max_entries>0` to avoid divide-by-zero artifacts.\n\n\nStep 3 — Validate\nCompare `arp_entry_count` to `wc -l /proc/net/arp` minus the header, and to `ip neigh show | wc` for humans on the same second.\n\nStep 4 — Operationalize\nWhen paging, also capture `dmesg` for **neighbour table overflow** lines and work with the network team on VLAN design or storm control.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` with a custom scripted input counting `/proc/net/arp` entries — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=custom:arp into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how full the local address list is, because when that list is full, the server can’t place new devices on the map and traffic stops making sense.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

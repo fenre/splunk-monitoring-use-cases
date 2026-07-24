@@ -8,26 +8,55 @@
     "Safety"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Reef-tank parameters (`reeftank:param`), vivarium climate (`vivarium:climate`), fish feeder (`fishfeeder:event`), auto-doser (`doser:event`), auto-top-off (`ato:event`), pond sensors (`pondsensor:reading`).",
-  "app": "Aquarium and vivarium controllers — reef-tank parameter monitors, auto-dosers, auto-top-off, reptile terrarium climate/UVB, and pond sensors — streamed to Splunk HEC via MQTT and controller APIs (e.g. Apex, GHL, ESPHome).",
+  "exclusions": "Covers personal hobby monitoring for 'Reptile Terrarium Climate and UVB' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_reptile_terrarium_climate_and_uvb` (UC-25.27.6), SOC dashboard panel \"Personal — Reptile Terrarium Climate and UVB\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.27.6 positive (Reptile, Terrarium, Climate, and, UVB): ingest synthetic events into `index=personal` sourcetype='vivarium:climate' where `count` grouped by `enclosure` satisfies `basking` >= 32, `cool` <= 26, or `uvi` >= 2 for 'Reptile Terrarium Climate and UVB'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.27.6 negative (and UVB): ingest benign `personal` / `vivarium:climate` events where `enclosure` stays below `basking` >= 32, `cool` <= 26, or `uvi` >= 2, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 11 confirms zero alert rows for 'Reptile Terrarium Climate and UVB'."
+  },
+  "dataSources": "Reef-tank parameters (`reeftank:param`), vivarium climate (`vivarium:climate`), fish feeder (`fishfeeder:event`), auto-doser (`doser:event`), auto-top-off (`ato:event`), pond sensors (`pondsensor:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Aquarium and vivarium controllers — reef-tank parameter monitors, auto-dosers, auto-top-off, reptile terrarium climate/UVB, and pond sensors — streamed to Splunk HEC via MQTT and controller APIs (e.g. Apex, GHL, ESPHome). — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=vivarium:climate\n| stats latest(basking_c) as basking, latest(cool_c) as cool, latest(humidity_pct) as humidity, latest(uvi) as uvi by enclosure\n| eval gradient_ok=if(basking>=32 AND cool<=26,\"good\",\"check\"), uvb_ok=if(uvi>=2,\"good\",\"low\")",
-  "description": "Checks a reptile's enclosure keeps a proper warm-to-cool gradient, humidity, and UVB, the essentials of reptile health.",
-  "value": "Reptiles depend entirely on their environment; monitoring the gradient and UVB prevents the slow health decline of poor husbandry.",
+  "description": "Detects UC-25.27.6 — Reptile, Terrarium, Climate, and, UVB — using `index=personal` sourcetype `vivarium:climate`, grouped by `enclosure`. Outputs `count` each `the scheduled window`; alert when `basking` >= 32, `cool` <= 26, or `uvi` >= 2. Primary focus: and UVB. Purpose-built for 'Reptile Terrarium Climate and UVB' in Personal workflows.",
+  "value": "UC-25.27.6 helps teams contain Reptile, Terrarium, Climate, and, UVB scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Ingest terrarium climate and UV index into `index=personal`; alert when the gradient, humidity, or UVB is off.",
   "visualization": "Status panel of basking and cool temperatures, humidity, and UVB.",
   "cimModels": [],
   "references": [
     {
       "title": "Arduino — project hub",
-      "url": "https://projecthub.arduino.cc/"
+      "url": "https://projecthub.arduino.cc/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.27.6)** — Connector for 'Reptile Terrarium Climate and UVB' stops polling `vivarium:climate`; stale `count` on `enclosure` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.27.6, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vivarium:climate`. Dedup with `stats latest(*) by enclosure`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `basking` >= 32 for 'Reptile Terrarium Climate and UVB'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It checks a reptile's tank has the right warm and cool areas, humidity, and special light it needs to stay healthy."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Aquariums, Reptiles & Vivariums — typical feeds: Reef-tank parameters (`reeftank:param`), vivarium climate (`vivarium:climate`), fish feeder (`fishfeeder:event`), auto-doser (`doser:event`), auto-top-off (`ato:event`), pond sensors (`pondsensor:read.\n• **Sourcetypes in this search**: `vivarium:climate`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=vivarium:climate`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Aquarium and vivarium controllers — reef-tank parameter monitors, auto-dosers, auto-top-off, reptile terrarium climate/UVB, and pond sensors — via MQTT and controller APIs (Apex, GHL, ESPHome)..\n\n**Author notes:** Ingest terrarium climate and UV index into `index=personal`; alert when the gradient, humidity, or UVB is off.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"vivarium:climate\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=vivarium:climate earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Reptile Terrarium Climate and UVB** over `personal` data (primarily `sourcetype=vivarium:climate`) across the full search range. It applies numeric thresholds on `basking` (>= 32) after latest — tune these constants to your household baseline.\n\n**Fields this search depends on:** `basking`, `cool`, `enclosure`, `gradient_ok`, `uvi`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=vivarium:climate\n| stats latest(basking_c) as basking, latest(cool_c) as cool, latest(humidity_pct) as humidity, latest(uvi) as uvi by enclosure\n| eval gradient_ok=if(basking>=32 AND cool<=26,\"good\",\"check\"), uvb_ok=if(uvi>=2,\"good\",\"low\")\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=vivarium:climate earliest=-7d\n| head 50\n| table basking, cool, enclosure, gradient_ok, uvi\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=vivarium:climate earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `basking` before alerting:\n\n```spl\nindex=personal sourcetype=vivarium:climate earliest=-30d\n| stats perc50(basking) AS p50 perc90(basking) AS p90 perc99(basking) AS p99 max(basking) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.27.6: Personal evidence` with the following panel layout:\n\n**Panel 1 — Status Panel Of Basking And Cool Temperatures (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n**Panel 2 — Humidity (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n**Panel 3 — And Uvb (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `vivarium:climate` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=vivarium:climate | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It checks a reptile's tank has the right warm and cool areas, humidity, and special light it needs to stay healthy.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

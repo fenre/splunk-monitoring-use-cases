@@ -9,6 +9,8 @@
     "Capacity"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_cisco_ise_psn_authentication_per_second_tps_slo_` (UC-17.1.77), SOC dashboard panel \"Network — Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "nis2",
@@ -61,14 +63,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Generate 6,000 authentications per minute against an SNS-3715 (5,000 TPS rated). UC-17.1.77 fires.",
-    "negativeScenario": "PSN running at 50% capacity. No fire."
+    "positiveScenario": "UC-17.1.77 positive (Cisco, ISE, PSN, Authentication, Per): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `count` grouped by `_time`, `host` satisfies `headroom_pct` < 30 for 'Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom'. Validate lookup `ise_psn_capacity.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.77 negative (Capacity Headroom): ingest benign `nac` / `cisco:ise:syslog` events where `_time`, `host` stays below `headroom_pct` < 30, or exclude the test entity via `network_exception_register.csv`. Variant 14 confirms zero alert rows for 'Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom'."
   },
-  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Passed-Authentications* (5200) and *Failed-Authentications* (5400) — high-volume base searches. Use `_time` bucketing to compute per-PSN TPS. Cross-reference Cisco-published PSN sizing data: SNS-3715 = 5,000 TPS, SNS-3725 = 10,000 TPS, SNS-3755 = 20,000 TPS, SNS-3795 = 50,000 TPS.",
-  "app": "`Splunk Add-on for Cisco Identity Services`.",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Passed-Authentications* (5200) and *Failed-Authentications* (5400) — high-volume base searches. Use `_time` bucketing to compute per-PSN TPS. Cross-reference Cisco-published PSN sizing data: SNS-3715 = 5,000 TPS, SNS-3725 = 10,000 TPS, SNS-3755 = 20,000 TPS, SNS-3795 = 50,000 TPS. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (5200, 5400)\n| bin _time span=1m\n| stats count as auth_count by _time, host\n| eval tps=round(auth_count/60, 1)\n| lookup ise_psn_capacity.csv host OUTPUT psn_max_tps\n| eval headroom_pct=round(((psn_max_tps - tps) / psn_max_tps) * 100, 1)\n| where headroom_pct < 30",
-  "description": "Tracks per-PSN authentication-per-second rate against the platform's published TPS ceiling. Alerts when sustained headroom falls below 30%.",
-  "value": "PSNs that approach their TPS ceiling start dropping requests. Headroom monitoring lets capacity planning add nodes before users feel the pain — and prevents the worst-case scenario where ISE silently drops auth requests during a busy morning.",
+  "description": "Identifies UC-17.1.77 — Cisco, ISE, PSN, Authentication, Per — using `index=nac` sourcetype `cisco:ise:syslog`, grouped by `_time`, `host`. Outputs `count` each `1m`; alert when `headroom_pct` < 30. Filter chain includes lookup `ise_psn_capacity.csv`. Purpose-built for 'Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom' in Network workflows.",
+  "value": "Alerting on Cisco, ISE, PSN, Authentication, Per through UC-17.1.77 reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing `activity` early.",
   "implementation": "Schedule every 5 min.",
   "visualization": "Per-PSN TPS gauge; headroom trend; capacity-utilization heatmap.",
   "cimModels": [
@@ -78,10 +80,31 @@
   "references": [
     {
       "title": "Cisco SNS-3700 Series Datasheet — TPS Specs",
-      "url": "https://www.cisco.com/c/en/us/products/"
+      "url": "https://www.cisco.com/c/en/us/products/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "NIS2 Directive — EUR-Lex",
+      "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022L2555",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) Morning login storm peaks (8-9am) often dip below 30% briefly — tune.\n(b) Maintenance on neighbor PSN concentrates load.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (SLO monitoring — measures ISE Policy Service Node latency, no adversary technique)"
   ],
@@ -99,7 +122,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Standard pattern.",
+  "detailedImplementation": "Standard pattern.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, headroom_pct, host, psn_max_tps`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Each ISE box can handle a maximum number of logins per second. We watch how close each box is to its limit — and warn before it gets crowded so we can add another box.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

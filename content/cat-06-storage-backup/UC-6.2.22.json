@@ -9,11 +9,17 @@
     "Resilience"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Monitor health in `ceph:health` or `ceph:status` with `quorum`, `monmap` epochs",
-  "app": "Custom scripted input from `ceph quorum_status -f json`",
+  "exclusions": "Covers the detection logic documented for 'Ceph monitor quorum loss and election storm detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ceph_monitor_quorum_loss_and_election_storm_dete` (UC-6.2.22), SOC dashboard panel \"Operations — Ceph monitor quorum loss and election storm detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.22 positive (Ceph, monitor, quorum, loss, and): ingest synthetic events into `index=storage` sourcetype='ceph:health' where `count` grouped by `entity` satisfies `qsize` < 2 for 'Ceph monitor quorum loss and election storm detection'. Validate filter `NOT HEALTH_OK OR qsize < 2`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.22 negative (storm detection): ingest benign `storage` / `ceph:health` events where `entity` stays below `qsize` < 2, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Ceph monitor quorum loss and election storm detection'."
+  },
+  "dataSources": "Monitor health in `ceph:health` or `ceph:status` with `quorum`, `monmap` epochs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input from `ceph quorum_status -f json` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage (sourcetype=\"ceph:health\" OR sourcetype=\"ceph:status\")\n| eval quorum=coalesce(quorum_names, quorum, mon_quorum)\n| eval qsize=coalesce(quorum_size, mvcount(split(quorum,\",\")))\n| eval mons=coalesce(mon_total, num_mons)\n| where isnotnull(mons) AND (qsize < ceil(mons/2)+1 OR match(_raw, \"quorum\"))\n| search NOT HEALTH_OK OR qsize < 2\n| table _time, cluster_name, quorum, mons, health_detail",
-  "description": "Monitor quorum loss freezes cluster configuration updates and often precedes client I/O issues. Detecting partial quorum early preserves metadata safety.",
-  "value": "Protects RBD, CephFS, and RGW control-plane operations during rack or site failures.",
+  "description": "Monitors 'Ceph monitor quorum loss and election storm detection' (UC-6.2.22) using `index=storage` sourcetype `ceph:health` via filter `NOT HEALTH_OK OR qsize < 2` by aggregating `count` grouped by `entity` over `the scheduled window` and alerting when `qsize` < 2. Keywords: Ceph, monitor, quorum, loss, and. Focuses on storm detection behaviour so operations teams can triage UC-6.2.22 without ad-hoc log review.",
+  "value": "UC-6.2.22 accelerates insight into storm detection ('Ceph monitor quorum loss and election storm detection') by tracking `activity` on `ceph:health` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Ingest `ceph quorum_status` JSON every minute during incidents (5 minutes steady state). Correlate with `ceph:log` from mon hosts for clock or disk issues.",
   "visualization": "Timeline of quorum size, table (cluster, detail).",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "Ceph Documentation — monitoring",
-      "url": "https://docs.ceph.com/en/latest/radosgw/"
+      "url": "https://docs.ceph.com/en/latest/radosgw/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Red Hat Ceph Storage — troubleshooting",
-      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/"
+      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.22)** — Planned work for 'Ceph monitor quorum loss and election storm detection' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `NOT HEALTH_OK OR qsize < 2`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ceph:health`** — Scheduled automation elevates `quorum` without crossing `qsize` < 2 for UC-6.2.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:health`** — First 48h baseline for UC-6.2.22 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ceph"
+  ],
+  "equipmentModels": [
+    "ceph_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted input from `ceph quorum_status -f json` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ceph:health, ceph:status into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`qsize`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

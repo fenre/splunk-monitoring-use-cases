@@ -68,19 +68,19 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 - **UC-10.12.40** — CMMC Compliance Assessment
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-10-security-infrastructure/UC-10.12.40.json`](../../content/cat-10-security-infrastructure/UC-10.12.40.json)
 <a id='uc-17-1-43'></a>
 - **UC-17.1.43** — Cisco ISE<sup class="ref">[<a href="#ref-2">2</a>]</sup> TACACS+ Device Administration — Privileged Command Auditing
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.43.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.43.json)
 <a id='uc-17-1-69'></a>
 - **UC-17.1.69** — TEAP (Tunnel EAP) Authentication Mode Tracking and Inner-Method Failure Detection
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.69.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.69.json)
 <a id='uc-22-20-1'></a>
 - **UC-22.20.1** — CMMC Level 2 practice evidence — CUI control area 1
@@ -372,7 +372,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.19.0
+catalogue_version: 8.23.0
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
 ```

@@ -11,6 +11,8 @@
   "splunkPillar": "Security",
   "owner": "Head of IT Operations",
   "controlFamily": "regulation-specific",
+  "exclusions": "Covers the detection logic documented for 'Security Advisory (PSIRT) Overview' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_security_advisory_psirt_overview` (UC-5.13.34), SOC dashboard panel \"Operations — Security Advisory (PSIRT) Overview\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "compliance": [
     {
       "regulation": "nist-800-53",
@@ -33,32 +35,40 @@
       "evidenceArtifact": "Dashboard panel showing advisory severity distribution and affected device counts, refreshed with each TA poll cycle."
     }
   ],
+  "controlTest": {
+    "positiveScenario": "UC-5.13.34 positive (Security, Advisory, (PSIRT), Overview): ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:securityadvisory' where `unique_advisories`, `unique_cves`, `total_affected` grouped by `severity` satisfies detection threshold for 'Security Advisory (PSIRT) Overview'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.13.34 negative ((PSIRT) Overview): ingest benign `catalyst` / `cisco:dnac:securityadvisory` events where `severity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Security Advisory (PSIRT) Overview'."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:securityadvisory` from the `securityadvisory` modular input in `TA_cisco_catalyst` (Splunkbase 7538). The TA polls `GET /dna/intent/api/v1/security-advisory/advisory` using token auth. Default poll interval: 3600s (1h). Volume: ~1 event per advisory-device pair per poll × ~700 bytes. Key fields: `advisoryId` (Cisco advisory ID), `advisoryTitle` (human-readable title), `severity` (CRITICAL, HIGH, MEDIUM, LOW, INFORMATIONAL), `cveId` (CVE identifier), `deviceCount` (affected devices), `fixedVersions` (array of patched firmware versions), `publicationDate` (advisory publish date). CIM data model: Vulnerabilities.",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:securityadvisory\"\n| stats dc(advisoryId) as unique_advisories dc(cveId) as unique_cves sum(deviceCount) as total_affected by severity\n| sort case(severity=\"CRITICAL\",1,severity=\"HIGH\",2,severity=\"MEDIUM\",3,severity=\"LOW\",4,1==1,5)",
-  "description": "Provides a complete overview of all Cisco security advisories (PSIRTs) affecting devices managed by Catalyst Center, showing advisory severity, CVE identifiers, affected device counts, and available fixed versions — the network security team's starting point for vulnerability management across the managed infrastructure.",
-  "value": "Catalyst Center automatically maps Cisco PSIRTs to your device inventory based on running firmware versions. This UC centralises that mapping in Splunk so the security team can see all active advisories across the fleet in one view, prioritise by severity and blast radius (affected device count), and track which advisories have available fixes. Without this, the security team must log into Catalyst Center's GUI per-advisory — with it, they have a single Pareto table that answers 'what are our biggest vulnerability exposures right now?' and drives the firmware upgrade roadmap.",
+  "description": "Alerts on UC-5.13.34 — Security, Advisory, (PSIRT), Overview — using `index=catalyst` sourcetype `cisco:dnac:securityadvisory`, grouped by `severity`. Outputs `unique_advisories`, `unique_cves`, `total_affected` each `the scheduled window`; alert when configured threshold. Primary focus: (PSIRT) Overview. Purpose-built for 'Security Advisory (PSIRT) Overview' in Operations workflows.",
+  "value": "UC-5.13.34 operationalises 'Security Advisory (PSIRT) Overview' against `cisco:dnac:securityadvisory` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Install `TA_cisco_catalyst` (Splunkbase 7538). Enable the `securityadvisory` input (Inputs → Create → Security Advisory: account `catcenter-prod`, index `catalyst`, interval `3600`). The TA polls the PSIRT advisory endpoint hourly. Schedule a weekly report for the security operations review.",
   "visualization": "(1) Table: advisoryId, advisoryTitle, severity, cveId, deviceCount, fixedVersions — sorted by severity then deviceCount. (2) Bar chart: advisory count by severity (CRITICAL red, HIGH orange, MEDIUM yellow, LOW grey). (3) Single value: count of CRITICAL/HIGH advisories with affected devices (red ≥ 1). (4) Drilldown to UC-5.13.37 (affected devices per advisory) for remediation targeting.",
   "references": [
     {
       "title": "Splunkbase app 7538",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center API docs",
-      "url": "https://developer.cisco.com/docs/catalyst-center/"
+      "url": "https://developer.cisco.com/docs/catalyst-center/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Integration Guide",
-      "url": "docs/guides/catalyst-center.md"
+      "url": "docs/guides/catalyst-center.md",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco PSIRT Security Advisories",
-      "url": "https://sec.cloudapps.cisco.com/security/center/publicationListing.x"
+      "url": "https://sec.cloudapps.cisco.com/security/center/publicationListing.x",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Same advisory re-polled on every cycle inflating the event count.** The securityadvisory API returns all current advisories on each poll. If you count events rather than distinct `advisoryId` values, counts inflate with each poll cycle. Distinguish by checking whether `| stats dc(advisoryId)` is significantly lower than `| stats count`. Suppress by using `dc(advisoryId)` for advisory metrics instead of event count.\n\n**INFORMATIONAL severity advisories with zero affected devices.** Catalyst Center may include INFORMATIONAL advisories in the feed that do not affect any devices in the managed inventory. These can inflate the total advisory count. Distinguish by checking `deviceCount` — if 0, the advisory is informational only. Suppress by filtering `| where deviceCount>0` for operationally relevant advisory dashboards.\n\n**Advisory impact classification still in progress.** When Catalyst Center first detects a new PSIRT advisory, it may still be classifying the impact (which devices are affected, which versions are vulnerable). During this period, the advisory appears with incomplete data. Distinguish by checking whether `deviceCount` is null or changes between polls. Suppress by allowing 24 hours after a new advisory's `first_seen` before including it in operational dashboards.\n\n**Catalyst Center PSIRT database update re-scanning and surfacing previously cleared advisories.** When Catalyst Center updates its PSIRT database, it re-scans the inventory and may re-detect advisories that were previously assessed and accepted. Distinguish by checking whether the advisory's `advisoryId` appeared in earlier data with a resolution status. Suppress by maintaining a `catalyst_advisory_exceptions` lookup for risk-accepted advisories.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst` (UC-5.13.34)** — Planned work for 'Security Advisory (PSIRT) Overview' shifts `unique_advisories`, `unique_cves`, `total_affected` over `span=1h` while `severity` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `cisco:dnac:securityadvisory`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.13.34. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `severity`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:securityadvisory`** — First 48h baseline for UC-5.13.34 on `severity` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `severity`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

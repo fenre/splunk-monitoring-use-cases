@@ -8,35 +8,60 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Pump telemetry (`health:glucose`), lab results (`health:lab`), therapy sessions (`health:pt`), symptom diaries (`health:symptom`), care tasks (`health:ops`).",
-  "app": "Chronic-condition self-management telemetry — insulin-pump events, A1c lab imports, physical-therapy rep logs, and symptom diaries — streamed to Splunk HEC via device exports and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'A1c Result Trend by Quarter' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_a1c_result_trend_by_quarter` (UC-25.51.21), SOC dashboard panel \"Personal — A1c Result Trend by Quarter\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.51.21 positive (A1c, Result, Trend, Quarter): ingest synthetic events into `index=personal` sourcetype='health:lab' where `metric` grouped by `_time`, `lab_source` satisfies detection threshold for 'A1c Result Trend by Quarter'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.51.21 negative (by Quarter): ingest benign `personal` / `health:lab` events where `_time`, `lab_source` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'A1c Result Trend by Quarter'."
+  },
+  "dataSources": "Pump telemetry (`health:glucose`), lab results (`health:lab`), therapy sessions (`health:pt`), symptom diaries (`health:symptom`), care tasks (`health:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Chronic-condition self-management telemetry — insulin-pump events, A1c lab imports, physical-therapy rep logs, and symptom diaries — streamed to Splunk HEC via device exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=health:lab lab_source=* a1c_value=*\n| bin _time span=1mon\n| stats avg(a1c_value) as metric by _time lab_source\n| sort 0 _time lab_source",
-  "description": "Trends monthly A1c result by lab source for quarterly A1c checks.",
-  "value": "Monthly trend lines show whether quarterly A1c checks are improving, stalling, or becoming unbalanced over time.",
+  "description": "Monitors UC-25.51.21 — A1c, Result, Trend, Quarter — using `index=personal` sourcetype `health:lab`, grouped by `_time`, `lab_source`. Outputs `metric` each `1m`; alert when configured threshold. Primary focus: by Quarter. Purpose-built for 'A1c Result Trend by Quarter' in Personal workflows.",
+  "value": "For 'A1c Result Trend by Quarter', UC-25.51.21 converts `metric` on `health:lab` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Normalize `lab_source` on `health:lab` events and store the fields needed to calculate monthly A1c result.",
   "visualization": "Line chart of monthly A1c result by lab source.",
   "cimModels": [],
   "references": [
     {
       "title": "Omnipod",
-      "url": "https://www.omnipod.com/"
+      "url": "https://www.omnipod.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Dexcom Clarity",
-      "url": "https://clarity.dexcom.com/"
+      "url": "https://clarity.dexcom.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Labcorp OnDemand",
-      "url": "https://www.ondemand.labcorp.com/"
+      "url": "https://www.ondemand.labcorp.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Bearable",
-      "url": "https://bearable.app/"
+      "url": "https://bearable.app/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It highlights how A1c result changes month by month for each lab source so you can see whether quarterly A1c checks are heading the right way."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.51.21)** — Connector for 'A1c Result Trend by Quarter' stops polling `health:lab`; stale `metric` on `_time`, `lab_source` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `metric` over `1m` is expected for UC-25.51.21, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `health:lab`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold for 'A1c Result Trend by Quarter'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Chronic-Condition Management — typical feeds: Symptom logs (`condition:symptom`), medication doses (`medication:dose`), vitals readings (`vitals:reading`), flare-up events (`flareup:event`), lab results (`labresult:value`)..\n• **Sourcetypes in this search**: `health:lab`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=health:lab`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Chronic-condition self-management — symptom and medication trackers (Bearable, MyTherapy), connected blood-pressure cuffs and glucometers, and lab-result portals — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Normalize `lab_source` on `health:lab` events and store the fields needed to calculate monthly A1c result.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"health:lab\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=health:lab earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **A1c Result Trend by Quarter** over `personal` data (primarily `sourcetype=health:lab`) across the full search range. The `avg` aggregation groups by `_time`, `lab_source`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`, `lab_source`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=health:lab lab_source=* a1c_value=*\n| bin _time span=1mon\n| stats avg(a1c_value) as metric by _time lab_source\n| sort 0 _time lab_source\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=health:lab earliest=-7d\n| head 50\n| table _time, lab_source\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=health:lab earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.51.21: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Monthly A1C Result By Lab Source (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `health:lab` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=health:lab | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1m` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1m` buckets.",
+  "grandmaExplanation": "It highlights how A1c result changes month by month for each lab source so you can see whether quarterly A1c checks are heading the right way.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

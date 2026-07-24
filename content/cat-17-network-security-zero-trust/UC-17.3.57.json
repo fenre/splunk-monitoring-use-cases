@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Cloudflare Logpush (Gateway DNS/HTTP logs), `sourcetype=cloudflare:gateway`",
+  "exclusions": "Covers the detection logic documented for 'Cloudflare Gateway (SWG) DNS and HTTP Filtering' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_cloudflare_gateway_swg_dns_and_http_filtering` (UC-17.3.57), SOC dashboard panel \"Network — Cloudflare Gateway (SWG) DNS and HTTP Filtering\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.57 positive (Cloudflare, Gateway, (SWG), DNS, and): ingest synthetic events into `index=proxy` sourcetype='cloudflare:gateway' where `count` grouped by `policy_name`, `category`, `action`, `user_email` satisfies -7d for 'Cloudflare Gateway (SWG) DNS and HTTP Filtering'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.57 negative (HTTP Filtering): ingest benign `proxy` / `cloudflare:gateway` events where `policy_name`, `category`, `action`, `user_email` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 4 confirms zero alert rows for 'Cloudflare Gateway (SWG) DNS and HTTP Filtering'."
+  },
+  "dataSources": "Cloudflare Logpush (Gateway DNS/HTTP logs), `sourcetype=cloudflare:gateway` Indexes: proxy. Sourcetypes: cloudflare:gateway. Key fields: action, category, policy_name, user_email. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Cloudflare App for Splunk (Splunkbase 4501)",
   "spl": "index=proxy sourcetype=\"cloudflare:gateway\" earliest=-7d\n| where action IN (\"block\", \"isolate\")\n| stats count by policy_name, category, action, user_email\n| sort -count",
-  "description": "Cloudflare Gateway provides DNS-layer and HTTP-layer filtering for all users. DNS blocks stop threats before connections are established; HTTP inspection enforces content and application policies.",
-  "value": "Security operations teams analyze Cloudflare Gateway DNS and HTTP filtering events, leveraging DNS-layer blocks as the earliest threat interception point to detect compromised endpoints calling C2, and HTTP-layer blocks for content-based policy enforcement.",
+  "description": "Identifies risk tied to Cloudflare, Gateway, (SWG), DNS, and through UC-17.3.57 on `index=proxy` sourcetype `cloudflare:gateway`. Summarises `count` grouped by `policy_name`, `category`, `action`, `user_email` across `the scheduled window` before applying -7d. Operators tune 'Cloudflare Gateway (SWG) DNS and HTTP Filtering' using UC-17.3.57 runbook steps.",
+  "value": "Tracking `activity` via UC-17.3.57 on `cloudflare:gateway` feeds improves response to 'Cloudflare Gateway (SWG) DNS and HTTP Filtering' and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Configure Logpush for Gateway logs. Map categories to your acceptable-use policy. Alert on DNS blocks for known-malicious categories. Report on filtering effectiveness and policy coverage.",
   "visualization": "Bar chart (blocks by category), Table (top blocked domains), Line chart (daily blocks), Pie chart (DNS vs HTTP blocks).",
   "cimModels": [],
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "Cloudflare App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4501"
+      "url": "https://splunkbase.splunk.com/app/4501",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Vulnerability scanner signature matches** — Qualys/Tenable traffic triggers IPS/threat signatures for 'Cloudflare Gateway (SWG) DNS and HTTP Filtering'. Compare `src` against `scanner_ips` lookup.\n\n2. **Policy push during change window** — New deny rule generates expected blocks. Match firewall commit timestamp in change calendar.\n\n3. **Encrypted traffic inspection gap** — TLS-heavy apps bypass deep inspection; volume drop is operational, not a sensor failure.\n\n4. **Red-team C2 simulation** — Approved exercise from `pen_test_hosts.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src`, `signature_id`, `valid_until`.",
   "mitreAttack": [
     "T1071.001",
     "T1071.004"
@@ -37,7 +55,16 @@
   "equipment": [
     "cloudflare"
   ],
+  "equipmentModels": [
+    "cloudflare_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Cloudflare Gateway logs via Logpush in `index=cloudflare` with `sourcetype=cloudflare:logpush:gateway_dns` and `sourcetype=cloudflare:logpush:gateway_http`. Key fields (DNS): `QueryName`, `QueryType`, `PolicyName`, `Action` (allow/block/override), `DeviceName`, `Email`. Key fields (HTTP): `URL`, `Action`, `PolicyName`, `ContentCategory`, `SecurityCategory`.\n• Cloudflare Gateway combines DNS filtering (block domains before connection) and HTTP inspection (inspect content after TLS decryption). DNS filtering is lighter but less granular; HTTP inspection sees URLs and content.\n\nStep 1 — Configure data collection\nConfigure Gateway Logpush: Cloudflare Dashboard > Zero Trust > Logs > Logpush > create jobs for Gateway DNS and Gateway HTTP datasets.\n\nVerify:\n```spl\n(index=cloudflare sourcetype=\"cloudflare:logpush:gateway_dns\") OR (index=cloudflare sourcetype=\"cloudflare:logpush:gateway_http\")\n| stats count by sourcetype, Action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Gateway filtering overview:\n```spl\nindex=cloudflare sourcetype=\"cloudflare:logpush:gateway_dns\" Action=block earliest=-7d\n| timechart span=1d count by SecurityCategory limit=10\n```\n\nUnderstanding this SPL: Trends DNS blocks by Cloudflare security category. 'Malware', 'Phishing', and 'Command & Control' are the critical categories. DNS blocks are the earliest interception — they prevent even the initial connection. A spike indicates active campaigns. Persistent blocks from the same device suggest a compromised endpoint.\n\nHTTP inspection blocks:\n```spl\nindex=cloudflare sourcetype=\"cloudflare:logpush:gateway_http\" Action=block earliest=-24h\n| stats count by ContentCategory, SecurityCategory, Email\n| sort - count\n```\n\nStep 3 — Validate\n(a) Resolve a known-blocked domain. Verify DNS block.\n(b) In Cloudflare: Zero Trust > Logs > Gateway.\n\nStep 4 — Operationalize\nDashboard: Row 1 — DNS block trend. Row 2 — HTTP inspection blocks. Row 3 — C2/Malware blocks by device.\nAlert: Immediate on C2/Malware DNS blocks from internal devices.\n\nRunbook:\n1. **C2 DNS block** — Device compromised. Isolate and investigate.\n2. **Phishing DNS spike** — Active campaign. Alert users.\n3. **HTTP block on legit site** — Miscategorization. Submit for review.\n\nStep 5 — Troubleshooting\n• **No Gateway DNS data** — Logpush for Gateway DNS may not be enabled.\n• **No HTTP data** — HTTP inspection requires TLS decryption to be enabled.",
   "grandmaExplanation": "Cloudflare blocks dangerous websites at two levels — first it prevents your computer from even looking up the address (DNS), and then it inspects the actual content. We monitor both levels because the DNS blocks catch threats at the earliest possible moment, before any data is exchanged.",
-  "hardware": "Cloudflare Zero Trust (cloud), Cloudflare WARP client"
+  "hardware": "Cloudflare Zero Trust (cloud), Cloudflare WARP client",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

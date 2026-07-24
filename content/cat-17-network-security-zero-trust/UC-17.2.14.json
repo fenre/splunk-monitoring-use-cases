@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "VPN session connect with `src`, `user`",
-  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), GeoIP",
+  "exclusions": "Covers the detection logic documented for 'Geo-Impossible VPN Connections' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_geo_impossible_vpn_connections` (UC-17.2.14), SOC dashboard panel \"Network — Geo-Impossible VPN Connections\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.2.14 positive (Geo, Impossible, VPN, Connections): ingest synthetic events into `index=vpn` sourcetype='cisco:asa' where `count` grouped by `user` satisfies `gap_hrs` < 6 for 'Geo-Impossible VPN Connections'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.2.14 negative (VPN Connections): ingest benign `vpn` / `cisco:asa` events where `user` stays below `gap_hrs` < 6, or exclude the test entity via `network_exception_register.csv`. Variant 10 confirms zero alert rows for 'Geo-Impossible VPN Connections'."
+  },
+  "dataSources": "VPN session connect with `src`, `user` Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), GeoIP — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=vpn sourcetype=\"cisco:asa\" action=\"session_connect\" earliest=-24h\n| iplocation src\n| eval country=Country\n| sort user _time\n| streamstats current=f last(_time) as prev_time last(Country) as prev_country by user\n| eval gap_hrs=round((_time-prev_time)/3600,2)\n| where isnotnull(prev_country) AND country!=prev_country AND gap_hrs < 6\n| table _time, user, prev_country, country, gap_hrs, src",
-  "description": "Detects logins from two distant countries faster than plausible travel — complements static geo allowlists (UC-17.2.3).",
-  "value": "Security teams detect physically impossible VPN connection patterns (e.g., login from New York and London within 30 minutes), providing high-confidence indicators of credential compromise or unauthorized credential sharing.",
+  "description": "Surfaces UC-17.2.14 — Geo, Impossible, VPN, Connections — using `index=vpn` sourcetype `cisco:asa`, grouped by `user`. Outputs `count` each `the scheduled window`; alert when `gap_hrs` < 6. Primary focus: VPN Connections. Purpose-built for 'Geo-Impossible VPN Connections' in Network workflows.",
+  "value": "For 'Geo-Impossible VPN Connections', UC-17.2.14 converts `activity` on `cisco:asa` feeds into actionable rows and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Tune time window (e.g., 4–8h) and distance (optional `haversine` if lat/long from enriched data). Whitelist mobile users and split tunnel carrier NAT.",
   "visualization": "Table (impossible travel), Map (prev vs new), Single value (alerts / day).",
   "cimModels": [
@@ -24,14 +30,26 @@
   "references": [
     {
       "title": "Splunk_TA_paloalto",
-      "url": "https://splunkbase.splunk.com/app/2757"
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Remote workforce login storm** — Morning VPN/ZTNA session spike for 'Geo-Impossible VPN Connections'. Compare with historical same-hour baseline.\n\n2. **IdP or SAML metadata refresh** — Brief auth failures during federation cert rotation.\n\n3. **Split-tunnel policy change** — New route advertisements shift traffic patterns.\n\n4. **Synthetic ZTNA health checks** — Monitoring probes from known appliance IPs.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `src`, `valid_until`.",
   "mitreAttack": [
     "T1021",
     "T1219"
@@ -45,7 +63,13 @@
     "paloalto_globalprotect",
     "paloalto_pan_firewall"
   ],
-  "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA. Data in `index=vpn`. Splunk `iplocation` command.\n• Key fields: `user`, `src`, `action=session_connect`.\n• This UC focuses specifically on impossible travel — connections from two distant locations faster than physically possible.\n\nStep 1 — Configure data collection\nSame as UC-17.2.3 geo-location prerequisites.\n\nStep 2 — Create the search and alert\n\nPrimary search — Impossible travel with distance calculation:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" action=\"session_connect\" earliest=-48h\n| iplocation src\n| sort user, _time\n| streamstats current=f last(Country) as prev_country last(City) as prev_city last(_time) as prev_time last(lat) as prev_lat last(lon) as prev_lon by user\n| where isnotnull(prev_country) AND (Country!=prev_country OR City!=prev_city)\n| eval hours_gap=round((_time - prev_time)/3600, 2)\n| eval distance_km=round(3959*acos(min(max(sin(prev_lat*3.14159/180)*sin(lat*3.14159/180)+cos(prev_lat*3.14159/180)*cos(lat*3.14159/180)*cos((lon-prev_lon)*3.14159/180), -1), 1))*1.60934, 0)\n| eval required_travel_hrs=distance_km/800\n| where hours_gap < required_travel_hrs AND distance_km > 500\n| eval severity=case(hours_gap<1, \"CRITICAL\", hours_gap<4, \"HIGH\", 1==1, \"MEDIUM\")\n| table _time, user, prev_city, prev_country, City, Country, hours_gap, distance_km, severity\n| sort - severity\n```\n\nUnderstanding this SPL: The key innovation is using the Haversine formula (simplified) to calculate actual distance between connection points, then comparing against a 800 km/h threshold (maximum commercial airline speed). This avoids false positives from nearby cities in different countries (e.g., Basel, Switzerland to Mulhouse, France = 10 km) while catching true impossibilities. The `min/max` wrapper on `acos` prevents floating-point errors.\n\nStep 3 — Validate\n(a) Test with two connections from the same user in different cities at known times.\n\nStep 4 — Operationalize\nDashboard: Map visualization showing impossible travel paths. Table of alerts.\nAlert: Immediate for CRITICAL (same hour, different continents).\n\nRunbook:\n1. **Critical impossible travel** — Disable the user account immediately. One of the sessions is unauthorized.\n2. **VPN proxy detected** — User may be using a commercial VPN service. Check the ISP name.\n\nStep 5 — Troubleshooting\n• **False positive from VPN/proxy services** — Add known VPN provider IP ranges to an exclusion list.\n• **Haversine returns NaN** — Floating-point edge case. The `min/max` wrapper prevents this.",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA. Data in `index=vpn`. Splunk `iplocation` command.\n• Key fields: `user`, `src`, `action=session_connect`.\n• This UC focuses specifically on impossible travel — connections from two distant locations faster than physically possible.\n\nStep 1 — Configure data collection\nSame as UC-17.2.3 geo-location prerequisites.\n\nStep 2 — Create the search and alert\n\nPrimary search — Impossible travel with distance calculation:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" action=\"session_connect\" earliest=-48h\n| iplocation src\n| sort user, _time\n| streamstats current=f last(Country) as prev_country last(City) as prev_city last(_time) as prev_time last(lat) as prev_lat last(lon) as prev_lon by user\n| where isnotnull(prev_country) AND (Country!=prev_country OR City!=prev_city)\n| eval hours_gap=round((_time - prev_time)/3600, 2)\n| eval distance_km=round(3959*acos(min(max(sin(prev_lat*3.14159/180)*sin(lat*3.14159/180)+cos(prev_lat*3.14159/180)*cos(lat*3.14159/180)*cos((lon-prev_lon)*3.14159/180), -1), 1))*1.60934, 0)\n| eval required_travel_hrs=distance_km/800\n| where hours_gap < required_travel_hrs AND distance_km > 500\n| eval severity=case(hours_gap<1, \"CRITICAL\", hours_gap<4, \"HIGH\", 1==1, \"MEDIUM\")\n| table _time, user, prev_city, prev_country, City, Country, hours_gap, distance_km, severity\n| sort - severity\n```\n\nUnderstanding this SPL: The key innovation is using the Haversine formula (simplified) to calculate actual distance between connection points, then comparing against a 800 km/h threshold (maximum commercial airline speed). This avoids false positives from nearby cities in different countries (e.g., Basel, Switzerland to Mulhouse, France = 10 km) while catching true impossibilities. The `min/max` wrapper on `acos` prevents floating-point errors.\n\nStep 3 — Validate\n(a) Test with two connections from the same user in different cities at known times.\n\nStep 4 — Operationalize\nDashboard: Map visualization showing impossible travel paths. Table of alerts.\nAlert: Immediate for CRITICAL (same hour, different continents).\n\nRunbook:\n1. **Critical impossible travel** — Disable the user account immediately. One of the sessions is unauthorized.\n2. **VPN proxy detected** — User may be using a commercial VPN service. Check the ISP name.\n\nStep 5 — Troubleshooting\n• **False positive from VPN/proxy services** — Add known VPN provider IP ranges to an exclusion list.\n• **Haversine returns NaN** — Floating-point edge case. The `min/max` wrapper prevents this.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), GeoIP — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:asa into vpn. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`gap_hrs, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We catch cases where someone's login appears in two faraway places almost simultaneously, which is physically impossible and means their password is being used by someone else.",
-  "hardware": "Cisco ASA, GlobalProtect"
+  "hardware": "Cisco ASA, GlobalProtect",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

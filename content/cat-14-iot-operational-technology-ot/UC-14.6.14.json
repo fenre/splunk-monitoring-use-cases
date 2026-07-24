@@ -11,11 +11,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Energy and Utilities",
+  "exclusions": "Covers the detection logic documented for 'IEC 104 Interrogation Command Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_iec_104_interrogation_command_monitoring` (UC-14.6.14), SOC dashboard panel \"Operations — IEC 104 Interrogation Command Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.6.14 positive (IEC, 104, Interrogation, Command, Monitoring): ingest synthetic events into `index=ot` sourcetype='zeek:iec104:json' where `count` grouped by `source_h`, `destination_h`, `asdu_type`, `cot` satisfies detection threshold for 'IEC 104 Interrogation Command Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.6.14 negative (Command Monitoring): ingest benign `ot` / `zeek:iec104:json` events where `source_h`, `destination_h`, `asdu_type`, `cot` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'IEC 104 Interrogation Command Monitoring'."
+  },
   "dataSources": "`index=ot` `sourcetype=\"zeek:iec104:json\"` (`asdu_type`, `cot`, `stationinterrogation`, `cp56_*` clock fields, `source_h`, `destination_h`)",
   "app": "TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)",
   "spl": "index=ot sourcetype=\"zeek:iec104:json\"\n| where asdu_type IN (100,103) OR stationinterrogation=\"T\" OR match(_raw,\"C_IC_NA_1|C_CS_NA_1\")\n| stats count by source_h destination_h asdu_type cot\n| sort - count",
-  "description": "General interrogation and clock synchronization (types 100 and 103) can be abused for reconnaissance or time skew; auditing masters against expected scan behavior supports grid and plant operational integrity.",
-  "value": "General interrogation and clock synchronization (types 100 and 103) can be abused for reconnaissance or time skew; auditing masters against expected scan behavior supports grid and plant operational integrity.",
+  "description": "Alerts on 'IEC 104 Interrogation Command Monitoring' (UC-14.6.14) using `index=ot` sourcetype `zeek:iec104:json` by aggregating `count` grouped by `source_h`, `destination_h`, `asdu_type`, `cot` over `the scheduled window` and alerting when configured threshold. Keywords: IEC, 104, Interrogation, Command, Monitoring. Focuses on Command Monitoring behaviour so operations teams can triage UC-14.6.14 without ad-hoc log review.",
+  "value": "UC-14.6.14 accelerates insight into Command Monitoring ('IEC 104 Interrogation Command Monitoring') by tracking `activity` on `zeek:iec104:json` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Deploy Zeek IEC 60870-5-104 parser on 2404/tcp SCADA paths via tap. Map `asdu_type` 100 to general interrogation and 103 to clock sync per asset documentation; whitelist primary SCADA masters.",
   "visualization": "Timeline (interrogation and clock sync), Bar chart (count by asdu_type), Table (master, outstation, ASDU type).",
   "cimModels": [
@@ -25,14 +31,38 @@
   "references": [
     {
       "title": "TA for Zeek",
-      "url": "https://splunkbase.splunk.com/app/5466"
+      "url": "https://splunkbase.splunk.com/app/5466",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Corelight App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3884"
+      "url": "https://splunkbase.splunk.com/app/3884",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Interrogation commands during SCADA resync, historian backfills, or new RTU cutovers.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.6.14)** — Planned work for 'IEC 104 Interrogation Command Monitoring' shifts `count` over `span=1h` while `source_h`, `destination_h`, `asdu_type`, `cot` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `zeek:iec104:json`** — Scheduled automation elevates `destination_h` without crossing configured threshold for UC-14.6.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `source_h`, `destination_h`, `asdu_type`, `cot`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zeek:iec104:json`** — First 48h baseline for UC-14.6.14 on `source_h` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `source_h`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884).\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"zeek:iec104:json\"` (`asdu_type`, `cot`, `stationinterrogation`, `cp56_*` clock fields, `source_h`, `destination_h`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Zeek IEC 60870-5-104 parser on 2404/tcp SCADA paths via tap. Map `asdu_type` 100 to general interrogation and 103 to clock sync per asset documentation; whitelist primary SCADA masters.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"zeek:iec104:json\"\n| where asdu_type IN (100,103) OR stationinterrogation=\"T\" OR match(_raw,\"C_IC_NA_1|C_CS_NA_1\")\n| stats count by source_h destination_h asdu_type cot\n| sort - count\n```\n\nUnderstanding this SPL\n\n**IEC 104 Interrogation Command Monitoring** — General interrogation and clock synchronization (types 100 and 103) can be abused for reconnaissance or time skew; auditing masters against expected scan behavior supports grid and plant operational integrity.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"zeek:iec104:json\"` (`asdu_type`, `cot`, `stationinterrogation`, `cp56_*` clock fields, `source_h`, `destination_h`). **App/TA** (typical add-on context): TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: zeek:iec104:json. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"zeek:iec104:json\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where asdu_type IN (100,103) OR stationinterrogation=\"T\" OR match(_raw,\"C_IC_NA_1|C_CS_NA_1\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by source_h destination_h asdu_type cot** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nRun the search for a short window and compare key fields with Zeek or Corelight protocol logs on the sensor for the same flow. Reconcile function codes, endpoints, and time order against a small known-good capture if needed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (interrogation and clock sync), Bar chart (count by asdu_type), Table (master, outstation, ASDU type).",
-  "grandmaExplanation": "We use deep packet inspection to track IEC-104 interrogations so a master is not over-polling or probing in a new way."
+  "grandmaExplanation": "We use deep packet inspection to track IEC-104 interrogations so a master is not over-polling or probing in a new way.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

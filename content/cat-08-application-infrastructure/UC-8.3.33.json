@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Kafka broker logs `sourcetype=kafka:serverLog` (SASL/SSL handshake failures)",
+  "exclusions": "Covers the detection logic documented for 'Kafka SASL Authentication Failure Spike' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_kafka_sasl_authentication_failure_spike` (UC-8.3.33), SOC dashboard panel \"Operations — Kafka SASL Authentication Failure Spike\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.3.33 positive (Kafka, SASL, Authentication, Failure, Spike): ingest synthetic events into `index=kafka` sourcetype='kafka:serverLog' where `count` grouped by `host` satisfies detection threshold for 'Kafka SASL Authentication Failure Spike'. Validate filter `\"javax.security.sasl\" OR \"SaslAuthenticationException\" OR \"A`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.3.33 negative (Failure Spike): ingest benign `kafka` / `kafka:serverLog` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Kafka SASL Authentication Failure Spike'."
+  },
+  "dataSources": "Kafka broker logs `sourcetype=kafka:serverLog` (SASL/SSL handshake failures) Indexes: kafka. Sourcetypes: kafka:serverLog. Key fields: host. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Add-on for Kafka (`Splunk_TA_kafka`, Splunkbase 2935)",
   "spl": "index=kafka sourcetype=\"kafka:serverLog\"\n| search \"javax.security.sasl\" OR \"SaslAuthenticationException\" OR \"Authentication failed\" OR \"SSL handshake failed\"\n| rex \"^\\[[^\\]]+\\]\\s+(?<log_level>\\w+)\"\n| where log_level IN (\"ERROR\",\"WARN\")\n| timechart span=15m count by host",
-  "description": "Repeated SASL or TLS handshake errors often indicate credential rotation mistakes, misconfigured clients, or brute-force attempts against listeners.",
-  "value": "Protects clusters from silent client lockouts and highlights active authentication attacks or broken automation after secret changes.",
+  "description": "Detects risk tied to Kafka, SASL, Authentication, Failure, Spike through UC-8.3.33 on `index=kafka` sourcetype `kafka:serverLog`. Summarises `count` grouped by `host` across `15m` before applying configured threshold. Operators tune 'Kafka SASL Authentication Failure Spike' using UC-8.3.33 runbook steps.",
+  "value": "Tracking `activity` via UC-8.3.33 on `kafka:serverLog` feeds improves response to 'Kafka SASL Authentication Failure Spike' and reduces operational risk and delayed incident response.",
   "implementation": "Collect broker logs from every listener host. Baseline normal noise from health-check clients. Alert when the 15-minute error count exceeds a cluster-specific threshold or doubles week-over-week.",
   "visualization": "Line chart (auth errors by broker), Table (recent _raw samples), Single value (errors in window).",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "Apache Kafka — Security",
-      "url": "https://kafka.apache.org/documentation/#security"
+      "url": "https://kafka.apache.org/documentation/#security",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Configure monitor inputs for the Splunk Add-on for Kafka",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/Kafka/Configuremonitorinputs"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/Kafka/Configuremonitorinputs",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Queues and broker metrics swing during rebalancing, replay, or maintenance. We align with change windows.",
+  "knownFalsePositives": "1. **Maintenance window on `kafka` (UC-8.3.33)** — Planned work for 'Kafka SASL Authentication Failure Spike' shifts `count` over `span=15m` while `host` remains in-scope. Applies filter `\"javax.security.sasl\" OR \"SaslAuthenticationException\" OR \"A`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `kafka:serverLog`** — Scheduled automation elevates `src` without crossing configured threshold for UC-8.3.33. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:serverLog`** — First 48h baseline for UC-8.3.33 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka"
+  ],
+  "equipmentModels": [
+    "kafka_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -40,6 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to protect clusters from silent client lockouts and highlights active authentication attacks or broken automation after secret changes."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Kafka (`Splunk_TA_kafka`, Splunkbase 2935)). Enable the modular input or HEC token that writes sourcetype=kafka:serverLog into kafka. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to protect clusters from silent client lockouts and highlights active authentication attacks or broken automation after secret changes.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

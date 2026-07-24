@@ -10,11 +10,17 @@
   ],
   "splunkPillar": "IT Operations",
   "industry": "Telecommunications",
-  "dataSources": "`index=voip` `sourcetype=asterisk:full` or `sourcetype=asterisk:pjsip` containing `REGISTER` / `Removed contact` / `Endpoint.*is now Reachable` messages",
-  "app": "Asterisk full log forwarding via Universal Forwarder, optional FreePBX `full` log path `/var/log/asterisk/full`",
+  "exclusions": "Covers the detection logic documented for 'FreePBX Asterisk PJSIP Endpoint Registration Flapping' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_freepbx_asterisk_pjsip_endpoint_registration_fla` (UC-21.8.12), SOC dashboard panel \"Operations — FreePBX Asterisk PJSIP Endpoint Registration Flapping\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-21.8.12 positive (FreePBX, Asterisk, PJSIP, Endpoint, Registration): ingest synthetic events into `index=voip` sourcetype='asterisk:full' where `unique_msgs` grouped by `_time`, `host`, `endpoint` satisfies `state_events` > 15 for 'FreePBX Asterisk PJSIP Endpoint Registration Flapping'. Validate filter `\"Endpoint\" \"Unreachable\" OR \"Removed contact\" OR \"REGISTER\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-21.8.12 negative (Registration Flapping): ingest benign `voip` / `asterisk:full` events where `_time`, `host`, `endpoint` stays below `state_events` > 15, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'FreePBX Asterisk PJSIP Endpoint Registration Flapping'."
+  },
+  "dataSources": "`index=voip` `sourcetype=asterisk:full` or `sourcetype=asterisk:pjsip` containing `REGISTER` / `Removed contact` / `Endpoint.*is now Reachable` messages Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Asterisk full log forwarding via Universal Forwarder, optional FreePBX `full` log path `/var/log/asterisk/full` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=voip (sourcetype=asterisk:full OR sourcetype=asterisk:pjsip)\n| search \"Endpoint\" \"Unreachable\" OR \"Removed contact\" OR \"REGISTER\"\n| rex field=_raw \"Endpoint\\s+(?<endpoint>\\S+)\"\n| bin _time span=10m\n| stats count as state_events, dc(_raw) as unique_msgs by _time, host, endpoint\n| where state_events > 15",
-  "description": "PJSIP registrations that oscillate between reachable and unreachable degrade both inbound DIDs and emergency calling. Mining Asterisk full logs for unreachable transitions and removed contacts exposes flaky trunks or UDP timeout misconfigurations before helpdesk volume spikes.",
-  "value": "Improves voice availability by catching registration flaps early—often fixable with qualify frequency, TLS, or firewall UDP timeout tuning.",
+  "description": "Monitors 'FreePBX Asterisk PJSIP Endpoint Registration Flapping' patterns (UC-21.8.12) sourced from `index=voip` sourcetype `asterisk:full`. Threshold bundle: `state_events` > 15; aggregation grain: `_time`, `host`, `endpoint`; metrics: `unique_msgs`. Enrichment path: filter `\"Endpoint\" \"Unreachable\" OR \"Removed contact\" OR \"REGISTER\"`.",
+  "value": "UC-21.8.12 gives Operations teams earlier visibility into Registration Flapping through `asterisk:full` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Forward `/var/log/asterisk/full` with `sourcetype=asterisk:full` (props can also split `pjsip` facility if you use structured logging). Extract `endpoint` or `AOR` identifiers. Alert when event rate per endpoint crosses threshold in 10 minutes. Enrich with edge firewall logs if available.",
   "visualization": "Timeline (state_events by endpoint), Table (worst endpoints), Choropleth (site) if geo-tagged.",
   "cimModels": [
@@ -24,16 +30,31 @@
   "references": [
     {
       "title": "Asterisk Documentation — PJSIP configuration",
-      "url": "https://docs.asterisk.org/Configuration/Channel-Drivers/SIP/Configuring-res_pjsip/"
+      "url": "https://docs.asterisk.org/Configuration/Channel-Drivers/SIP/Configuring-res_pjsip/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "FreePBX Wiki — Asterisk Logs",
-      "url": "https://wiki.freepbx.org/display/PPS/Asterisk+Logs"
+      "url": "https://wiki.freepbx.org/display/PPS/Asterisk+Logs",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Registration flaps during phone reprovisioning, TLS profile updates, or remote-worker VPN instability that the UC admin correlates to client upgrades.",
+  "knownFalsePositives": "1. **Maintenance window on `voip` (UC-21.8.12)** — Planned work for 'FreePBX Asterisk PJSIP Endpoint Registration Flapping' shifts `unique_msgs` over `span=10m` while `_time`, `host`, `endpoint` remains in-scope. Applies filter `\"Endpoint\" \"Unreachable\" OR \"Removed contact\" OR \"REGISTER\"`. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `asterisk:full`** — Scheduled automation elevates `host` without crossing `state_events` > 15 for UC-21.8.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `host`, `endpoint`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `asterisk:full`** — First 48h baseline for UC-21.8.12 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "asterisk"
+  ],
+  "equipmentModels": [
+    "asterisk_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,7 +63,9 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Time sync NTP on Asterisk host and Splunk indexer.\n• `TIME_FORMAT` in props if timestamps are non-standard.\n\nStep 1 — Tune rex for your distro’s log format.\n\nStep 2 — Exclude known maintenance windows.\n\nStep 3 — Validate\nCompare calculated buckets with the MES shift report or historian (for example PI or Proficy) for the same line and period. Confirm planned versus run time matches the routing master used by production.\n\nStep 4 — Document carrier escalation when trunk-side.",
+  "detailedImplementation": "Prerequisites\n• Time sync NTP on Asterisk host and Splunk indexer.\n• `TIME_FORMAT` in props if timestamps are non-standard.\n\nStep 1 — Tune rex for your distro’s log format.\n\nStep 2 — Exclude known maintenance windows.\n\nStep 3 — Validate\nCompare calculated buckets with the MES shift report or historian (for example PI or Proficy) for the same line and period. Confirm planned versus run time matches the routing master used by production.\n\nStep 4 — Document carrier escalation when trunk-side.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Asterisk full log forwarding via Universal Forwarder, optional FreePBX `full` log path `/var/log/asterisk/full` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=asterisk:full, asterisk:pjsip into voip. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, endpoint, host, state_events`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch phone extension registration flaps. We help you catch flaky endpoints before calls drop in bulk.",
-  "telcoUseCase": "SIP trunk and desk phone stability — detect endpoints that repeatedly lose registration, indicating WAN jitter, expired certs, or NAT binding issues."
+  "prerequisiteUseCases": [],
+  "telcoUseCase": "SIP trunk and desk phone stability — detect endpoints that repeatedly lose registration, indicating WAN jitter, expired certs, or NAT binding issues.",
+  "wave": "crawl"
 }

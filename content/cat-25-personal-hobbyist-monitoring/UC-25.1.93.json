@@ -8,23 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports.",
-  "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files.",
+  "exclusions": "Covers personal hobby monitoring for 'Strava Feed Hour-of-Day Pattern' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_strava_feed_hour_of_day_pattern` (UC-25.1.93), SOC dashboard panel \"Personal — Strava Feed Hour-of-Day Pattern\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.1.93 positive (Strava, Feed, Hour, Day, Pattern): ingest synthetic events into `index=personal` sourcetype='strava:metric0' where `count` grouped by `hour`, `source_id` satisfies detection threshold for 'Strava Feed Hour-of-Day Pattern'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.1.93 negative (Day Pattern): ingest benign `personal` / `strava:metric0` events where `hour`, `source_id` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 11 confirms zero alert rows for 'Strava Feed Hour-of-Day Pattern'."
+  },
+  "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=strava:metric0\n| eval hour=strftime(_time,\"%H\")\n| stats count as events by hour source_id\n| sort hour",
-  "description": "Shows which hours of the day strava events most often occur for each source.",
-  "value": "Hour-of-day patterns reveal routine anchors, timezone drift, and automation misfires.",
+  "description": "Alerts on UC-25.1.93 — Strava, Feed, Hour, Day, Pattern — using `index=personal` sourcetype `strava:metric0`, grouped by `hour`, `source_id`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Day Pattern. Purpose-built for 'Strava Feed Hour-of-Day Pattern' in Personal workflows.",
+  "value": "UC-25.1.93 helps teams contain Strava, Feed, Hour, Day, Pattern scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Extract hour from `_time` on strava events and chart counts by source.",
   "visualization": "Heatmap or bar chart of events by hour.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Strava API reference",
+      "url": "https://developers.strava.com/docs/reference/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It will highlight what time of day your strava feed is busiest and when it goes quiet."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.1.93)** — Connector for 'Strava Feed Hour-of-Day Pattern' stops polling `strava:metric0`; stale `count` on `hour`, `source_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.1.93, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `strava:metric0`. Dedup with `stats latest(*) by hour`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Strava Feed Hour-of-Day Pattern'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Strava — REST API or webhook → Splunk HEC scripted input.\n• **Subcategory context**: Fitness & Activity Tracking — typical feeds: Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports..\n• **Sourcetypes in this search**: `strava:metric0`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Strava** events into `index=personal` with `sourcetype=strava:metric0`.\n\n**Collection method:** REST API or webhook → Splunk HEC scripted input.\n\n**Reference endpoint / path:** `GET https://www.strava.com/api/v3/athlete/activities`.\n\n**Suggested poll interval:** 900s (or push via Strava webhook subscription).\n\n**Key fields to extract:** `type, distance_km, moving_time_s, start_date, athlete_id`.\n\n**Typical connector stack:** Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files..\n\n**Author notes:** Extract hour from `_time` on strava events and chart counts by source.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"strava:metric0\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=strava:metric0 earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Strava Feed Hour-of-Day Pattern** over `personal` data (primarily `sourcetype=strava:metric0`) across the full search range. The `aggregation` aggregation groups by `hour`, `source_id`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `hour`, `source_id`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=strava:metric0\n| eval hour=strftime(_time,\"%H\")\n| stats count as events by hour source_id\n| sort hour\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Strava app → You → Activities list for the same week totals. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=strava:metric0 earliest=-7d\n| head 50\n| table hour, source_id\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=strava:metric0 earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.1.93: Personal evidence` with the following panel layout:\n\n**Panel 1 — Heatmap Or Bar Chart Of Events By Hour (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Strava — no Strava events / missing fields:** If `strava:metric0` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Strava connector script is still running (`systemctl status` or cron log).\n\n**Strava — NULL values in extracted fields:** The Strava JSON export shape drifted — compare a raw event (`index=personal sourcetype=strava:metric0 | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Strava — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Strava — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Strava APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It will highlight what time of day your strava feed is busiest and when it goes quiet.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -10,11 +10,17 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Telecommunications",
-  "dataSources": "`index=voip` (or `index=telecom_core`) carrying **SIP session/probe** events `sourcetype=sip:invite` (Oracle/Ribbon SBC syslog), **raw or rated CDR** `sourcetype=cdr:raw` with **disposition/cause** codes from MSC/IMS exports, and **NMS** `sourcetype=nms:alarm` from Ericsson ENM, Nokia NetAct, or generic trap receiver. **Index patterns**: time alignment critical — use **NTP-locked** sources; consider single shared index with distinct sourcetypes for correlation ease. **Mechanisms**: **syslog UDP/TCP 514** from SBC toward HF with **load-balanced** VIP; **SNMP traps** UDP/162 via **Splunk Connect for SNMP** or `[udp://162]` on HF with `snmp_ta` parsing; CDR via **file monitor** or DB Connect. **Key fields**: `sip_status` (or `status`), `call_id`, `trunk_group`, `cause_code`, `alarm_severity`, `alarm_text`. **Volume**: SBC probe syslog can reach **100k–1M+ events/min** during incidents; use **filtering** at source for INVITE/response lines only. **Parsing notes**: normalise **SIP response** to integer; map **Q.850** cause to sidecar field; trunk labels must match between SBC and NMS (regex normalisation table).",
-  "app": "Ingest **SIP** via **syslog** (`[udp://514]` or TCP) from Oracle/Ribbon SBC toward heavy forwarder with `props` line breaking on **frame delimiters**. Use **DB Connect** or **`[monitor:///opt/cdr/core/*.disposition]`** for CDR disposition extracts. For **NMS**, deploy **Splunk Connect for SNMP** for trap → HEC, or legacy `[splunktcp://9997]` forwarder with **SNMP Modular Input**; syslog mirroring of active alarms is acceptable when traps are lossy. Quote user path example: batch CDR via `[monitor:///opt/cdr/rated/*.csv]` pattern where applicable for non-SIP disposition files.",
+  "exclusions": "Covers the detection logic documented for 'Call Failure Root Cause Correlation (SIP + CDR + Element Logs)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_call_failure_root_cause_correlation_sip_cdr_elem` (UC-21.8.20), SOC dashboard panel \"Operations — Call Failure Root Cause Correlation (SIP + CDR + Element Logs)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-21.8.20 positive (Call, Failure, Root, Cause, Correlation): ingest synthetic events into `index=voip` sourcetype='sip:invite' where `failed_calls` grouped by `_time`, `trunk_group`, `failure_class`, `]` satisfies `status` >= 400, `status` >= 400, `status` < 500, or `status` >= 500 for 'Call Failure Root Cause Correlation (SIP + CDR + Element Logs)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-21.8.20 negative (Element Logs)): ingest benign `voip` / `sip:invite` events where `_time`, `trunk_group`, `failure_class`, `]` stays below `status` >= 400, `status` >= 400, `status` < 500, or `status` >= 500, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Call Failure Root Cause Correlation (SIP + CDR + Element Logs)'."
+  },
+  "dataSources": "`index=voip` (or `index=telecom_core`) carrying **SIP session/probe** events `sourcetype=sip:invite` (Oracle/Ribbon SBC syslog), **raw or rated CDR** `sourcetype=cdr:raw` with **disposition/cause** codes from MSC/IMS exports, and **NMS** `sourcetype=nms:alarm` from Ericsson ENM, Nokia NetAct, or generic trap receiver. **Index patterns**: time alignment critical — use **NTP-locked** sources; consider single shared index with distinct sourcetypes for correlation ease. **Mechanisms**: **syslog UDP/TCP 514** from SBC toward HF with **load-balanced** VIP; **SNMP traps** UDP/162 via **Splunk Connect for SNMP** or `[udp://162]` on HF with `snmp_ta` parsing; CDR via **file monitor** or DB Connect. **Key fields**: `sip_status` (or `status`), `call_id`, `trunk_group`, `cause_code`, `alarm_severity`, `alarm_text`. **Volume**: SBC probe syslog can reach **100k–1M+ events/min** during incidents; use **filtering** at source for INVITE/response lines only. **Parsing notes**: normalise **SIP response** to integer; map **Q.850** cause to sidecar field; trunk labels must match between SBC and NMS (regex normalisation table). Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Ingest **SIP** via **syslog** (`[udp://514]` or TCP) from Oracle/Ribbon SBC toward heavy forwarder with `props` line breaking on **frame delimiters**. Use **DB Connect** or **`[monitor:///opt/cdr/core/*.disposition]`** for CDR disposition extracts. For **NMS**, deploy **Splunk Connect for SNMP** for trap → HEC, or legacy `[splunktcp://9997]` forwarder with **SNMP Modular Input**; syslog mirroring of active alarms is acceptable when traps are lossy. Quote user path example: batch CDR via `[monitor:///opt/cdr/rated/*.csv]` pattern where applicable for non-SIP disposition files. — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=voip sourcetype=sip:invite status>=400\n| eval failure_class=case(status>=400 AND status<500, \"client_error\", status>=500 AND status<600, \"server_error\", 1=1, \"other\")\n| bin _time span=15m\n| stats count as sip_failures, dc(call_id) as failed_calls, values(status) as error_codes by _time, trunk_group, failure_class\n| join type=left _time, trunk_group [\n    search index=voip sourcetype=nms:alarm severity IN (\"critical\",\"major\")\n    | bin _time span=15m\n    | stats count as alarms, values(alarm_text) as alarm_details by _time, trunk_group\n  ]\n| where sip_failures > 50 OR alarms > 0\n| sort -sip_failures",
-  "description": "Rolls up failed session-invite outcomes by fifteen-minute buckets and trunk group, joins recent network-management alarms on the same trunks, and separates client-class versus server-class errors so outage triage distinguishes congestion, routing, and endpoint-heavy symptoms.",
-  "value": "Operations restores voice services faster during major incidents by seeing which trunk groups simultaneously show signaling failures and underlying transport or switch faults, cutting mean time to innocence for peers and shortening customer-impact windows.",
+  "description": "Monitors UC-21.8.20 — Call, Failure, Root, Cause, Correlation — using `index=voip` sourcetype `sip:invite`, grouped by `_time`, `trunk_group`, `failure_class`, `]`. Outputs `failed_calls` each `15m`; alert when `status` >= 400, `status` >= 400, `status` < 500, or `status` >= 500. Primary focus: Element Logs). Purpose-built for 'Call Failure Root Cause Correlation (SIP + CDR + Element Logs)' in Operations workflows.",
+  "value": "UC-21.8.20 helps teams contain Call, Failure, Root, Cause, Correlation scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Guarantee `call_id` and `trunk_group` extract consistently across probes and cores; widen join tolerance with `nearest` buckets if clocks skew; add optional lateral reference to disposition-rich raw records using call identifiers when drills demand deeper proof.",
   "visualization": "**Row 1 — KPI tiles**: total `sip_failures` last hour, distinct `trunk_group` impacted, max `alarm_severity`, count of **5xx vs 4xx** classes. **Row 2 — Trend**: overlaid timechart of `sip_failures` vs `alarms` per `trunk_group` (15m span). **Row 3 — Detail table**: `_time`, `trunk_group`, `failure_class`, `error_codes`, `alarm_details` with drilldown to raw `call_id` events. **Row 4 — Supplementary**: topology or chord diagram trunk↔peer AS cluster (if enriched) OR CDR disposition breakdown side panel for corroboration.",
   "cimModels": [
@@ -24,26 +30,36 @@
   "references": [
     {
       "title": "Splunk Lantern — Use Case Explorer: Communications",
-      "url": "https://lantern.splunk.com/Splunk_Platform/UCE/Communications_and_Media"
+      "url": "https://lantern.splunk.com/Splunk_Platform/UCE/Communications_and_Media",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TMForum — Revenue Assurance Maturity Model (RA-MM)",
-      "url": "https://www.tmforum.org/resources/standard/revenue-assurance-maturity-model/"
+      "url": "https://www.tmforum.org/resources/standard/revenue-assurance-maturity-model/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "3GPP TS 32.297 — CDR File Format and Transfer",
-      "url": "https://www.3gpp.org/DynaReport/32297.htm"
+      "url": "https://www.3gpp.org/DynaReport/32297.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "GSMA TAP3 Standard — Transferred Account Procedure",
-      "url": "https://www.gsma.com/aboutus/"
+      "url": "https://www.gsma.com/aboutus/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ITU-T E.425 — IP Network Performance Objectives",
-      "url": "https://www.itu.int/rec/T-REC-E.425"
+      "url": "https://www.itu.int/rec/T-REC-E.425",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 833",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**(1) SIP OPTIONS/TLS handshake probes** from SBC HA pairs frequently elicit **401/403** that are benign when `Method=OPTIONS`; filter via method, known health-check agents, or change-window lookups. **(2) Enterprise CPE/firewall policing** concentrates **4xx** storms on signalling trunks even when the core is healthy — fingerprint customer IP prefixes and maintain customer-edge overlays so NOC does not chase phantom core faults. **(3) Internet-wide SIP scanners & pen-tests** inflate failures on publicly exposed gateways; correlate with sanctioned security calendars plus SOC/IP-reputation lookups before escalating voice-core incidents. **(4) Controlled maintenance & migration** moves or route re-homing purposely drop invite transactions; maintenance KV keyed on trunk_group + EMS cluster suppresses paging while preserving forensic visibility. **(5) EMS vs SBC label drift after CMDB renames** causes false-positive joins when alarm text references NE names that no longer match trunk_group tokens spelled in syslog; nightly normalisation lookups plus regex aliasing mitigate. **(6) Clock drift / NTP issues** separate fifteen-minute aggregates so SIP spikes no longer coincide with SNMP traps visually; widen `bin` spans or interpolate nearest-neighbour buckets with documented tolerance macros. **(7) Shared-lab syslog** accidentally lands in production indexes through misrouted IPs; VLAN segregation + `_MetaData:Origin` tagging prevents pollution. **(8) Busy-hour legitimate **487/486** signalling** reflecting user behaviour (Callee busy/reject) can resemble failures if dashboards ignore call scenarios—join CDR disposition to distinguish intentional user rejection from network impairment. **(9) Cascading failover exercises** purposely stress trunks sequentially; scripted drills should populate known drill IDs searchable to auto-suppress bridging noise. **(10) Media-path-only failures post-answer** may show benign SIP signalling in Splunk yet customer-perceived outages—avoid declaring “healthy core” purely from SIP success without optional RTP/MOS overlays when SLA demands it.",
+  "knownFalsePositives": "1. **Maintenance window on `voip` (UC-21.8.20)** — Planned work for 'Call Failure Root Cause Correlation (SIP + CDR + Element Logs)' shifts `failed_calls` over `span=15m` while `_time`, `trunk_group`, `failure_class`, `]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `sip:invite`** — Scheduled automation elevates `trunk_group` without crossing `status` >= 400 for UC-21.8.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `trunk_group`, `failure_class`, `]`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `sip:invite`** — First 48h baseline for UC-21.8.20 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "oracle",

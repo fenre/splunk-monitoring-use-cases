@@ -9,30 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Tesla vehicle and charge state (`tesla:vehicle`, `tesla:charge`), OBD-II PIDs (`obd:pid`), Smart EV charger sessions (`evcharger:session`).",
-  "app": "Tesla Fleet API / TeslaMate, TeslaFi, and generic OBD-II / Smartcar / charger APIs via HEC scripted inputs and MQTT.",
+  "exclusions": "Covers personal hobby monitoring for 'Sentry Mode Idle Drain Cost' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_sentry_mode_idle_drain_cost` (UC-25.3.17), SOC dashboard panel \"Personal — Sentry Mode Idle Drain Cost\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.3.17 positive (Sentry, Mode, Idle, Drain, Cost): ingest synthetic events into `index=personal` sourcetype='tesla:vehicle' where `count` grouped by `vin`, `_time` satisfies `kwh_used` > 1 for 'Sentry Mode Idle Drain Cost'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.3.17 negative (Drain Cost): ingest benign `personal` / `tesla:vehicle` events where `vin`, `_time` stays below `kwh_used` > 1, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 8 confirms zero alert rows for 'Sentry Mode Idle Drain Cost'."
+  },
+  "dataSources": "Tesla vehicle and charge state (`tesla:vehicle`, `tesla:charge`), OBD-II PIDs (`obd:pid`), Smart EV charger sessions (`evcharger:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Tesla Fleet API / TeslaMate, TeslaFi, and generic OBD-II / Smartcar / charger APIs via HEC scripted inputs and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tesla:vehicle parked=\"true\" sentry_mode=\"true\"\n| bin _time span=1d\n| stats earliest(battery_kwh) as start_kwh, latest(battery_kwh) as end_kwh by vin _time\n| eval kwh_used=round(start_kwh-end_kwh,2)\n| where kwh_used>1\n| sort - kwh_used",
-  "description": "Measures the energy used while Sentry Mode is active so you can decide where the security trade-off is worth the battery trade-off.",
-  "value": "A visible idle-cost number makes it easier to choose smarter parking behaviour than vague worries about range loss.",
+  "description": "Alerts on UC-25.3.17 — Sentry, Mode, Idle, Drain, Cost — using `index=personal` sourcetype `tesla:vehicle`, grouped by `vin`, `_time`. Outputs `count` each `1d`; alert when `kwh_used` > 1. Primary focus: Drain Cost. Purpose-built for 'Sentry Mode Idle Drain Cost' in Personal workflows.",
+  "value": "UC-25.3.17 accelerates insight into Drain Cost ('Sentry Mode Idle Drain Cost') by tracking `activity` on `tesla:vehicle` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Forward parked battery-energy values alongside Sentry state; review daily and compare drain across common parking situations.",
   "visualization": "Daily bar chart of Sentry-related energy use.",
   "cimModels": [],
   "references": [
     {
       "title": "Tesla Fleet API",
-      "url": "https://developer.tesla.com/docs/fleet-api"
+      "url": "https://developer.tesla.com/docs/fleet-api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TeslaMate documentation",
-      "url": "https://docs.teslamate.org/"
+      "url": "https://docs.teslamate.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.3.17)** — Connector for 'Sentry Mode Idle Drain Cost' stops polling `tesla:vehicle`; stale `count` on `vin`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1d` is expected for UC-25.3.17, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tesla:vehicle`. Dedup with `stats latest(*) by vin`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `kwh_used` > 1 for 'Sentry Mode Idle Drain Cost'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It compares how much battery your parked car is spending just to keep its sentry cameras and sensors awake."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Tesla Fleet API / TeslaMate — TeslaMate MQTT/Postgres export or Fleet API poll → HEC.\n• **Subcategory context**: Connected Cars & EVs — typical feeds: Tesla vehicle/charge state (`tesla:vehicle`, `tesla:charge`), TeslaMate MQTT/Postgres, OBD-II PIDs (`obd:pid`), Smartcar API (`smartcar:vehicle`), EV charger sessions (`evcharger:session`)..\n• **Sourcetypes in this search**: `tesla:vehicle`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Tesla Fleet API / TeslaMate** events into `index=personal` with `sourcetype=tesla:vehicle`.\n\n**Collection method:** TeslaMate MQTT/Postgres export or Fleet API poll → HEC.\n\n**Reference endpoint / path:** `vehicle_data / charge_state endpoints`.\n\n**Suggested poll interval:** 300s while charging, 900s otherwise.\n\n**Key fields to extract:** `battery_level, charge_rate, charge_energy_added, latitude, longitude`.\n\n**Typical connector stack:** Tesla Fleet API / TeslaMate, Teslafi, and generic OBD-II / Smartcar / manufacturer APIs via HEC scripted inputs and MQTT..\n\n**Author notes:** Forward parked battery-energy values alongside Sentry state; review daily and compare drain across common parking situations.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"tesla:vehicle\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=tesla:vehicle earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Sentry Mode Idle Drain Cost** over `personal` data (primarily `sourcetype=tesla:vehicle`) across the full search range. It applies numeric thresholds on `kwh_used` (> 1) after earliest, latest — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `kwh_used`, `vin`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=tesla:vehicle parked=\"true\" sentry_mode=\"true\"\n| bin _time span=1d\n| stats earliest(battery_kwh) as start_kwh, latest(battery_kwh) as end_kwh by vin _time\n| eval kwh_used=round(start_kwh-end_kwh,2)\n| where kwh_used>1\n| sort - kwh_used\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Tesla app → Energy / Charging screen. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=tesla:vehicle earliest=-7d\n| head 50\n| table _time, kwh_used, vin\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=tesla:vehicle earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `kwh_used` before alerting:\n\n```spl\nindex=personal sourcetype=tesla:vehicle earliest=-30d\n| stats perc50(kwh_used) AS p50 perc90(kwh_used) AS p90 perc99(kwh_used) AS p99 max(kwh_used) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.3.17: Personal evidence` with the following panel layout:\n\n**Panel 1 — Daily Bar Chart Of Sentry-Related Energy Use (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Tesla Fleet API / TeslaMate — no Tesla Fleet API / TeslaMate events / missing fields:** If `tesla:vehicle` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Tesla Fleet API / TeslaMate connector script is still running (`systemctl status` or cron log).\n\n**Tesla Fleet API / TeslaMate — NULL values in extracted fields:** The Tesla Fleet API / TeslaMate JSON export shape drifted — compare a raw event (`index=personal sourcetype=tesla:vehicle | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Tesla Fleet API / TeslaMate — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Tesla Fleet API / TeslaMate — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Tesla Fleet API / TeslaMate APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It compares how much battery your parked car is spending just to keep its sentry cameras and sensors awake.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

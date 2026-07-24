@@ -9,32 +9,42 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'DHCPv6 Lease and Prefix Delegation Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_dhcpv6_lease_and_prefix_delegation_tracking` (UC-5.20.10), SOC dashboard panel \"Operations — DHCPv6 Lease and Prefix Delegation Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.10 positive (DHCPv6, Lease, and, Prefix, Delegation): ingest synthetic events into `index=dhcp` sourcetype='infoblox:dhcp' where `count` grouped by `dhcpv6_msg`, `assignment_type` satisfies -24h for 'DHCPv6 Lease and Prefix Delegation Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.10 negative (Delegation Tracking): ingest benign `dhcp` / `infoblox:dhcp` events where `dhcpv6_msg`, `assignment_type` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'DHCPv6 Lease and Prefix Delegation Tracking'."
+  },
   "dataSources": "`index=dhcp sourcetype=infoblox:dhcp` for Infoblox DHCPv6 lease events, or `index=dhcp sourcetype=isc:dhcpd` for ISC DHCP, or `index=dhcp sourcetype=microsoft:dhcpv6` for Windows Server DHCPv6. Key DHCPv6 message types to capture: SOLICIT (client seeking server), ADVERTISE (server response), REQUEST (client requesting address), REPLY (server assigning address), RENEW (client renewing lease), REBIND (client seeking any server), RELEASE (client releasing address), DECLINE (client rejecting address — indicates DAD failure). DHCPv6-specific fields: `ia_na` (Identity Association for Non-temporary Address — individual address assignment), `ia_pd` (Identity Association for Prefix Delegation — /48 to /64 prefix delegation to downstream routers), `duid` (DHCP Unique Identifier — replaces MAC-based client-id from DHCPv4), `iaid` (Interface Association ID). Volume: one lease event per DHCPv6 client per lease operation; typical enterprise with 5,000 IPv6 clients ≈ 10,000–50,000 lease events/day.",
   "app": "Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2934) for Infoblox, or manual syslog forwarding from ISC DHCP / Windows DHCPv6. No Splunkbase TA exists specifically for ISC DHCPv6 — use `sourcetype=syslog` with custom field extractions.",
   "spl": "index=dhcp sourcetype=\"infoblox:dhcp\" DHCPv6 earliest=-24h\n| rex \"(?<dhcpv6_msg>SOLICIT|ADVERTISE|REQUEST|REPLY|RENEW|REBIND|RELEASE|DECLINE)\"\n| rex \"IA_NA\\s+(?<ia_na_addr>[0-9a-fA-F:]+)\"\n| rex \"IA_PD\\s+(?<ia_pd_prefix>[0-9a-fA-F:]+/\\d+)\"\n| rex \"DUID\\s+(?<client_duid>[0-9a-fA-F:]+)\"\n| eval assignment_type=case(\n    isnotnull(ia_pd_prefix), \"Prefix Delegation (IA_PD)\",\n    isnotnull(ia_na_addr), \"Address Assignment (IA_NA)\",\n    1==1, \"Other\")\n| stats count by dhcpv6_msg, assignment_type\n| sort dhcpv6_msg",
-  "description": "Tracks DHCPv6 lease activity across two fundamentally different assignment types that have no DHCPv4 equivalent: IA_NA (Identity Association for Non-temporary Addresses — assigning individual /128 addresses to clients, analogous to DHCPv4 leases) and IA_PD (Identity Association for Prefix Delegation — delegating /48 to /64 prefixes to downstream routers or CPE devices, which then advertise those prefixes via SLAAC to their local clients). IA_PD is unique to IPv6 and critical in ISP, large enterprise, and campus deployments where distribution-layer devices request prefixes from a central DHCPv6 server to create hierarchical addressing without manual configuration.",
-  "value": "DHCPv6 is architecturally different from DHCPv4 in ways that catch operators by surprise. First, the DUID (DHCP Unique Identifier) is NOT a MAC address — it can be DUID-LLT (link-layer + time), DUID-EN (enterprise number), or DUID-LL (link-layer), and it persists across reboots, making it harder to correlate to physical devices (see UC-5.20.14). Second, IA_PD failure doesn't just affect one client — it affects every device downstream of the requesting router, potentially an entire building or floor. Third, DHCPv6 DECLINE messages indicate DAD (Duplicate Address Detection) failures, which are a symptom of address conflicts or active attacks (UC-5.20.11). Monitoring DHCPv6 lease activity provides early warning for all three failure modes.",
+  "description": "Identifies risk tied to DHCPv6, Lease, and, Prefix, Delegation through UC-5.20.10 on `index=dhcp` sourcetype `infoblox:dhcp`. Summarises `count` grouped by `dhcpv6_msg`, `assignment_type` across `the scheduled window` before applying -24h. Operators tune 'DHCPv6 Lease and Prefix Delegation Tracking' using UC-5.20.10 runbook steps.",
+  "value": "Tracking `activity` via UC-5.20.10 on `infoblox:dhcp` feeds improves response to 'DHCPv6 Lease and Prefix Delegation Tracking' and reduces operational risk and delayed incident response.",
   "implementation": "Enable DHCPv6 lease logging on your DHCPv6 server (Infoblox, ISC DHCP, Windows Server). Forward logs to Splunk. The search classifies lease events by message type and assignment type (IA_NA vs IA_PD), providing a complete picture of DHCPv6 activity. Track IA_PD prefix delegation separately from IA_NA address assignment because they have different operational implications. Alert on: DECLINE messages (DAD failures), REBIND spikes (server reachability issues), and IA_PD prefix exhaustion.",
   "visualization": "(1) Stacked bar chart: DHCPv6 message types over time (SOLICIT, REQUEST, RENEW, RELEASE, DECLINE — DECLINE in red). (2) Single-value tiles: active IA_NA leases, active IA_PD delegations, DECLINE count (last 24h, red if > 0). (3) Table: IA_PD delegations — prefix, requesting DUID, lease start/end, downstream scope — for prefix delegation management. (4) Timechart: lease pool utilisation (IA_NA addresses assigned / total pool size × 100%).",
   "references": [
     {
       "title": "RFC 8415 — Dynamic Host Configuration Protocol for IPv6 (DHCPv6) — consolidated DHCPv6 specification",
-      "url": "https://www.rfc-editor.org/rfc/rfc8415"
+      "url": "https://www.rfc-editor.org/rfc/rfc8415",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.1.3 — DHCPv6 security)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 3633 — IPv6 Prefix Options for DHCPv6 (IA_PD prefix delegation)",
-      "url": "https://www.rfc-editor.org/rfc/rfc3633"
+      "url": "https://www.rfc-editor.org/rfc/rfc3633",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Infoblox (Splunkbase 2934)",
-      "url": "https://splunkbase.splunk.com/app/2934"
+      "url": "https://splunkbase.splunk.com/app/2934",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**RENEW storms after DHCPv6 server restart.** When a DHCPv6 server restarts, all clients whose leases are in T1 (renewal) or T2 (rebind) timers will immediately send RENEW or REBIND messages. This creates a transient spike that looks like a problem but is normal server recovery behaviour. The spike should resolve within minutes as clients receive valid replies.\n\n**DUID changes after OS reinstall.** DUID-LLT includes a timestamp component. If a client is reimaged, its DUID changes, and it appears as a new client requesting a new lease while the old lease (under the old DUID) remains allocated until it expires. This is normal DHCPv6 behaviour — the old lease will be reclaimed automatically after expiry.\n\n**IA_PD from virtualisation platforms.** Virtual switch platforms (vSphere, Hyper-V) that run their own DHCPv6 clients for prefix delegation on virtual network interfaces may generate IA_PD traffic that looks like a downstream router requesting prefixes. These are legitimate if the platform is designed to provide IPv6 connectivity to VMs, but unexpected if virtual networking is supposed to be IPv4-only.",
+  "knownFalsePositives": "1. **Maintenance window on `dhcp` (UC-5.20.10)** — Planned work for 'DHCPv6 Lease and Prefix Delegation Tracking' shifts `count` over `span=1h` while `dhcpv6_msg`, `assignment_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `infoblox:dhcp`** — Scheduled automation elevates `assignment_type` without crossing configured threshold for UC-5.20.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dhcpv6_msg`, `assignment_type`** — Health checks in `dhcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `infoblox:dhcp`** — First 48h baseline for UC-5.20.10 on `dhcpv6_msg` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dhcpv6_msg`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "infoblox",

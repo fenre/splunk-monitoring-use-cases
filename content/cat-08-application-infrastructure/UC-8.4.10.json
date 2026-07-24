@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`kong:access` `status=429`, `rate_limiting` plugin log",
-  "app": "Kong admin/access logs",
+  "exclusions": "Covers the detection logic documented for 'Kong Rate Limit Violations' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_kong_rate_limit_violations` (UC-8.4.10), SOC dashboard panel \"Operations — Kong Rate Limit Violations\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.4.10 positive (Kong, Rate, Limit, Violations): ingest synthetic events into `index=api` sourcetype='kong:access' where `count` grouped by `consumer_id`, `request_uri`, `rate_limit_plugin` satisfies detection threshold for 'Kong Rate Limit Violations'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.4.10 negative (Limit Violations): ingest benign `api` / `kong:access` events where `consumer_id`, `request_uri`, `rate_limit_plugin` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Kong Rate Limit Violations'."
+  },
+  "dataSources": "`kong:access` `status=429`, `rate_limiting` plugin log Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Kong admin/access logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=api sourcetype=\"kong:access\" status=429\n| stats count by consumer_id, request_uri, rate_limit_plugin\n| sort -count\n| head 50",
-  "description": "Kong `rate_limiting` plugin log lines and `429` with `RateLimit-*` headers. Identifies abusive consumers vs tight quotas.",
-  "value": "Kong `rate_limiting` plugin log lines and `429` with `RateLimit-*` headers. Identifies abusive consumers vs tight quotas.",
+  "description": "Surfaces UC-8.4.10 — Kong, Rate, Limit, Violations — using `index=api` sourcetype `kong:access`, grouped by `consumer_id`, `request_uri`, `rate_limit_plugin`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Limit Violations. Purpose-built for 'Kong Rate Limit Violations' in Operations workflows.",
+  "value": "For 'Kong Rate Limit Violations', UC-8.4.10 converts `activity` on `kong:access` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Enable plugin logging. Baseline 429s per consumer. Alert on spike vs baseline or new consumer_id hitting limit.",
   "visualization": "Bar chart (429 by consumer), Line chart (429 rate), Table (top limited routes).",
   "cimModels": [
@@ -24,10 +30,38 @@
   "references": [
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Kong admin/access logs.\n• Ensure the following data sources are available: `kong:access` `status=429`, `rate_limiting` plugin log.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable plugin logging. Baseline 429s per consumer. Alert on spike vs baseline or new consumer_id hitting limit.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=api sourcetype=\"kong:access\" status=429\n| stats count by consumer_id, request_uri, rate_limit_plugin\n| sort -count\n| head 50\n```\n\nUnderstanding this SPL\n\n**Kong Rate Limit Violations** — Kong `rate_limiting` plugin log lines and `429` with `RateLimit-*` headers. Identifies abusive consumers vs tight quotas.\n\nDocumented **Data sources**: `kong:access` `status=429`, `rate_limiting` plugin log. **App/TA** (typical add-on context): Kong admin/access logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: api; **sourcetype**: kong:access. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=api, sourcetype=\"kong:access\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by consumer_id, request_uri, rate_limit_plugin** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n\n\nStep 3 — Validate\nCompare with the API gateway or mesh admin (Kong, Apigee, AWS API Gateway, etc.) and a raw log tail for the same time range.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (429 by consumer), Line chart (429 rate), Table (top limited routes).",
-  "grandmaExplanation": "We watch for signs that kong plugin log lines and with headers."
+  "knownFalsePositives": "1. **Maintenance window on `api` (UC-8.4.10)** — Planned work for 'Kong Rate Limit Violations' shifts `count` over `span=1h` while `consumer_id`, `request_uri`, `rate_limit_plugin` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `kong:access`** — Scheduled automation elevates `request_uri` without crossing configured threshold for UC-8.4.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `consumer_id`, `request_uri`, `rate_limit_plugin`** — Health checks in `api` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kong:access`** — First 48h baseline for UC-8.4.10 on `consumer_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `consumer_id`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Kong admin/access logs.\n• Ensure the following data sources are available: `kong:access` `status=429`, `rate_limiting` plugin log.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable plugin logging. Baseline 429s per consumer. Alert on spike vs baseline or new consumer_id hitting limit.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=api sourcetype=\"kong:access\" status=429\n| stats count by consumer_id, request_uri, rate_limit_plugin\n| sort -count\n| head 50\n```\n\nUnderstanding this SPL\n\n**Kong Rate Limit Violations** — Kong `rate_limiting` plugin log lines and `429` with `RateLimit-*` headers. Identifies abusive consumers vs tight quotas.\n\nDocumented **Data sources**: `kong:access` `status=429`, `rate_limiting` plugin log. **App/TA** (typical add-on context): Kong admin/access logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: api; **sourcetype**: kong:access. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=api, sourcetype=\"kong:access\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by consumer_id, request_uri, rate_limit_plugin** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n\n\nStep 3 — Validate\nCompare with the API gateway or mesh admin (Kong, Apigee, AWS API Gateway, etc.) and a raw log tail for the same time range.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (429 by consumer), Line chart (429 rate), Table (top limited routes).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Kong admin/access logs — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=kong:access into api. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`consumer_id, rate_limit_plugin, request_uri`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for signs that kong plugin log lines and with headers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

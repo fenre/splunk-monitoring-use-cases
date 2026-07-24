@@ -11,11 +11,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Energy and Utilities",
+  "exclusions": "Covers the detection logic documented for 'DNP3 Unsolicited Response Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_dnp3_unsolicited_response_monitoring` (UC-14.6.8), SOC dashboard panel \"Operations — DNP3 Unsolicited Response Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.6.8 positive (DNP3, Unsolicited, Response, Monitoring): ingest synthetic events into `index=ot` sourcetype='zeek:dnp3:json' where `med` grouped by `_time`, `source_h`, `destination_h` satisfies `count` > 10 for 'DNP3 Unsolicited Response Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.6.8 negative (Response Monitoring): ingest benign `ot` / `zeek:dnp3:json` events where `_time`, `source_h`, `destination_h` stays below `count` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'DNP3 Unsolicited Response Monitoring'."
+  },
   "dataSources": "`index=ot` `sourcetype=\"zeek:dnp3:json\"` (Zeek `dnp3.log` / application function text, `source_h`, `destination_h`)",
   "app": "TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)",
   "spl": "index=ot sourcetype=\"zeek:dnp3:json\"\n| where match(_raw,\"UNSOLICITED\") OR function=\"UNSOLICITED_RESPONSE\"\n| bin _time span=1m\n| stats count by _time source_h destination_h\n| eventstats median(count) as med by destination_h\n| where count > med*3 AND count > 10\n| table _time source_h destination_h count med",
-  "description": "Unsolicited responses carry event-driven telemetry; abnormal volume or timing can indicate flooding, misconfiguration, or spoofed outstations affecting SCADA visibility.",
-  "value": "Unsolicited responses carry event-driven telemetry; abnormal volume or timing can indicate flooding, misconfiguration, or spoofed outstations affecting SCADA visibility.",
+  "description": "Alerts on 'DNP3 Unsolicited Response Monitoring' patterns (UC-14.6.8) sourced from `index=ot` sourcetype `zeek:dnp3:json`. Threshold bundle: `count` > 10; aggregation grain: `_time`, `source_h`, `destination_h`; metrics: `med`. Watch terms: DNP3, Unsolicited, Response, Monitoring.",
+  "value": "UC-14.6.8 gives Operations teams earlier visibility into Response Monitoring through `zeek:dnp3:json` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Deploy Zeek with DNP3 on serial-Ethernet gateways’ segments; verify `function` or raw tokens for unsolicited responses in your build. Baseline per-master/outstation pair; alert on bursts that exceed rolling median.",
   "visualization": "Timeline (unsolicited rate), Line chart (count vs median), Table (spikes).",
   "cimModels": [
@@ -25,14 +31,38 @@
   "references": [
     {
       "title": "TA for Zeek",
-      "url": "https://splunkbase.splunk.com/app/5466"
+      "url": "https://splunkbase.splunk.com/app/5466",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Corelight App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3884"
+      "url": "https://splunkbase.splunk.com/app/3884",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Unsolicited response bursts during master failover, link flaps, or class 1 test traffic.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.6.8)** — Planned work for 'DNP3 Unsolicited Response Monitoring' shifts `med` over `span=1m` while `_time`, `source_h`, `destination_h` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `median` on `zeek:dnp3:json`** — Scheduled automation elevates `source_h` without crossing `count` > 10 for UC-14.6.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `source_h`, `destination_h`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zeek:dnp3:json`** — First 48h baseline for UC-14.6.8 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884).\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"zeek:dnp3:json\"` (Zeek `dnp3.log` / application function text, `source_h`, `destination_h`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Zeek with DNP3 on serial-Ethernet gateways’ segments; verify `function` or raw tokens for unsolicited responses in your build. Baseline per-master/outstation pair; alert on bursts that exceed rolling median.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"zeek:dnp3:json\"\n| where match(_raw,\"UNSOLICITED\") OR function=\"UNSOLICITED_RESPONSE\"\n| bin _time span=1m\n| stats count by _time source_h destination_h\n| eventstats median(count) as med by destination_h\n| where count > med*3 AND count > 10\n| table _time source_h destination_h count med\n```\n\nUnderstanding this SPL\n\n**DNP3 Unsolicited Response Monitoring** — Unsolicited responses carry event-driven telemetry; abnormal volume or timing can indicate flooding, misconfiguration, or spoofed outstations affecting SCADA visibility.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"zeek:dnp3:json\"` (Zeek `dnp3.log` / application function text, `source_h`, `destination_h`). **App/TA** (typical add-on context): TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: zeek:dnp3:json. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"zeek:dnp3:json\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where match(_raw,\"UNSOLICITED\") OR function=\"UNSOLICITED_RESPONSE\"` — typically the threshold or rule expression for this monitoring goal.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time source_h destination_h** so each row reflects one combination of those dimensions.\n• `eventstats` rolls up events into metrics; results are split **by destination_h** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count > med*3 AND count > 10` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **DNP3 Unsolicited Response Monitoring**): table _time source_h destination_h count med\n\nStep 3 — Validate\nRun the search for a short window and compare key fields with Zeek or Corelight protocol logs on the sensor for the same flow. Reconcile function codes, endpoints, and time order against a small known-good capture if needed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (unsolicited rate), Line chart (count vs median), Table (spikes).",
-  "grandmaExplanation": "We use deep packet inspection to monitor unsolicited and exception traffic on DNP3 so a failing link or hot RTU is obvious."
+  "grandmaExplanation": "We use deep packet inspection to monitor unsolicited and exception traffic on DNP3 so a failing link or hot RTU is obvious.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

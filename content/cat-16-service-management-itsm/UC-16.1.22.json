@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Incident history / audit (`sourcetype=snow:incident:audit`)",
-  "app": "`Splunk_TA_snow`",
+  "exclusions": "Covers the detection logic documented for 'Escalation Path Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_escalation_path_audit` (UC-16.1.22), SOC dashboard panel \"Operations — Escalation Path Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-16.1.22 positive (Escalation, Path, Audit): ingest synthetic events into `index=itsm` sourcetype='snow:incident:audit' where `values` grouped by `number` satisfies `hops` > 4 for 'Escalation Path Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.1.22 negative (Path Audit): ingest benign `itsm` / `snow:incident:audit` events where `number` stays below `hops` > 4, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Escalation Path Audit'."
+  },
+  "dataSources": "Incident history / audit (`sourcetype=snow:incident:audit`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:incident:audit\" field_name=\"assignment_group\"\n| eval from_group=old_value, to_group=new_value\n| eval step=from_group.\"->\".to_group\n| stats values(step) as escalation_path, count as hops by number\n| join max=1 number [ search index=itsm sourcetype=\"snow:incident\" priority IN (1,2) earliest=-90d | fields number, priority ]\n| where hops>4\n| table number, priority, escalation_path, hops",
-  "description": "Audits whether incidents followed the documented escalation chain (L1→L2→vendor) for compliance and training.",
-  "value": "Audits whether incidents followed the documented escalation chain (L1→L2→vendor) for compliance and training.",
+  "description": "Surfaces UC-16.1.22 — Escalation, Path, Audit — using `index=itsm` sourcetype `snow:incident:audit`, grouped by `number`. Outputs `values` each `the scheduled window`; alert when `hops` > 4. Primary focus: Path Audit. Purpose-built for 'Escalation Path Audit' in Operations workflows.",
+  "value": "UC-16.1.22 accelerates insight into Path Audit ('Escalation Path Audit') by tracking `activity` on `snow:incident:audit` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Build assignment hop strings from audit `old_value`/`new_value`. Flag incidents with excessive hops for P1/P2 (policy threshold). Optionally `lookup escalation_policy.csv` with first/last hop pairs for stricter audits. Adjust field names to match `sys_audit` extractions.",
   "visualization": "Table (unexpected paths), Sankey (escalation flow), Single value (audit exceptions).",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk_TA_snow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Reassignments from severity changes, support model cutovers, or a very large event touching many groups.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.1.22)** — Planned work for 'Escalation Path Audit' shifts `values` over `span=1h` while `number` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `snow:incident:audit`** — Scheduled automation elevates `from_group` without crossing `hops` > 4 for UC-16.1.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `number`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident:audit`** — First 48h baseline for UC-16.1.22 on `number` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `number`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],
+  "equipmentModels": [
+    "servicenow_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_snow`.\n• Ensure the following data sources are available: Incident history / audit (`sourcetype=snow:incident:audit`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBuild assignment hop strings from audit `old_value`/`new_value`. Flag incidents with excessive hops for P1/P2 (policy threshold). Optionally `lookup escalation_policy.csv` with first/last hop pairs for stricter audits. Adjust field names to match `sys_audit` extractions.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:incident:audit\" field_name=\"assignment_group\"\n| eval from_group=old_value, to_group=new_value\n| eval step=from_group.\"->\".to_group\n| stats values(step) as escalation_path, count as hops by number\n| join max=1 number [ search index=itsm sourcetype=\"snow:incident\" priority IN (1,2) earliest=-90d | fields number, priority ]\n| where hops>4\n| table number, priority, escalation_path, hops\n```\n\nUnderstanding this SPL\n\n**Escalation Path Audit** — Audits whether incidents followed the documented escalation chain (L1→L2→vendor) for compliance and training.\n\nDocumented **Data sources**: Incident history / audit (`sourcetype=snow:incident:audit`). **App/TA** (typical add-on context): `Splunk_TA_snow`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:incident:audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:incident:audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **from_group** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **step** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by number** so each row reflects one combination of those dimensions.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where hops>4` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Escalation Path Audit**): table number, priority, escalation_path, hops\n\n\nStep 3 — Validate\nCompare with the ServiceNow list or form that matches this data (for example the incident, request, or problem view). Reconcile a few record numbers, states, and times. Confirm the add-on poll or export time lines up with what you see in the browser.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (unexpected paths), Sankey (escalation flow), Single value (audit exceptions).",
-  "grandmaExplanation": "We review whether escalations follow the path we agreed, so the right people get pulled in and nobody is skipped by accident."
+  "grandmaExplanation": "We review whether escalations follow the path we agreed, so the right people get pulled in and nobody is skipped by accident.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

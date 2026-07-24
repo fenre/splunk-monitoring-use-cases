@@ -8,23 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Apple Health metrics (`apple:health`), Oura Ring readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings measurements (`withings:measure`).",
-  "app": "Apple Health / Apple Watch exports (Health Auto Export or Shortcuts) via HEC; Oura, Whoop, Withings, and Dexcom APIs via scripted REST inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Sleep Duration vs Target Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_sleep_duration_vs_target_trend` (UC-25.2.2), SOC dashboard panel \"Personal — Sleep Duration vs Target Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.2.2 positive (Sleep, Duration, Target, Trend): ingest synthetic events into `index=personal` sourcetype='oura:daily' where `hours` grouped by `entity` satisfies detection threshold for 'Sleep Duration vs Target Trend'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.2.2 negative (Target Trend): ingest benign `personal` / `oura:daily` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Sleep Duration vs Target Trend'."
+  },
+  "dataSources": "Apple Health metrics (`apple:health`), Oura Ring readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings measurements (`withings:measure`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Apple Health / Apple Watch exports (Health Auto Export or Shortcuts) via HEC; Oura, Whoop, Withings, and Dexcom APIs via scripted REST inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=oura:daily\n| eval sleep_h=round(total_sleep_s/3600,1)\n| timechart span=1d avg(sleep_h) as hours\n| eval target=7.5, deficit=round(target-hours,1)",
-  "description": "Trends how many hours you actually sleep each night against a personal target so chronic sleep debt becomes visible instead of vague.",
-  "value": "Sleep debt accumulates invisibly; a daily target comparison turns 'I feel tired' into a number you can act on.",
+  "description": "Monitors Target Trend activity in UC-25.2.2 ('Sleep Duration vs Target Trend') from `index=personal` sourcetype `oura:daily`. Rolls up `hours` by `entity` across `1d` and pages when configured threshold. Covers Sleep, Duration, Target, Trend. Personal operators treat UC-25.2.2 as the canonical signal.",
+  "value": "Operators running UC-25.2.2 on `oura:daily` feeds shorten triage for Target Trend tied to 'Sleep Duration vs Target Trend', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Oura or Apple sleep data; schedule daily and review the running deficit against your target.",
   "visualization": "Line chart of nightly sleep hours with a target line.",
   "cimModels": [],
   "references": [
     {
       "title": "Oura — API v2 documentation",
-      "url": "https://cloud.ouraring.com/v2/docs"
+      "url": "https://cloud.ouraring.com/v2/docs",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It shows how much you slept each night compared to your goal, so you can see if you are short on rest."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.2.2)** — Connector for 'Sleep Duration vs Target Trend' stops polling `oura:daily`; stale `hours` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `hours` over `1d` is expected for UC-25.2.2, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `oura:daily`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold for 'Sleep Duration vs Target Trend'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Oura Ring — Oura Cloud API v2 → HEC scripted input.\n• **Subcategory context**: Health, Sleep & Wearables — typical feeds: Apple Health metrics (`apple:health`), Oura Ring daily readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings body/blood-pressure (`withings:measure`), Dexcom CGM glucose (`de.\n• **Sourcetypes in this search**: `oura:daily`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Oura Ring** events into `index=personal` with `sourcetype=oura:daily`.\n\n**Collection method:** Oura Cloud API v2 → HEC scripted input.\n\n**Reference endpoint / path:** `GET /v2/usercollection/daily_sleep`.\n\n**Suggested poll interval:** 86400s (daily sync).\n\n**Key fields to extract:** `score, contributors, heart_rate, hrv`.\n\n**Typical connector stack:** Apple Health / Apple Watch exports (Health Auto Export, Shortcuts) via HEC; Oura, Whoop, Withings, Dexcom APIs via scripted REST inputs..\n\n**Author notes:** Ingest Oura or Apple sleep data; schedule daily and review the running deficit against your target.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"oura:daily\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=oura:daily earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Sleep Duration vs Target Trend** over `personal` data (primarily `sourcetype=oura:daily`) across the full search range. The `avg` aggregation groups by the time bucket; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n```spl\nindex=personal sourcetype=oura:daily\n| eval sleep_h=round(total_sleep_s/3600,1)\n| timechart span=1d avg(sleep_h) as hours\n| eval target=7.5, deficit=round(target-hours,1)\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Oura app → Readiness / Sleep tabs. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=oura:daily earliest=-7d\n| head 50\n| table _time, sourcetype, host\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=oura:daily earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.2.2: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Nightly Sleep Hours With A Target Line (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Oura Ring — no Oura Ring events / missing fields:** If `oura:daily` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Oura Ring connector script is still running (`systemctl status` or cron log).\n\n**Oura Ring — NULL values in extracted fields:** The Oura Ring JSON export shape drifted — compare a raw event (`index=personal sourcetype=oura:daily | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Oura Ring — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Oura Ring — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Oura Ring APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It shows how much you slept each night compared to your goal, so you can see if you are short on rest.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

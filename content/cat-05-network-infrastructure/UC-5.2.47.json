@@ -8,29 +8,43 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=cp_log` (cluster/system logs), SNMP traps",
+  "exclusions": "Covers the detection logic documented for 'Check Point ClusterXL Failover Events (Check Point)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_check_point_clusterxl_failover_events_check_poin` (UC-5.2.47), SOC dashboard panel \"Operations — Check Point ClusterXL Failover Events (Check Point)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.2.47 positive (Check, Point, ClusterXL, Failover, Events): ingest synthetic events into `index=firewall` sourcetype='cp_log' where `values` grouped by `gw` satisfies -30d for 'Check Point ClusterXL Failover Events (Check Point)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.2.47 negative ((Check Point)): ingest benign `firewall` / `cp_log` events where `gw` stays below -30d, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Check Point ClusterXL Failover Events (Check Point)'."
+  },
+  "dataSources": "`sourcetype=cp_log` (cluster/system logs), SNMP traps Indexes: firewall. Sourcetypes: cp_log. Key fields: gw. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)",
   "spl": "index=firewall sourcetype=\"cp_log\" earliest=-30d\n| where match(lower(product),\"(?i)cluster|clusterxl|ha\") OR match(lower(logdesc),\"(?i)failover|switchover|member.*down|sync.*fail\")\n| eval gw=coalesce(orig, src, hostname)\n| stats count earliest(_time) as first latest(_time) as last values(logdesc) as events by gw\n| sort -count",
-  "description": "ClusterXL provides gateway high availability via active-standby or active-active clusters. Failover events — whether planned (manual switchover) or unplanned (process crash, NIC failure, sync timeout) — cause brief traffic interruption and may indicate underlying hardware or software instability. Monitoring failover frequency, duration, and trigger reason supports SLA reporting and proactive hardware replacement before repeated failovers degrade user experience.",
-  "value": "NOC teams track Check Point ClusterXL failover events and recovery times, detecting member failures and cluster flapping to maintain firewall high availability.",
+  "description": "Alerts on (Check Point) activity in UC-5.2.47 ('Check Point ClusterXL Failover Events (Check Point)') from `index=firewall` sourcetype `cp_log`. Rolls up `values` by `gw` across `the scheduled window` and pages when -30d. Covers Check, Point, ClusterXL, Failover, Events. Operations operators treat UC-5.2.47 as the canonical signal.",
+  "value": "Operators running UC-5.2.47 on `cp_log` feeds shorten triage for (Check Point) tied to 'Check Point ClusterXL Failover Events (Check Point)', lowering operational risk and delayed incident response.",
   "implementation": "Forward Check Point system/cluster logs via Log Exporter or Smart-1 Cloud. Extract ClusterXL state change messages (member down, sync lost, failover). Alert on any unplanned failover immediately. Track failover frequency per cluster — more than 2 in 7 days warrants investigation. Correlate with gateway CPU/memory UC-10.11.35 to find resource-triggered failovers. Page on-call for active-active cluster degradation to single member.",
   "visualization": "Timeline (failover events), Table (clusters with recent failovers), Single value (failovers this week), Bar chart (failovers by reason).",
   "cimModels": [],
   "references": [
     {
       "title": "Check Point App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4293"
+      "url": "https://splunkbase.splunk.com/app/4293",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CCX Add-on for Checkpoint Smart-1 Cloud",
-      "url": "https://splunkbase.splunk.com/app/7259"
+      "url": "https://splunkbase.splunk.com/app/7259",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 5402",
-      "url": "https://splunkbase.splunk.com/app/5402"
+      "url": "https://splunkbase.splunk.com/app/5402",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Rehearsals, code upgrades, and link work can make cluster state logs busy without customer impact.",
+  "knownFalsePositives": "1. **Maintenance window on `firewall` (UC-5.2.47)** — Planned work for 'Check Point ClusterXL Failover Events (Check Point)' shifts `values` over `span=1h` while `gw` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `cp_log`** — Scheduled automation elevates `gw` without crossing configured threshold for UC-5.2.47. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `gw`** — Health checks in `firewall` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cp_log`** — First 48h baseline for UC-5.2.47 on `gw` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `gw`, `exception_reason`, `valid_until`.",
   "equipment": [
     "checkpoint",
     "snmp"
@@ -38,7 +52,13 @@
   "equipmentModels": [
     "snmp_generic"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Check Point ClusterXL failover event logs. Data in `index=checkpoint` or `index=firewall` with `sourcetype=cp_log`. The Check Point TA for Splunk provides field extraction. Key fields: `product` (System Monitor, ClusterXL), `action`, `origin`, `cluster_member`, `failover_reason`, `description`.\n* ClusterXL: Check Point's clustering technology. Modes include High Availability (active/standby), Load Sharing Multicast, and Load Sharing Unicast. Failover triggers: member down, interface failure, CCP (Cluster Control Protocol) heartbeat loss, manual failover, fwha_delta sync failure. CLI: `cphaprob state`, `cphaprob stat`.\n\nStep 1 -- Configure data collection\n```\n# Check Point SmartConsole -- configure log forwarding to Splunk\n# Manage & Settings > Logs & Masters > Log Servers\n# Add Splunk as OPSEC LEA or use Log Exporter\n# Log Exporter:\ncp_log_export add name splunk_export target-server <splunk-ip> target-port 514 protocol udp format syslog\ncp_log_export set name splunk_export read-mode semi-unified\ncp_log_export restart name splunk_export\n```\nVerify:\n```spl\nindex=checkpoint sourcetype=\"cp_log\" earliest=-30d\n| where match(product, \"(?i)ClusterXL|System Monitor\") AND match(_raw, \"(?i)failover|cluster|member.*down|member.*up|switchover\")\n| stats count by origin, description\n| sort -count\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- ClusterXL failover event tracking:**\n```spl\nindex=checkpoint sourcetype=\"cp_log\" earliest=-30d\n| where match(product, \"(?i)ClusterXL|System Monitor\") OR match(_raw, \"(?i)failover|cluster.*state|member.*state\")\n| eval member=coalesce(cluster_member, origin, src)\n| eval failover_action=case(\n    match(description, \"(?i)member.*down|state.*down|dead\"), \"MEMBER_DOWN\",\n    match(description, \"(?i)member.*up|state.*active|alive\"), \"MEMBER_UP\",\n    match(description, \"(?i)failover|switchover|takeover\"), \"FAILOVER\",\n    match(description, \"(?i)sync|delta|full.sync\"), \"SYNC_EVENT\",\n    1==1, \"STATUS_CHANGE\")\n| eval reason=coalesce(failover_reason, if(match(description, \"(?i)interface\"), \"interface_failure\", if(match(description, \"(?i)heartbeat|ccp\"), \"heartbeat_loss\", if(match(description, \"(?i)manual\"), \"manual\", \"unknown\"))))\n| sort member, _time\n| streamstats current=f last(_time) as prev_time last(failover_action) as prev_action by member\n| eval recovery_min=if(failover_action=\"MEMBER_UP\" AND prev_action=\"MEMBER_DOWN\", round((_time - prev_time)/60, 1), null())\n| stats count(eval(failover_action=\"FAILOVER\")) as failovers count(eval(failover_action=\"MEMBER_DOWN\")) as member_downs avg(recovery_min) as avg_recovery_min latest(failover_action) as current_state by member, reason\n| eval avg_recovery_min=round(avg_recovery_min, 1)\n| eval severity=case(\n    current_state=\"MEMBER_DOWN\", \"CRITICAL -- cluster member currently down\",\n    failovers > 3, \"WARNING -- frequent failovers (possible flapping)\",\n    member_downs > 0, \"WARNING -- member down events detected\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| sort severity\n```\n\nStep 3 -- Validate\n(a) CLI (expert mode): `cphaprob state` -- show current cluster state per member.\n(b) CLI: `cphaprob -a if` -- show cluster interface status.\n(c) CLI: `fw ctl pstat` -- check sync status and delta counters.\n\nStep 4 -- Operationalize\nDashboard (\"Check Point -- ClusterXL Health\"):\n* Row 1 -- Single-value: \"Failover events (30d)\", \"Members DOWN\", \"Avg recovery (min)\".\n* Row 2 -- Cluster failover timeline.\n* Row 3 -- Failover reason distribution.\n\nAlert: Critical (cluster member DOWN): immediate investigation.\n\nStep 5 -- Troubleshooting\n\n* **CCP heartbeat failure** -- Check cluster network connectivity (usually dedicated sync interface). Verify CCP protocol mode matches on both members: `cphaprob mcast` or `cphaconf set_ccp broadcast`.\n\n* **Sync failure after failover** -- Run `fw ctl pstat` to check full sync status. If delta sync fails, a full sync may be needed: `cphaprob syncstat`. Large connection tables can delay sync.\n\n* **Split-brain** -- Both members active simultaneously. Usually caused by all sync interfaces failing. Emergency: manually stop one member with `cphaprob -d -s problem -t 0` or `cphastop`.",
   "grandmaExplanation": "We catch high-availability handovers on Check Point so you can tell a drill or link issue from a silent split that could leave you exposed.",
-  "hardware": "Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)"
+  "hardware": "Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

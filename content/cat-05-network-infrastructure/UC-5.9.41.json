@@ -8,24 +8,42 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Transaction Test Completion Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_transaction_test_completion_rate` (UC-5.9.41), SOC dashboard panel \"Operations — Transaction Test Completion Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.9.41 positive (Transaction, Test, Completion, Rate): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `avg_completion`, `total_errors` grouped by `thousandeyes.test.name`, `thousandeyes.source.agent.name` satisfies `avg_completion` < 100 for 'Transaction Test Completion Rate'. Validate macro `stream_index`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.9.41 negative (Completion Rate): ingest benign `target_index` / `target_sourcetype` events where `thousandeyes.test.name`, `thousandeyes.source.agent.name` stays below `avg_completion` < 100, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Transaction Test Completion Rate'."
+  },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` with `thousandeyes.test.type=\"web-transactions\"`. OTel v2 metrics: `web.transaction.completion` (percentage, 100% if successful, 0% on errors), `web.transaction.errors.count` (integer, 1 if error occurred, 0 if not). Attribute: `marker` (step/marker name within the transaction).",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`stream_index` thousandeyes.test.type=\"web-transactions\"\n| stats avg(web.transaction.completion) as avg_completion sum(web.transaction.errors.count) as total_errors by thousandeyes.test.name, thousandeyes.source.agent.name\n| where avg_completion < 100\n| sort avg_completion",
-  "description": "Monitors Transaction test completion — Selenium-based browser scripted workflows that simulate real user journeys (login → navigate → perform action → verify result). Transaction tests are the highest-fidelity ThousandEyes test type, validating end-to-end user experience including JavaScript rendering, form submissions, and multi-page workflows.",
-  "value": "Transaction tests are the closest approximation to real user behavior. While HTTP Server tests check a single URL and Page Load tests render a single page, Transaction tests click buttons, fill forms, navigate menus, and verify page content — exactly as a user would. When a Transaction test fails, a real user would fail too. This makes Transaction test completion the most business-critical metric: 0% completion on a checkout workflow means lost revenue, 0% completion on a login workflow means locked-out users.",
+  "description": "Identifies Completion Rate activity in UC-5.9.41 ('Transaction Test Completion Rate') from `index=target_index` sourcetype `configured sourcetype`. Rolls up `avg_completion`, `total_errors` by `thousandeyes.test.name`, `thousandeyes.source.agent.name` across `the scheduled window` and pages when `avg_completion` < 100. Uses macro `stream_index`. Operations operators treat UC-5.9.41 as the canonical signal.",
+  "value": "Operators running UC-5.9.41 on macro `stream_index` shorten triage for Completion Rate tied to 'Transaction Test Completion Rate', lowering operational risk and delayed incident response.",
   "implementation": "Transaction tests require Selenium-based scripts configured in ThousandEyes. Tests run on Enterprise Agents with browser capability.",
   "visualization": "(1) Scoreboard: transaction completion rates. (2) Table: failing transactions with error details. (3) Timechart: completion trending. (4) Marker breakdown: completion per step/marker within the transaction.",
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes OTel v2 — Transaction metrics",
-      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics"
+      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Script maintenance.** UI changes (moved buttons, renamed fields, new page flow) break the Selenium script. This is a script maintenance issue, not an application failure. Update scripts after UI releases.\n\n**Test environment differences.** Transaction tests running against a staging environment may see different behavior than production.\n\n**Dynamic content.** Pages with dynamic content (randomized layouts, A/B tests, geographically personalized content) may cause assertion failures.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.9.41)** — Planned work for 'Transaction Test Completion Rate' shifts `avg_completion`, `total_errors` over `span=1h` while `thousandeyes.test.name`, `thousandeyes.source.agent.name` remains in-scope. Applies macro `stream_index`. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `thousandeyes.source.agent.name` without crossing `avg_completion` < 100 for UC-5.9.41. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `thousandeyes.test.name`, `thousandeyes.source.agent.name`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.9.41 on `thousandeyes.test.name` is unstable; join `stream_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `thousandeyes.test.name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

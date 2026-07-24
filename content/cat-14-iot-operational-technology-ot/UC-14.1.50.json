@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=bms:energy`, `sourcetype=bms:meter`",
-  "app": "Utility meters via Modbus, gas meters, BMS energy data, grid emissions factor lookup",
+  "exclusions": "Covers the detection logic documented for 'Carbon Emissions Tracking from Building Operations (Scope 1+2)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_carbon_emissions_tracking_from_building_operatio` (UC-14.1.50), SOC dashboard panel \"Operations — Carbon Emissions Tracking from Building Operations (Scope 1+2)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.1.50 positive (Carbon, Emissions, Tracking, from, Building): ingest synthetic events into `index=building` sourcetype='bms:energy' where `sum` grouped by `building_name`, `_time` satisfies detection threshold for 'Carbon Emissions Tracking from Building Operations (Scope 1+2)'. Validate lookup `grid_emissions_factors.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.1.50 negative ((Scope 1+2)): ingest benign `building` / `bms:energy` events where `building_name`, `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Carbon Emissions Tracking from Building Operations (Scope 1+2)'."
+  },
+  "dataSources": "`sourcetype=bms:energy`, `sourcetype=bms:meter` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Utility meters via Modbus, gas meters, BMS energy data, grid emissions factor lookup — Universal Forwarder (Splunkbase 617)",
   "spl": "index=building sourcetype=\"bms:energy\"\n| bin _time span=1d\n| stats sum(eval(if(meter_type=\"electricity\", kwh_consumed, 0))) as electricity_kwh, sum(eval(if(meter_type=\"gas\", therms_consumed, 0))) as gas_therms by building_name, _time\n| lookup grid_emissions_factors.csv region OUTPUTNEW kg_co2_per_kwh\n| eval scope2_kg=round(electricity_kwh * kg_co2_per_kwh, 1)\n| eval scope1_kg=round(gas_therms * 5.3, 1)\n| eval total_co2_kg=scope1_kg + scope2_kg\n| eval total_co2_tonnes=round(total_co2_kg/1000, 2)\n| table _time, building_name, electricity_kwh, gas_therms, scope1_kg, scope2_kg, total_co2_kg, total_co2_tonnes",
-  "description": "ESG reporting increasingly requires Scope 1 (on-site combustion) and Scope 2 (purchased electricity) carbon emissions tracking. Automating carbon calculations from utility meter data provides real-time emissions dashboards and supports Science Based Targets.",
-  "value": "ESG reporting increasingly requires Scope 1 (on-site combustion) and Scope 2 (purchased electricity) carbon emissions tracking. Automating carbon calculations from utility meter data provides real-time emissions dashboards and supports Science Based Targets.",
+  "description": "Identifies UC-14.1.50 — Carbon, Emissions, Tracking, from, Building — using `index=building` sourcetype `bms:energy`, grouped by `building_name`, `_time`. Outputs `sum` each `1d`; alert when configured threshold. Filter chain includes lookup `grid_emissions_factors.csv`. Purpose-built for 'Carbon Emissions Tracking from Building Operations (Scope 1+2)' in Operations workflows.",
+  "value": "UC-14.1.50 helps teams contain Carbon, Emissions, Tracking, from, Building scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Collect electricity (kWh) and gas (therms/m³) consumption from utility meters. Apply grid emissions factors (varying by region and time) for Scope 2. Apply standard combustion factors for Scope 1. Aggregate for ESG reporting. Track against reduction targets.",
   "visualization": "Carbon emissions trend; Scope 1 vs 2 breakdown; building comparison; progress toward reduction target; annual emissions summary for ESG report.",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Demand or load factor shifts during building tests, new tenant fit-outs, or holiday schedules.",
+  "knownFalsePositives": "1. **Maintenance window on `building` (UC-14.1.50)** — Planned work for 'Carbon Emissions Tracking from Building Operations (Scope 1+2)' shifts `sum` over `span=1d` while `building_name`, `_time` remains in-scope. Applies lookup `grid_emissions_factors.csv`. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `bms:energy`** — Scheduled automation elevates `_time` without crossing configured threshold for UC-14.1.50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `building_name`, `_time`** — Health checks in `building` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bms:energy`** — First 48h baseline for UC-14.1.50 on `building_name` is unstable; join `grid_emissions_factors.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `building_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "modbus"
   ],
+  "equipmentModels": [
+    "modbus_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Utility meters via Modbus, gas meters, BMS energy data, grid emissions factor lookup.\n• Ensure the following data sources are available: `sourcetype=bms:energy`, `sourcetype=bms:meter`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect electricity (kWh) and gas (therms/m³) consumption from utility meters. Apply grid emissions factors (varying by region and time) for Scope 2. Apply standard combustion factors for Scope 1. Aggregate for ESG reporting. Track against reduction targets.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=building sourcetype=\"bms:energy\"\n| bin _time span=1d\n| stats sum(eval(if(meter_type=\"electricity\", kwh_consumed, 0))) as electricity_kwh, sum(eval(if(meter_type=\"gas\", therms_consumed, 0))) as gas_therms by building_name, _time\n| lookup grid_emissions_factors.csv region OUTPUTNEW kg_co2_per_kwh\n| eval scope2_kg=round(electricity_kwh * kg_co2_per_kwh, 1)\n| eval scope1_kg=round(gas_therms * 5.3, 1)\n| eval total_co2_kg=scope1_kg + scope2_kg\n| eval total_co2_tonnes=round(total_co2_kg/1000, 2)\n| table _time, building_name, electricity_kwh, gas_therms, scope1_kg, scope2_kg, total_co2_kg, total_co2_tonnes\n```\n\nUnderstanding this SPL\n\n**Carbon Emissions Tracking from Building Operations (Scope 1+2)** — ESG reporting increasingly requires Scope 1 (on-site combustion) and Scope 2 (purchased electricity) carbon emissions tracking. Automating carbon calculations from utility meter data provides real-time emissions dashboards and supports Science Based Targets.\n\nDocumented **Data sources**: `sourcetype=bms:energy`, `sourcetype=bms:meter`. **App/TA** (typical add-on context): Utility meters via Modbus, gas meters, BMS energy data, grid emissions factor lookup. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: building; **sourcetype**: bms:energy. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=building, sourcetype=\"bms:energy\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by building_name, _time** so each row reflects one combination of those dimensions.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **scope2_kg** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **scope1_kg** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **total_co2_kg** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **total_co2_tonnes** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Carbon Emissions Tracking from Building Operations (Scope 1+2)**): table _time, building_name, electricity_kwh, gas_therms, scope1_kg, scope2_kg, total_co2_kg, total_co2_tonnes\n\n\nStep 3 — Validate\nRun the search in a known window. Spot-check a few events against the BMS console (for example Niagara, Tridium, or Honeywell) and confirm zones, values, and alarms line up. Verify field names and that the right roles can search the index.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Carbon emissions trend; Scope 1 vs 2 breakdown; building comparison; progress toward reduction target; annual emissions summary for ESG report.",
-  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with how much energy the building is using in carbon terms before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with how much energy the building is using in carbon terms before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

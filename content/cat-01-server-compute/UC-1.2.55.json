@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4673, 4674)",
-  "app": "`Splunk_TA_windows`",
+  "exclusions": "Covers the detection logic documented for 'Suspicious Token Manipulation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_suspicious_token_manipulation` (UC-1.2.55), SOC dashboard panel \"Linux — Suspicious Token Manipulation\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.2.55 positive (Suspicious, Token, Manipulation): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' where `count` grouped by `SubjectUserName`, `ProcessName`, `Privileges`, `host` satisfies detection threshold for 'Suspicious Token Manipulation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.2.55 negative (Token Manipulation): ingest benign `wineventlog` / `WinEventLog:Security` events where `SubjectUserName`, `ProcessName`, `Privileges`, `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'Suspicious Token Manipulation'."
+  },
+  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4673, 4674) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode IN (4673, 4674)\n  Privileges IN (\"SeImpersonatePrivilege\", \"SeAssignPrimaryTokenPrivilege\", \"SeTcbPrivilege\", \"SeDebugPrivilege\")\n| where NOT match(ProcessName, \"(?i)(lsass|svchost|services|mssql|w3wp)\")\n| stats count by SubjectUserName, ProcessName, Privileges, host\n| sort -count",
-  "description": "Token impersonation and privilege escalation via token manipulation (SeImpersonatePrivilege abuse) is a common post-exploitation technique.",
-  "value": "Token abuse is abstract to explain but concrete to an IR lead—if you are not looking, you will only see the malware binary later, not the setup moves.",
+  "description": "Monitors UC-1.2.55 — Suspicious, Token, Manipulation — using `index=wineventlog` sourcetype `WinEventLog:Security`, grouped by `SubjectUserName`, `ProcessName`, `Privileges`, `host`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Token Manipulation. Purpose-built for 'Suspicious Token Manipulation' in Linux workflows.",
+  "value": "Operators running UC-1.2.55 on `WinEventLog:Security` feeds shorten triage for Token Manipulation tied to 'Suspicious Token Manipulation', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Enable \"Audit Sensitive Privilege Use\" in Advanced Audit Policy. EventCode 4673=sensitive privilege used, 4674=operation on privileged object. Focus on SeImpersonatePrivilege (Potato attacks), SeDebugPrivilege (memory injection), SeTcbPrivilege (token creation). Filter known legitimate users (service accounts, SQL Server, IIS). Alert on non-standard processes using these privileges.",
   "visualization": "Table (privilege usage by process), Bar chart (privilege types), Timeline, Alert on unusual callers.",
   "cimModels": [
@@ -24,18 +30,40 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Backup, storage, and defrag tools can trigger privilege-heavy access. A raw match on the privilege *string* is only the start of triage—add process and signer path.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `SubjectUserName` metrics for 'Suspicious Token Manipulation'. Correlate with apt/yum logs in the same `WinEventLog:Security` window.\n\n2. **Nightly backup I/O on `SubjectUserName`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Security`** — Nagios/Zabbix polls `SubjectUserName` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `SubjectUserName` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `SubjectUserName`, `valid_until`.",
   "equipment": [
     "mssql",
     "windows"
   ],
+  "equipmentModels": [
+    "mssql_generic",
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 4673, 4674).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable \"Audit Sensitive Privilege Use\" in Advanced Audit Policy. EventCode 4673=sensitive privilege used, 4674=operation on privileged object. Focus on SeImpersonatePrivilege (Potato attacks), SeDebugPrivilege (memory injection), SeTcbPrivilege (token creation). Filter known legitimate users (service accounts, SQL Server, IIS). Alert on non-standard processes using these privileges.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Security\" EventCode IN (4673, 4674)\n  Privileges IN (\"SeImpersonatePrivilege\", \"SeAssignPrimaryTokenPrivilege\", \"SeTcbPrivilege\", \"SeDebugPrivilege\")\n| where NOT match(ProcessName, \"(?i)(lsass|svchost|services|mssql|w3wp)\")\n| stats count by SubjectUserName, ProcessName, Privileges, host\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Suspicious Token Manipulation** — Token impersonation and privilege escalation via token manipulation (SeImpersonatePrivilege abuse) is a common post-exploitation technique.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4673, 4674). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Security. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Security\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where NOT match(ProcessName, \"(?i)(lsass|svchost|services|mssql|w3wp)\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by SubjectUserName, ProcessName, Privileges, host** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.user All_Changes.object span=1h\n| where count>0\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Suspicious Token Manipulation** — Token impersonation and privilege escalation via token manipulation (SeImpersonatePrivilege abuse) is a common post-exploitation technique.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4673, 4674). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (privilege usage by process), Bar chart (privilege types), Timeline, Alert on unusual callers.",
-  "grandmaExplanation": "We look for a small set of very powerful system rights being used in a way that does not look like a normal system tool, which can be part of a break-in path."
+  "grandmaExplanation": "We look for a small set of very powerful system rights being used in a way that does not look like a normal system tool, which can be part of a break-in path.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

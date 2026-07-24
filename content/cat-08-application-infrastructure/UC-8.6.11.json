@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Vault `/v1/sys/health`, `/v1/sys/audit`, audit log",
-  "app": "Custom (Vault API, audit log)",
+  "exclusions": "Covers the detection logic documented for 'HashiCorp Vault Seal Status and Token Count' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_hashicorp_vault_seal_status_and_token_count` (UC-8.6.11), SOC dashboard panel \"Operations — HashiCorp Vault Seal Status and Token Count\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.6.11 positive (HashiCorp, Vault, Seal, Status, and): ingest synthetic events into `index=vault` sourcetype='vault:health' where `count` grouped by `entity` satisfies detection threshold for 'HashiCorp Vault Seal Status and Token Count'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.6.11 negative (Token Count): ingest benign `vault` / `vault:health` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'HashiCorp Vault Seal Status and Token Count'."
+  },
+  "dataSources": "Vault `/v1/sys/health`, `/v1/sys/audit`, audit log Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom (Vault API, audit log) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=vault sourcetype=\"vault:health\"\n| where sealed==true\n| table _time, host, sealed, standby, version",
-  "description": "Vault health, auto-unseal events, and token creation rate indicate secrets management availability. Sealed Vault blocks all secret access; token anomalies may indicate abuse.",
-  "value": "Vault health, auto-unseal events, and token creation rate indicate secrets management availability. Sealed Vault blocks all secret access; token anomalies may indicate abuse.",
+  "description": "Identifies UC-8.6.11 — HashiCorp, Vault, Seal, Status, and — using `index=vault` sourcetype `vault:health`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Token Count. Purpose-built for 'HashiCorp Vault Seal Status and Token Count' in Operations workflows.",
+  "value": "Alerting on HashiCorp, Vault, Seal, Status, and through UC-8.6.11 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Poll Vault `/v1/sys/health` via scripted input every minute. Parse sealed, standby, version, replication_performance_mode. Forward to Splunk via HEC. Enable Vault audit log; forward audit events for token creation and auth attempts. Alert immediately when sealed==true. Track token creation rate; alert on anomalies. Correlate unseal events with operator actions.",
   "visualization": "Single value (sealed status — target: false), Table (Vault cluster health), Line chart (token creation rate), Timeline (unseal events).",
   "cimModels": [
@@ -23,16 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `vault` (UC-8.6.11)** — Planned work for 'HashiCorp Vault Seal Status and Token Count' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `vault:health`** — Scheduled automation elevates `src` without crossing configured threshold for UC-8.6.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `vault` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `vault:health`** — First 48h baseline for UC-8.6.11 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "hashicorp"
   ],
   "equipmentModels": [
     "hashicorp_vault"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Vault API, audit log).\n• Ensure the following data sources are available: Vault `/v1/sys/health`, `/v1/sys/audit`, audit log.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll Vault `/v1/sys/health` via scripted input every minute. Parse sealed, standby, version, replication_performance_mode. Forward to Splunk via HEC. Enable Vault audit log; forward audit events for token creation and auth attempts. Alert immediately when sealed==true. Track token creation rate; alert on anomalies. Correlate unseal events with operator actions.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vault sourcetype=\"vault:health\"\n| where sealed==true\n| table _time, host, sealed, standby, version\n```\n\nUnderstanding this SPL\n\n**HashiCorp Vault Seal Status and Token Count** — Vault health, auto-unseal events, and token creation rate indicate secrets management availability. Sealed Vault blocks all secret access; token anomalies may indicate abuse.\n\nDocumented **Data sources**: Vault `/v1/sys/health`, `/v1/sys/audit`, audit log. **App/TA** (typical add-on context): Custom (Vault API, audit log). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vault; **sourcetype**: vault:health. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vault, sourcetype=\"vault:health\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where sealed==true` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **HashiCorp Vault Seal Status and Token Count**): table _time, host, sealed, standby, version\n\n\nStep 3 — Validate\nCompare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (sealed status — target: false), Table (Vault cluster health), Line chart (token creation rate), Timeline (unseal events).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch for signs that vault health, auto-unseal events, and token creation rate indicate secrets management availability."
+  "grandmaExplanation": "We watch for signs that vault health, auto-unseal events, and token creation rate indicate secrets management availability.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "VPN logs with `always_on` flag, MDM compliance",
-  "app": "Splunk_TA_cisco-asa, endpoint inventory",
+  "exclusions": "Covers the detection logic documented for 'Always-On VPN Enforcement' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_always_on_vpn_enforcement` (UC-17.2.19), SOC dashboard panel \"Network — Always-On VPN Enforcement\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.2.19 positive (Always, VPN, Enforcement): ingest synthetic events into `index=vpn` sourcetype='cisco:asa' where `count` grouped by `user`, `hostname`, `src` satisfies -24h for 'Always-On VPN Enforcement'. Validate lookup `corp_laptops.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.2.19 negative (VPN Enforcement): ingest benign `vpn` / `cisco:asa` events where `user`, `hostname`, `src` stays below -24h, or exclude the test entity via `network_exception_register.csv`. Variant 11 confirms zero alert rows for 'Always-On VPN Enforcement'."
+  },
+  "dataSources": "VPN logs with `always_on` flag, MDM compliance Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk_TA_cisco-asa, endpoint inventory — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=vpn sourcetype=\"cisco:asa\" action=\"session_connect\" earliest=-24h\n| eval aov=if(match(lower(_raw),\"(?i)always.?on|pre.?login\"),1,0)\n| lookup corp_laptops.csv hostname OUTPUT requires_aov\n| where requires_aov=1 AND aov=0\n| stats count by user, hostname, src",
-  "description": "Identifies corporate assets connecting without Always-On (pre-login) VPN when policy requires it.",
-  "value": "Compliance teams verify that endpoints required to maintain Always-On VPN connections are actually doing so, catching configuration drift or user tampering that creates unprotected internet access windows.",
+  "description": "Alerts on UC-17.2.19 — Always, VPN, Enforcement — using `index=vpn` sourcetype `cisco:asa`, grouped by `user`, `hostname`, `src`. Outputs `count` each `the scheduled window`; alert when -24h. Filter chain includes lookup `corp_laptops.csv`. Purpose-built for 'Always-On VPN Enforcement' in Network workflows.",
+  "value": "UC-17.2.19 helps teams contain Always, VPN, Enforcement scenarios and reduce unauthorized access, segmentation drift, and NAC policy failures before incidents compound.",
   "implementation": "Prefer explicit field from ASA if available. Join MDM “managed device” list for `requires_aov`.",
   "visualization": "Table (non-compliant hosts), Bar chart (violations by OU), Single value (violation count).",
   "cimModels": [
@@ -25,10 +31,31 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Remote workforce login storm** — Morning VPN/ZTNA session spike for 'Always-On VPN Enforcement'. Compare with historical same-hour baseline.\n\n2. **IdP or SAML metadata refresh** — Brief auth failures during federation cert rotation.\n\n3. **Split-tunnel policy change** — New route advertisements shift traffic patterns.\n\n4. **Synthetic ZTNA health checks** — Monitoring probes from known appliance IPs.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `src`, `valid_until`.",
   "mitreAttack": [
     "T1572",
     "T1048"
@@ -39,7 +66,13 @@
   "equipmentModels": [
     "cisco_asa"
   ],
-  "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA (`sourcetype=cisco:asa`). Data in `index=vpn`.\n• Key fields: `user`, `action=session_connect`, always-on flag (parsed from raw or group policy).\n• Cisco AnyConnect Always-On mode keeps the VPN connected at all times, preventing users from accessing the internet without going through the VPN. Critical for compliance in regulated industries.\n• Create a `corp_laptops.csv` lookup: `user,device_type,always_on_required,compliance_group`.\n\nStep 1 — Configure data collection\nVerify always-on detection:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" action=\"session_connect\" earliest=-24h\n| eval aov=if(match(lower(_raw), \"always.?on|pre.?login\"), 1, 0)\n| stats count by aov, group_policy\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Always-On compliance:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" action=\"session_connect\" earliest=-24h\n| eval aov=if(match(lower(_raw), \"always.?on|pre.?login\"), 1, 0)\n| lookup corp_laptops.csv user OUTPUT always_on_required compliance_group\n| where always_on_required=\"yes\" AND aov=0\n| stats count values(group_policy) as policies by user, compliance_group\n| sort - count\n```\n\nUnderstanding this SPL: Identifies users who are required to use Always-On VPN but are connecting without it. This means they had internet access before the VPN connected — a compliance gap. Common cause: the AnyConnect profile on the endpoint does not have Always-On enabled, or the user disabled it (possible with admin rights on some configurations).\n\nStep 3 — Validate\n(a) Check an Always-On user's AnyConnect profile: Settings > Preferences > should show 'Always-On VPN' enabled.\n(b) Compare with MDM data: devices enrolled in the Always-On profile should all show `aov=1`.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Always-On compliance rate. Row 2 — Non-compliant users.\nAlert: Daily compliance report.\n\nRunbook:\n1. **Non-compliant device** — Push the correct AnyConnect profile via MDM.\n2. **User disabled Always-On** — Lock down the profile with `AllowDisableAlwaysOn=false`.\n\nStep 5 — Troubleshooting\n• **Always-On indicator not in logs** — The ASA may not explicitly log Always-On status. Infer from the group policy name or the tunnel establishment timing (pre-login = Always-On).\n• **AnyConnect profile not deploying** — Check SCCM/Intune deployment status.",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA (`sourcetype=cisco:asa`). Data in `index=vpn`.\n• Key fields: `user`, `action=session_connect`, always-on flag (parsed from raw or group policy).\n• Cisco AnyConnect Always-On mode keeps the VPN connected at all times, preventing users from accessing the internet without going through the VPN. Critical for compliance in regulated industries.\n• Create a `corp_laptops.csv` lookup: `user,device_type,always_on_required,compliance_group`.\n\nStep 1 — Configure data collection\nVerify always-on detection:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" action=\"session_connect\" earliest=-24h\n| eval aov=if(match(lower(_raw), \"always.?on|pre.?login\"), 1, 0)\n| stats count by aov, group_policy\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Always-On compliance:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" action=\"session_connect\" earliest=-24h\n| eval aov=if(match(lower(_raw), \"always.?on|pre.?login\"), 1, 0)\n| lookup corp_laptops.csv user OUTPUT always_on_required compliance_group\n| where always_on_required=\"yes\" AND aov=0\n| stats count values(group_policy) as policies by user, compliance_group\n| sort - count\n```\n\nUnderstanding this SPL: Identifies users who are required to use Always-On VPN but are connecting without it. This means they had internet access before the VPN connected — a compliance gap. Common cause: the AnyConnect profile on the endpoint does not have Always-On enabled, or the user disabled it (possible with admin rights on some configurations).\n\nStep 3 — Validate\n(a) Check an Always-On user's AnyConnect profile: Settings > Preferences > should show 'Always-On VPN' enabled.\n(b) Compare with MDM data: devices enrolled in the Always-On profile should all show `aov=1`.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Always-On compliance rate. Row 2 — Non-compliant users.\nAlert: Daily compliance report.\n\nRunbook:\n1. **Non-compliant device** — Push the correct AnyConnect profile via MDM.\n2. **User disabled Always-On** — Lock down the profile with `AllowDisableAlwaysOn=false`.\n\nStep 5 — Troubleshooting\n• **Always-On indicator not in logs** — The ASA may not explicitly log Always-On status. Infer from the group policy name or the tunnel establishment timing (pre-login = Always-On).\n• **AnyConnect profile not deploying** — Check SCCM/Intune deployment status.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk_TA_cisco-asa, endpoint inventory — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:asa into vpn. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`aov, hostname, requires_aov, src`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We make sure that laptops that are supposed to always stay connected to our secure system actually do, so employees never access the internet without our protections in place.",
-  "hardware": "AnyConnect with Always-On"
+  "hardware": "AnyConnect with Always-On",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

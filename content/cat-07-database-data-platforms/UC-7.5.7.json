@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=solr:replication`",
-  "app": "Custom scripted input (Solr Cloud `CLUSTERSTATUS`, replica stats)",
+  "exclusions": "Covers the detection logic documented for 'Solr Replication Lag' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_solr_replication_lag` (UC-7.5.7), SOC dashboard panel \"Operations — Solr Replication Lag\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.5.7 positive (Solr, Replication, Lag): ingest synthetic events into `index=database` sourcetype='solr:replication' where `max_lag`, `max_rep_ms` grouped by `collection`, `shard`, `replica` satisfies `lag_bytes` > 1048576, or `index_version_lag` > 100 for 'Solr Replication Lag'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.5.7 negative (Replication Lag): ingest benign `database` / `solr:replication` events where `collection`, `shard`, `replica` stays below `lag_bytes` > 1048576, or `index_version_lag` > 100, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Solr Replication Lag'."
+  },
+  "dataSources": "`sourcetype=solr:replication` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (Solr Cloud `CLUSTERSTATUS`, replica stats) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"solr:replication\"\n| eval lag_bytes=leader_version - replica_version\n| where lag_bytes > 1048576 OR index_version_lag > 100\n| stats max(lag_bytes) as max_lag, max(replication_time_ms) as max_rep_ms by collection, shard, replica\n| sort -max_lag",
-  "description": "Followers lagging behind leaders serve stale results and extend recovery time; catching replication gaps protects read consistency and failover readiness.",
-  "value": "Followers lagging behind leaders serve stale results and extend recovery time; catching replication gaps protects read consistency and failover readiness.",
+  "description": "Alerts on when Replication Lag criteria fire for 'Solr Replication Lag' (UC-7.5.7) in `index=database` sourcetype `solr:replication`. Pipeline aggregates `max_lag`, `max_rep_ms` by `collection`, `shard`, `replica` over `the scheduled window`. Alert logic enforces `lag_bytes` > 1048576, or `index_version_lag` > 100. Title terms: Solr, Replication, Lag. Eliminates manual hunting for UC-7.5.7 conditions.",
+  "value": "UC-7.5.7 helps teams contain Solr, Replication, Lag scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ingest Solr Cloud replica state (version, generation, replication timing) from admin API or `REPLICATION` metrics. For standalone Solr, use master/slave `fetch` lag fields. Alert when replica index version lags leader beyond SLA (bytes or generations). Investigate network, disk, and TLog backlog.",
   "visualization": "Line chart (replication lag over time), Table (replicas over SLA), Single value (max lag per collection).",
   "cimModels": [
@@ -21,10 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned failovers, network maintenance, or heavy bulk replication can extend lag for a time without an outage; align the alert with the DR runbook and change window.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.5.7)** — Planned work for 'Solr Replication Lag' shifts `max_lag`, `max_rep_ms` over `span=1h` while `collection`, `shard`, `replica` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `solr:replication`** — Scheduled automation elevates `shard` without crossing `lag_bytes` > 1048576 for UC-7.5.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `collection`, `shard`, `replica`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `solr:replication`** — First 48h baseline for UC-7.5.7 on `collection` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `collection`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (Solr Cloud `CLUSTERSTATUS`, replica stats).\n• Ensure the following data sources are available: `sourcetype=solr:replication`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest Solr Cloud replica state (version, generation, replication timing) from admin API or `REPLICATION` metrics. For standalone Solr, use master/slave `fetch` lag fields. Alert when replica index version lags leader beyond SLA (bytes or generations). Investigate network, disk, and TLog backlog.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"solr:replication\"\n| eval lag_bytes=leader_version - replica_version\n| where lag_bytes > 1048576 OR index_version_lag > 100\n| stats max(lag_bytes) as max_lag, max(replication_time_ms) as max_rep_ms by collection, shard, replica\n| sort -max_lag\n```\n\nUnderstanding this SPL\n\n**Solr Replication Lag** — Followers lagging behind leaders serve stale results and extend recovery time; catching replication gaps protects read consistency and failover readiness.\n\nDocumented **Data sources**: `sourcetype=solr:replication`. **App/TA** (typical add-on context): Custom scripted input (Solr Cloud `CLUSTERSTATUS`, replica stats). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: solr:replication. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"solr:replication\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **lag_bytes** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where lag_bytes > 1048576 OR index_version_lag > 100` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by collection, shard, replica** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (replication lag over time), Table (replicas over SLA), Single value (max lag per collection).",
-  "grandmaExplanation": "We track replication and apply lag so we can meet recovery and read-your-writes expectations when a region or network path is under stress."
+  "grandmaExplanation": "We track replication and apply lag so we can meet recovery and read-your-writes expectations when a region or network path is under stress.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

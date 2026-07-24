@@ -9,27 +9,55 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Collibra audit (`collibra:audit`).",
-  "app": "Collibra Data Governance Center audit exports via the Collibra REST API to HEC.",
+  "exclusions": "Covers the detection logic documented for 'Collibra Bulk Export and Download Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_collibra_bulk_export_and_download_audit` (UC-24.10.14), SOC dashboard panel \"Operations — Collibra Bulk Export and Download Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.10.14 positive (Collibra, Bulk, Export, and, Download): ingest synthetic events into `index=bi` sourcetype='collibra:audit' where `avg_rows`, `sd_rows` grouped by `user_name` satisfies detection threshold for 'Collibra Bulk Export and Download Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.10.14 negative (Download Audit): ingest benign `bi` / `collibra:audit` events where `user_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Collibra Bulk Export and Download Audit'."
+  },
+  "dataSources": "Collibra audit (`collibra:audit`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Collibra Data Governance Center audit exports via the Collibra REST API to HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=collibra:audit (activity=\"*export*\" OR activity=\"*download*\")\n| stats count as exports, sum(coalesce(row_count,rows,record_count)) as rows by user_name\n| eventstats avg(rows) as avg_rows, stdev(rows) as sd_rows\n| where rows>avg_rows+3*sd_rows\n| sort - rows",
-  "description": "Watches Collibra for users exporting or downloading unusually large volumes of data, a signal for both data-exfiltration risk and ungoverned spreadsheet sprawl.",
-  "value": "Large exports move governed data out of Collibra where it can no longer be controlled; anomaly detection flags the risky ones for review.",
+  "description": "Surfaces 'Collibra Bulk Export and Download Audit' (UC-24.10.14) using `index=bi` sourcetype `collibra:audit` by aggregating `avg_rows`, `sd_rows` grouped by `user_name` over `the scheduled window` and alerting when configured threshold. Keywords: Collibra, Bulk, Export, and, Download. Focuses on Download Audit behaviour so operations teams can triage UC-24.10.14 without ad-hoc log review.",
+  "value": "UC-24.10.14 accelerates insight into Download Audit ('Collibra Bulk Export and Download Audit') by tracking `avg_rows`, `sd_rows` on `collibra:audit` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Ingest Collibra export/download events with row counts; schedule daily and alert on 3-sigma export-volume anomalies per user.",
   "visualization": "Table of user by export volume, anomaly markers.",
   "cimModels": [],
   "references": [
     {
       "title": "Collibra — REST API",
-      "url": "https://developer.collibra.com/rest/"
+      "url": "https://developer.collibra.com/rest/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Collibra — Audit",
-      "url": "https://productresources.collibra.com/docs/collibra/latest/Content/Audit/co_audit.htm"
+      "url": "https://productresources.collibra.com/docs/collibra/latest/Content/Audit/co_audit.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We notice when someone pulls an unusually large amount of data out of Collibra so it can be checked."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.10.14)** — Planned work for 'Collibra Bulk Export and Download Audit' shifts `avg_rows`, `sd_rows` over `span=1h` while `user_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `collibra:audit`** — Scheduled automation elevates `src` without crossing configured threshold for UC-24.10.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `collibra:audit`** — First 48h baseline for UC-24.10.14 on `user_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user_name`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Collibra Data Governance Center audit exports via the Collibra REST API to HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=collibra:audit into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`user_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We notice when someone pulls an unusually large amount of data out of Collibra so it can be checked.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

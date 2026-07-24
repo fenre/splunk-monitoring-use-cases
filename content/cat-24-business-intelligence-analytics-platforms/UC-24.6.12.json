@@ -9,28 +9,43 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "MicroStrategy DSS logs (`microstrategy:dsserror`), Cognos audit (`cognos:audit`), BusinessObjects audit (`businessobjects:audit`), Oracle Analytics usage (`oracle:analytics:usage`), ThoughtSpot audit (`thoughtspot:audit`), QuickSight CloudTrail (`aws:cloudtrail`).",
-  "app": "Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS.",
+  "exclusions": "Covers the detection logic documented for 'Domo Dataflow Execution Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_domo_dataflow_execution_failures` (UC-24.6.12), SOC dashboard panel \"Operations — Domo Dataflow Execution Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.6.12 positive (Domo, Dataflow, Execution, Failures): ingest synthetic events into `index=bi` sourcetype='domo:activity' where `count` grouped by `dataflow_name`, `owner` satisfies `failures` > 0 for 'Domo Dataflow Execution Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.6.12 negative (Execution Failures): ingest benign `bi` / `domo:activity` events where `dataflow_name`, `owner` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Domo Dataflow Execution Failures'."
+  },
+  "dataSources": "MicroStrategy DSS logs (`microstrategy:dsserror`), Cognos audit (`cognos:audit`), BusinessObjects audit (`businessobjects:audit`), Oracle Analytics usage (`oracle:analytics:usage`), ThoughtSpot audit (`thoughtspot:audit`), QuickSight CloudTrail (`aws:cloudtrail`). Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=bi sourcetype=domo:activity object_type=\"DATAFLOW\" (event_name=\"EXECUTION_FAILED\" OR status=\"FAILED\")\n| stats count as failures by dataflow_name, owner\n| where failures>0\n| sort - failures",
-  "description": "Tracks Domo Magic ETL / SQL dataflow execution failures so downstream Domo cards and apps do not display stale or missing data.",
-  "value": "Domo dataflows feed cards executives watch; execution failures must be caught before a card shows an error or stale value.",
+  "description": "Detects UC-24.6.12 — Domo, Dataflow, Execution, Failures — using `index=bi` sourcetype `domo:activity`, grouped by `dataflow_name`, `owner`. Outputs `count` each `the scheduled window`; alert when `failures` > 0. Primary focus: Execution Failures. Purpose-built for 'Domo Dataflow Execution Failures' in Operations workflows.",
+  "value": "UC-24.6.12 gives Operations teams earlier visibility into Execution Failures through `domo:activity` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Poll the Domo Activity Log / Governance API into HEC; schedule hourly and alert on dataflow failures for business-critical datasets.",
   "visualization": "Table of dataflow by failures and owner.",
   "cimModels": [],
   "references": [
     {
       "title": "MicroStrategy — Enterprise Manager / monitoring",
-      "url": "https://www2.microstrategy.com/producthelp/current/EnterpriseManager/en-us/Content/enterprise_manager.htm"
+      "url": "https://www2.microstrategy.com/producthelp/current/EnterpriseManager/en-us/Content/enterprise_manager.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IBM Cognos Analytics — Audit reporting",
-      "url": "https://www.ibm.com/docs/en/cognos-analytics"
+      "url": "https://www.ibm.com/docs/en/cognos-analytics",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.6.12)** — Planned work for 'Domo Dataflow Execution Failures' shifts `count` over `span=1h` while `dataflow_name`, `owner` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `domo:activity`** — Scheduled automation elevates `owner` without crossing `failures` > 0 for UC-24.6.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dataflow_name`, `owner`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `domo:activity`** — First 48h baseline for UC-24.6.12 on `dataflow_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dataflow_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "oracle"
@@ -38,5 +53,12 @@
   "equipmentModels": [
     "oracle_oracle_db"
   ],
-  "grandmaExplanation": "We watch Domo's data-preparation jobs so the cards leaders rely on stay accurate."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=domo:activity into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dataflow_name, failures, owner`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch Domo's data-preparation jobs so the cards leaders rely on stay accurate.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

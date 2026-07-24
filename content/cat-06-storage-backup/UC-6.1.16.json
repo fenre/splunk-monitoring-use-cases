@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "SMB share probe results",
-  "app": "Custom scripted input (smbclient, net use)",
+  "exclusions": "Covers the detection logic documented for 'SMB / CIFS Share Availability' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_smb_cifs_share_availability` (UC-6.1.16), SOC dashboard panel \"Operations — SMB / CIFS Share Availability\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.1.16 positive (SMB, CIFS, Share, Availability): ingest synthetic events into `index=storage` sourcetype='smb:probe' where `count` grouped by `entity` satisfies `latency_ms` > 1000 for 'SMB / CIFS Share Availability'. Validate filter `status!=\"ok\" OR latency_ms>1000`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.16 negative (Share Availability): ingest benign `storage` / `smb:probe` events where `entity` stays below `latency_ms` > 1000, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'SMB / CIFS Share Availability'."
+  },
+  "dataSources": "SMB share probe results Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (smbclient, net use) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"smb:probe\"\n| search status!=\"ok\" OR latency_ms>1000\n| table _time, share_path, server, status, latency_ms, error_message\n| sort -_time",
-  "description": "Windows/SMB share reachability is critical for file-serving workloads. Monitoring ensures shares are accessible before users report issues.",
-  "value": "Windows/SMB share reachability is critical for file-serving workloads. Monitoring ensures shares are accessible before users report issues.",
+  "description": "Monitors UC-6.1.16 — SMB, CIFS, Share, Availability — using `index=storage` sourcetype `smb:probe`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `latency_ms` > 1000. Filter chain includes filter `status!=\"ok\" OR latency_ms>1000`. Purpose-built for 'SMB / CIFS Share Availability' in Operations workflows.",
+  "value": "UC-6.1.16 accelerates insight into Share Availability ('SMB / CIFS Share Availability') by tracking `activity` on `smb:probe` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Deploy scripted input on Windows or Linux probe host. Use `smbclient -L //server` or `net use \\\\server\\share` (Windows) to test connectivity. Optionally perform read/write test and measure latency. Run every 5–10 minutes. Index share_path, server, status, latency_ms. Alert on status != ok or latency exceeding threshold. Use domain credentials with minimal read-only access.",
   "visualization": "Table (shares with status and latency), Single value (unreachable shares count), Line chart (latency trend per share), Status grid (share × server).",
   "cimModels": [
@@ -21,10 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.16)** — Planned work for 'SMB / CIFS Share Availability' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `status!=\"ok\" OR latency_ms>1000`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `smb:probe`** — Scheduled automation elevates `src` without crossing `latency_ms` > 1000 for UC-6.1.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `smb:probe`** — First 48h baseline for UC-6.1.16 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (smbclient, net use).\n• Ensure the following data sources are available: SMB share probe results.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy scripted input on Windows or Linux probe host. Use `smbclient -L //server` or `net use \\\\server\\share` (Windows) to test connectivity. Optionally perform read/write test and measure latency. Run every 5–10 minutes. Index share_path, server, status, latency_ms. Alert on status != ok or latency exceeding threshold. Use domain credentials with minimal read-only access.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=storage sourcetype=\"smb:probe\"\n| search status!=\"ok\" OR latency_ms>1000\n| table _time, share_path, server, status, latency_ms, error_message\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**SMB / CIFS Share Availability** — Windows/SMB share reachability is critical for file-serving workloads. Monitoring ensures shares are accessible before users report issues.\n\nDocumented **Data sources**: SMB share probe results. **App/TA** (typical add-on context): Custom scripted input (smbclient, net use). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: storage; **sourcetype**: smb:probe. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=storage, sourcetype=\"smb:probe\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Pipeline stage (see **SMB / CIFS Share Availability**): table _time, share_path, server, status, latency_ms, error_message\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Point on-call to the ONTAP or array runbook, Cisco SAN references, and SNMP/REST credentials already used in production—not generic platform steps only. Consider visualizations: Table (shares with status and latency), Single value (unreachable shares count), Line chart (latency trend per share), Status grid (share × server).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch when disks or arrays slow down for your important workloads, so you can act before people notice a frozen app or missed deadlines."
+  "grandmaExplanation": "We watch when disks or arrays slow down for your important workloads, so you can act before people notice a frozen app or missed deadlines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,27 +8,55 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Hightouch syncs (`hightouch:sync`), Census syncs (`census:sync`), Segment/RudderStack delivery events (`segment:delivery`, `rudderstack:delivery`).",
-  "app": "Reverse-ETL platform APIs and webhooks (Hightouch, Census, Segment, RudderStack) via HEC scripted inputs; sync run and delivery logs.",
+  "exclusions": "Covers the detection logic documented for 'Reverse-ETL Row Rejection Rate by Destination' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_reverse_etl_row_rejection_rate_by_destination` (UC-24.12.8), SOC dashboard panel \"Operations — Reverse-ETL Row Rejection Rate by Destination\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.12.8 positive (Reverse, ETL, Row, Rejection, Rate): ingest synthetic events into `index=bi` sourcetype='hightouch:sync' where `ok`, `rejected` grouped by `destination`, `sync_name` satisfies `rejected` > 0 for 'Reverse-ETL Row Rejection Rate by Destination'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.12.8 negative (by Destination): ingest benign `bi` / `hightouch:sync` events where `destination`, `sync_name` stays below `rejected` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Reverse-ETL Row Rejection Rate by Destination'."
+  },
+  "dataSources": "Hightouch syncs (`hightouch:sync`), Census syncs (`census:sync`), Segment/RudderStack delivery events (`segment:delivery`, `rudderstack:delivery`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Reverse-ETL platform APIs and webhooks (Hightouch, Census, Segment, RudderStack) via HEC scripted inputs; sync run and delivery logs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi (sourcetype=hightouch:sync OR sourcetype=census:sync)\n| stats sum(records_success) as ok, sum(records_rejected) as rejected by destination, sync_name\n| eval reject_pct=round(100*rejected/(ok+rejected),2)\n| where rejected>0\n| sort - reject_pct",
-  "description": "Aggregates successfully synced versus rejected rows per reverse-ETL destination so silent field-validation and mapping rejections that starve operational tools are quantified.",
-  "value": "Rejected rows mean the CRM or ad tool never gets the record; reject-rate tracking protects the operational value of activated data.",
+  "description": "Identifies 'Reverse-ETL Row Rejection Rate by Destination' patterns (UC-24.12.8) sourced from `index=bi` sourcetype `hightouch:sync`. Threshold bundle: `rejected` > 0; aggregation grain: `destination`, `sync_name`; metrics: `ok`, `rejected`. Watch terms: Reverse, ETL, Row, Rejection, Rate.",
+  "value": "UC-24.12.8 gives Operations teams earlier visibility into by Destination through `hightouch:sync` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest per-sync success/reject counts; schedule after each sync and alert when reject rate crosses a per-destination threshold.",
   "visualization": "Table of destination by reject rate, trend line.",
   "cimModels": [],
   "references": [
     {
       "title": "Hightouch — API & sync monitoring",
-      "url": "https://hightouch.com/docs/syncs/monitoring"
+      "url": "https://hightouch.com/docs/syncs/monitoring",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Census — Observability",
-      "url": "https://docs.getcensus.com/basics/observability"
+      "url": "https://docs.getcensus.com/basics/observability",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We count the records that a destination tool refused so you know when good data is not making it through."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.12.8)** — Planned work for 'Reverse-ETL Row Rejection Rate by Destination' shifts `ok`, `rejected` over `span=1h` while `destination`, `sync_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `hightouch:sync`** — Scheduled automation elevates `sync_name` without crossing `rejected` > 0 for UC-24.12.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `destination`, `sync_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `hightouch:sync`** — First 48h baseline for UC-24.12.8 on `destination` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `destination`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Reverse-ETL platform APIs and webhooks (Hightouch, Census, Segment, RudderStack) via HEC scripted inputs; sync run and delivery logs. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=hightouch:sync, census:sync into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`destination, rejected, sync_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We count the records that a destination tool refused so you know when good data is not making it through.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

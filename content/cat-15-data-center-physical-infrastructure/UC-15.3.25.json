@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Camera Video Quality Score and Stream Health (Meraki MV)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_camera_video_quality_score_and_stream_health_mer` (UC-15.3.25), SOC dashboard panel \"Operations — Camera Video Quality Score and Stream Health (Meraki MV)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-15.3.25 positive (Camera, Video, Quality, Score, and): ingest synthetic events into `index=meraki` sourcetype='meraki:devicesuplinkslossandlatency' where `avg_loss_pct`, `avg_latency_ms`, `peak_latency_ms` grouped by `serial`, `\"network.name\"` satisfies `avg_loss_pct` > 1, `avg_latency_ms` > 100, `avg_loss_pct` > 5, or `avg_latency_ms` > 250 for 'Camera Video Quality Score and Stream Health (Meraki MV)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.3.25 negative ((Meraki MV)): ingest benign `meraki` / `meraki:devicesuplinkslossandlatency` events where `serial`, `\"network.name\"` stays below `avg_loss_pct` > 1, `avg_latency_ms` > 100, `avg_loss_pct` > 5, or `avg_latency_ms` > 250, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Camera Video Quality Score and Stream Health (Meraki MV)'."
+  },
   "dataSources": "`index=meraki sourcetype=meraki:devicesavailabilities productType=\"camera\"` plus `index=meraki sourcetype=meraki:devicesuplinkslossandlatency` from `Splunk_TA_cisco_meraki` (Splunkbase 5580). The TA does not expose a per-camera `quality_score`; this UC infers stream health from camera availability + uplink loss/latency to the cloud archive.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:devicesuplinkslossandlatency\"\n| stats avg(lossPercent) as avg_loss_pct, avg(latencyMs) as avg_latency_ms, max(latencyMs) as peak_latency_ms by serial, \"network.name\"\n| where avg_loss_pct > 1 OR avg_latency_ms > 100\n| eval stream_health=case(avg_loss_pct > 5 OR avg_latency_ms > 250, \"POOR\", avg_loss_pct > 1 OR avg_latency_ms > 100, \"FAIR\", true(), \"GOOD\")\n| sort - avg_loss_pct",
-  "description": "Monitors video quality metrics to identify network or hardware issues affecting video feeds.",
-  "value": "Monitors video quality metrics to identify network or hardware issues affecting video feeds.",
+  "description": "Monitors UC-15.3.25 — Camera, Video, Quality, Score, and — using `index=meraki` sourcetype `meraki:devicesuplinkslossandlatency`, grouped by `serial`, `\"network.name\"`. Outputs `avg_loss_pct`, `avg_latency_ms`, `peak_latency_ms` each `the scheduled window`; alert when `avg_loss_pct` > 1, `avg_latency_ms` > 100, `avg_loss_pct` > 5, or `avg_latency_ms` > 250. Primary focus: (Meraki MV). Purpose-built for 'Camera Video Quality Score and Stream Health (Meraki MV)' in Operations workflows.",
+  "value": "UC-15.3.25 gives Operations teams earlier visibility into (Meraki MV) through `meraki:devicesuplinkslossandlatency` feeds, lowering operational risk and delayed incident response.",
   "implementation": "The Splunk_TA_cisco_meraki TA does not expose a per-camera quality score. The most reliable proxy for cloud-archive stream health is the camera's uplink loss and latency, polled via `cisco_meraki_devices_uplinks_loss_and_latency`. Loss > 1% or latency > 100ms generally degrades cloud video continuity. For deeper quality metrics, configure webhook integration and subscribe to `Camera offline` and `Camera unable to upload to cloud` alerts.",
   "visualization": "Quality score gauge per camera; quality trend line; affected camera list.",
   "cimModels": [
@@ -22,16 +28,38 @@
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensor anomalies during cleaning, calibration, or planned environmental changes.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-15.3.25)** — Planned work for 'Camera Video Quality Score and Stream Health (Meraki MV)' shifts `avg_loss_pct`, `avg_latency_ms`, `peak_latency_ms` over `span=1h` while `serial`, `\"network.name\"` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `meraki:devicesuplinkslossandlatency`** — Scheduled automation elevates `\"network.name\"` without crossing `avg_loss_pct` > 1 for UC-15.3.25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `serial`, `\"network.name\"`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:devicesuplinkslossandlatency`** — First 48h baseline for UC-15.3.25 on `serial` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `serial`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: `index=meraki sourcetype=meraki:devicesavailabilities productType=\"camera\"` plus `index=meraki sourcetype=meraki:devicesuplinkslossandlatency` from `Splunk_TA_cisco_meraki` (Splunkbase 5580). The TA does not expose a per-camera `quality_score`; this UC infers stream health from camera availability + uplink loss/latency to the cloud archive..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nThe Splunk_TA_cisco_meraki TA does not expose a per-camera quality score. The most reliable proxy for cloud-archive stream health is the camera's uplink loss and latency, polled via `cisco_meraki_devices_uplinks_loss_and_latency`. Loss > 1% or latency > 100ms generally degrades cloud video continuity. For deeper quality metrics, configure webhook integration and subscribe to `Camera offline` and `Camera unable to upload to cloud` alerts.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki:devicesuplinkslossandlatency\"\n| stats avg(lossPercent) as avg_loss_pct, avg(latencyMs) as avg_latency_ms, max(latencyMs) as peak_latency_ms by serial, \"network.name\"\n| where avg_loss_pct > 1 OR avg_latency_ms > 100\n| eval stream_health=case(avg_loss_pct > 5 OR avg_latency_ms > 250, \"POOR\", avg_loss_pct > 1 OR avg_latency_ms > 100, \"FAIR\", true(), \"GOOD\")\n| sort - avg_loss_pct\n```\n\nUnderstanding this SPL\n\n**Camera Video Quality Score and Stream Health (Meraki MV)** — Monitors video quality metrics to identify network or hardware issues affecting video feeds.\n\nDocumented **Data sources**: `index=meraki sourcetype=meraki:devicesavailabilities productType=\"camera\"` plus `index=meraki sourcetype=meraki:devicesuplinkslossandlatency` from `Splunk_TA_cisco_meraki` (Splunkbase 5580). The TA does not expose a per-camera `quality_score`; this UC infers stream health from camera availability + uplink loss/latency to the cloud archive. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:devicesuplinkslossandlatency. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki:devicesuplinkslossandlatency\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by serial, \"network.name\"** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where avg_loss_pct > 1 OR avg_latency_ms > 100` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **stream_health** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Quality score gauge per camera; quality trend line; affected camera list.",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

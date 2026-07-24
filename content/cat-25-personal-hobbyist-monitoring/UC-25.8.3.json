@@ -9,24 +9,43 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), UPS status via NUT (`nut:ups`).",
-  "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Proxmox Node Resource Saturation' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_proxmox_node_resource_saturation` (UC-25.8.3), SOC dashboard panel \"Personal — Proxmox Node Resource Saturation\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.8.3 positive (Proxmox, Node, Resource, Saturation): ingest synthetic events into `index=personal` sourcetype='proxmox:metric' where `max_cpu`, `avg_cpu`, `max_mem` grouped by `node` satisfies `max_cpu` > 90, or `max_mem` > 90 for 'Proxmox Node Resource Saturation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.8.3 negative (Resource Saturation): ingest benign `personal` / `proxmox:metric` events where `node` stays below `max_cpu` > 90, or `max_mem` > 90, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'Proxmox Node Resource Saturation'."
+  },
+  "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), UPS status via NUT (`nut:ups`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=proxmox:metric\n| stats max(cpu_pct) as max_cpu, avg(cpu_pct) as avg_cpu, max(mem_pct) as max_mem by node\n| where max_cpu>90 OR max_mem>90\n| sort - max_cpu",
-  "description": "Tracks CPU and memory pressure on your Proxmox hosts and flags nodes running hot, which slows every virtual machine on them.",
-  "value": "One saturated host degrades all its guests at once; catching it early lets you rebalance virtual machines before everything crawls.",
+  "description": "Surfaces 'Proxmox Node Resource Saturation' (UC-25.8.3) using `index=personal` sourcetype `proxmox:metric` by aggregating `max_cpu`, `avg_cpu`, `max_mem` grouped by `node` over `the scheduled window` and alerting when `max_cpu` > 90, or `max_mem` > 90. Keywords: Proxmox, Node, Resource, Saturation. Focuses on Resource Saturation behaviour so personal teams can triage UC-25.8.3 without ad-hoc log review.",
+  "value": "UC-25.8.3 accelerates insight into Resource Saturation ('Proxmox Node Resource Saturation') by tracking `max_cpu`, `avg_cpu`, `max_mem` on `proxmox:metric` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Forward Proxmox node metrics; schedule every 10 minutes and alert on sustained high CPU or memory.",
   "visualization": "Heatmap of nodes by peak CPU and memory.",
   "cimModels": [],
   "references": [
     {
       "title": "Proxmox VE — Documentation",
-      "url": "https://pve.proxmox.com/pve-docs/"
+      "url": "https://pve.proxmox.com/pve-docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.8.3)** — Connector for 'Proxmox Node Resource Saturation' stops polling `proxmox:metric`; stale `max_cpu`, `avg_cpu`, `max_mem` on `node` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max_cpu`, `avg_cpu`, `max_mem` over `1w` is expected for UC-25.8.3, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `proxmox:metric`. Dedup with `stats latest(*) by node`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `max_cpu` > 90 for 'Proxmox Node Resource Saturation'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "proxmox",
@@ -36,5 +55,12 @@
   "equipmentModels": [
     "snmp_ups"
   ],
-  "grandmaExplanation": "It watches how hard your home server hosts are working, so you can rebalance before everything slows down."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Proxmox VE — Universal Forwarder + collectd/telegraf or API poll → HEC.\n• **Subcategory context**: Home Lab & Self-Hosting — typical feeds: Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`)..\n• **Sourcetypes in this search**: `proxmox:metric`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Proxmox VE** events into `index=personal` with `sourcetype=proxmox:metric`.\n\n**Collection method:** Universal Forwarder + collectd/telegraf or API poll → HEC.\n\n**Reference endpoint / path:** `GET /api2/json/nodes/{node}/qemu`.\n\n**Suggested poll interval:** 300s.\n\n**Key fields to extract:** `vmid, name, cpu, mem, disk, status`.\n\n**Typical connector stack:** Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC..\n\n**Author notes:** Forward Proxmox node metrics; schedule every 10 minutes and alert on sustained high CPU or memory.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"proxmox:metric\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=proxmox:metric earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Proxmox Node Resource Saturation** over `personal` data (primarily `sourcetype=proxmox:metric`) across the full search range. It applies numeric thresholds on `max_cpu` (> 90) after max, avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `max_cpu`, `max_mem`, `node`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=proxmox:metric\n| stats max(cpu_pct) as max_cpu, avg(cpu_pct) as avg_cpu, max(mem_pct) as max_mem by node\n| where max_cpu>90 OR max_mem>90\n| sort - max_cpu\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Proxmox web UI → node summary. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=proxmox:metric earliest=-7d\n| head 50\n| table max_cpu, max_mem, node\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=proxmox:metric earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `max_cpu` before alerting:\n\n```spl\nindex=personal sourcetype=proxmox:metric earliest=-30d\n| stats perc50(max_cpu) AS p50 perc90(max_cpu) AS p90 perc99(max_cpu) AS p99 max(max_cpu) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.8.3: Personal evidence` with the following panel layout:\n\n**Panel 1 — Heatmap Of Nodes By Peak Cpu And Memory (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Proxmox VE — no Proxmox VE events / missing fields:** If `proxmox:metric` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Proxmox VE connector script is still running (`systemctl status` or cron log).\n\n**Proxmox VE — NULL values in extracted fields:** The Proxmox VE JSON export shape drifted — compare a raw event (`index=personal sourcetype=proxmox:metric | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Proxmox VE — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Proxmox VE — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Proxmox VE APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It watches how hard your home server hosts are working, so you can rebalance before everything slows down.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

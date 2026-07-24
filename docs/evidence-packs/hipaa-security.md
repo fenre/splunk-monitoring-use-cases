@@ -74,43 +74,43 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 - **UC-10.12.16** — ePHI Access Audit
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-10-security-infrastructure/UC-10.12.16.json`](../../content/cat-10-security-infrastructure/UC-10.12.16.json)
 <a id='uc-17-1-31'></a>
 - **UC-17.1.31** — Cisco ISE<sup class="ref">[<a href="#ref-3">3</a>]</sup> Certificate Expiry and Trust-Chain Health
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.31.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.31.json)
 <a id='uc-17-1-38'></a>
 - **UC-17.1.38** — EAP-TLS Client Certificate Failure and Trust-Chain Validation
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.38.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.38.json)
 <a id='uc-17-1-43'></a>
 - **UC-17.1.43** — Cisco ISE TACACS+ Device Administration — Privileged Command Auditing
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.43.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.43.json)
 <a id='uc-17-1-47'></a>
 - **UC-17.1.47** — Cisco ISE Backup Job Success and Operational-Data Backup Validation
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.47.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.47.json)
 <a id='uc-17-1-50'></a>
 - **UC-17.1.50** — Cisco ISE — MDM/UEM Connector Health and Compliance Drift
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.50.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.50.json)
 <a id='uc-17-1-53'></a>
 - **UC-17.1.53** — Posture Remediation Funnel — Detection-to-Compliant Conversion Rate
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.53.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.53.json)
 <a id='uc-22-10-1'></a>
 - **UC-22.10.1** —
@@ -471,7 +471,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.19.0
+catalogue_version: 8.23.0
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
 ```

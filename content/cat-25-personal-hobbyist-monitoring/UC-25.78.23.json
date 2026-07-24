@@ -9,31 +9,55 @@
     "Compliance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Life-admin document records (`lifeadmin:document`), passport status (`passport:status`), warranty registrations (`warranty:registration`), document-scan index (`documentscan:index`), voter-registration records (`voter:registration`).",
-  "app": "Passport and document trackers, warranty-registration forms, document-scan indexes, and voter-registration reminders streamed to Splunk HEC via scripted inputs and mobile capture workflows.",
+  "exclusions": "Covers personal hobby monitoring for 'Voter Registration Readiness Due-Soon Queue' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_voter_registration_readiness_due_soon_queue` (UC-25.78.23), SOC dashboard panel \"Personal — Voter Registration Readiness Due-Soon Queue\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.78.23 positive (Voter, Registration, Readiness, Due, Soon): ingest synthetic events into `index=personal` sourcetype='voter:registration' where `count` grouped by `entity` satisfies `days_to_due` >= 0, or `days_to_due` <= 14 for 'Voter Registration Readiness Due-Soon Queue'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.78.23 negative (Soon Queue): ingest benign `personal` / `voter:registration` events where `entity` stays below `days_to_due` >= 0, or `days_to_due` <= 14, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'Voter Registration Readiness Due-Soon Queue'."
+  },
+  "dataSources": "Life-admin document records (`lifeadmin:document`), passport status (`passport:status`), warranty registrations (`warranty:registration`), document-scan index (`documentscan:index`), voter-registration records (`voter:registration`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Passport and document trackers, warranty-registration forms, document-scan indexes, and voter-registration reminders streamed to Splunk HEC via scripted inputs and mobile capture workflows. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=voter:registration\n| eval days_to_due=round((election_deadline_epoch-now())/86400,1)\n| where days_to_due>=0 AND days_to_due<=14 AND registration_status!=\"registered\"\n| table _time jurisdiction registration_status days_to_due\n| sort days_to_due",
-  "description": "Builds a queue of voter records that are due soon but not yet marked complete.",
-  "value": "Due-soon queues are what keep small admin tasks from turning into expensive or embarrassing misses.",
+  "description": "Surfaces UC-25.78.23 — Voter, Registration, Readiness, Due, Soon — using `index=personal` sourcetype `voter:registration`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `days_to_due` >= 0, or `days_to_due` <= 14. Primary focus: Soon Queue. Purpose-built for 'Voter Registration Readiness Due-Soon Queue' in Personal workflows.",
+  "value": "UC-25.78.23 operationalises 'Voter Registration Readiness Due-Soon Queue' against `voter:registration` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Populate `election_deadline_epoch` and normalize `registration_status` so the queue only shows genuinely actionable work.",
   "visualization": "Table of due-soon voter records sorted by days remaining.",
   "cimModels": [],
   "references": [
     {
       "title": "U.S. Department of State - Passports",
-      "url": "https://travel.state.gov/content/travel/en/passports.html"
+      "url": "https://travel.state.gov/content/travel/en/passports.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "FTC - Warranties",
-      "url": "https://consumer.ftc.gov/articles/warranties"
+      "url": "https://consumer.ftc.gov/articles/warranties",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Vote.gov",
-      "url": "https://vote.gov/"
+      "url": "https://vote.gov/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It blends which voter records are coming due soon and still need attention."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.78.23)** — Connector for 'Voter Registration Readiness Due-Soon Queue' stops polling `voter:registration`; stale `count` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.78.23, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `voter:registration`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_to_due` >= 0 for 'Voter Registration Readiness Due-Soon Queue'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Life Admin & Paperwork — typical feeds: Life-admin document records (`lifeadmin:document`), passport status (`passport:status`), warranty registrations (`warranty:registration`), document-scan index (`documentscan:index`), voter-registratio.\n• **Sourcetypes in this search**: `voter:registration`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=voter:registration`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Passport and document trackers, warranty-registration forms, document-scan indexes, and voter-registration reminders streamed to Splunk HEC via scripted inputs and mobile capture workflows..\n\n**Author notes:** Populate `election_deadline_epoch` and normalize `registration_status` so the queue only shows genuinely actionable work.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"voter:registration\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=voter:registration earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Voter Registration Readiness Due-Soon Queue** over `personal` data (primarily `sourcetype=voter:registration`) across the full search range. It applies numeric thresholds on `days_to_due` (>= 0) after aggregation — tune these constants to your household baseline.\n\n**Fields this search depends on:** `days_to_due`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=voter:registration\n| eval days_to_due=round((election_deadline_epoch-now())/86400,1)\n| where days_to_due>=0 AND days_to_due<=14 AND registration_status!=\"registered\"\n| table _time jurisdiction registration_status days_to_due\n| sort days_to_due\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=voter:registration earliest=-7d\n| head 50\n| table days_to_due\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=voter:registration earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `days_to_due` before alerting:\n\n```spl\nindex=personal sourcetype=voter:registration earliest=-30d\n| stats perc50(days_to_due) AS p50 perc90(days_to_due) AS p90 perc99(days_to_due) AS p99 max(days_to_due) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.78.23: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Due-Soon Voter Records Sorted By Days Remaining (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `voter:registration` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=voter:registration | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It blends which voter records are coming due soon and still need attention.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

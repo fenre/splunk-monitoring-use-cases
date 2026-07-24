@@ -8,6 +8,8 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'CMMC Compliance Assessment' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_cmmc_compliance_assessment` (UC-10.12.40), SOC dashboard panel \"Security Infra — CMMC Compliance Assessment\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "compliance": [
     {
       "regulation": "cmmc",
@@ -23,11 +25,15 @@
       "provenance": "maintainer"
     }
   ],
-  "dataSources": "`sourcetype=\"o365:audit\"`, `sourcetype=\"dlp:cui\"`",
-  "app": "Microsoft 365 GCC High, endpoint DLP",
+  "controlTest": {
+    "positiveScenario": "UC-10.12.40 positive (CMMC, Compliance, Assessment): ingest synthetic events into `index=cui` sourcetype='o365:audit' where `count` grouped by `UserId`, `SiteUrl`, `ObjectId` satisfies detection threshold for 'CMMC Compliance Assessment'. Validate filter `CUI_label=\"true\" AND SharingScope=\"Anyone\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.12.40 negative (Compliance Assessment): ingest benign `cui` / `o365:audit` events where `UserId`, `SiteUrl`, `ObjectId` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 11 confirms zero alert rows for 'CMMC Compliance Assessment'."
+  },
+  "dataSources": "`sourcetype=\"o365:audit\"`, `sourcetype=\"dlp:cui\"` Collected via Splunk Add-on for Microsoft Office 365 (Splunkbase 4054) modular input or scripted poll into the index named in the SPL.",
+  "app": "Microsoft 365 GCC High, endpoint DLP — Splunk Add-on for Microsoft Office 365 (Splunkbase 4054)",
   "spl": "index=cui sourcetype=\"o365:audit\" Workload=SharePoint\n| search CUI_label=\"true\" AND SharingScope=\"Anyone\"\n| stats count by UserId, SiteUrl, ObjectId\n| sort -count",
-  "description": "Tracks DFARS 7012 logging, FCI/CUI handling, and practice maturity for CMMC L2/L3.",
-  "value": "Tracks DFARS 7012 logging, FCI/CUI handling, and practice maturity for CMMC L2/L3.",
+  "description": "Identifies UC-10.12.40 — CMMC, Compliance, Assessment — using `index=cui` sourcetype `o365:audit`, grouped by `UserId`, `SiteUrl`, `ObjectId`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `CUI_label=\"true\" AND SharingScope=\"Anyone\"`. Purpose-built for 'CMMC Compliance Assessment' in Security Infra workflows.",
+  "value": "UC-10.12.40 helps teams contain CMMC, Compliance, Assessment scenarios and reduce missed threat campaigns, control regressions, and SOC SLA breaches before incidents compound.",
   "implementation": "Encrypt CUI at rest; block personal email domains; SSP alignment to CMMC domains.",
   "visualization": "Table (policy violations), Bar chart (practices), Heatmap (domain × status).",
   "cimModels": [
@@ -37,13 +43,39 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 4054",
+      "url": "https://splunkbase.splunk.com/app/4054",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "CMMC evidence gaps during POA&M work, CUI re-tagging, and assessor walk-through prep; time-bound remediation is common and expected in programs.",
+  "knownFalsePositives": "1. **Maintenance window on `cui` (UC-10.12.40)** — Planned work for 'CMMC Compliance Assessment' shifts `count` over `span=1h` while `UserId`, `SiteUrl`, `ObjectId` remains in-scope. Applies filter `CUI_label=\"true\" AND SharingScope=\"Anyone\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `o365:audit`** — Scheduled automation elevates `SiteUrl` without crossing configured threshold for UC-10.12.40. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `UserId`, `SiteUrl`, `ObjectId`** — Health checks in `cui` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `o365:audit`** — First 48h baseline for UC-10.12.40 on `UserId` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `UserId`, `exception_reason`, `valid_until`.",
   "equipment": [
+    "m365",
     "sharepoint"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Microsoft 365 GCC High, endpoint DLP.\n• Ensure the following data sources are available: `sourcetype=\"o365:audit\"`, `sourcetype=\"dlp:cui\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEncrypt CUI at rest; block personal email domains; SSP alignment to CMMC domains.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cui sourcetype=\"o365:audit\" Workload=SharePoint\n| search CUI_label=\"true\" AND SharingScope=\"Anyone\"\n| stats count by UserId, SiteUrl, ObjectId\n| sort -count\n```\n\nUnderstanding this SPL\n\n**CMMC Compliance Assessment** — Tracks DFARS 7012 logging, FCI/CUI handling, and practice maturity for CMMC L2/L3.\n\nDocumented **Data sources**: `sourcetype=\"o365:audit\"`, `sourcetype=\"dlp:cui\"`. **App/TA** (typical add-on context): Microsoft 365 GCC High, endpoint DLP. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cui; **sourcetype**: o365:audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cui, sourcetype=\"o365:audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by UserId, SiteUrl, ObjectId** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (policy violations), Bar chart (practices), Heatmap (domain × status).",
-  "grandmaExplanation": "In our line of business, we pay close attention to \"CMMC Compliance Assessment\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data."
+  "equipmentModels": [
+    "sharepoint_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Microsoft 365 GCC High, endpoint DLP.\n• Ensure the following data sources are available: `sourcetype=\"o365:audit\"`, `sourcetype=\"dlp:cui\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEncrypt CUI at rest; block personal email domains; SSP alignment to CMMC domains.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cui sourcetype=\"o365:audit\" Workload=SharePoint\n| search CUI_label=\"true\" AND SharingScope=\"Anyone\"\n| stats count by UserId, SiteUrl, ObjectId\n| sort -count\n```\n\nUnderstanding this SPL\n\n**CMMC Compliance Assessment** — Tracks DFARS 7012 logging, FCI/CUI handling, and practice maturity for CMMC L2/L3.\n\nDocumented **Data sources**: `sourcetype=\"o365:audit\"`, `sourcetype=\"dlp:cui\"`. **App/TA** (typical add-on context): Microsoft 365 GCC High, endpoint DLP. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cui; **sourcetype**: o365:audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cui, sourcetype=\"o365:audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by UserId, SiteUrl, ObjectId** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (policy violations), Bar chart (practices), Heatmap (domain × status).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Microsoft 365 GCC High, endpoint DLP — Splunk Add-on for Microsoft Office 365 (Splunkbase 4054)). Enable the modular input or HEC token that writes sourcetype=o365:audit into cui. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`ObjectId, SiteUrl, UserId`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "In our line of business, we pay close attention to \"CMMC Compliance Assessment\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

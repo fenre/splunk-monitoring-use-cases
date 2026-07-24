@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Webex Calling Queue Analytics API (queue stats, agent stats, wait times)",
-  "app": "`ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Calling Analytics API",
+  "exclusions": "Covers the detection logic documented for 'Webex Calling Queue Performance and SLA' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_webex_calling_queue_performance_and_sla` (UC-11.3.16), SOC dashboard panel \"Operations — Webex Calling Queue Performance and SLA\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.3.16 positive (Webex, Calling, Queue, Performance, and): ingest synthetic events into `index=webex` sourcetype='webex:calling_queue' where `avg_wait`, `abandoned`, `answered` grouped by `_time`, `queueName` satisfies `total` > 0, `avg_wait` <= 30, `abandon_rate` > 10, or `avg_wait` > 60 for 'Webex Calling Queue Performance and SLA'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.3.16 negative (and SLA): ingest benign `webex` / `webex:calling_queue` events where `_time`, `queueName` stays below `total` > 0, `avg_wait` <= 30, `abandon_rate` > 10, or `avg_wait` > 60, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Webex Calling Queue Performance and SLA'."
+  },
+  "dataSources": "Webex Calling Queue Analytics API (queue stats, agent stats, wait times) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Calling Analytics API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=webex sourcetype=\"webex:calling_queue\"\n| bin _time span=15m\n| stats avg(avgWaitTimeSec) as avg_wait, sum(abandonedCalls) as abandoned, sum(answeredCalls) as answered, sum(totalCalls) as total by _time, queueName\n| eval abandon_rate=if(total>0, round(abandoned/total*100, 1), 0)\n| eval sla_met=if(avg_wait<=30, \"Yes\", \"No\")\n| where abandon_rate > 10 OR avg_wait > 60\n| table _time, queueName, total, answered, abandoned, abandon_rate, avg_wait, sla_met",
-  "description": "Monitors call queue health metrics that directly impact customer experience: average wait time, abandon rate, SLA compliance, and agent availability. Enables real-time staffing decisions and long-term workforce planning. High abandon rates or long wait times indicate understaffing or routing problems that need immediate attention.",
-  "value": "Monitors call queue health metrics that directly impact customer experience: average wait time, abandon rate, SLA compliance, and agent availability. Enables real-time staffing decisions and long-term workforce planning. High abandon rates or long wait times indicate understaffing or routing problems that need immediate attention.",
+  "description": "Surfaces UC-11.3.16 — Webex, Calling, Queue, Performance, and — using `index=webex` sourcetype `webex:calling_queue`, grouped by `_time`, `queueName`. Outputs `avg_wait`, `abandoned`, `answered` each `15m`; alert when `total` > 0, `avg_wait` <= 30, `abandon_rate` > 10, or `avg_wait` > 60. Primary focus: and SLA. Purpose-built for 'Webex Calling Queue Performance and SLA' in Operations workflows.",
+  "value": "UC-11.3.16 accelerates insight into and SLA ('Webex Calling Queue Performance and SLA') by tracking `avg_wait`, `abandoned`, `answered` on `webex:calling_queue` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Integrate with the Webex Calling Analytics API to retrieve queue statistics. Poll every 15 minutes for near-real-time monitoring. Define SLA thresholds per queue (e.g., 80% of calls answered within 30 seconds). Alert when abandon rate exceeds 10% or average wait time exceeds 60 seconds. Create wallboard-style dashboards for supervisors showing live queue status.",
   "visualization": "Real-time single value panels (current queue depth, avg wait), Line chart (abandon rate over time), Column chart (calls by queue), Table (SLA compliance by queue and time).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Staffing surges, seasonal campaigns, and training days that change queue times.",
+  "knownFalsePositives": "1. **Maintenance window on `webex` (UC-11.3.16)** — Planned work for 'Webex Calling Queue Performance and SLA' shifts `avg_wait`, `abandoned`, `answered` over `span=15m` while `_time`, `queueName` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `webex:calling_queue`** — Scheduled automation elevates `queueName` without crossing `total` > 0 for UC-11.3.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `queueName`** — Health checks in `webex` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `webex:calling_queue`** — First 48h baseline for UC-11.3.16 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "github"
@@ -33,7 +55,13 @@
   "equipmentModels": [
     "cisco_webex"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Calling Analytics API.\n• Ensure the following data sources are available: Webex Calling Queue Analytics API (queue stats, agent stats, wait times).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIntegrate with the Webex Calling Analytics API to retrieve queue statistics. Poll every 15 minutes for near-real-time monitoring. Define SLA thresholds per queue (e.g., 80% of calls answered within 30 seconds). Alert when abandon rate exceeds 10% or average wait time exceeds 60 seconds. Create wallboard-style dashboards for supervisors showing live queue status.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=webex sourcetype=\"webex:calling_queue\"\n| bin _time span=15m\n| stats avg(avgWaitTimeSec) as avg_wait, sum(abandonedCalls) as abandoned, sum(answeredCalls) as answered, sum(totalCalls) as total by _time, queueName\n| eval abandon_rate=if(total>0, round(abandoned/total*100, 1), 0)\n| eval sla_met=if(avg_wait<=30, \"Yes\", \"No\")\n| where abandon_rate > 10 OR avg_wait > 60\n| table _time, queueName, total, answered, abandoned, abandon_rate, avg_wait, sla_met\n```\n\nUnderstanding this SPL\n\n**Webex Calling Queue Performance and SLA** — Monitors call queue health metrics that directly impact customer experience: average wait time, abandon rate, SLA compliance, and agent availability. Enables real-time staffing decisions and long-term workforce planning. High abandon rates or long wait times indicate understaffing or routing problems that need immediate attention.\n\nDocumented **Data sources**: Webex Calling Queue Analytics API (queue stats, agent stats, wait times). **App/TA** (typical add-on context): `ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Calling Analytics API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: webex; **sourcetype**: webex:calling_queue. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=webex, sourcetype=\"webex:calling_queue\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time, queueName** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **abandon_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **sla_met** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where abandon_rate > 10 OR avg_wait > 60` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Webex Calling Queue Performance and SLA**): table _time, queueName, total, answered, abandoned, abandon_rate, avg_wait, sla_met\n\n\nStep 3 — Validate\nCompare with Cisco Webex Control Hub analytics, audit, and service status for the same time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Real-time single value panels (current queue depth, avg wait), Line chart (abandon rate over time), Column chart (calls by queue), Table (SLA compliance by queue and time).",
   "grandmaExplanation": "We use this to stay ahead of email and collaboration problems, so the team is not the last to know when something drifts or breaks.",
-  "hardware": "Cisco Webex Calling, Webex Contact Center"
+  "hardware": "Cisco Webex Calling, Webex Contact Center",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

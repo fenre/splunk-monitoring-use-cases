@@ -8,35 +8,60 @@
     "Availability"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Highlights (`reading:highlight`), book activity (`reading:book`), reviews (`reading:review`), paper libraries (`research:paper`), sync states (`reading:sync`).",
-  "app": "Reading and second-brain telemetry — Readwise review exports, Kindle highlights, Goodreads shelves, and Zotero research libraries — streamed to Splunk HEC via APIs, exports, and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Readwise Daily Review Backlog' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_readwise_daily_review_backlog` (UC-25.47.19), SOC dashboard panel \"Personal — Readwise Daily Review Backlog\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.47.19 positive (Readwise, Daily, Review, Backlog): ingest synthetic events into `index=personal` sourcetype='reading:highlight' where `sum` grouped by `source_app` satisfies `backlog` > 0 for 'Readwise Daily Review Backlog'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.47.19 negative (Review Backlog): ingest benign `personal` / `reading:highlight` events where `source_app` stays below `backlog` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 4 confirms zero alert rows for 'Readwise Daily Review Backlog'."
+  },
+  "dataSources": "Highlights (`reading:highlight`), book activity (`reading:book`), reviews (`reading:review`), paper libraries (`research:paper`), sync states (`reading:sync`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Reading and second-brain telemetry — Readwise review exports, Kindle highlights, Goodreads shelves, and Zotero research libraries — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=reading:highlight source_app=\"readwise\" review_state=*\n| stats sum(eval(if(review_state!=\"done\",1,0))) as backlog, count as total by source_app\n| where backlog>0\n| sort - backlog",
-  "description": "Lists pending daily reviews backlog by source app for Readwise processing.",
-  "value": "Backlog counts expose where small unfinished tasks accumulate and create hidden drag inside Readwise processing.",
+  "description": "Surfaces risk tied to Readwise, Daily, Review, Backlog through UC-25.47.19 on `index=personal` sourcetype `reading:highlight`. Summarises `sum` grouped by `source_app` across `the scheduled window` before applying `backlog` > 0. Operators tune 'Readwise Daily Review Backlog' using UC-25.47.19 runbook steps.",
+  "value": "Tracking `activity` via UC-25.47.19 on `reading:highlight` feeds improves response to 'Readwise Daily Review Backlog' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Mark each `reading:highlight` record with a pending-state flag and summarize backlog totals by `source_app`.",
   "visualization": "Table of source app with pending daily reviews counts.",
   "cimModels": [],
   "references": [
     {
       "title": "Readwise — review workflow",
-      "url": "https://readwise.io/"
+      "url": "https://readwise.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Amazon Kindle",
-      "url": "https://www.amazon.com/kindle-dbs/fd/kcp"
+      "url": "https://www.amazon.com/kindle-dbs/fd/kcp",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Goodreads",
-      "url": "https://www.goodreads.com/"
+      "url": "https://www.goodreads.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Zotero",
-      "url": "https://www.zotero.org/"
+      "url": "https://www.zotero.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It checks where unfinished daily reviews are piling up so you can clear the biggest queues in Readwise processing."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.47.19)** — Connector for 'Readwise Daily Review Backlog' stops polling `reading:highlight`; stale `sum` on `source_app` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected for UC-25.47.19, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reading:highlight`. Dedup with `stats latest(*) by source_app`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `backlog` > 0 for 'Readwise Daily Review Backlog'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Reading & Second Brain — typical feeds: Reading progress (`reading:progress`), highlights (`highlight:capture`), note links (`note:link`), books finished (`book:finished`)..\n• **Sourcetypes in this search**: `reading:highlight`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=reading:highlight`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Reading and knowledge-management telemetry — Goodreads / StoryGraph libraries, Kindle highlights (Readwise), and note-graph exports (Obsidian, Notion) — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Mark each `reading:highlight` record with a pending-state flag and summarize backlog totals by `source_app`.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"reading:highlight\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=reading:highlight earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Readwise Daily Review Backlog** over `personal` data (primarily `sourcetype=reading:highlight`) across the full search range. It applies numeric thresholds on `backlog` (> 0) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `backlog`, `source_app`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=reading:highlight source_app=\"readwise\" review_state=*\n| stats sum(eval(if(review_state!=\"done\",1,0))) as backlog, count as total by source_app\n| where backlog>0\n| sort - backlog\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=reading:highlight earliest=-7d\n| head 50\n| table backlog, source_app\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=reading:highlight earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `backlog` before alerting:\n\n```spl\nindex=personal sourcetype=reading:highlight earliest=-30d\n| stats perc50(backlog) AS p50 perc90(backlog) AS p90 perc99(backlog) AS p99 max(backlog) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.47.19: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Source App With Pending Daily Reviews Counts (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `reading:highlight` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=reading:highlight | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It checks where unfinished daily reviews are piling up so you can clear the biggest queues in Readwise processing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

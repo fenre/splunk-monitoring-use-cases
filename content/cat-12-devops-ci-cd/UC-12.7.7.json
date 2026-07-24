@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=iac` `sourcetype=ansible:awx` metrics snapshot from Automation Controller `/api/v2/metrics/` or scheduled job inventory API",
-  "app": "AWX / Ansible Automation Platform metrics exporter to Splunk (scripted input)",
+  "exclusions": "Covers the detection logic documented for 'Ansible AWX Job Template Concurrent Execution Queue Depth' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ansible_awx_job_template_concurrent_execution_qu` (UC-12.7.7), SOC dashboard panel \"Operations — Ansible AWX Job Template Concurrent Execution Queue Depth\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.7.7 positive (Ansible, AWX, Job, Template, Concurrent): ingest synthetic events into `index=iac` sourcetype='ansible:awx' where `max_pending`, `max_running` grouped by `_time`, `controller_host` satisfies `max_pending` > 25 for 'Ansible AWX Job Template Concurrent Execution Queue Depth'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.7.7 negative (Queue Depth): ingest benign `iac` / `ansible:awx` events where `_time`, `controller_host` stays below `max_pending` > 25, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Ansible AWX Job Template Concurrent Execution Queue Depth'."
+  },
+  "dataSources": "`index=iac` `sourcetype=ansible:awx` metrics snapshot from Automation Controller `/api/v2/metrics/` or scheduled job inventory API Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "AWX / Ansible Automation Platform metrics exporter to Splunk (scripted input) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=iac sourcetype=\"ansible:awx\"\n| eval pending=coalesce(pending_jobs, queue_pending, jobs_pending)\n| eval running=coalesce(running_jobs, jobs_running)\n| where isnotnull(pending)\n| bin _time span=5m\n| stats max(pending) as max_pending, max(running) as max_running, latest(instance_group) as ig by _time, controller_host\n| where max_pending > 25\n| sort -max_pending",
-  "description": "AWX serializes work across instance groups; a growing pending queue means execution capacity, database performance, or container limits are saturated. Early detection preserves SLA for patching and compliance runs that must finish overnight.",
-  "value": "Avoids surprise job backlog during patch Tuesday and informs horizontal scaling of execution planes.",
+  "description": "Monitors UC-12.7.7 — Ansible, AWX, Job, Template, Concurrent — using `index=iac` sourcetype `ansible:awx`, grouped by `_time`, `controller_host`. Outputs `max_pending`, `max_running` each `5m`; alert when `max_pending` > 25. Primary focus: Queue Depth. Purpose-built for 'Ansible AWX Job Template Concurrent Execution Queue Depth' in Operations workflows.",
+  "value": "UC-12.7.7 operationalises 'Ansible AWX Job Template Concurrent Execution Queue Depth' against `ansible:awx` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Poll `/api/v2/metrics/` or custom telemetry job that emits pending_jobs and running_jobs per controller. Tag `instance_group`. Correlate with PostgreSQL latency and container CPU on execution nodes.",
   "visualization": "Area chart (pending vs running over time), single-value gauge (max pending), table by instance group.",
   "cimModels": [
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "Red Hat Ansible Automation Platform — Metrics",
-      "url": "https://docs.ansible.com/"
+      "url": "https://docs.ansible.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Build times vary with cache state, runner availability, or test suite expansion.",
+  "knownFalsePositives": "1. **Maintenance window on `iac` (UC-12.7.7)** — Planned work for 'Ansible AWX Job Template Concurrent Execution Queue Depth' shifts `max_pending`, `max_running` over `span=5m` while `_time`, `controller_host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `ansible:awx`** — Scheduled automation elevates `controller_host` without crossing `max_pending` > 25 for UC-12.7.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `controller_host`** — Health checks in `iac` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ansible:awx`** — First 48h baseline for UC-12.7.7 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ansible",
     "postgresql"
@@ -46,5 +64,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch queueing and wait time so developers are not stuck behind broken runners or clogged pipelines."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (AWX / Ansible Automation Platform metrics exporter to Splunk (scripted input) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ansible:awx into iac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, controller_host, max_pending`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch queueing and wait time so developers are not stuck behind broken runners or clogged pipelines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

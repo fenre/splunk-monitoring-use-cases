@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`zscaler:device_posture`, `zt:device_trust`",
-  "app": "`Splunk_TA_zscaler`, `Splunk_TA_microsoft-cloudservices` (Entra ID), `TA-crowdstrike-falcon`",
+  "exclusions": "Covers the detection logic documented for 'Device Trust Score Trending' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_device_trust_score_trending` (UC-17.3.18), SOC dashboard panel \"Network — Device Trust Score Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.18 positive (Device, Trust, Score, Trending): ingest synthetic events into `index=zt` sourcetype='zscaler:device_posture' where `avg_trust` grouped by `os_type` satisfies -30d for 'Device Trust Score Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.18 negative (Score Trending): ingest benign `zt` / `zscaler:device_posture` events where `os_type` stays below -30d, or exclude the test entity via `network_exception_register.csv`. Variant 4 confirms zero alert rows for 'Device Trust Score Trending'."
+  },
+  "dataSources": "`zscaler:device_posture`, `zt:device_trust` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_zscaler`, `Splunk_TA_microsoft-cloudservices` (Entra ID), `TA-crowdstrike-falcon` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=zt sourcetype=\"zscaler:device_posture\" earliest=-30d\n| timechart span=1d avg(trust_score) as avg_trust by os_type",
-  "description": "Fleet-level and cohort trend of device trust scores — extends point-in-time UC-17.3.2.",
-  "value": "Zero Trust teams track how device trust scores trend over time across the entire fleet, monitoring the bottom quartile (least trusted devices) to detect whether the attack surface is expanding and prioritize remediation efforts on the weakest devices.",
+  "description": "Monitors risk tied to Device, Trust, Score, Trending through UC-17.3.18 on `index=zt` sourcetype `zscaler:device_posture`. Summarises `avg_trust` grouped by `os_type` across `1d` before applying -30d. Operators tune 'Device Trust Score Trending' using UC-17.3.18 runbook steps.",
+  "value": "Tracking `avg_trust` via UC-17.3.18 on `zscaler:device_posture` feeds improves response to 'Device Trust Score Trending' and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Ensure `trust_score` is numeric 0–100. Alert when 7-day moving average drops >10 points for Windows corporate fleet.",
   "visualization": "Line chart (avg trust by OS), Single value (fleet avg), Area chart (distribution).",
   "cimModels": [],
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110"
+      "url": "https://splunkbase.splunk.com/app/3110",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Posture failures during scheduled patch cycles, OS upgrades, or after AV definition rotations.",
+  "knownFalsePositives": "1. **Remote workforce login storm** — Morning VPN/ZTNA session spike for 'Device Trust Score Trending'. Compare with historical same-hour baseline.\n\n2. **IdP or SAML metadata refresh** — Brief auth failures during federation cert rotation.\n\n3. **Split-tunnel policy change** — New route advertisements shift traffic patterns.\n\n4. **Synthetic ZTNA health checks** — Monitoring probes from known appliance IPs.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `src`, `valid_until`.",
   "mitreAttack": [
     "T1200"
   ],
@@ -38,6 +56,17 @@
     "m365",
     "zscaler"
   ],
+  "equipmentModels": [
+    "azure_generic",
+    "crowdstrike_generic",
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Device trust signals from multiple sources: Microsoft Intune compliance (`sourcetype=ms:intune:compliance`), CrowdStrike ZTA scores (`sourcetype=crowdstrike:zta`), Zscaler posture profiles (`sourcetype=zscaler:zpa:user_activity`). Data in `index=azure` or `index=crowdstrike` or `index=ztna`.\n• This UC tracks how device trust scores change over time across the fleet. Unlike UC-17.3.2 (point-in-time scoring), this UC focuses on the trend: are devices becoming more or less trustworthy over time?\n\nStep 1 — Configure data collection\nVerify device trust data availability:\n```spl\n(index=azure sourcetype=\"ms:intune:compliance\")\nOR (index=crowdstrike sourcetype=\"crowdstrike:zta\")\n| stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Trust score trending:\n```spl\nindex=crowdstrike sourcetype=\"crowdstrike:zta\" earliest=-30d\n| bin _time span=1d\n| stats avg(score) as avg_score perc25(score) as p25_score median(score) as median_score perc75(score) as p75_score by _time\n| eval avg_score=round(avg_score, 1)\n```\n\nUnderstanding this SPL: Tracks the distribution of CrowdStrike Zero Trust Assessment scores over 30 days. The P25 (bottom quartile) is the most important metric — it represents the least trusted 25% of the fleet. If P25 is trending down, the weakest devices are getting weaker, which means the attack surface is expanding. The median trend shows overall fleet health.\n\nCompliance status change tracking:\n```spl\nindex=azure sourcetype=\"ms:intune:compliance\" earliest=-7d\n| sort deviceId _time\n| streamstats current=f last(complianceState) as prev_state by deviceId\n| where prev_state!=complianceState\n| stats count by prev_state, complianceState\n```\n\nStep 3 — Validate\n(a) Check CrowdStrike Falcon: Discover > Zero Trust Assessment.\n(b) Change a device's compliance state and verify the transition appears.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Trust score distribution over time (area chart). Row 2 — Compliance state transitions. Row 3 — Devices with declining scores.\nAlert: When fleet P25 score drops below 50.\n\nRunbook:\n1. **P25 declining** — Identify the low-scoring devices. Focus remediation on the bottom quartile.\n2. **Mass compliance state change** — Intune policy change. Verify intent.\n3. **Individual score drop** — CrowdStrike sensor may be unhealthy. Check device.\n\nStep 5 — Troubleshooting\n• **No CrowdStrike ZTA data** — ZTA feature may require a specific CrowdStrike module.\n• **Scores always 100** — ZTA scoring may not be configured with checks. Review CrowdStrike ZTA policies.",
-  "grandmaExplanation": "We track the health score of every device over time, paying special attention to the lowest-scoring ones. If the weakest devices are getting worse instead of better, it means our security is slipping and we need to focus on fixing those devices before they become entry points for attackers."
+  "grandmaExplanation": "We track the health score of every device over time, paying special attention to the lowest-scoring ones. If the weakest devices are getting worse instead of better, it means our security is slipping and we need to focus on fixing those devices before they become entry points for attackers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

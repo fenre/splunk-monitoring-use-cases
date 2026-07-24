@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Force any UC-22.56.x violation. UC-22.56.28 MUST reflect within 24h.",
-    "negativeScenario": "Resolve all violations. UC-22.56.28 MUST roll up green."
+    "positiveScenario": "UC-22.56.28 positive (TSA, multi, modal, master, compliance): ingest synthetic events into `index=audit_evidence` sourcetype='target_sourcetype' where `count` grouped by `uc` satisfies `hours_since_evidence` > 48 for 'TSA-SD multi-modal master compliance dashboard + executive attestation roll-up'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.56.28 negative (roll up): ingest benign `audit_evidence` / `target_sourcetype` events where `uc` stays below `hours_since_evidence` > 48, or exclude the test entity via `compliance_exception_register.csv`. Variant 11 confirms zero alert rows for 'TSA-SD multi-modal master compliance dashboard + executive attestation roll-up'."
   },
   "dataSources": "`audit_evidence` index searches across all UC-22.56.x markers. Executive attestation register (KV Store `tsa_executive_attestation_lookup`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "search index=audit_evidence reg=TSA-Surface earliest=-30d@d\n| eval uc = case(\n    match(_raw, \"uc=22\\.56\\.\"), \"22.56.\" + replace(_raw, \".*uc=22\\.56\\.(\\d+).*\", \"\\1\"),\n    1=1, \"unknown\")\n| stats count as evidence_rows latest(_time) as last_evidence by uc\n| eval hours_since_evidence = round((now() - last_evidence) / 3600, 1)\n| eval health = case(\n    hours_since_evidence > 48, \"stale\",\n    evidence_rows = 0, \"missing\",\n    1=1, \"current\")\n| sort uc\n| table uc evidence_rows last_evidence hours_since_evidence health",
-  "description": "Roll-up panel showing UC-22.56.x compliance health for an inspector-facing scorecard.",
-  "value": "Single dashboard for CC + CISO + Board + inspector. Closes the audit-trail loop on TSA SD subcategory.",
+  "description": "Monitors UC-22.56.28 — TSA, multi, modal, master, compliance — using `index=audit_evidence` sourcetype `configured sourcetype`, grouped by `uc`. Outputs `count` each `the scheduled window`; alert when `hours_since_evidence` > 48. Primary focus: roll up. Purpose-built for 'TSA-SD multi-modal master compliance dashboard + executive attestation roll-up' in Compliance workflows.",
+  "value": "UC-22.56.28 helps teams contain TSA, multi, modal, master, compliance scenarios and reduce audit findings, regulatory gaps, and attestation delays before incidents compound.",
   "implementation": "(1) Schedule UC-22.56.28 daily. (2) Build `TSA SD Master Scorecard` dashboard. (3) Wire monthly executive attestation to roll-up.",
   "visualization": "(Panel 1) Per-UC health row. (Panel 2) 30-day trend. (Panel 3) Top-3 outstanding issues. (Panel 4) Executive attestation history.",
   "cimModels": [
@@ -46,10 +46,26 @@
   "references": [
     {
       "title": "TSA SD Cybersecurity Roll-Up Expectations",
-      "url": "https://www.tsa.gov/cybersecurity"
+      "url": "https://www.tsa.gov/cybersecurity",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 263",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1621",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Alerts",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **UC search lag**: roll-up may show stale due to upstream UC cadence; tune `hours_since_evidence` per UC.\n\n**Suppression mechanism**: KV Store `tsa_22_56_28_exceptions`.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD multi-modal master compliance dashboard + executive attestation roll-up' (UC-22.56.28) on `uc` during scheduled clause TSA-SCAS-master-rollup sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `hours_since_evidence` > 48. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `uc`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `uc` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `uc`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (governance roll-up)"
   ],
@@ -74,7 +90,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- All UC-22.56.1 through UC-22.56.27 running and writing to `audit_evidence`.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.56.28: TSA SD Master Roll-Up]\ncron_schedule = 33 11 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.28,reg=TSA-Surface,clause=TSA-SD-multi-master-rollup\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\nMonthly executive attestation: CC reviews the dashboard with CISO and signs off. Quarterly board pack derives from this UC.\n\n## Step 3 — Troubleshooting\n\n- **UC drift**: a UC silently failing produces a 'stale' marker; investigate that UC, not the roll-up.\n\n**TSA-specific failure modes**:\n- **Inspector deep-dive on individual UC**: ensure each UC's underlying evidence stands alone.",
+  "detailedImplementation": "## Prerequisites\n\n- All UC-22.56.1 through UC-22.56.27 running and writing to `audit_evidence`.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.56.28: TSA SD Master Roll-Up]\ncron_schedule = 33 11 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.28,reg=TSA-Surface,clause=TSA-SD-multi-master-rollup\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\nMonthly executive attestation: CC reviews the dashboard with CISO and signs off. Quarterly board pack derives from this UC.\n\n## Step 3 — Troubleshooting\n\n- **UC drift**: a UC silently failing produces a 'stale' marker; investigate that UC, not the roll-up.\n\n**TSA-specific failure modes**:\n- **Inspector deep-dive on individual UC**: ensure each UC's underlying evidence stands alone.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=see SPL into audit_evidence. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`health, hours_since_evidence, uc`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "All the smaller TSA cyber checks roll up into one big dashboard. The boss can see one screen and know whether anything is wrong.",
   "prerequisiteUseCases": [
     "UC-22.56.1",

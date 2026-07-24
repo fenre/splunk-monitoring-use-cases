@@ -9,31 +9,57 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:worker`, `airflow:task`), REST API `/dags/*/dagRuns`, StatsD counters (`airflow:statsd`), and metadata tables via DB Connect.",
-  "app": "Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect.",
+  "exclusions": "Covers the detection logic documented for 'Airflow Task Queue Latency' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_airflow_task_queue_latency` (UC-24.7.16), SOC dashboard panel \"Operations — Airflow Task Queue Latency\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.7.16 positive (Airflow, Task, Queue, Latency): ingest synthetic events into `index=bi` sourcetype='airflow:task' where `avg_s` grouped by `queue` satisfies `p95_s` > 120 for 'Airflow Task Queue Latency'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.16 negative (Queue Latency): ingest benign `bi` / `airflow:task` events where `queue` stays below `p95_s` > 120, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Airflow Task Queue Latency'."
+  },
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:worker`, `airflow:task`), REST API `/dags/*/dagRuns`, StatsD counters (`airflow:statsd`), and metadata tables via DB Connect. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=airflow:task\n| eval queue_latency=queued_duration\n| stats avg(queue_latency) as avg_s, p95(queue_latency) as p95_s by queue\n| where p95_s>120\n| sort - p95_s",
-  "description": "Computes how long tasks sit in the queued state before a worker picks them up, broken down by executor queue, to reveal worker-capacity shortfalls.",
-  "value": "High queue latency means tasks are ready but there are not enough workers; quantifying it per queue drives right-sized autoscaling and protects SLAs.",
+  "description": "Detects UC-24.7.16 — Airflow, Task, Queue, Latency — using `index=bi` sourcetype `airflow:task`, grouped by `queue`. Outputs `avg_s` each `the scheduled window`; alert when `p95_s` > 120. Primary focus: Queue Latency. Purpose-built for 'Airflow Task Queue Latency' in Operations workflows.",
+  "value": "UC-24.7.16 accelerates insight into Queue Latency ('Airflow Task Queue Latency') by tracking `avg_s` on `airflow:task` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Derive queued duration from task instance start vs. queued timestamps (logs or metadata DB); schedule hourly and alert when p95 latency crosses your window.",
   "visualization": "Table of queue by p95 latency, timechart of queue wait.",
   "cimModels": [],
   "references": [
     {
       "title": "Apache Airflow — REST API reference",
-      "url": "https://airflow.apache.org/docs/apache-airflow/stable/stable-rest-api-ref.html"
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/stable-rest-api-ref.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apache Airflow — Logging & Monitoring / Metrics",
-      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.16)** — Planned work for 'Airflow Task Queue Latency' shifts `avg_s` over `span=1h` while `queue` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `airflow:task`** — Scheduled automation elevates `queue_latency` without crossing `p95_s` > 120 for UC-24.7.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `queue`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:task`** — First 48h baseline for UC-24.7.16 on `queue` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `queue`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "opentelemetry"
   ],
-  "grandmaExplanation": "We measure how long pipeline jobs wait for a free worker so you know when to add capacity before things run late."
+  "equipmentModels": [
+    "db_connect_generic",
+    "opentelemetry_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=airflow:task into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`p95_s, queue`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We measure how long pipeline jobs wait for a free worker so you know when to add capacity before things run late.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

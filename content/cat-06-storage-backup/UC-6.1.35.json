@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Pure FlashBlade File System Space Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_pure_flashblade_file_system_space_utilization` (UC-6.1.35), SOC dashboard panel \"Operations — Pure FlashBlade File System Space Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.1.35 positive (Pure, FlashBlade, File, System, Space): ingest synthetic events into `index=storage` sourcetype='purestorage:*' where `count` grouped by `array_name`, `filesystem_name` satisfies `pct_used` > 85 for 'Pure FlashBlade File System Space Utilization'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.35 negative (Space Utilization): ingest benign `storage` / `purestorage:*` events where `array_name`, `filesystem_name` stays below `pct_used` > 85, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Pure FlashBlade File System Space Utilization'."
+  },
   "dataSources": "FlashBlade REST file-system capacity collected by the Pure Storage Unified Add-on (`purestorage:*` JSON events) or forwarded FlashBlade alerts",
   "app": "Pure Storage Unified Add-on for Splunk (Splunkbase 5513), Pure Storage Unified App (5514)",
   "spl": "index=storage (sourcetype=\"purestorage:*\" OR sourcetype=\"PureStorage_REST\")\n| eval used=coalesce(fs_used_bytes, filesystem_used_bytes, used_bytes)\n| eval total=coalesce(fs_total_bytes, filesystem_size_bytes, total_bytes)\n| eval pct_used=round(used/total*100,2)\n| where isnotnull(pct_used) AND pct_used > 85\n| stats latest(pct_used) as pct_used latest(used) as used_b latest(total) as total_b by array_name filesystem_name\n| sort - pct_used",
-  "description": "FlashBlade multiprotocol file systems that exceed expected utilization risk writer errors, snapshot failures, and pipeline stalls for analytics and HPC landing zones.",
-  "value": "Provides the same proactive runway discipline as block volumes, but for massive file and small-file workloads where a full filesystem stops entire data pipelines.",
+  "description": "Monitors UC-6.1.35 for Pure, FlashBlade, File, System, Space over `index=storage` sourcetype `purestorage:*` with thresholds `pct_used` > 85. Groups `count` by `array_name`, `filesystem_name` each `the scheduled window`. Centered on Space Utilization indicators. Supports repeatable operations triage for 'Pure FlashBlade File System Space Utilization'.",
+  "value": "For 'Pure FlashBlade File System Space Utilization', UC-6.1.35 converts `activity` on `purestorage:*` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Enable file-system inventory inputs on each FlashBlade blade in the Unified Add-on. Map REST `space.virtual` / `space.data` fields into `used_bytes` and `total_bytes` if your TA build uses different keys. Warn at 85% and page at 92% unless the filesystem is a known scratch volume.",
   "visualization": "Bar chart (utilization by filesystem), table (top consumers), line chart (7-day growth).",
   "cimModels": [
@@ -24,20 +30,31 @@
   "references": [
     {
       "title": "Pure Storage Unified App for Splunk (Splunkbase)",
-      "url": "https://splunkbase.splunk.com/app/5514"
+      "url": "https://splunkbase.splunk.com/app/5514",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Pure Storage Unified Add-on for Splunk (Splunkbase)",
-      "url": "https://splunkbase.splunk.com/app/5513"
+      "url": "https://splunkbase.splunk.com/app/5513",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.35)** — Planned work for 'Pure FlashBlade File System Space Utilization' shifts `count` over `span=1h` while `array_name`, `filesystem_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `purestorage:*`** — Scheduled automation elevates `filesystem_name` without crossing `pct_used` > 85 for UC-6.1.35. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `array_name`, `filesystem_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `purestorage:*`** — First 48h baseline for UC-6.1.35 on `array_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `array_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "pure_storage"
+  ],
+  "equipmentModels": [
+    "pure_storage_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -46,5 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Pure Storage Unified Add-on for Splunk (Splunkbase 5513), Pure Storage Unified App (5514)). Enable the modular input or HEC token that writes sourcetype=purestorage:, PureStorage_REST into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`array_name, filesystem_name, pct_used`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=messaging` `sourcetype=activemq:log` (`activemq.log` lines referencing producer flow control, blocked producers, or usage limits)",
-  "app": "Splunk Universal Forwarder monitoring `activemq.log` / `wrapper.log`",
+  "exclusions": "Covers the detection logic documented for 'ActiveMQ Producer Flow Control Activation Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_activemq_producer_flow_control_activation_events` (UC-8.5.33), SOC dashboard panel \"Operations — ActiveMQ Producer Flow Control Activation Events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.5.33 positive (ActiveMQ, Producer, Flow, Control, Activation): ingest synthetic events into `index=messaging` sourcetype='activemq:log' where `count` grouped by `host`, `usage_component` satisfies `flow_events` >= 3 for 'ActiveMQ Producer Flow Control Activation Events'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.5.33 negative (Activation Events): ingest benign `messaging` / `activemq:log` events where `host`, `usage_component` stays below `flow_events` >= 3, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'ActiveMQ Producer Flow Control Activation Events'."
+  },
+  "dataSources": "`index=messaging` `sourcetype=activemq:log` (`activemq.log` lines referencing producer flow control, blocked producers, or usage limits) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder monitoring `activemq.log` / `wrapper.log` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=messaging sourcetype=\"activemq:log\" earliest=-24h\n| regex _raw=\"(?i)Producer Flow Control|blocking message production|BlockingProducer|Usage Manager.*(Memory|Store|Temp)|message production.*blocked\"\n| rex field=_raw max_match=1 \"(?i)(?<usage_component>Memory|Store|Temp)(?:\\s+[Uu]sage)?\"\n| stats count as flow_events latest(_raw) as sample by host, usage_component\n| where flow_events >= 3\n| sort -flow_events",
-  "description": "When memory, store, or temp usage crosses configured watermarks, ActiveMQ enables producer flow control and publishers stall—often the first user-visible symptom of downstream consumer slowness or oversized messages. Log lines mentioning flow control are high-signal operational events.",
-  "value": "Shortens MTTR for send-timeouts and thread pileups in producers by proving the broker deliberately slowed publishers rather than a vague network fault.",
+  "description": "Monitors UC-8.5.33 — ActiveMQ, Producer, Flow, Control, Activation — using `index=messaging` sourcetype `activemq:log`, grouped by `host`, `usage_component`. Outputs `count` each `the scheduled window`; alert when `flow_events` >= 3. Primary focus: Activation Events. Purpose-built for 'ActiveMQ Producer Flow Control Activation Events' in Operations workflows.",
+  "value": "UC-8.5.33 gives Operations teams earlier visibility into Activation Events through `activemq:log` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Set log level to capture INFO/WARN usage-manager messages in production (avoid DEBUG noise). Dedupe on host + minute for paging. Correlate with `activemq:broker` usage percentages from JMX on the same timestamp.",
   "visualization": "Timeline of flow-control keywords, top hosts by event count, drilldown to raw log sample.",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "Apache ActiveMQ — Producer Flow Control",
-      "url": "https://activemq.apache.org/producer-flow-control"
+      "url": "https://activemq.apache.org/producer-flow-control",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apache ActiveMQ — Features",
-      "url": "https://activemq.apache.org/features"
+      "url": "https://activemq.apache.org/features",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Queues and broker metrics swing during rebalancing, replay, or maintenance. We align with change windows.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging` (UC-8.5.33)** — Planned work for 'ActiveMQ Producer Flow Control Activation Events' shifts `count` over `span=1h` while `host`, `usage_component` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `activemq:log`** — Scheduled automation elevates `usage_component` without crossing `flow_events` >= 3 for UC-8.5.33. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `usage_component`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `activemq:log`** — First 48h baseline for UC-8.5.33 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "activemq"
+  ],
+  "equipmentModels": [
+    "activemq_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-06-01",
@@ -41,6 +62,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to shortens MTTR for send-timeouts and thread pileups in producers by proving the broker deliberately slowed publishers rather than a vague network fault."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder monitoring `activemq.log` / `wrapper.log` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=activemq:log into messaging. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`flow_events, host, usage_component`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to shortens MTTR for send-timeouts and thread pileups in producers by proving the broker deliberately slowed publishers rather than a vague network fault.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

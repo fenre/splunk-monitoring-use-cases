@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=f5:bigip:asm:syslog`",
-  "app": "`Splunk_TA_f5-bigip` (ASM)",
+  "exclusions": "Covers the detection logic documented for 'WAF Policy Violations (F5 BIG-IP ASM)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_waf_policy_violations_f5_big_ip_asm` (UC-5.3.8), SOC dashboard panel \"Operations — WAF Policy Violations (F5 BIG-IP ASM)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.3.8 positive (WAF, Policy, Violations, (F5, BIG): ingest synthetic events into `index=network` sourcetype='f5:bigip:asm:syslog' where `count` grouped by `violation_name`, `src`, `request_uri`, `severity` satisfies detection threshold for 'WAF Policy Violations (F5 BIG-IP ASM)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.3.8 negative (IP ASM)): ingest benign `network` / `f5:bigip:asm:syslog` events where `violation_name`, `src`, `request_uri`, `severity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'WAF Policy Violations (F5 BIG-IP ASM)'."
+  },
+  "dataSources": "`sourcetype=f5:bigip:asm:syslog` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_f5-bigip` (ASM) — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=network sourcetype=\"f5:bigip:asm:syslog\"\n| stats count by violation_name, src, request_uri, severity | sort -count",
-  "description": "WAF violations indicate attacks — SQL injection, XSS, command injection. Trending reveals campaigns.",
-  "value": "Security teams analyze F5 BIG-IP ASM/Advanced WAF policy violations by attack type, severity, and enforcement action, identifying unblocked critical attacks and top threat sources for policy tuning.",
+  "description": "Identifies UC-5.3.8 — WAF, Policy, Violations, (F5, BIG — using `index=network` sourcetype `f5:bigip:asm:syslog`, grouped by `violation_name`, `src`, `request_uri`, `severity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: IP ASM). Purpose-built for 'WAF Policy Violations (F5 BIG-IP ASM)' in Operations workflows.",
+  "value": "Tracking `activity` via UC-5.3.8 on `f5:bigip:asm:syslog` feeds improves response to 'WAF Policy Violations (F5 BIG-IP ASM)' and reduces operational risk and delayed incident response.",
   "implementation": "Enable F5 ASM logging. Dashboard showing top violations, attack sources, and targeted URIs.",
   "visualization": "Table, Bar chart by violation, Map (source IPs), Timeline.",
   "cimModels": [],
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "Splunk_TA_f5-bigip",
-      "url": "https://splunkbase.splunk.com/app/2680"
+      "url": "https://splunkbase.splunk.com/app/2680",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Intrusion_Detection",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Scanners, pen tests, and legacy browser quirks can make a web application firewall look busy; tune rules and test traffic.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.3.8)** — Planned work for 'WAF Policy Violations (F5 BIG-IP ASM)' shifts `count` over `span=1h` while `violation_name`, `src`, `request_uri`, `severity` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `f5:bigip:asm:syslog`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.3.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `violation_name`, `src`, `request_uri`, `severity`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `f5:bigip:asm:syslog`** — First 48h baseline for UC-5.3.8 on `violation_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `violation_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "f5",
     "syslog"
@@ -37,6 +55,12 @@
     "f5_asm",
     "f5_bigip"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* F5 BIG-IP ASM (Application Security Manager) / Advanced WAF logs forwarded to Splunk. Data in `index=network` with `sourcetype=f5:bigip:asm:syslog` or `sourcetype=f5:bigip:asm:request`. Key fields: `violations`, `severity`, `attack_type`, `sig_name`, `request_url`, `source_ip`, `response_code`, `policy_name`, `action` (blocked/alarmed/passed).\n* F5 ASM remote logging: Security > Event Logs > Logging Profiles > create profile > enable Remote Storage to Splunk syslog or use HSL (High Speed Logging) to a Splunk pool.\n\nStep 1 -- Configure data collection\nConfigure ASM remote logging:\n```\ntmsh create security log profile splunk_asm application add { asm_logging { remote-storage splunk servers add { <splunk_ip>:<port> } filter { request-type illegal-including-staged-signatures } } }\ntmsh modify ltm virtual <vs> security-log-profiles add { splunk_asm }\n```\n\nVerify:\n```spl\nindex=network (sourcetype=\"f5:bigip:asm:syslog\" OR sourcetype=\"f5:bigip:asm:request\") earliest=-4h\n| stats count by attack_type, action\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- WAF violation analysis:**\n```spl\nindex=network (sourcetype=\"f5:bigip:asm:syslog\" OR sourcetype=\"f5:bigip:asm:request\") earliest=-4h\n| eval attack=coalesce(attack_type, violation_type, sig_name)\n| eval action_taken=coalesce(action, enforcement_action)\n| stats count as violations dc(source_ip) as unique_sources values(request_url) as target_urls by attack, action_taken, policy_name, severity\n| eval risk=case(severity=\"Critical\" AND action_taken=\"blocked\", \"HIGH -- blocked critical attack\", severity=\"Critical\" AND action_taken!=\"blocked\", \"CRITICAL -- critical attack NOT blocked\", action_taken=\"alarmed\" AND violations > 50, \"WARNING -- high volume alarm only\", 1==1, \"INFO\")\n| sort risk, -violations\n```\n\n**Top attack sources:**\n```spl\nindex=network (sourcetype=\"f5:bigip:asm:syslog\" OR sourcetype=\"f5:bigip:asm:request\") earliest=-4h\n| eval attack=coalesce(attack_type, violation_type)\n| stats count as violations dc(attack) as attack_types values(attack) as attacks by source_ip\n| where violations > 10\n| sort -violations\n| head 20\n```\n\nStep 3 -- Validate\n(a) Send a test XSS payload to a protected VIP and verify the violation appears in Splunk.\n(b) Compare violation counts with F5 ASM: Security > Event Logs > Application > Requests.\n(c) Verify that \"blocked\" vs \"alarmed\" actions align with the ASM policy mode (blocking vs transparent).\n\nStep 4 -- Operationalize\nDashboard (\"F5 ASM -- WAF Violations\"):\n* Row 1 -- Single-value: \"Total violations\", \"Blocked attacks\", \"Critical unblocked\", \"Unique attackers\".\n* Row 2 -- Attack type breakdown with action and severity.\n* Row 3 -- Top attacker IP addresses.\n\nAlerting:\n* Critical (critical severity violation NOT blocked): policy may be in transparent mode -- review.\n* High (> 100 violations from single IP in 15 min): targeted attack -- consider blocking IP.\n* Warning (new attack type seen): review and tune policy.\n\nStep 5 -- Troubleshooting\n\n* **High false positive rate** -- ASM policy may be too strict. Review violations in F5: Security > Application Security > Traffic Learning. Accept legitimate learning suggestions to reduce false positives.\n\n* **Violations show \"alarmed\" not \"blocked\"** -- ASM policy is in Transparent mode. To enforce: Security > Application Security > Policy > General Settings > Enforcement Mode: Blocking.\n\n* **No ASM data in Splunk** -- Check: (1) logging profile is attached to the virtual server, (2) remote storage destination is correct, (3) HSL pool members are up.",
-  "grandmaExplanation": "We add up web application blocks on the same box so real attacks and risky paths stand out from everyday browsing noise with less guesswork."
+  "grandmaExplanation": "We add up web application blocks on the same box so real attacks and risky paths stand out from everyday browsing noise with less guesswork.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

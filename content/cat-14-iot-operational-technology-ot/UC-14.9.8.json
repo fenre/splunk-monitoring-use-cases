@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Controller Firmware Activation Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_controller_firmware_activation_monitoring` (UC-14.9.8), SOC dashboard panel \"Operations — Controller Firmware Activation Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.9.8 positive (Controller, Firmware, Activation, Monitoring): ingest synthetic events into `index=nozomi` sourcetype='nozomi:alert' where `count` grouped by `entity` satisfies detection threshold for 'Controller Firmware Activation Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.9.8 negative (Activation Monitoring): ingest benign `nozomi` / `nozomi:alert` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Controller Firmware Activation Monitoring'."
+  },
   "dataSources": "`sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"PROTOCOL-ENGINEERING\")",
   "app": "`Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)",
   "spl": "index=nozomi sourcetype=\"nozomi:alert\" type_id=\"PROTOCOL-ENGINEERING-FIRMWARE*\"\n| table _time, name, src_ip, dst_ip, zone, risk\n| sort -_time",
-  "description": "Firmware activation on a controller changes the software running the physical process. Unauthorized firmware changes are a key indicator of advanced OT attacks (e.g., Stuxnet-style). OT security platforms detect firmware activation events across supported industrial protocols and generate Critical-severity alerts.",
-  "value": "Firmware activation on a controller changes the software running the physical process. Unauthorized firmware changes are a key indicator of advanced OT attacks (e.g., Stuxnet-style). OT security platforms detect firmware activation events across supported industrial protocols and generate Critical-severity alerts.",
+  "description": "Identifies UC-14.9.8 — Controller, Firmware, Activation, Monitoring — using `index=nozomi` sourcetype `nozomi:alert`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Activation Monitoring. Purpose-built for 'Controller Firmware Activation Monitoring' in Operations workflows.",
+  "value": "UC-14.9.8 gives Operations teams earlier visibility into Activation Monitoring through `nozomi:alert` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Both platforms detect firmware activation events on controllers. Alert immediately — this is always high-priority. Cross-reference with approved change records. Investigate source and target. Validate firmware version matches approved versions.",
   "visualization": "Firmware activation event log; target controller details; change authorization correlation.",
   "cimModels": [
@@ -22,18 +28,40 @@
   "references": [
     {
       "title": "Splunkbase app 5748",
-      "url": "https://splunkbase.splunk.com/app/5748"
+      "url": "https://splunkbase.splunk.com/app/5748",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 6905",
-      "url": "https://splunkbase.splunk.com/app/6905"
+      "url": "https://splunkbase.splunk.com/app/6905",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Firmware activations that match approved change windows, golden image rollouts, or spares first-boot.",
+  "knownFalsePositives": "1. **Maintenance window on `nozomi` (UC-14.9.8)** — Planned work for 'Controller Firmware Activation Monitoring' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `nozomi:alert`** — Scheduled automation elevates `src` without crossing configured threshold for UC-14.9.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `nozomi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nozomi:alert`** — First 48h baseline for UC-14.9.8 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
   ],
+  "equipmentModels": [
+    "cisco_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905).\n• Ensure the following data sources are available: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"PROTOCOL-ENGINEERING\").\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBoth platforms detect firmware activation events on controllers. Alert immediately — this is always high-priority. Cross-reference with approved change records. Investigate source and target. Validate firmware version matches approved versions.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nozomi sourcetype=\"nozomi:alert\" type_id=\"PROTOCOL-ENGINEERING-FIRMWARE*\"\n| table _time, name, src_ip, dst_ip, zone, risk\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Controller Firmware Activation Monitoring** — Firmware activation on a controller changes the software running the physical process. Unauthorized firmware changes are a key indicator of advanced OT attacks (e.g., Stuxnet-style). OT security platforms detect firmware activation events across supported industrial protocols and generate Critical-severity alerts.\n\nDocumented **Data sources**: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"PROTOCOL-ENGINEERING\"). **App/TA** (typical add-on context): `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nozomi; **sourcetype**: nozomi:alert. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nozomi, sourcetype=\"nozomi:alert\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **Controller Firmware Activation Monitoring**): table _time, name, src_ip, dst_ip, zone, risk\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nRun the search for a time range that should include both routine and change activity, then compare the same assets, flows, and alerts in the Cisco Cyber Vision UI and in Nozomi Guardian or CMC, matching whichever source the event came from. Reconcile severities, counts, and key fields in both tools.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Firmware activation event log; target controller details; change authorization correlation.",
-  "grandmaExplanation": "We log firmware and image activation on controllers so a software change in the field is always visible to security and ops."
+  "grandmaExplanation": "We log firmware and image activation on controllers so a software change in the field is always visible to security and ops.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

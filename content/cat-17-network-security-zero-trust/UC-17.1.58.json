@@ -10,6 +10,8 @@
     "Compliance"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'Cisco ISE Data Connect — DB-Direct Query Audit and Slow-Query Detection' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_cisco_ise_data_connect_db_direct_query_audit_and` (UC-17.1.58), SOC dashboard panel \"Network — Cisco ISE Data Connect — DB-Direct Query Audit and Slow-Query Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -61,14 +63,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Run a deliberately heavy query via Data Connect (`SELECT * FROM mnt_radius_auth WHERE rownum > 1000000`). Query takes 60s. UC-17.1.58 fires.",
-    "negativeScenario": "Run a normal query that completes in 2s. UC-17.1.58 does not fire."
+    "positiveScenario": "UC-17.1.58 positive (Cisco, ISE, Data, Connect, Direct): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `max_duration` grouped by `db_user` satisfies `query_duration_ms` > 30000, `login_failures` > 5, `slow_queries` > 0, or `max_duration` > 60000 for 'Cisco ISE Data Connect — DB-Direct Query Audit and Slow-Query Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.58 negative (Query Detection): ingest benign `nac` / `cisco:ise:syslog` events where `db_user` stays below `query_duration_ms` > 30000, `login_failures` > 5, `slow_queries` > 0, or `max_duration` > 60000, or exclude the test entity via `network_exception_register.csv`. Variant 9 confirms zero alert rows for 'Cisco ISE Data Connect — DB-Direct Query Audit and Slow-Query Detection'."
   },
   "dataSources": "ISE Data Connect (introduced ISE 3.2) provides direct read-only Oracle connectivity to MnT data. Audit/connection events emitted in *Administrative and Operational Audit* category — codes `52100` (Data Connect login), `52101` (Data Connect login failure), `52110` (Data Connect slow query). Query details may be captured at the consumer side (e.g. Splunk DB Connect) — `index=splunkdbx sourcetype=splunkdbx:db_query`. ISE OpenAPI exposes Data Connect status via `/api/v1/dataconnect/status`. Field: `db_user`, `query_duration_ms`, `query_text`.",
   "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) + `Splunk DB Connect` for the consumer side.",
   "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (52100, 52101, 52110))\n  OR (index=splunkdbx sourcetype=\"splunkdbx:db_query\" \"jdbc:oracle:thin:@//ise-mnt:2484\")\n| stats count, count(eval(MessageCode==\"52101\")) as login_failures, count(eval(MessageCode==\"52110\" OR query_duration_ms > 30000)) as slow_queries, max(query_duration_ms) as max_duration by db_user\n| where login_failures > 5 OR slow_queries > 0 OR max_duration > 60000",
-  "description": "Audits Data Connect direct DB access events and detects login failures (potential brute-force) AND slow queries (>30s) that may degrade ISE platform performance.",
-  "value": "Data Connect provides huge analytical value but exposes the MnT Oracle DB directly. Brute-force on the DB account or runaway slow queries can degrade the platform. Auditing protects the integration value while bounding the risk.",
+  "description": "Alerts on UC-17.1.58 — Cisco, ISE, Data, Connect, Direct — using `index=nac` sourcetype `cisco:ise:syslog`, grouped by `db_user`. Outputs `max_duration` each `the scheduled window`; alert when `query_duration_ms` > 30000, `login_failures` > 5, `slow_queries` > 0, or `max_duration` > 60000. Primary focus: Query Detection. Purpose-built for 'Cisco ISE Data Connect — DB-Direct Query Audit and Slow-Query Detection' in Network workflows.",
+  "value": "Operators running UC-17.1.58 on `cisco:ise:syslog` feeds shorten triage for Query Detection tied to 'Cisco ISE Data Connect — DB-Direct Query Audit and Slow-Query Detection', lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Confirm *Administrative and Operational Audit* at INFO. If using Splunk DB Connect, ensure DB Connect is logging query details. Schedule every 30 min.",
   "visualization": "(1) Single value: slow queries last 1h. (2) Top-N: queries by duration. (3) Login-failure trend.",
   "cimModels": [],
@@ -76,14 +78,26 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 — Data Connect Configuration",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk DB Connect Documentation",
-      "url": "https://docs.splunk.com/Documentation/DBX"
+      "url": "https://docs.splunk.com/Documentation/DBX",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **Initial deployment query** — Initial schema discovery may produce slow queries.  (b) **Quarterly audit-extract query** — Large audit-data extracts can legitimately take minutes.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'Cisco ISE Data Connect — DB-Direct Query Audit and Slow-Query Detection'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "T1110.001"
   ],
@@ -104,7 +118,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• ISE Data Connect enabled (Administration > System > Settings > Data Connect).\n• Splunk DB Connect or another consumer.\n\nStep 1 — Configure data collection\nEnable *Administrative and Operational Audit* at INFO.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 30 min.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — Data Connect Audit\":\n• Slow-query count.\n• Top-N queries.\n• Login-failure trend.\n\nStep 5 — Troubleshooting\n• **Slow queries from analytics workload** — Coordinate to schedule outside peak.\n• **Login failures from one host** — Brute-force or stale credential cache.\n• **No DB Connect events** — DB Connect not configured to log queries.",
+  "detailedImplementation": "Prerequisites\n• ISE Data Connect enabled (Administration > System > Settings > Data Connect).\n• Splunk DB Connect or another consumer.\n\nStep 1 — Configure data collection\nEnable *Administrative and Operational Audit* at INFO.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 30 min.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — Data Connect Audit\":\n• Slow-query count.\n• Top-N queries.\n• Login-failure trend.\n\nStep 5 — Troubleshooting\n• **Slow queries from analytics workload** — Coordinate to schedule outside peak.\n• **Login failures from one host** — Brute-force or stale credential cache.\n• **No DB Connect events** — DB Connect not configured to log queries.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) + `Splunk DB Connect` for the consumer side.). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog, splunkdbx:db_query into nac, splunkdbx. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`db_user, login_failures, max_duration, query_duration_ms`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "ISE allows a special direct-to-database connection for big reports. We watch who's connecting and how long their queries take — slow queries can slow down ISE itself, and many failed logins can mean someone's trying to crack a password.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

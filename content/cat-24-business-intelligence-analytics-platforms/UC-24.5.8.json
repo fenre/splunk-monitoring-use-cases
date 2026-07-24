@@ -8,27 +8,55 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Superset logs (`superset:app`), Metabase logs (`metabase:app`), Redash logs (`redash:app`), and embed client events (`bi:embed:client`).",
-  "app": "Superset/Metabase/Redash application and Celery worker logs via Universal Forwarder; application REST APIs and embed-SDK client telemetry via HEC.",
+  "exclusions": "Covers the detection logic documented for 'Superset Cache Warm-Up Effectiveness' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_superset_cache_warm_up_effectiveness` (UC-24.5.8), SOC dashboard panel \"Operations — Superset Cache Warm-Up Effectiveness\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.5.8 positive (Superset, Cache, Warm, Effectiveness): ingest synthetic events into `index=bi` sourcetype='superset:app' where `hits` grouped by `dashboard_id` satisfies `total` > 10 for 'Superset Cache Warm-Up Effectiveness'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.5.8 negative (Up Effectiveness): ingest benign `bi` / `superset:app` events where `dashboard_id` stays below `total` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Superset Cache Warm-Up Effectiveness'."
+  },
+  "dataSources": "Superset logs (`superset:app`), Metabase logs (`metabase:app`), Redash logs (`redash:app`), and embed client events (`bi:embed:client`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Superset/Metabase/Redash application and Celery worker logs via Universal Forwarder; application REST APIs and embed-SDK client telemetry via HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=superset:app (\"cache hit\" OR \"cache miss\")\n| eval hit=if(match(_raw,\"cache hit\"),1,0)\n| stats sum(hit) as hits, count as total by dashboard_id\n| eval hit_rate=round(100*hits/total,1)\n| where total>10\n| sort hit_rate",
-  "description": "Computes Superset chart cache hit-rate per dashboard so administrators can tell whether cache warm-up tasks actually pre-populate the results users load.",
-  "value": "Low cache hit-rates make dashboards slow despite warm-up jobs running; measuring effectiveness guides cache-timeout and warm-up tuning.",
+  "description": "Monitors UC-24.5.8 — Superset, Cache, Warm, Effectiveness — using `index=bi` sourcetype `superset:app`, grouped by `dashboard_id`. Outputs `hits` each `the scheduled window`; alert when `total` > 10. Primary focus: Up Effectiveness. Purpose-built for 'Superset Cache Warm-Up Effectiveness' in Operations workflows.",
+  "value": "UC-24.5.8 gives Operations teams earlier visibility into Up Effectiveness through `superset:app` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest Superset cache log lines; schedule daily and review low-hit-rate dashboards with owners.",
   "visualization": "Table of dashboard by hit rate, trend line.",
   "cimModels": [],
   "references": [
     {
       "title": "Apache Superset — Configuring / logging",
-      "url": "https://superset.apache.org/docs/configuration/configuring-superset/"
+      "url": "https://superset.apache.org/docs/configuration/configuring-superset/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Metabase — Observability & logs",
-      "url": "https://www.metabase.com/docs/latest/installation-and-operation/observability"
+      "url": "https://www.metabase.com/docs/latest/installation-and-operation/observability",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We check whether Superset's speed-up cache is actually helping so dashboards load fast for people."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.5.8)** — Planned work for 'Superset Cache Warm-Up Effectiveness' shifts `hits` over `span=1h` while `dashboard_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `superset:app`** — Scheduled automation elevates `hit` without crossing `total` > 10 for UC-24.5.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dashboard_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `superset:app`** — First 48h baseline for UC-24.5.8 on `dashboard_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dashboard_id`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Superset/Metabase/Redash application and Celery worker logs via Universal Forwarder; application REST APIs and embed-SDK client telemetry via HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=superset:app into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dashboard_id, hit, total`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We check whether Superset's speed-up cache is actually helping so dashboards load fast for people.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

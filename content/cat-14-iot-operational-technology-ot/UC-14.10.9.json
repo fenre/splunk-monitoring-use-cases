@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=environment` · `sourcetype=\"aranet:sensor\"` (co2_ppm, temp_c, humidity_pct, pressure_hpa, battery_pct, rssi_dbm)",
-  "app": "Custom HEC or scripted input from Aranet Cloud API / Aranet PRO base station",
+  "exclusions": "Covers the detection logic documented for 'Aranet Overnight CO2 Baseline Drift for Ventilation Degradation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_aranet_overnight_co2_baseline_drift_for_ventilat` (UC-14.10.9), SOC dashboard panel \"Operations — Aranet Overnight CO2 Baseline Drift for Ventilation Degradation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.10.9 positive (Aranet, Overnight, CO2, Baseline, Drift): ingest synthetic events into `index=environment` sourcetype='aranet:sensor' where `overnight_median_co2` grouped by `location` satisfies -14d for 'Aranet Overnight CO2 Baseline Drift for Ventilation Degradation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.10.9 negative (Ventilation Degradation): ingest benign `environment` / `aranet:sensor` events where `location` stays below -14d, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Aranet Overnight CO2 Baseline Drift for Ventilation Degradation'."
+  },
+  "dataSources": "`index=environment` · `sourcetype=\"aranet:sensor\"` (co2_ppm, temp_c, humidity_pct, pressure_hpa, battery_pct, rssi_dbm) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom HEC or scripted input from Aranet Cloud API / Aranet PRO base station — Universal Forwarder (Splunkbase 617)",
   "spl": "index=environment sourcetype=\"aranet:sensor\" earliest=-14d\n| eval hour=strftime(_time,\"%H\")\n| eval co2=tonumber(coalesce(co2_ppm, \"\"))\n| where (hour>=\"22\" OR hour<=\"05\")\n| timechart span=1d median(co2) as overnight_median_co2 by location",
-  "description": "Rising overnight CO2 baselines when buildings are empty indicates stuck dampers, fan belts, or schedule bugs.",
-  "value": "Catches HVAC degradation without occupant complaints.",
+  "description": "Monitors risk tied to Aranet, Overnight, CO2, Baseline, Drift through UC-14.10.9 on `index=environment` sourcetype `aranet:sensor`. Summarises `overnight_median_co2` grouped by `location` across `1d` before applying -14d. Operators tune 'Aranet Overnight CO2 Baseline Drift for Ventilation Degradation' using UC-14.10.9 runbook steps.",
+  "value": "Tracking `overnight_median_co2` via UC-14.10.9 on `aranet:sensor` feeds improves response to 'Aranet Overnight CO2 Baseline Drift for Ventilation Degradation' and reduces operational risk and delayed incident response.",
   "implementation": "(1) Exclude holidays. (2) Compare to outdoor CO2 if available. (3) Handoff to TAB contractor.",
   "visualization": "Line overnight median; anomaly alert.",
   "cimModels": [
@@ -22,19 +28,31 @@
   "references": [
     {
       "title": "Aranet — environmental monitoring",
-      "url": "https://aranet.com/"
+      "url": "https://aranet.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ASHRAE — IAQ",
-      "url": "https://www.ashrae.org/"
+      "url": "https://www.ashrae.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "OSHA indoor air",
-      "url": "https://www.osha.gov/indoor-air-quality"
+      "url": "https://www.osha.gov/indoor-air-quality",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `environment` (UC-14.10.9)** — Planned work for 'Aranet Overnight CO2 Baseline Drift for Ventilation Degradation' shifts `overnight_median_co2` over `span=1d` while `location` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `median` on `aranet:sensor`** — Scheduled automation elevates `hour` without crossing configured threshold for UC-14.10.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `location`** — Health checks in `environment` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aranet:sensor`** — First 48h baseline for UC-14.10.9 on `location` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `location`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aranet"
+  ],
+  "equipmentModels": [
+    "aranet_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -43,5 +61,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We compare night-time air quality baselines to spot ventilation getting worse."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom HEC or scripted input from Aranet Cloud API / Aranet PRO base station — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=aranet:sensor into environment. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`location`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We compare night-time air quality baselines to spot ventilation getting worse.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

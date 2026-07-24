@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=bms:elevator`",
-  "app": "Elevator controller API (KONE, Otis, Schindler, ThyssenKrupp), IoT gateway, custom scripted input",
+  "exclusions": "Covers the detection logic documented for 'Elevator Trip Count and Usage Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_elevator_trip_count_and_usage_trending` (UC-14.1.36), SOC dashboard panel \"Operations — Elevator Trip Count and Usage Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.1.36 positive (Elevator, Trip, Count, and, Usage): ingest synthetic events into `index=building` sourcetype='bms:elevator' where `total_distance`, `avg_travel_time`, `floors_served` grouped by `elevator_id`, `_time` satisfies detection threshold for 'Elevator Trip Count and Usage Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.1.36 negative (Usage Trending): ingest benign `building` / `bms:elevator` events where `elevator_id`, `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Elevator Trip Count and Usage Trending'."
+  },
+  "dataSources": "`sourcetype=bms:elevator` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Elevator controller API (KONE, Otis, Schindler, ThyssenKrupp), IoT gateway, custom scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=building sourcetype=\"bms:elevator\"\n| bin _time span=1h\n| stats count as trips, sum(distance_traveled_m) as total_distance, avg(travel_time_sec) as avg_travel_time, dc(floor_stop) as floors_served by elevator_id, _time\n| eval trips_per_hour=trips\n| eventstats avg(trips_per_hour) as baseline_trips by elevator_id\n| eval utilization=round(trips_per_hour*100/baseline_trips, 1)\n| table _time, elevator_id, trips, floors_served, avg_travel_time, utilization",
-  "description": "Elevator trip counts, floor-by-floor usage patterns, and duty cycles drive maintenance scheduling and modernization planning. High-traffic elevators need more frequent service. Usage data also informs tenant space planning and lobby redesign.",
-  "value": "Elevator trip counts, floor-by-floor usage patterns, and duty cycles drive maintenance scheduling and modernization planning. High-traffic elevators need more frequent service. Usage data also informs tenant space planning and lobby redesign.",
+  "description": "Monitors UC-14.1.36 — Elevator, Trip, Count, and, Usage — using `index=building` sourcetype `bms:elevator`, grouped by `elevator_id`, `_time`. Outputs `total_distance`, `avg_travel_time`, `floors_served` each `1h`; alert when configured threshold. Primary focus: Usage Trending. Purpose-built for 'Elevator Trip Count and Usage Trending' in Operations workflows.",
+  "value": "Alerting on Elevator, Trip, Count, and, Usage through UC-14.1.36 reduces operational risk and delayed incident response by surfacing `total_distance`, `avg_travel_time`, `floors_served` early.",
   "implementation": "Integrate with elevator controller via vendor API or IoT gateway. Collect trip events with timestamp, origin floor, destination floor, and travel time. Aggregate into hourly/daily patterns.",
   "visualization": "Trip count timeline per elevator; floor usage heatmap; peak hour analysis; elevator comparison chart.",
   "cimModels": [
@@ -22,10 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Fault storms during load tests, vendor visits, or software updates logged in the BMS, not all need urgent dispatch.",
+  "knownFalsePositives": "1. **Maintenance window on `building` (UC-14.1.36)** — Planned work for 'Elevator Trip Count and Usage Trending' shifts `total_distance`, `avg_travel_time`, `floors_served` over `span=1h` while `elevator_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `bms:elevator`** — Scheduled automation elevates `_time` without crossing configured threshold for UC-14.1.36. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `elevator_id`, `_time`** — Health checks in `building` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bms:elevator`** — First 48h baseline for UC-14.1.36 on `elevator_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `elevator_id`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Elevator controller API (KONE, Otis, Schindler, ThyssenKrupp), IoT gateway, custom scripted input.\n• Ensure the following data sources are available: `sourcetype=bms:elevator`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIntegrate with elevator controller via vendor API or IoT gateway. Collect trip events with timestamp, origin floor, destination floor, and travel time. Aggregate into hourly/daily patterns.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=building sourcetype=\"bms:elevator\"\n| bin _time span=1h\n| stats count as trips, sum(distance_traveled_m) as total_distance, avg(travel_time_sec) as avg_travel_time, dc(floor_stop) as floors_served by elevator_id, _time\n| eval trips_per_hour=trips\n| eventstats avg(trips_per_hour) as baseline_trips by elevator_id\n| eval utilization=round(trips_per_hour*100/baseline_trips, 1)\n| table _time, elevator_id, trips, floors_served, avg_travel_time, utilization\n```\n\nUnderstanding this SPL\n\n**Elevator Trip Count and Usage Trending** — Elevator trip counts, floor-by-floor usage patterns, and duty cycles drive maintenance scheduling and modernization planning. High-traffic elevators need more frequent service. Usage data also informs tenant space planning and lobby redesign.\n\nDocumented **Data sources**: `sourcetype=bms:elevator`. **App/TA** (typical add-on context): Elevator controller API (KONE, Otis, Schindler, ThyssenKrupp), IoT gateway, custom scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: building; **sourcetype**: bms:elevator. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=building, sourcetype=\"bms:elevator\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by elevator_id, _time** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **trips_per_hour** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eventstats` rolls up events into metrics; results are split **by elevator_id** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **utilization** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Elevator Trip Count and Usage Trending**): table _time, elevator_id, trips, floors_served, avg_travel_time, utilization\n\n\nStep 3 — Validate\nRun the search in a known window. Spot-check a few events against the BMS console (for example Niagara, Tridium, or Honeywell) and confirm zones, values, and alarms line up. Verify field names and that the right roles can search the index.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Trip count timeline per elevator; floor usage heatmap; peak hour analysis; elevator comparison chart.",
-  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with elevators and other moving equipment that people rely on before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with elevators and other moving equipment that people rely on before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

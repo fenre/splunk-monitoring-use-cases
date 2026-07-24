@@ -8,30 +8,55 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Baby feedings (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), school departures (`school:departure`), stroller activity (`stroller:walk`), household chores (`chore:event`), and family geofence events (`family:location`).",
-  "app": "Family and baby telemetry from baby-tracking apps, school and geofence automations, stroller logs, chore trackers, and shared-home events streamed to Splunk HEC via APIs and Home Assistant.",
+  "exclusions": "Covers personal hobby monitoring for 'After-School Pickup Geofence Gaps' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_after_school_pickup_geofence_gaps` (UC-25.23.18), SOC dashboard panel \"Personal — After-School Pickup Geofence Gaps\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.23.18 positive (After, School, Pickup, Geofence, Gaps): ingest synthetic events into `index=personal` sourcetype='family:location' where `avg_arrival_gap_min`, `max_arrival_gap_min` grouped by `child`, `location` satisfies detection threshold for 'After-School Pickup Geofence Gaps'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.23.18 negative (Geofence Gaps): ingest benign `personal` / `family:location` events where `child`, `location` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'After-School Pickup Geofence Gaps'."
+  },
+  "dataSources": "Baby feedings (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), school departures (`school:departure`), stroller activity (`stroller:walk`), household chores (`chore:event`), and family geofence events (`family:location`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Family and baby telemetry from baby-tracking apps, school and geofence automations, stroller logs, chore trackers, and shared-home events streamed to Splunk HEC via APIs and Home Assistant. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=family:location event=\"pickup\"\n| stats avg(arrival_gap_min) as avg_arrival_gap_min max(arrival_gap_min) as max_arrival_gap_min by child location\n| sort - max_arrival_gap_min",
-  "description": "Measures the time gap between the expected and actual family pickup geofence events.",
-  "value": "Pickup timing issues are low-drama until they are not, and this metric helps you improve reliability before a true miss happens.",
+  "description": "Alerts on UC-25.23.18 — After, School, Pickup, Geofence, Gaps — using `index=personal` sourcetype `family:location`, grouped by `child`, `location`. Outputs `avg_arrival_gap_min`, `max_arrival_gap_min` each `the scheduled window`; alert when configured threshold. Primary focus: Geofence Gaps. Purpose-built for 'After-School Pickup Geofence Gaps' in Personal workflows.",
+  "value": "Tracking `avg_arrival_gap_min`, `max_arrival_gap_min` via UC-25.23.18 on `family:location` feeds improves response to 'After-School Pickup Geofence Gaps' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Send pickup geofence events with an expected-versus-actual arrival gap from your family location automation.",
   "visualization": "Table of average and worst pickup gap by child and location.",
   "cimModels": [],
   "references": [
     {
       "title": "Huckleberry - baby tracking",
-      "url": "https://huckleberrycare.com/"
+      "url": "https://huckleberrycare.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Google Calendar - API",
-      "url": "https://developers.google.com/calendar/api"
+      "url": "https://developers.google.com/calendar/api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.23.18)** — Connector for 'After-School Pickup Geofence Gaps' stops polling `family:location`; stale `avg_arrival_gap_min`, `max_arrival_gap_min` on `child`, `location` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_arrival_gap_min`, `max_arrival_gap_min` over `1w` is expected for UC-25.23.18, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `family:location`. Dedup with `stats latest(*) by child`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'After-School Pickup Geofence Gaps'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],
-  "grandmaExplanation": "It surfaces how far off family pickups are from the planned time, so late handoffs show up clearly."
+  "equipmentModels": [
+    "asterisk_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Family, Baby & Household Chaos — typical feeds: Baby feeds (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), chore completions (`chore:completion`), allowance ledger (`allowance:ledger`), family calendar (`family:calendar`.\n• **Sourcetypes in this search**: `family:location`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=family:location`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Baby-tracking app exports (Huckleberry/Baby Daybook), chore and allowance boards, shared family calendars, screen-time reports, and growth logs via Splunk HEC scripted inputs..\n\n**Author notes:** Send pickup geofence events with an expected-versus-actual arrival gap from your family location automation.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"family:location\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=family:location earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **After-School Pickup Geofence Gaps** over `personal` data (primarily `sourcetype=family:location`) across the full search range. The `avg, max` aggregation groups by `child`, `location`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `child`, `location`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=family:location event=\"pickup\"\n| stats avg(arrival_gap_min) as avg_arrival_gap_min max(arrival_gap_min) as max_arrival_gap_min by child location\n| sort - max_arrival_gap_min\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=family:location earliest=-7d\n| head 50\n| table child, location\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=family:location earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.23.18: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Average And Worst Pickup Gap By Child And Location (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `family:location` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=family:location | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It surfaces how far off family pickups are from the planned time, so late handoffs show up clearly.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

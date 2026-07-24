@@ -9,27 +9,55 @@
     "Cost"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Redash logs (`redash:app`) and API events.",
-  "app": "Redash application and Celery worker logs via UF; Redash API via HEC.",
+  "exclusions": "Covers the detection logic documented for 'Redash Inactive Account Reclamation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_redash_inactive_account_reclamation` (UC-24.5.22), SOC dashboard panel \"Operations — Redash Inactive Account Reclamation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.5.22 positive (Redash, Inactive, Account, Reclamation): ingest synthetic events into `index=bi` sourcetype='redash:app' where `last_seen` grouped by `user_id` satisfies `days_idle` > 60 for 'Redash Inactive Account Reclamation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.5.22 negative (Account Reclamation): ingest benign `bi` / `redash:app` events where `user_id` stays below `days_idle` > 60, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Redash Inactive Account Reclamation'."
+  },
+  "dataSources": "Redash logs (`redash:app`) and API events. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Redash application and Celery worker logs via UF; Redash API via HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=redash:app\n| stats max(_time) as last_seen by user_id\n| eval days_idle=round((now()-last_seen)/86400)\n| where days_idle>60\n| sort - days_idle",
-  "description": "Lists Redash accounts with no activity in over 60 days so administrators can reclaim licenses and reduce the access surface.",
-  "value": "Idle Redash accounts waste license spend and widen the attack surface; a periodic reclamation list turns both into routine housekeeping.",
+  "description": "Surfaces UC-24.5.22 — Redash, Inactive, Account, Reclamation — using `index=bi` sourcetype `redash:app`, grouped by `user_id`. Outputs `last_seen` each `the scheduled window`; alert when `days_idle` > 60. Primary focus: Account Reclamation. Purpose-built for 'Redash Inactive Account Reclamation' in Operations workflows.",
+  "value": "For 'Redash Inactive Account Reclamation', UC-24.5.22 converts `last_seen` on `redash:app` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Ingest Redash activity events; schedule monthly and route the idle-account list to identity/license owners.",
   "visualization": "Table of account by days idle, reclamation candidate list.",
   "cimModels": [],
   "references": [
     {
       "title": "Redash — Documentation",
-      "url": "https://redash.io/help/"
+      "url": "https://redash.io/help/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Redash — Setup & maintenance",
-      "url": "https://redash.io/help/open-source/setup"
+      "url": "https://redash.io/help/open-source/setup",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We find Redash accounts nobody uses anymore so their licences can be freed and access tidied up."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.5.22)** — Planned work for 'Redash Inactive Account Reclamation' shifts `last_seen` over `span=1h` while `user_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `redash:app`** — Scheduled automation elevates `days_idle` without crossing `days_idle` > 60 for UC-24.5.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `redash:app`** — First 48h baseline for UC-24.5.22 on `user_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user_id`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Redash application and Celery worker logs via UF; Redash API via HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=redash:app into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`days_idle, user_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We find Redash accounts nobody uses anymore so their licences can be freed and access tidied up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

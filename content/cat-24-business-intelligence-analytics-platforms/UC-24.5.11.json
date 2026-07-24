@@ -9,27 +9,55 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Superset logs (`superset:app`), Metabase logs (`metabase:app`), Redash logs (`redash:app`), and embed client events (`bi:embed:client`).",
-  "app": "Superset/Metabase/Redash application and Celery worker logs via Universal Forwarder; application REST APIs and embed-SDK client telemetry via HEC.",
+  "exclusions": "Covers the detection logic documented for 'Embedded Analytics Row-Level Security Denials' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_embedded_analytics_row_level_security_denials` (UC-24.5.11), SOC dashboard panel \"Operations — Embedded Analytics Row-Level Security Denials\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.5.11 positive (Embedded, Analytics, Row, Level, Security): ingest synthetic events into `index=bi` sourcetype='bi:embed:client' where `tenants` grouped by `embed_dashboard`, `reason` satisfies `denials` > 0 for 'Embedded Analytics Row-Level Security Denials'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.5.11 negative (Security Denials): ingest benign `bi` / `bi:embed:client` events where `embed_dashboard`, `reason` stays below `denials` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Embedded Analytics Row-Level Security Denials'."
+  },
+  "dataSources": "Superset logs (`superset:app`), Metabase logs (`metabase:app`), Redash logs (`redash:app`), and embed client events (`bi:embed:client`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Superset/Metabase/Redash application and Celery worker logs via Universal Forwarder; application REST APIs and embed-SDK client telemetry via HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=bi:embed:client event=\"rls_denied\" OR event=\"token_invalid\" OR http_status=403\n| stats count as denials, dc(tenant_id) as tenants by embed_dashboard, reason\n| where denials>0\n| sort - denials",
-  "description": "Monitors embedded-analytics clients for row-level-security denials and invalid signed tokens, which indicate either a legitimate access boundary working or a misconfigured tenant filter blocking users.",
-  "value": "In embedded multi-tenant BI, an RLS misconfiguration either leaks data or locks out a paying tenant; monitoring denials catches both failure modes.",
+  "description": "Alerts on when Security Denials criteria fire for 'Embedded Analytics Row-Level Security Denials' (UC-24.5.11) in `index=bi` sourcetype `bi:embed:client`. Pipeline aggregates `tenants` by `embed_dashboard`, `reason` over `the scheduled window`. Alert logic enforces `denials` > 0. Title terms: Embedded, Analytics, Row, Level, Security. Eliminates manual hunting for UC-24.5.11 conditions.",
+  "value": "UC-24.5.11 helps teams contain Embedded, Analytics, Row, Level, Security scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Emit embed-SDK client telemetry to HEC with tenant context; schedule every 15 minutes and alert on denial spikes for a tenant.",
   "visualization": "Table of dashboard/reason by denials and tenant count.",
   "cimModels": [],
   "references": [
     {
       "title": "Apache Superset — Configuring / logging",
-      "url": "https://superset.apache.org/docs/configuration/configuring-superset/"
+      "url": "https://superset.apache.org/docs/configuration/configuring-superset/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Metabase — Observability & logs",
-      "url": "https://www.metabase.com/docs/latest/installation-and-operation/observability"
+      "url": "https://www.metabase.com/docs/latest/installation-and-operation/observability",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We watch the security checks in embedded dashboards so customers see only their own data and are not wrongly locked out."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.5.11)** — Planned work for 'Embedded Analytics Row-Level Security Denials' shifts `tenants` over `span=1h` while `embed_dashboard`, `reason` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `bi:embed:client`** — Scheduled automation elevates `reason` without crossing `denials` > 0 for UC-24.5.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `embed_dashboard`, `reason`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bi:embed:client`** — First 48h baseline for UC-24.5.11 on `embed_dashboard` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `embed_dashboard`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Superset/Metabase/Redash application and Celery worker logs via Universal Forwarder; application REST APIs and embed-SDK client telemetry via HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=bi:embed:client into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`denials, embed_dashboard, reason`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the security checks in embedded dashboards so customers see only their own data and are not wrongly locked out.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

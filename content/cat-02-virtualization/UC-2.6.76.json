@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=xd` `sourcetype=\"citrix:workspace:client\"` (client build, device OS, channel); `sourcetype=\"citrix:hdx:connect\"` (endpoint type, firmware where available); `sourcetype=\"citrix:broker:session\"` (Workspace version from session metadata) when exposed Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
-  "app": "Citrix Cloud / CVAD session metadata export, Syslog or API from supported thin clients, Template for Citrix add-ons in use at your site",
+  "exclusions": "Covers the detection logic documented for 'Citrix Client Ecosystem and Platform Distribution' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_citrix_client_ecosystem_and_platform_distributio` (UC-2.6.76), SOC dashboard panel \"Linux — Citrix Client Ecosystem and Platform Distribution\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.76 positive (Citrix, Client, Ecosystem, and, Platform): ingest synthetic events into `index=xd` sourcetype='citrix:workspace:client' where `count` grouped by `_time`, `os`, `ver`, `dev` satisfies -7d for 'Citrix Client Ecosystem and Platform Distribution'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.76 negative (Platform Distribution): ingest benign `xd` / `citrix:workspace:client` events where `_time`, `os`, `ver`, `dev` stays below -7d, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 12 confirms zero alert rows for 'Citrix Client Ecosystem and Platform Distribution'."
+  },
+  "dataSources": "`index=xd` `sourcetype=\"citrix:workspace:client\"` (client build, device OS, channel); `sourcetype=\"citrix:hdx:connect\"` (endpoint type, firmware where available); `sourcetype=\"citrix:broker:session\"` (Workspace version from session metadata) when exposed Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Citrix Cloud / CVAD session metadata export, Syslog or API from supported thin clients, Template for Citrix add-ons in use at your site — Universal Forwarder (Splunkbase 617)",
   "spl": "index=xd (sourcetype=\"citrix:workspace:client\" OR sourcetype=\"citrix:hdx:connect\" OR sourcetype=\"citrix:broker:session\") earliest=-7d\n| eval os=coalesce(client_os, device_os, platform, \"unknown\"), ver=coalesce(workspace_version, app_version, client_version, \"unknown\"), dev=coalesce(device_type, endpoint_type, \"unknown\")\n| bin _time span=1d\n| stats count as sessions by _time, os, ver, dev\n| sort -sessions\n| head 200",
-  "description": "Supported, patched clients are a common compliance and support requirement. A live distribution of Workspace app versions, client operating systems, thin-client firmware, and device classes gives IT and security teams a single place to see drift, plan upgrades, and retire unsupported platforms before they become an audit finding or a break-fix incident.",
-  "value": "Supported, patched clients are a common compliance and support requirement. A live distribution of Workspace app versions, client operating systems, thin-client firmware, and device classes gives IT and security teams a single place to see drift, plan upgrades, and retire unsupported platforms before they become an audit finding or a break-fix incident.",
+  "description": "Surfaces UC-2.6.76 — Citrix, Client, Ecosystem, and, Platform — using `index=xd` sourcetype `citrix:workspace:client`, grouped by `_time`, `os`, `ver`, `dev`. Outputs `count` each `1d`; alert when -7d. Primary focus: Platform Distribution. Purpose-built for 'Citrix Client Ecosystem and Platform Distribution' in Linux workflows.",
+  "value": "Tracking `activity` via UC-2.6.76 on `citrix:workspace:client` feeds improves response to 'Citrix Client Ecosystem and Platform Distribution' and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Pull version fields on every new session or daily heartbeat, depending on the feed. Add lookups for LTS/allowed builds. Schedule monthly compliance PDF or CSV. Partner with end-user computing to nudge or block at the gateway for builds below a floor. For BYOD, show OS mix separately from corporate-managed endpoints.",
   "visualization": "Pie: OS; bar: Workspace app version; treemap: device class; line: unsupported share over time after campaigns.",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "Citrix Workspace app — Lifecycle milestones",
-      "url": "https://docs.citrix.com/en-us/citrix-workspace-app-for-windows/"
+      "url": "https://docs.citrix.com/en-us/citrix-workspace-app-for-windows/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Endpoint",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `xd`** — Package managers spike `_time` metrics for 'Citrix Client Ecosystem and Platform Distribution'. Correlate with apt/yum logs in the same `citrix:workspace:client` window.\n\n2. **Nightly backup I/O on `_time`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `citrix:workspace:client`** — Nagios/Zabbix polls `_time` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `_time` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `_time`, `valid_until`.",
   "equipment": [
     "citrix",
     "syslog"
@@ -33,6 +55,12 @@
     "citrix_cvad"
   ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites\n• `index=xd`; NTP on forwarders. In `props.conf` use `FIELDALIAS-` per sourcetype so `client_os`/`app_version`/`device_type` line up with the SPL. CSV lookup `approved_citrix_clients` with `os,min_build` for compliance joins.\n\nStep 1 — Configure data collection\nLab: one Windows, macOS, thin client—document field names. If versions sit in `_raw`, add `REPORT-` in `transforms.conf` and wire from `props`. Extract firmware for Wyse/IGEL if present.\n\nStep 2 — Create the search and report\nMonthly saved search; add `| lookup approved_citrix_clients` and `eval noncom=if(ver<min_build,1,0)`. Panels: pie OS, bar top `ver`, table noncompliance by `os`. Optional alert: new `ver` in 7d.\n\nStep 3 — Validate\nReconcile session totals to Director; `rare ver` to catch bad parsing; sample 5 hosts vs UEM.\n\nStep 4 — Operationalize\nExport to asset mgmt; enforce min client at NetScaler/Store at policy threshold. L2 if noncompliance > SLO; Security for audit. Re-tune after CWA LTS changes.",
-  "grandmaExplanation": "We list who uses which gizmo and which version of the little program that opens the remote office — so you are not caught with old, out-of-support gear when rules or a security scare demand everyone update."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• `index=xd`; NTP on forwarders. In `props.conf` use `FIELDALIAS-` per sourcetype so `client_os`/`app_version`/`device_type` line up with the SPL. CSV lookup `approved_citrix_clients` with `os,min_build` for compliance joins.\n\nStep 1 — Configure data collection\nLab: one Windows, macOS, thin client—document field names. If versions sit in `_raw`, add `REPORT-` in `transforms.conf` and wire from `props`. Extract firmware for Wyse/IGEL if present.\n\nStep 2 — Create the search and report\nMonthly saved search; add `| lookup approved_citrix_clients` and `eval noncom=if(ver<min_build,1,0)`. Panels: pie OS, bar top `ver`, table noncompliance by `os`. Optional alert: new `ver` in 7d.\n\nStep 3 — Validate\nReconcile session totals to Director; `rare ver` to catch bad parsing; sample 5 hosts vs UEM.\n\nStep 4 — Operationalize\nExport to asset mgmt; enforce min client at NetScaler/Store at policy threshold. L2 if noncompliance > SLO; Security for audit. Re-tune after CWA LTS changes.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Citrix Cloud / CVAD session metadata export, Syslog or API from supported thin clients, Template for Citrix add-ons in use at your site — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=citrix:workspace:client, citrix:hdx:connect, citrix:broker:session into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, dev, os, ver`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We list who uses which gizmo and which version of the little program that opens the remote office — so you are not caught with old, out-of-support gear when rules or a security scare demand everyone update.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

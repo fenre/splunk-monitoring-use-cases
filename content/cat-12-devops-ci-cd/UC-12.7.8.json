@@ -9,11 +9,17 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=iac` `sourcetype=ansible:awx` (inventory update events), `sourcetype=ansible:result` unreachable counters",
-  "app": "AWX external logging integration, Splunk HTTP Event Collector",
+  "exclusions": "Covers the detection logic documented for 'Ansible AWX Inventory Sync Failure and Host Unreachable Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ansible_awx_inventory_sync_failure_and_host_unre` (UC-12.7.8), SOC dashboard panel \"Operations — Ansible AWX Inventory Sync Failure and Host Unreachable Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.7.8 positive (Ansible, AWX, Inventory, Sync, Failure): ingest synthetic events into `index=iac` sourcetype='ansible:awx' where `inventory_sync_failures`, `unreachable_runs`, `inventories_touched` grouped by `_time`, `organization` satisfies `unreachable` > 0, or `inventory_sync_failures` > 0 for 'Ansible AWX Inventory Sync Failure and Host Unreachable Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.7.8 negative (Unreachable Trending): ingest benign `iac` / `ansible:awx` events where `_time`, `organization` stays below `unreachable` > 0, or `inventory_sync_failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Ansible AWX Inventory Sync Failure and Host Unreachable Trending'."
+  },
+  "dataSources": "`index=iac` `sourcetype=ansible:awx` (inventory update events), `sourcetype=ansible:result` unreachable counters Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "AWX external logging integration, Splunk HTTP Event Collector — Universal Forwarder (Splunkbase 617)",
   "spl": "index=iac (sourcetype=\"ansible:awx\" OR sourcetype=\"ansible:result\")\n| eval inv_fail=if(sourcetype=\"ansible:awx\" AND match(lower(status),\"(?i)failed|error\"),1,0)\n| eval unreachable_evt=if(sourcetype=\"ansible:result\" AND unreachable>0,1,0)\n| bin _time span=1h\n| stats sum(inv_fail) as inventory_sync_failures, sum(unreachable_evt) as unreachable_runs, dc(inventory_name) as inventories_touched by _time, organization\n| eventstats median(unreachable_runs) as med_unreach by organization\n| where inventory_sync_failures > 0 OR unreachable_runs > med_unreach * 3\n| sort -inventory_sync_failures",
-  "description": "Stale inventories cause automation to target the wrong hosts or skip new systems, while rising unreachable counts flag VPN, firewall, or credential regressions across fleets. Combining AWX inventory job status with play outcomes surfaces controller-side versus host-side problems.",
-  "value": "Protects patch coverage and compliance scans from silent shrinkage when cloud or CMDB feeds break.",
+  "description": "Detects UC-12.7.8 — Ansible, AWX, Inventory, Sync, Failure — using `index=iac` sourcetype `ansible:awx`, grouped by `_time`, `organization`. Outputs `inventory_sync_failures`, `unreachable_runs`, `inventories_touched` each `1h`; alert when `unreachable` > 0, or `inventory_sync_failures` > 0. Primary focus: Unreachable Trending. Purpose-built for 'Ansible AWX Inventory Sync Failure and Host Unreachable Trending' in Operations workflows.",
+  "value": "UC-12.7.8 accelerates insight into Unreachable Trending ('Ansible AWX Inventory Sync Failure and Host Unreachable Trending') by tracking `inventory_sync_failures`, `unreachable_runs`, `inventories_touched` on `ansible:awx` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Replace `baseline_unreach` with a subsearch or `eventstats` median over 7d. Ensure `inventory_name` and `organization` exist on AWX events. For `ansible:result`, aggregate unreachable per hour per org.",
   "visualization": "Dual-metric timechart, table (inventory × last error), map or breakdown by cloud account if available.",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "AWX — Inventory import",
-      "url": "https://ansible.readthedocs.io/projects/awx/en/latest/"
+      "url": "https://ansible.readthedocs.io/projects/awx/en/latest/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Transient errors during platform maintenance, network blips, or certificate renewals on shared services.",
+  "knownFalsePositives": "1. **Maintenance window on `iac` (UC-12.7.8)** — Planned work for 'Ansible AWX Inventory Sync Failure and Host Unreachable Trending' shifts `inventory_sync_failures`, `unreachable_runs`, `inventories_touched` over `span=1h` while `_time`, `organization` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `ansible:awx`** — Scheduled automation elevates `organization` without crossing `unreachable` > 0 for UC-12.7.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `organization`** — Health checks in `iac` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ansible:awx`** — First 48h baseline for UC-12.7.8 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ansible"
+  ],
+  "equipmentModels": [
+    "ansible_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-01",
@@ -42,5 +63,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch infrastructure-as-code runs and policy so changes to systems stay visible and governed."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (AWX external logging integration, Splunk HTTP Event Collector — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ansible:awx, ansible:result into iac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, inv_fail, inventory_sync_failures, organization`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch infrastructure-as-code runs and policy so changes to systems stay visible and governed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

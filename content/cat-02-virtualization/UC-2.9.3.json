@@ -9,11 +9,17 @@
     "Reliability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=openstack` `sourcetype=\"openstack:cinder\"` — `volume_id`, `instance_uuid`, `action` (attach|detach), `status`, `message`",
-  "app": "Cinder API / volume driver logs to Splunk",
+  "exclusions": "Covers the detection logic documented for 'OpenStack Cinder Volume Attach and Detach Error Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_openstack_cinder_volume_attach_and_detach_error_` (UC-2.9.3), SOC dashboard panel \"Linux — OpenStack Cinder Volume Attach and Detach Error Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.9.3 positive (OpenStack, Cinder, Volume, Attach, and): ingest synthetic events into `index=openstack` sourcetype='openstack:cinder' where `okc` grouped by `_time`, `backend`, `host` satisfies `err_rate` > 5 for 'OpenStack Cinder Volume Attach and Detach Error Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.9.3 negative (Error Rate): ingest benign `openstack` / `openstack:cinder` events where `_time`, `backend`, `host` stays below `err_rate` > 5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 8 confirms zero alert rows for 'OpenStack Cinder Volume Attach and Detach Error Rate'."
+  },
+  "dataSources": "`index=openstack` `sourcetype=\"openstack:cinder\"` — `volume_id`, `instance_uuid`, `action` (attach|detach), `status`, `message` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cinder API / volume driver logs to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=openstack sourcetype=\"openstack:cinder\" earliest=-24h\n| eval st=lower(coalesce(status, result))\n| eval act=lower(coalesce(action, operation))\n| where match(act, \"(?i)attach|detach\")\n| eval ok=if(match(st, \"(?i)success|complete\"),1,0)\n| bin _time span=1h\n| stats count as n, sum(ok) as okc by _time, backend, host\n| eval err_rate=round(100*(n-okc)/n,2)\n| where err_rate>5",
-  "description": "Attach failures trap instances in BUILD or ERROR and break stateful apps. Trending error rates by backend isolates driver or SAN regressions.",
-  "value": "Improves storage SLOs for databases and Kubernetes volumes on Cinder.",
+  "description": "Alerts on UC-2.9.3 — OpenStack, Cinder, Volume, Attach, and — using `index=openstack` sourcetype `openstack:cinder`, grouped by `_time`, `backend`, `host`. Outputs `okc` each `1h`; alert when `err_rate` > 5. Primary focus: Error Rate. Purpose-built for 'OpenStack Cinder Volume Attach and Detach Error Rate' in Linux workflows.",
+  "value": "UC-2.9.3 accelerates insight into Error Rate ('OpenStack Cinder Volume Attach and Detach Error Rate') by tracking `okc` on `openstack:cinder` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Tag backend driver name. Baseline hourly success ratio. Alert on spikes after upgrades.",
   "visualization": "Timechart error rate; breakdown by backend; top error messages.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "OpenStack Cinder",
-      "url": "https://openstack.org/"
+      "url": "https://openstack.org/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "OpenStack metrics may swing during image builds, large migrations, or control-plane rolling updates; verify services are healthy in parallel before declaring data-plane failure.",
+  "knownFalsePositives": "1. **Patch Tuesday on `openstack`** — Package managers spike `_time` metrics for 'OpenStack Cinder Volume Attach and Detach Error Rate'. Correlate with apt/yum logs in the same `openstack:cinder` window.\n\n2. **Nightly backup I/O on `_time`** — Predictable `sum` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `openstack:cinder`** — Nagios/Zabbix polls `_time` and mimics sustained load without crossing `err_rate` > 5.\n\n4. **New host onboarding** — `_time` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `_time`, `valid_until`.",
   "equipment": [
     "openstack"
+  ],
+  "equipmentModels": [
+    "openstack_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -36,5 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cinder API / volume driver logs to Splunk — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=openstack:cinder into openstack. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, backend, err_rate, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

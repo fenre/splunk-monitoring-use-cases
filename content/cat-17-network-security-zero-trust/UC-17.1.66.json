@@ -9,6 +9,8 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Cisco AI Endpoint Analytics — IoT/OT Classification Confidence and New-Profile Discovery' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_cisco_ai_endpoint_analytics_iot_ot_classificatio` (UC-17.1.66), SOC dashboard panel \"Network — Cisco AI Endpoint Analytics — IoT/OT Classification Confidence and New-Profile Discovery\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "nis2",
@@ -49,14 +51,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Connect a never-seen IoT device. AIEA emits 80101 (new type). UC-17.1.66 fires.",
-    "negativeScenario": "Connect a well-known device type. High confidence; no fire."
+    "positiveScenario": "UC-17.1.66 positive (Cisco, Endpoint, Analytics, IoT, Classification): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `endpoints`, `avg_conf` grouped by `endpoint_type`, `MessageCode` satisfies `avg_conf` < 70 for 'Cisco AI Endpoint Analytics — IoT/OT Classification Confidence and New-Profile Discovery'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.66 negative (Profile Discovery): ingest benign `nac` / `cisco:ise:syslog` events where `endpoint_type`, `MessageCode` stays below `avg_conf` < 70, or exclude the test entity via `network_exception_register.csv`. Variant 2 confirms zero alert rows for 'Cisco AI Endpoint Analytics — IoT/OT Classification Confidence and New-Profile Discovery'."
   },
-  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *AI Endpoint Analytics* category — codes `80100` (AIEA classification), `80101` (AIEA new endpoint type discovered), `80102` (AIEA confidence below threshold), `80103` (AIEA model update). Cisco AI Endpoint Analytics is delivered through Catalyst Center / DNAC and integrates with ISE 3.x. Field: `endpoint_mac`, `endpoint_type`, `confidence_score`, `model_version`.",
-  "app": "`Splunk Add-on for Cisco Identity Services`.",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *AI Endpoint Analytics* category — codes `80100` (AIEA classification), `80101` (AIEA new endpoint type discovered), `80102` (AIEA confidence below threshold), `80103` (AIEA model update). Cisco AI Endpoint Analytics is delivered through Catalyst Center / DNAC and integrates with ISE 3.x. Field: `endpoint_mac`, `endpoint_type`, `confidence_score`, `model_version`. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (80100, 80101, 80102)\n| stats count, dc(endpoint_mac) as endpoints, avg(confidence_score) as avg_conf by endpoint_type, MessageCode\n| where avg_conf < 70 OR MessageCode==\"80101\"",
-  "description": "Tracks Cisco AI Endpoint Analytics classification confidence and discoveries of new endpoint types — useful for IoT/OT environments where unknown devices appear and need classification before policy assignment.",
-  "value": "AI Endpoint Analytics complements traditional Profiler with ML-based classification. Tracking new-type discoveries provides input to policy refinement; tracking low confidence catches systematic gaps.",
+  "description": "Detects UC-17.1.66 for Cisco, Endpoint, Analytics, IoT, Classification over `index=nac` sourcetype `cisco:ise:syslog` with thresholds `avg_conf` < 70. Groups `endpoints`, `avg_conf` by `endpoint_type`, `MessageCode` each `the scheduled window`. Centered on Profile Discovery indicators. Supports repeatable network triage for 'Cisco AI Endpoint Analytics — IoT/OT Classification Confidence and New-Profile Discovery'.",
+  "value": "For 'Cisco AI Endpoint Analytics — IoT/OT Classification Confidence and New-Profile Discovery', UC-17.1.66 converts `endpoints`, `avg_conf` on `cisco:ise:syslog` feeds into actionable rows and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Schedule every 30 min.",
   "visualization": "Confidence distribution; new-discovery trend.",
   "cimModels": [],
@@ -64,10 +66,26 @@
   "references": [
     {
       "title": "Cisco AI Endpoint Analytics",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "NIS2 Directive — EUR-Lex",
+      "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022L2555",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) Initial deployment — many low-confidence classifications during model warm-up.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'Cisco AI Endpoint Analytics — IoT/OT Classification Confidence and New-Profile Discovery'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (IoT/OT visibility — measures ISE classification accuracy for OT devices, no adversary technique)"
   ],
@@ -86,7 +104,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Standard pattern.",
+  "detailedImplementation": "Standard pattern.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`MessageCode, avg_conf, endpoint_type`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "ISE uses AI to identify what kind of device just connected. We watch when the AI is unsure or when it sees a brand-new type of device, so we can teach it and refine the rules.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

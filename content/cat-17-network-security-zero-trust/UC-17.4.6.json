@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Cloudflare Origin 5xx Error Rate Behind the Edge (`cloudflare:json`)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_cloudflare_origin_5xx_error_rate_behind_the_edge` (UC-17.4.6), SOC dashboard panel \"Network — Cloudflare Origin 5xx Error Rate Behind the Edge (`cloudflare:json`)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.4.6 positive (Cloudflare, Origin, 5xx, Error, Rate): ingest synthetic events into `index=cdn` sourcetype='cloudflare:json' where `count` grouped by `OriginResponseStatus` satisfies `OriginResponseStatus` >= 500 for 'Cloudflare Origin 5xx Error Rate Behind the Edge (`cloudflare:json`)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.4.6 negative (Edge (`cloudflare:json`)): ingest benign `cdn` / `cloudflare:json` events where `OriginResponseStatus` stays below `OriginResponseStatus` >= 500, or exclude the test entity via `network_exception_register.csv`. Variant 1 confirms zero alert rows for 'Cloudflare Origin 5xx Error Rate Behind the Edge (`cloudflare:json`)'."
+  },
   "dataSources": "Cloudflare Logpush JSON delivered to Splunk HEC/S3 with `sourcetype=cloudflare:json` (HTTP requests, firewall, Workers, DNS, Access as configured)",
   "app": "Cloudflare App for Splunk (Splunkbase 4501) + Logpush JSON (`cloudflare:json`)",
   "spl": "index=cdn sourcetype=\"cloudflare:json\" earliest=-24h\n| spath OriginResponseStatus\n| spath EdgeResponseStatus\n| where OriginResponseStatus>=500\n| timechart span=15m count by OriginResponseStatus",
-  "description": "5xx from origin while Cloudflare is healthy means your application or hosting tier is failing—often invisible to internal monitoring if probes bypass the CDN.",
-  "value": "SRE teams detect origin server failures that are invisible to traditional monitoring (which often bypasses the CDN), bridging the gap between edge observability and application health with a single customer-impacting metric.",
+  "description": "Alerts on Edge (`cloudflare:json`) activity in UC-17.4.6 ('Cloudflare Origin 5xx Error Rate Behind the Edge (`cloudflare:json`)') from `index=cdn` sourcetype `cloudflare:json`. Rolls up `count` by `OriginResponseStatus` across `15m` and pages when `OriginResponseStatus` >= 500. Covers Cloudflare, Origin, 5xx, Error, Rate. Network operators treat UC-17.4.6 as the canonical signal.",
+  "value": "Operators running UC-17.4.6 on `cloudflare:json` feeds shorten triage for Edge (`cloudflare:json`) tied to 'Cloudflare Origin 5xx Error Rate Behind the Edge (`cloudflare:json`)', lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Configure Logpush jobs per dataset; route all into a unified `cloudflare:json` sourcetype or use transforms to normalize. Use `spath` for PascalCase fields. Create macros per zone name.",
   "visualization": "Timechart (origin 5xx), single value (SLI breach).",
   "cimModels": [
@@ -24,17 +30,32 @@
   "references": [
     {
       "title": "Cloudflare Logpush documentation",
-      "url": "https://developers.cloudflare.com/logs/logpush/"
+      "url": "https://developers.cloudflare.com/logs/logpush/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase — Cloudflare App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4501"
+      "url": "https://splunkbase.splunk.com/app/4501",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Maintenance window on `cdn` (UC-17.4.6)** — Planned work for 'Cloudflare Origin 5xx Error Rate Behind the Edge (`cloudflare:json`)' shifts `count` over `span=15m` while `OriginResponseStatus` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cloudflare:json`** — Scheduled automation elevates `src` without crossing `OriginResponseStatus` >= 500 for UC-17.4.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `OriginResponseStatus`** — Health checks in `cdn` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cloudflare:json`** — First 48h baseline for UC-17.4.6 on `OriginResponseStatus` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `OriginResponseStatus`, `exception_reason`, `valid_until`.",
   "securityDomain": "cloud",
   "equipment": [
     "cloudflare"
+  ],
+  "equipmentModels": [
+    "cloudflare_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -44,5 +65,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n• Cloudflare App for Splunk (Splunkbase 4501) v2.x on the Search Head. Logpush configured for the **HTTP Requests** dataset with fields: `OriginResponseStatus`, `EdgeResponseStatus`, `ClientRequestHost`, `ClientRequestURI`, `OriginIP`, `EdgeColoCode`, `CacheCacheStatus`, `EdgeStartTimestamp`, `OriginResponseTime`.\n• Data routed to `index=cdn` with `sourcetype=cloudflare:json`.\n• `OriginResponseStatus` captures the HTTP status code returned by your origin server to Cloudflare. If the origin returns 5xx, Cloudflare may serve a stale cache copy (if configured) or pass the 5xx to the client.\n• Note: `OriginResponseStatus` is only populated for requests that reach the origin. Cache HITs (`CacheCacheStatus=hit`) do not have an origin response.\n\nStep 1 — Configure data collection\nVerify origin response fields are present:\n```spl\nindex=cdn sourcetype=\"cloudflare:json\" earliest=-1h\n| spath OriginResponseStatus | spath CacheCacheStatus\n| where isnotnull(OriginResponseStatus)\n| stats count by OriginResponseStatus, CacheCacheStatus\n```\nYou should see a mix of `OriginResponseStatus` values (200, 301, 404, 500, 502, 503, 504) alongside `CacheCacheStatus` values like `miss`, `expired`, `dynamic`, `bypass`. Rows with `CacheCacheStatus=hit` should NOT have an `OriginResponseStatus` (Cloudflare served from cache without contacting the origin).\n\nStep 2 — Create the search and alert\n\nPrimary search — Origin 5xx error rate:\n```spl\nindex=cdn sourcetype=\"cloudflare:json\" earliest=-1h\n| spath OriginResponseStatus | spath ClientRequestHost | spath EdgeColoCode\n| where isnotnull(OriginResponseStatus)\n| eval is_5xx=if(OriginResponseStatus>=500 AND OriginResponseStatus<600, 1, 0)\n| stats count as origin_requests sum(is_5xx) as origin_5xx by ClientRequestHost\n| eval error_rate=round(origin_5xx/origin_requests*100, 2)\n| where error_rate > 1\n| sort - error_rate\n```\n\nUnderstanding this SPL: Filters to requests that reached the origin (excluding cache hits), then calculates the 5xx error rate per hostname. An error rate above 1% is significant — it means 1 in 100 visitors hitting uncached content gets a server error. This metric is often invisible to internal monitoring if health checks bypass Cloudflare and hit the origin directly, because the origin may be healthy for simple health-check requests while failing under real traffic patterns.\n\nBreakdown by status code and colo:\n```spl\nindex=cdn sourcetype=\"cloudflare:json\" earliest=-4h\n| spath OriginResponseStatus | spath ClientRequestHost | spath EdgeColoCode\n| where OriginResponseStatus>=500 AND OriginResponseStatus<600\n| stats count by OriginResponseStatus, ClientRequestHost, EdgeColoCode\n| sort - count\n```\n\nThis reveals whether 5xx errors are global (origin is down) or regional (a specific colo's route to origin is broken, suggesting a network path issue).\n\nStep 3 — Validate\n(a) Compare with your origin's access logs (Apache/nginx) for the same time window. The 5xx count in Splunk should match the origin's 5xx count minus any requests that never reached the origin (cache hits).\n(b) In Cloudflare: Analytics → Traffic → filter by status code 500-599. Compare with the Splunk origin_5xx count.\n(c) Check a specific 5xx `RayID` in both Cloudflare and origin logs to confirm timestamps and status codes align.\n\nStep 4 — Operationalize\nDashboard (\"Cloudflare — Origin Health\"):\n• Row 1 — Single-value tiles: \"Origin 5xx rate (%)\", \"Total origin errors (1h)\", \"Worst-affected zone\".\n• Row 2 — Timechart: 5xx rate by zone, 24h, with overlay of cache hit ratio.\n• Row 3 — Table: zone, status code, colo, error count.\n\nAlert: Trigger when origin 5xx rate exceeds 5% over 15 minutes on any zone. Critical alert — this means the application is failing for a significant fraction of users.\n\nRunbook:\n1. **502 Bad Gateway** — Cloudflare received an invalid response from the origin. Common causes: origin crashed, overloaded, or returned malformed headers. Check origin process health and restart if needed.\n2. **504 Gateway Timeout** — Origin did not respond within Cloudflare's timeout (100s default for Enterprise, 15s for other plans). The origin is likely slow under load. Scale up or check database connections.\n3. **503 Service Unavailable** — Origin is explicitly rejecting requests. Check if a rate limiter or WAF on the origin is blocking Cloudflare's edge IPs. Ensure Cloudflare IP ranges are allowlisted on the origin.\n4. **5xx only from specific colos** — A regional network issue between Cloudflare's colo and your origin datacenter. Check Cloudflare Status page and your hosting provider's status.\n\nStep 5 — Troubleshooting\n• **`OriginResponseStatus` always null** — All requests are served from cache (high cache hit ratio). This is actually good. Focus on monitoring `EdgeResponseStatus` instead for the user-facing experience.\n• **Origin error rate in Splunk much higher than origin access logs show** — Cloudflare may be retrying failed requests (if retry is enabled), inflating the Logpush count. Each retry is a separate log entry.\n• **5xx errors but origin server looks healthy** — Check if Cloudflare is connecting to the right origin. Verify the DNS record (A/AAAA/CNAME) in the Cloudflare dashboard points to the correct origin IP. Also check for SSL mode mismatch (e.g., Cloudflare set to \"Full (Strict)\" but origin has an expired or self-signed certificate).",
-  "grandmaExplanation": "We check whether the computers behind our web shield are working properly — sometimes the shield is fine but the actual server behind it is having trouble, and only the people visiting the website notice."
+  "grandmaExplanation": "We check whether the computers behind our web shield are working properly — sometimes the shield is fine but the actual server behind it is having trouble, and only the people visiting the website notice.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

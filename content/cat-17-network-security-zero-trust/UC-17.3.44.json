@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=cp_log` (Check Point Log Exporter), Smart-1 Cloud logs",
+  "exclusions": "Covers the detection logic documented for 'Check Point Harmony SASE Threat Prevention (Check Point)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_check_point_harmony_sase_threat_prevention_check` (UC-17.3.44), SOC dashboard panel \"Network — Check Point Harmony SASE Threat Prevention (Check Point)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.44 positive (Check, Point, Harmony, SASE, Threat): ingest synthetic events into `index=checkpoint` sourcetype='cp_log' where `count` grouped by `protection_name`, `severity`, `src`, `action` satisfies -24h for 'Check Point Harmony SASE Threat Prevention (Check Point)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.44 negative ((Check Point)): ingest benign `checkpoint` / `cp_log` events where `protection_name`, `severity`, `src`, `action` stays below -24h, or exclude the test entity via `network_exception_register.csv`. Variant 0 confirms zero alert rows for 'Check Point Harmony SASE Threat Prevention (Check Point)'."
+  },
+  "dataSources": "`sourcetype=cp_log` (Check Point Log Exporter), Smart-1 Cloud logs Indexes: checkpoint. Sourcetypes: cp_log. Key fields: action, protection_name, severity, src. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)",
   "spl": "index=checkpoint sourcetype=\"cp_log\" earliest=-24h\n| where match(lower(product),\"(?i)ips|anti.?bot|anti.?malware|anti.?virus|threat.?emulation|threat.?extraction\")\n| stats count by protection_name, severity, src, action\n| sort -count",
-  "description": "Check Point Harmony SASE applies ThreatCloud AI-powered prevention (IPS, anti-malware, anti-bot, threat emulation) to all user traffic via cloud enforcement points. Detection events reveal threats targeting users regardless of location.",
-  "value": "Security operations teams analyze Check Point Harmony SASE threat prevention across all blades (Anti-Bot, Anti-Virus, IPS, Threat Emulation), prioritizing Anti-Bot detections as indicators of compromised endpoints and Threat Emulation hits as zero-day catches worth extracting IOCs from.",
+  "description": "Monitors 'Check Point Harmony SASE Threat Prevention (Check Point)' (UC-17.3.44) using `index=checkpoint` sourcetype `cp_log` by aggregating `count` grouped by `protection_name`, `severity`, `src`, `action` over `the scheduled window` and alerting when -24h. Keywords: Check, Point, Harmony, SASE, Threat. Focuses on (Check Point) behaviour so network teams can triage UC-17.3.44 without ad-hoc log review.",
+  "value": "UC-17.3.44 accelerates insight into (Check Point) ('Check Point Harmony SASE Threat Prevention (Check Point)') by tracking `activity` on `cp_log` feeds, reducing unauthorized access, segmentation drift, and NAC policy failures before spreadsheet checks hide regressions.",
   "implementation": "Configure Check Point Log Exporter or Smart-1 Cloud syslog forwarding to Splunk. Map `protection_name` to ThreatCloud categories. Alert on critical-severity detections. Correlate with MITRE ATT&CK via Check Point attack IDs.",
   "visualization": "Bar chart (detections by protection type), Table (top threats), Timeline (detection events), Pie chart (severity distribution).",
   "cimModels": [],
@@ -21,18 +27,26 @@
   "references": [
     {
       "title": "Check Point App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4293"
+      "url": "https://splunkbase.splunk.com/app/4293",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CCX Add-on for Checkpoint Smart-1 Cloud",
-      "url": "https://splunkbase.splunk.com/app/7259"
+      "url": "https://splunkbase.splunk.com/app/7259",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Intrusion_Detection",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Vulnerability scanner signature matches** — Qualys/Tenable traffic triggers IPS/threat signatures for 'Check Point Harmony SASE Threat Prevention (Check Point)'. Compare `src` against `scanner_ips` lookup.\n\n2. **Policy push during change window** — New deny rule generates expected blocks. Match firewall commit timestamp in change calendar.\n\n3. **Encrypted traffic inspection gap** — TLS-heavy apps bypass deep inspection; volume drop is operational, not a sensor failure.\n\n4. **Red-team C2 simulation** — Approved exercise from `pen_test_hosts.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src`, `signature_id`, `valid_until`.",
   "mitreAttack": [
     "T1133"
   ],
@@ -40,7 +54,17 @@
     "checkpoint",
     "syslog"
   ],
-  "detailedImplementation": "Prerequisites\n• Check Point Harmony SASE (formerly Perimeter 81) threat events in `index=checkpoint` with `sourcetype=checkpoint:harmony`. Check Point logs via Log Exporter or Open Telemetry Collector. Key fields: `blade` (Anti-Bot/Anti-Virus/IPS/Threat Emulation), `action` (Prevent/Detect/Drop), `malware_name`, `severity`, `src`, `dst`, `service_id`, `user`, `confidence_level`.\n• Harmony SASE includes Check Point's ThreatCloud intelligence with SandBlast threat emulation (sandboxing) for zero-day prevention. Events span Anti-Bot, Anti-Virus, IPS, and Threat Emulation blades.\n\nStep 1 — Configure data collection\nConfigure Check Point Log Exporter: SmartConsole > Logs > Log Exporter > add Splunk destination. Or use OPSEC LEA.\n\nVerify:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" earliest=-7d\n| stats count by blade, action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Threat prevention by blade:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" earliest=-24h\n| stats count dc(src) as sources dc(dst) as targets by blade, action, severity\n| sort blade, severity, - count\n```\n\nUnderstanding this SPL: Shows threat detections across all Check Point blades. Anti-Bot detections mean infected endpoints calling C2. Anti-Virus catches known malware. IPS blocks known exploits. Threat Emulation (sandboxing) catches zero-day threats not seen before — these are the highest value detections.\n\nThreat Emulation (zero-day) detections:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" blade=\"Threat Emulation\" earliest=-7d\n| stats count by malware_name, confidence_level, action\n| sort - count\n```\n\nStep 3 — Validate\n(a) Download EICAR test file. Verify Anti-Virus detection.\n(b) In SmartConsole: Logs & Monitor > Threat Prevention.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Blade detection distribution. Row 2 — Zero-day (Threat Emulation) hits. Row 3 — Anti-Bot C2 callbacks.\nAlert: Immediate on Anti-Bot detections (compromised endpoint). Immediate on Threat Emulation with high confidence.\n\nRunbook:\n1. **Anti-Bot detection** — Internal host compromised. Isolate and investigate.\n2. **Threat Emulation hit** — Zero-day caught. Extract IOCs and share with threat team.\n3. **IPS high severity** — Known exploit. Verify patch status of target.\n\nStep 5 — Troubleshooting\n• **No Threat Emulation events** — SandBlast license may be required.\n• **All 'Detect' no 'Prevent'** — Blades may be in detect-only mode.",
+  "equipmentModels": [
+    "checkpoint_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Check Point Harmony SASE (formerly Perimeter 81) threat events in `index=checkpoint` with `sourcetype=checkpoint:harmony`. Check Point logs via Log Exporter or Open Telemetry Collector. Key fields: `blade` (Anti-Bot/Anti-Virus/IPS/Threat Emulation), `action` (Prevent/Detect/Drop), `malware_name`, `severity`, `src`, `dst`, `service_id`, `user`, `confidence_level`.\n• Harmony SASE includes Check Point's ThreatCloud intelligence with SandBlast threat emulation (sandboxing) for zero-day prevention. Events span Anti-Bot, Anti-Virus, IPS, and Threat Emulation blades.\n\nStep 1 — Configure data collection\nConfigure Check Point Log Exporter: SmartConsole > Logs > Log Exporter > add Splunk destination. Or use OPSEC LEA.\n\nVerify:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" earliest=-7d\n| stats count by blade, action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Threat prevention by blade:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" earliest=-24h\n| stats count dc(src) as sources dc(dst) as targets by blade, action, severity\n| sort blade, severity, - count\n```\n\nUnderstanding this SPL: Shows threat detections across all Check Point blades. Anti-Bot detections mean infected endpoints calling C2. Anti-Virus catches known malware. IPS blocks known exploits. Threat Emulation (sandboxing) catches zero-day threats not seen before — these are the highest value detections.\n\nThreat Emulation (zero-day) detections:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" blade=\"Threat Emulation\" earliest=-7d\n| stats count by malware_name, confidence_level, action\n| sort - count\n```\n\nStep 3 — Validate\n(a) Download EICAR test file. Verify Anti-Virus detection.\n(b) In SmartConsole: Logs & Monitor > Threat Prevention.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Blade detection distribution. Row 2 — Zero-day (Threat Emulation) hits. Row 3 — Anti-Bot C2 callbacks.\nAlert: Immediate on Anti-Bot detections (compromised endpoint). Immediate on Threat Emulation with high confidence.\n\nRunbook:\n1. **Anti-Bot detection** — Internal host compromised. Isolate and investigate.\n2. **Threat Emulation hit** — Zero-day caught. Extract IOCs and share with threat team.\n3. **IPS high severity** — Known exploit. Verify patch status of target.\n\nStep 5 — Troubleshooting\n• **No Threat Emulation events** — SandBlast license may be required.\n• **All 'Detect' no 'Prevent'** — Blades may be in detect-only mode.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)). Enable the modular input or HEC token that writes sourcetype=cp_log into checkpoint. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action, protection_name, severity, src`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Check Point's security catches threats at multiple levels — known viruses, exploit attempts, botnet communications, and even brand-new attacks it has never seen before (by running suspicious files in a sandbox). We track each type to know which defenses are catching what.",
-  "hardware": "Check Point Harmony SASE (cloud), Harmony Endpoint (client), Smart-1 Cloud (management)"
+  "hardware": "Check Point Harmony SASE (cloud), Harmony Endpoint (client), Smart-1 Cloud (management)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

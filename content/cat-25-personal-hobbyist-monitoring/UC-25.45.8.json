@@ -9,24 +9,43 @@
     "Business"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Practice sessions (`practice:session`), DAW sessions (`daw:session`), release/streaming stats (`release:stats`), gig setlists (`setlist:play`).",
-  "app": "Music and creator telemetry — practice-tracker apps (Modacity), DAW project logs, and streaming/creator analytics (Spotify for Artists, YouTube Studio) — streamed to Splunk HEC via APIs and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Revenue Mix — Streams, Sales, and Gigs' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_revenue_mix_streams_sales_and_gigs` (UC-25.45.8), SOC dashboard panel \"Personal — Revenue Mix — Streams, Sales, and Gigs\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.45.8 positive (Revenue, Mix, Streams,, Sales,, and): ingest synthetic events into `index=personal` sourcetype='release:stats' where `revenue`, `total` grouped by `source`, `_time` satisfies detection threshold for 'Revenue Mix — Streams, Sales, and Gigs'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.45.8 negative (and Gigs): ingest benign `personal` / `release:stats` events where `source`, `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'Revenue Mix — Streams, Sales, and Gigs'."
+  },
+  "dataSources": "Practice sessions (`practice:session`), DAW sessions (`daw:session`), release/streaming stats (`release:stats`), gig setlists (`setlist:play`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Music and creator telemetry — practice-tracker apps (Modacity), DAW project logs, and streaming/creator analytics (Spotify for Artists, YouTube Studio) — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=release:stats event=revenue\n| bin _time span=1mon\n| stats sum(amount) as revenue by source _time\n| stats sum(revenue) as total by source\n| sort - total",
-  "description": "Breaks your music income down by source — streaming, sales, gigs, merch — so you know what actually pays.",
-  "value": "Understanding the revenue mix helps a musician invest effort where the money is rather than where it feels good.",
+  "description": "Alerts on UC-25.45.8 — Revenue, Mix, Streams,, Sales,, and — using `index=personal` sourcetype `release:stats`, grouped by `source`, `_time`. Outputs `revenue`, `total` each `1m`; alert when configured threshold. Primary focus: and Gigs. Purpose-built for 'Revenue Mix — Streams, Sales, and Gigs' in Personal workflows.",
+  "value": "Tracking `revenue`, `total` via UC-25.45.8 on `release:stats` feeds improves response to 'Revenue Mix — Streams, Sales, and Gigs' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest revenue events into `index=personal`; total income by source.",
   "visualization": "Bar chart of music revenue by source.",
   "cimModels": [],
   "references": [
     {
       "title": "Spotify for Artists — API",
-      "url": "https://developer.spotify.com/"
+      "url": "https://developer.spotify.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.45.8)** — Connector for 'Revenue Mix — Streams, Sales, and Gigs' stops polling `release:stats`; stale `revenue`, `total` on `source`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `revenue`, `total` over `1m` is expected for UC-25.45.8, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `release:stats`. Dedup with `stats latest(*) by source`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold for 'Revenue Mix — Streams, Sales, and Gigs'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk",
     "cisco"
@@ -34,5 +53,12 @@
   "equipmentModels": [
     "cisco_aci"
   ],
-  "grandmaExplanation": "It breaks your music income down by streaming, sales, and gigs, showing what really pays."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Music-Making & Creator Analytics — typical feeds: Practice sessions (`practice:session`), DAW sessions (`daw:session`), release/streaming stats (`release:stats`), gig setlists (`setlist:play`)..\n• **Sourcetypes in this search**: `release:stats`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=release:stats`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Music and creator telemetry — practice-tracker apps (Modacity), DAW project logs, and streaming/creator analytics (Spotify for Artists, YouTube Studio) — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Ingest revenue events into `index=personal`; total income by source.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"release:stats\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=release:stats earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Revenue Mix — Streams, Sales, and Gigs** over `personal` data (primarily `sourcetype=release:stats`) across the full search range. The `sum` aggregation groups by `source`, `_time`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`, `source`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=release:stats event=revenue\n| bin _time span=1mon\n| stats sum(amount) as revenue by source _time\n| stats sum(revenue) as total by source\n| sort - total\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=release:stats earliest=-7d\n| head 50\n| table _time, source\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=release:stats earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.45.8: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Music Revenue By Source (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `release:stats` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=release:stats | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1m` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1m` buckets.",
+  "grandmaExplanation": "It breaks your music income down by streaming, sales, and gigs, showing what really pays.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

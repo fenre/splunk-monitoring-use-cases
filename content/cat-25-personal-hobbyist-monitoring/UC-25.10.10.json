@@ -9,26 +9,55 @@
     "Safety"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture and greenhouse sensors (`plant:sensor`), aquarium controllers (`aquarium:sensor`).",
-  "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT.",
+  "exclusions": "Covers personal hobby monitoring for 'Pressure Crash Storm Heads-Up' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_pressure_crash_storm_heads_up` (UC-25.10.10), SOC dashboard panel \"Personal — Pressure Crash Storm Heads-Up\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.10.10 positive (Pressure, Crash, Storm, Heads): ingest synthetic events into `index=personal` sourcetype='weatherflow:obs' where `count` grouped by `_time` satisfies `drop_hpa` > 4 for 'Pressure Crash Storm Heads-Up'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.10.10 negative (Heads Up): ingest benign `personal` / `weatherflow:obs` events where `_time` stays below `drop_hpa` > 4, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'Pressure Crash Storm Heads-Up'."
+  },
+  "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture and greenhouse sensors (`plant:sensor`), aquarium controllers (`aquarium:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=weatherflow:obs\n| bin _time span=1h\n| stats earliest(pressure_hpa) as start_p, latest(pressure_hpa) as end_p by _time\n| eval drop_hpa=round(start_p-end_p,1)\n| where drop_hpa>4\n| sort - drop_hpa",
-  "description": "Watches for rapid barometric pressure drops that often arrive ahead of rough weather, giving you a local storm heads-up from your own sensor instead of a national feed.",
-  "value": "Fast pressure moves are one of the oldest forecasting clues around, and they become much more actionable when tracked against your own location.",
+  "description": "Surfaces when Heads Up criteria fire for 'Pressure Crash Storm Heads-Up' (UC-25.10.10) in `index=personal` sourcetype `weatherflow:obs`. Pipeline aggregates `count` by `_time` over `1h`. Alert logic enforces `drop_hpa` > 4. Title terms: Pressure, Crash, Storm, Heads. Eliminates manual hunting for UC-25.10.10 conditions.",
+  "value": "UC-25.10.10 helps teams contain Pressure, Crash, Storm, Heads scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Forward WeatherFlow or Tempest observations hourly; alert when pressure falls sharply within an hour and compare it against later conditions.",
   "visualization": "Hourly bar chart of barometric pressure drops.",
   "cimModels": [],
   "references": [
     {
       "title": "Tempest API documentation",
-      "url": "https://weatherflow.github.io/Tempest/api/"
+      "url": "https://weatherflow.github.io/Tempest/api/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.10.10)** — Connector for 'Pressure Crash Storm Heads-Up' stops polling `weatherflow:obs`; stale `count` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1h` is expected for UC-25.10.10, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `weatherflow:obs`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `drop_hpa` > 4 for 'Pressure Crash Storm Heads-Up'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It spots when the air pressure falls quickly enough that rough weather may be on the way soon."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Weather, Environment & Garden — typical feeds: Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture/greenhouse sensors, aquarium controllers (`aquarium:sensor`.\n• **Sourcetypes in this search**: `weatherflow:obs`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=weatherflow:obs`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT..\n\n**Author notes:** Forward WeatherFlow or Tempest observations hourly; alert when pressure falls sharply within an hour and compare it against later conditions.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"weatherflow:obs\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=weatherflow:obs earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Pressure Crash Storm Heads-Up** over `personal` data (primarily `sourcetype=weatherflow:obs`) across the full search range. It applies numeric thresholds on `drop_hpa` (> 4) after earliest, latest — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `drop_hpa`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=weatherflow:obs\n| bin _time span=1h\n| stats earliest(pressure_hpa) as start_p, latest(pressure_hpa) as end_p by _time\n| eval drop_hpa=round(start_p-end_p,1)\n| where drop_hpa>4\n| sort - drop_hpa\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=weatherflow:obs earliest=-7d\n| head 50\n| table _time, drop_hpa\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=weatherflow:obs earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `drop_hpa` before alerting:\n\n```spl\nindex=personal sourcetype=weatherflow:obs earliest=-30d\n| stats perc50(drop_hpa) AS p50 perc90(drop_hpa) AS p90 perc99(drop_hpa) AS p99 max(drop_hpa) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.10.10: Personal evidence` with the following panel layout:\n\n**Panel 1 — Hourly Bar Chart Of Barometric Pressure Drops (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `weatherflow:obs` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=weatherflow:obs | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1h` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1h` buckets.",
+  "grandmaExplanation": "It spots when the air pressure falls quickly enough that rough weather may be on the way soon.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

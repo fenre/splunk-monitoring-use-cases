@@ -12,6 +12,8 @@
   "splunkPillar": "Security",
   "owner": "Head of IT Operations",
   "controlFamily": "regulation-specific",
+  "exclusions": "Covers the detection logic documented for 'Advisory Remediation Progress Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_advisory_remediation_progress_tracking` (UC-5.13.38), SOC dashboard panel \"Operations — Advisory Remediation Progress Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "compliance": [
     {
       "regulation": "nist-800-53",
@@ -44,32 +46,40 @@
       "evidenceArtifact": "Trending report showing advisory affected-device counts decreasing over 30-day windows; exported monthly for management review."
     }
   ],
+  "controlTest": {
+    "positiveScenario": "UC-5.13.38 positive (Advisory, Remediation, Progress, Tracking): ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:securityadvisory' where `count` grouped by `advisoryId` satisfies detection threshold for 'Advisory Remediation Progress Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.13.38 negative (Progress Tracking): ingest benign `catalyst` / `cisco:dnac:securityadvisory` events where `advisoryId` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Advisory Remediation Progress Tracking'."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:securityadvisory` from the `securityadvisory` modular input in `TA_cisco_catalyst` (Splunkbase 7538). Same data feed as UC-5.13.34. Tracks `deviceCount` over time per `advisoryId` — a declining count means devices are being patched.",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:securityadvisory\" (severity=\"CRITICAL\" OR severity=\"HIGH\")\n| timechart span=1d latest(deviceCount) as affected by advisoryId",
-  "description": "Tracks the remediation progress for each active security advisory by monitoring how the affected device count decreases over time as firmware upgrades are applied — proving to auditors and management that vulnerability remediation is an ongoing process with measurable results.",
-  "value": "Knowing you have 47 devices affected by a CRITICAL PSIRT (UC-5.13.34) is step one. Proving that count dropped to 12 this week (UC-5.13.38) is the evidence that your firmware campaign is working. This UC provides the remediation velocity metric — how fast are we patching? — which drives the quarterly vulnerability management review and satisfies NIST SI-2 (Flaw Remediation) and ISO 27001 A.8.8 (Management of Technical Vulnerabilities) evidence requirements.",
+  "description": "Alerts on Progress Tracking anomalies for UC-5.13.38 with window `1d` on `index=catalyst` sourcetype `cisco:dnac:securityadvisory`. Combines `count` by `advisoryId` and compares against configured threshold. Mapped to keywords Advisory, Remediation, Progress, Tracking for dashboard routing.",
+  "value": "Alerting on Advisory, Remediation, Progress, Tracking through UC-5.13.38 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Same `securityadvisory` input as UC-5.13.34. Track `deviceCount` per `advisoryId` over time with `timechart`. Schedule weekly for the security operations review.",
   "visualization": "(1) Line chart: deviceCount per CRITICAL/HIGH advisory over time (each advisory as a series, declining lines = progress). (2) Table: advisoryId, initial_affected, current_affected, remediated_pct. (3) Single value: percentage of CRITICAL devices remediated. (4) Annotations: mark firmware push dates.",
   "references": [
     {
       "title": "Splunkbase app 7538",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center API docs",
-      "url": "https://developer.cisco.com/docs/catalyst-center/"
+      "url": "https://developer.cisco.com/docs/catalyst-center/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Integration Guide",
-      "url": "docs/guides/catalyst-center.md"
+      "url": "docs/guides/catalyst-center.md",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco PSIRT Security Advisories",
-      "url": "https://sec.cloudapps.cisco.com/security/center/publicationListing.x"
+      "url": "https://sec.cloudapps.cisco.com/security/center/publicationListing.x",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Remediation progress appearing to regress when new devices are added to Catalyst Center.** When new devices are onboarded, they may be affected by existing advisories, increasing the `current_affected` count and making it appear that remediation progress has regressed. Distinguish by separating newly onboarded devices from the existing fleet: track `dc(deviceId)` over time and correlate with inventory additions. Suppress by computing remediation progress as a percentage of the original affected fleet, excluding devices onboarded after the advisory was first detected.\n\n**Device remediated by firmware upgrade but compliance re-scan not yet complete.** A device that has been upgraded to a fixed version may still appear as affected until Catalyst Center's next PSIRT scan re-evaluates it. Distinguish by correlating with `index=catalyst sourcetype=\"cisco:dnac:swim\"` or `index=catalyst sourcetype=\"cisco:dnac:device\"` for version changes. Suppress by allowing one scan cycle (3600s) after a device upgrade before counting it as still-affected.\n\n**Compensating control applied but device still listed as affected.** Catalyst Center tracks affected devices by software version, not by compensating controls. A device with an ACL or IPS rule mitigating the vulnerability will still appear in the affected list. Distinguish by cross-referencing with the `catalyst_advisory_exceptions` lookup. Do not suppress from the advisory view — note the compensating control status alongside the advisory.\n\n**Advisory with no available fix showing zero remediation progress.** Some advisories affect devices running software where no fixed version is available yet. Remediation progress will remain at 0% indefinitely. Distinguish by checking the advisory's `fixedVersions` — if empty, no remediation is possible. Suppress by separating advisories with available fixes from those without in the remediation tracking dashboard.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst` (UC-5.13.38)** — Planned work for 'Advisory Remediation Progress Tracking' shifts `count` over `span=1d` while `advisoryId` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:securityadvisory`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.13.38. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `advisoryId`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:securityadvisory`** — First 48h baseline for UC-5.13.38 on `advisoryId` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `advisoryId`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

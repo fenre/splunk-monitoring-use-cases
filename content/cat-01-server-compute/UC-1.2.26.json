@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 1102), `sourcetype=WinEventLog:System` (EventCode 104)",
-  "app": "`Splunk_TA_windows`",
+  "exclusions": "Covers the detection logic documented for 'Security Log Cleared' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_security_log_cleared` (UC-1.2.26), SOC dashboard panel \"Linux — Security Log Cleared\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.2.26 positive (Security, Log, Cleared): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=1102 where `count` grouped by `entity` satisfies detection threshold for 'Security Log Cleared'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.2.26 negative (Log Cleared): ingest benign `wineventlog` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'Security Log Cleared'."
+  },
+  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 1102), `sourcetype=WinEventLog:System` (EventCode 104) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog (sourcetype=\"WinEventLog:Security\" EventCode=1102) OR (sourcetype=\"WinEventLog:System\" EventCode=104)\n| table _time, host, sourcetype, EventCode, SubjectUserName, SubjectDomainName\n| sort -_time",
-  "description": "Clearing the Security event log is a classic attacker technique to cover tracks. Legitimate clears are rare and should always be investigated.",
-  "value": "Log clearing is a classic attacker or insider cover-up move—an operator needs to act fast and preserve evidence the right way.",
+  "description": "Identifies UC-1.2.26 — Security, Log, Cleared — using `index=wineventlog` sourcetype `WinEventLog:Security`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Log Cleared. Purpose-built for 'Security Log Cleared' in Linux workflows.",
+  "value": "Operators running UC-1.2.26 on `WinEventLog:Security` feeds shorten triage for Log Cleared tied to 'Security Log Cleared', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "EventCode 1102 fires when the Security log is cleared; EventCode 104 when any event log is cleared. These should never occur in production outside controlled maintenance windows. Set a real-time alert with critical priority. Enrich with user identity to track who performed the action.",
   "visualization": "Timeline (clear events), Table (who cleared what), Single value (count — target: 0).",
   "cimModels": [
@@ -24,13 +30,38 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned log rollovers, support investigations, and evidence exports clear logs. 1102/104 in production AD should still page—pair with your dual-control runbook.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Security Log Cleared'. Correlate with apt/yum logs in the same `WinEventLog:Security` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Security`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],
+  "equipmentModels": [
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 1102), `sourcetype=WinEventLog:System` (EventCode 104).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEventCode 1102 fires when the Security log is cleared; EventCode 104 when any event log is cleared. These should never occur in production outside controlled maintenance windows. Set a real-time alert with critical priority. Enrich with user identity to track who performed the action.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog (sourcetype=\"WinEventLog:Security\" EventCode=1102) OR (sourcetype=\"WinEventLog:System\" EventCode=104)\n| table _time, host, sourcetype, EventCode, SubjectUserName, SubjectDomainName\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Security Log Cleared** — Clearing the Security event log is a classic attacker technique to cover tracks. Legitimate clears are rare and should always be investigated.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 1102), `sourcetype=WinEventLog:System` (EventCode 104). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Security, WinEventLog:System. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Security\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **Security Log Cleared**): table _time, host, sourcetype, EventCode, SubjectUserName, SubjectDomainName\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.user All_Changes.action All_Changes.object span=1h\n| where count>0\n```\n\nUnderstanding this CIM / accelerated SPL\n\nCIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.\n\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (clear events), Table (who cleared what), Single value (count — target: 0).",
-  "grandmaExplanation": "We catch when someone cleared important security or system logs, which is a big deal for both attacks and policy compliance."
+  "grandmaExplanation": "We catch when someone cleared important security or system logs, which is a big deal for both attacks and policy compliance.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

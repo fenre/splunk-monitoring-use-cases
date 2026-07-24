@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`container_cpu_usage_seconds`, `job_duration`, resource requests",
-  "app": "Kubernetes metrics, Jenkins Prometheus plugin",
+  "exclusions": "Covers the detection logic documented for 'Pipeline Resource Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_pipeline_resource_utilization` (UC-12.2.27), SOC dashboard panel \"Operations — Pipeline Resource Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.2.27 positive (Pipeline, Resource, Utilization): ingest synthetic events into `index=infra` sourcetype='kube:pod_metrics' where `avg_cpu`, `job_dur` grouped by `pod_name`, `executor_pod]` satisfies detection threshold for 'Pipeline Resource Utilization'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.2.27 negative (Resource Utilization): ingest benign `infra` / `kube:pod_metrics` events where `pod_name`, `executor_pod]` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Pipeline Resource Utilization'."
+  },
+  "dataSources": "`container_cpu_usage_seconds`, `job_duration`, resource requests Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+  "app": "Kubernetes metrics, Jenkins Prometheus plugin — Splunk Connect for Kubernetes (Splunkbase 5167)",
   "spl": "index=infra sourcetype=\"kube:pod_metrics\" label_app=\"ci-runner\"\n| bin _time span=5m\n| stats avg(cpu_cores) as avg_cpu by pod_name\n| join max=1 pod_name [search index=cicd sourcetype=\"jenkins:build\" | stats avg(duration) as job_dur by executor_pod]\n| table pod_name, avg_cpu, job_dur",
-  "description": "CPU/memory per runner job—right-sizing and spot vs on-demand mix.",
-  "value": "CPU/memory per runner job—right-sizing and spot vs on-demand mix.",
+  "description": "Identifies UC-12.2.27 — Pipeline, Resource, Utilization — using `index=infra` sourcetype `kube:pod_metrics`, grouped by `pod_name`, `executor_pod]`. Outputs `avg_cpu`, `job_dur` each `5m`; alert when configured threshold. Primary focus: Resource Utilization. Purpose-built for 'Pipeline Resource Utilization' in Operations workflows.",
+  "value": "UC-12.2.27 accelerates insight into Resource Utilization ('Pipeline Resource Utilization') by tracking `avg_cpu`, `job_dur` on `kube:pod_metrics` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Correlate runner pods with jobs. Identify over-provisioned runners. Recommend requests/limits tuning.",
   "visualization": "Table (utilization by runner), Bar chart (avg CPU per job type), Line chart (efficiency trend).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 5167",
+      "url": "https://splunkbase.splunk.com/app/5167",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Pipeline noise during blue/green cutovers, dependency cache cold-starts, or scheduled maintenance windows.",
+  "knownFalsePositives": "1. **Maintenance window on `infra` (UC-12.2.27)** — Planned work for 'Pipeline Resource Utilization' shifts `avg_cpu`, `job_dur` over `span=5m` while `pod_name`, `executor_pod]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `kube:pod_metrics`** — Scheduled automation elevates `executor_pod]` without crossing configured threshold for UC-12.2.27. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pod_name`, `executor_pod]`** — Health checks in `infra` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kube:pod_metrics`** — First 48h baseline for UC-12.2.27 on `pod_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pod_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "jenkins",
     "kubernetes",
@@ -34,6 +56,12 @@
   "equipmentModels": [
     "kubernetes_k8s"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Kubernetes metrics, Jenkins Prometheus plugin.\n• Ensure the following data sources are available: `container_cpu_usage_seconds`, `job_duration`, resource requests.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCorrelate runner pods with jobs. Identify over-provisioned runners. Recommend requests/limits tuning.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=infra sourcetype=\"kube:pod_metrics\" label_app=\"ci-runner\"\n| bin _time span=5m\n| stats avg(cpu_cores) as avg_cpu by pod_name\n| join max=1 pod_name [search index=cicd sourcetype=\"jenkins:build\" | stats avg(duration) as job_dur by executor_pod]\n| table pod_name, avg_cpu, job_dur\n```\n\nUnderstanding this SPL\n\n**Pipeline Resource Utilization** — CPU/memory per runner job—right-sizing and spot vs on-demand mix.\n\nDocumented **Data sources**: `container_cpu_usage_seconds`, `job_duration`, resource requests. **App/TA** (typical add-on context): Kubernetes metrics, Jenkins Prometheus plugin. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: infra; **sourcetype**: kube:pod_metrics. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=infra, sourcetype=\"kube:pod_metrics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by pod_name** so each row reflects one combination of those dimensions.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Pipeline stage (see **Pipeline Resource Utilization**): table pod_name, avg_cpu, job_dur\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with Jenkins build history. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (utilization by runner), Bar chart (avg CPU per job type), Line chart (efficiency trend).",
-  "grandmaExplanation": "We watch this part of your delivery chain for risks and reliability so issues show up before they hit customers."
+  "grandmaExplanation": "We watch this part of your delivery chain for risks and reliability so issues show up before they hit customers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

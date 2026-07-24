@@ -8,33 +8,56 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=cp_log` (firewall/HTTPS inspection logs)",
+  "exclusions": "Covers the detection logic documented for 'Check Point HTTPS Inspection Status and Bypass (Check Point)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_check_point_https_inspection_status_and_bypass_c` (UC-5.2.53), SOC dashboard panel \"Operations — Check Point HTTPS Inspection Status and Bypass (Check Point)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.2.53 positive (Check, Point, HTTPS, Inspection, Status): ingest synthetic events into `index=firewall` sourcetype='cp_log' where `inspected_count` grouped by `rule_name`, `category` satisfies `bypass_pct` > 20 for 'Check Point HTTPS Inspection Status and Bypass (Check Point)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.2.53 negative ((Check Point)): ingest benign `firewall` / `cp_log` events where `rule_name`, `category` stays below `bypass_pct` > 20, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Check Point HTTPS Inspection Status and Bypass (Check Point)'."
+  },
+  "dataSources": "`sourcetype=cp_log` (firewall/HTTPS inspection logs) Indexes: firewall. Sourcetypes: cp_log. Key fields: bypass_pct, category, inspected, rule_name. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)",
   "spl": "index=firewall sourcetype=\"cp_log\" earliest=-24h\n| where match(lower(product),\"(?i)https.?inspection|ssl.?inspection\") OR match(lower(logdesc),\"(?i)bypass|inspect|decrypt\")\n| eval inspected=if(match(lower(logdesc),\"(?i)inspect|decrypt\") AND NOT match(lower(logdesc),\"(?i)bypass|skip|fail\"),1,0)\n| stats count sum(inspected) as inspected_count by rule_name, category\n| eval bypass_pct=round(100*(count-inspected_count)/count,1)\n| where bypass_pct > 20\n| sort -bypass_pct",
-  "description": "HTTPS inspection (SSL/TLS decryption) enables deep packet inspection of encrypted traffic. Connections that bypass inspection — due to certificate pinning, bypass rules, or resource limits — create visibility gaps. Monitoring bypass rates ensures that security coverage remains effective and identifies applications or categories that need policy updates.",
-  "value": "Security teams monitor Check Point HTTPS inspection coverage and bypass rates, identifying visibility gaps where encrypted traffic is not inspected and validating bypass policy exceptions.",
+  "description": "Detects (Check Point) activity in UC-5.2.53 ('Check Point HTTPS Inspection Status and Bypass (Check Point)') from `index=firewall` sourcetype `cp_log`. Rolls up `inspected_count` by `rule_name`, `category` across `the scheduled window` and pages when `bypass_pct` > 20. Covers Check, Point, HTTPS, Inspection, Status. Operations operators treat UC-5.2.53 as the canonical signal.",
+  "value": "Operators running UC-5.2.53 on `cp_log` feeds shorten triage for (Check Point) tied to 'Check Point HTTPS Inspection Status and Bypass (Check Point)', lowering operational risk and delayed incident response.",
   "implementation": "Enable HTTPS inspection logging (log bypassed and inspected connections). Baseline bypass rate per category. Alert when bypass percentage increases (new cert-pinned apps, resource limits). Report on inspection coverage for compliance (PCI DSS, SOX). Correlate with gateway CPU — high CPU can trigger automatic inspection bypass.",
   "visualization": "Pie chart (inspected vs bypassed), Bar chart (bypass by category), Line chart (bypass rate trend), Table (top bypass rules).",
   "cimModels": [],
   "references": [
     {
       "title": "Check Point App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4293"
+      "url": "https://splunkbase.splunk.com/app/4293",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CCX Add-on for Checkpoint Smart-1 Cloud",
-      "url": "https://splunkbase.splunk.com/app/7259"
+      "url": "https://splunkbase.splunk.com/app/7259",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 5402",
-      "url": "https://splunkbase.splunk.com/app/5402"
+      "url": "https://splunkbase.splunk.com/app/5402",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Legacy clients, pinned apps, and certificate work can make inspection status messages look worse than the risk.",
+  "knownFalsePositives": "1. **Maintenance window on `firewall` (UC-5.2.53)** — Planned work for 'Check Point HTTPS Inspection Status and Bypass (Check Point)' shifts `inspected_count` over `span=1h` while `rule_name`, `category` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cp_log`** — Scheduled automation elevates `category` without crossing `bypass_pct` > 20 for UC-5.2.53. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `rule_name`, `category`** — Health checks in `firewall` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cp_log`** — First 48h baseline for UC-5.2.53 on `rule_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `rule_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "checkpoint"
   ],
+  "equipmentModels": [
+    "checkpoint_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Check Point HTTPS inspection (SSL/TLS decryption) logs. Data in `index=checkpoint` with `sourcetype=cp_log`. Key fields: `product` (HTTPS Inspection), `action` (Inspect/Bypass), `src`, `dst`, `ssl_inspection_rule`, `bypass_reason`, `server_name`, `ssl_version`, `ssl_cipher`.\n* HTTPS Inspection: enables deep packet inspection of encrypted traffic. Check Point terminates the TLS session, inspects content, and re-encrypts to the client with a subordinate CA certificate. Connections bypassing inspection (due to category exception, pinned certificate, or unsupported protocol) create visibility gaps. Configured in SmartConsole > HTTPS Inspection policy.\n\nStep 1 -- Configure data collection\n```\n# SmartConsole -- configure HTTPS Inspection\n# Security Policies > HTTPS Inspection\n# Ensure logging is enabled for both Inspect and Bypass actions\n# Manage & Settings > Logs > enable HTTPS Inspection logging\n\n# Install CA certificate on endpoints for inspection to work\n```\nVerify:\n```spl\nindex=checkpoint sourcetype=\"cp_log\" product=\"HTTPS Inspection\" earliest=-4h\n| stats count by action, bypass_reason\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- HTTPS inspection status and bypass analysis:**\n```spl\nindex=checkpoint sourcetype=\"cp_log\" earliest=-4h\n| where product=\"HTTPS Inspection\" OR match(_raw, \"(?i)https.*inspect|ssl.*inspect|tls.*inspect\")\n| eval act=coalesce(action, ssl_action)\n| eval bypass=coalesce(bypass_reason, bypass_category, \"N/A\")\n| eval server=coalesce(server_name, dst, destination_address)\n| eval user=coalesce(src_user_name, user, \"unknown\")\n| eval ssl_ver=coalesce(ssl_version, tls_version)\n| eval inspected=if(match(act, \"(?i)inspect|decrypt\"), \"INSPECTED\", \"BYPASSED\")\n| stats count as connections count(eval(inspected=\"INSPECTED\")) as inspected_count count(eval(inspected=\"BYPASSED\")) as bypassed_count dc(server) as unique_servers by host\n| eval inspect_pct=round(100*inspected_count/(inspected_count+bypassed_count), 1)\n| eval bypass_pct=round(100*bypassed_count/(inspected_count+bypassed_count), 1)\n| eval severity=case(\n    bypass_pct > 50, \"WARNING -- majority of traffic bypassing inspection (\".bypass_pct.\"%)\",\n    bypass_pct > 30, \"INFO -- significant bypass rate (\".bypass_pct.\"%)\",\n    1==1, \"OK\")\n| table host, inspected_count, bypassed_count, inspect_pct, bypass_pct, unique_servers, severity\n```\n\n**Secondary search -- Bypass reason breakdown:**\n```spl\nindex=checkpoint sourcetype=\"cp_log\" earliest=-4h\n| where (product=\"HTTPS Inspection\" OR match(_raw, \"(?i)https.*inspect\")) AND match(action, \"(?i)bypass\")\n| eval bypass=coalesce(bypass_reason, bypass_category, \"Unknown\")\n| eval server=coalesce(server_name, dst)\n| stats count as bypassed dc(server) as unique_servers values(server) as sample_servers by bypass\n| sort -bypassed\n| eval sample_servers=mvindex(sample_servers, 0, 4)\n```\n\nStep 3 -- Validate\n(a) SmartConsole: HTTPS Inspection policy -- verify rules and exceptions.\n(b) SmartConsole: Logs & Monitor -- filter product=\"HTTPS Inspection\".\n(c) CLI: `fw ctl zdebug + drop` -- check for HTTPS inspection failures.\n\nStep 4 -- Operationalize\nDashboard (\"Check Point -- HTTPS Inspection\"):\n* Row 1 -- Single-value: \"Inspection ratio (%)\", \"Bypassed connections\", \"Unique bypass servers\".\n* Row 2 -- Inspection vs bypass trend.\n* Row 3 -- Top bypass reasons.\n\nAlert: Warning (bypass rate > 50%): investigate inspection policy gaps.\n\nStep 5 -- Troubleshooting\n\n* **High bypass rate** -- Review bypass categories. Common bypasses: certificate-pinned applications (banking, Apple services), health/financial categories (regulatory), or applications that break with inspection (WebRTC, VPN apps). Validate these are intentional.\n\n* **Inspection causing application failures** -- Some applications use certificate pinning and break when intercepted. Add to HTTPS bypass rule. Check: \"Update Services\" category bypass for OS/software updates.\n\n* **Client certificate errors** -- CA certificate not trusted on endpoints. Deploy the inspection CA certificate via GPO, MDM, or manual installation. Check certificate chain validity.",
   "grandmaExplanation": "We look at who is inspected, bypassed, or failing HTTPS checks so you can keep encryption policy honest and still serve legacy apps fairly.",
-  "hardware": "Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)"
+  "hardware": "Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

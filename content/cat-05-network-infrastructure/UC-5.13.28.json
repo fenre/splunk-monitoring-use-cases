@@ -11,6 +11,8 @@
   "splunkPillar": "Security",
   "owner": "Head of IT Operations",
   "controlFamily": "log-source-completeness",
+  "exclusions": "Covers the detection logic documented for 'Device Compliance Status Overview' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_device_compliance_status_overview` (UC-5.13.28), SOC dashboard panel \"Operations — Device Compliance Status Overview\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "compliance": [
     {
       "regulation": "nist-800-53",
@@ -33,32 +35,40 @@
       "evidenceArtifact": "Same saved search and dashboard as the primary UC artefact, with a monthly PDF or CSV compliance snapshot for the CDE/network boundary device population covered by the feed."
     }
   ],
+  "controlTest": {
+    "positiveScenario": "UC-5.13.28 positive (Device, Compliance, Status, Overview): ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:compliance' where `_total` grouped by `deviceName`, `complianceType`, `status` satisfies detection threshold for 'Device Compliance Status Overview'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.13.28 negative (Status Overview): ingest benign `catalyst` / `cisco:dnac:compliance` events where `deviceName`, `complianceType`, `status` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Device Compliance Status Overview'."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:compliance` from the `compliance` modular input in `TA_cisco_catalyst` (Splunkbase 7538). The TA polls `GET /dna/intent/api/v1/compliance` (v2 in newer TA releases) using token auth. Default poll interval: 3600s (1h). Volume: 1 event per device per poll × ~400 bytes. A 500-device campus produces ~500 events/poll × 24 polls/day = ~12,000 events/day ≈ 4.7 MB/day. Auto-extracted fields: `complianceStatus` (string: COMPLIANT, NON_COMPLIANT, ERROR, IN_PROGRESS, NOT_APPLICABLE), `complianceType` (string: RUNNING_CONFIG, IMAGE, PSIRT, EOX, NETWORK_SETTINGS), `deviceName` (FQDN), `deviceUuid` (UUID), `managementIpAddress`, `lastUpdateTime` (epoch milliseconds). CIM data model: **Change** (compliance state transitions map to configuration change events).",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+. Install on Search Heads (knowledge objects, CIM tags) AND the Heavy Forwarder or single-instance running inputs.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:compliance\"\n| stats latest(complianceStatus) as status by deviceName, complianceType\n| stats count by status\n| eventstats sum(count) as _total\n| eval pct=round(100*count/_total,1)\n| table status, count, pct\n| sort status",
-  "description": "Shows the compliance posture of every managed network device against Catalyst Center's golden-template policies — COMPLIANT, NON_COMPLIANT, ERROR, IN_PROGRESS — broken down by percentage, so security and compliance teams can see at a glance whether the fleet meets baseline configuration standards.",
-  "value": "Auditors ask for two things: point-in-time compliance snapshots and evidence of continuous monitoring. This UC delivers both. A NON_COMPLIANT percentage above 5% during business hours means devices are running configurations that deviate from the approved golden template — introducing security vulnerabilities, operational inconsistencies, or regulatory violations. Catching drift here first means you can remediate before the next PCI assessment or NIST audit cycle, rather than discovering it during evidence collection. Over quarters, the compliance trend line becomes your strongest proof to assessors that configuration baseline enforcement is a continuous process, not a one-time project.",
+  "description": "Monitors UC-5.13.28 — Device, Compliance, Status, Overview — using `index=catalyst` sourcetype `cisco:dnac:compliance`, grouped by `deviceName`, `complianceType`, `status`. Outputs `_total` each `the scheduled window`; alert when configured threshold. Primary focus: Status Overview. Purpose-built for 'Device Compliance Status Overview' in Operations workflows.",
+  "value": "For 'Device Compliance Status Overview', UC-5.13.28 converts `_total` on `cisco:dnac:compliance` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Install `TA_cisco_catalyst` (Splunkbase 7538) on the Search Head and Heavy Forwarder. Configure a Catalyst Center account and enable the `compliance` input (Inputs → Create → Compliance: account `catcenter-prod`, index `catalyst`, interval `3600`). Schedule a daily compliance snapshot report for the GRC evidence store. Alert when NON_COMPLIANT exceeds 10% of total devices.",
   "visualization": "(1) Donut or pie: count by `complianceStatus` with COMPLIANT green, NON_COMPLIANT red, ERROR orange, IN_PROGRESS grey, NOT_APPLICABLE muted. (2) Single value tile: compliant percentage as a large number (green ≥ 95%, yellow 90–95%, red < 90%). (3) Sortable table: deviceName, complianceType, status — filtered to NON_COMPLIANT only, for remediation triage. (4) Stacked area timechart from UC-5.13.30 showing COMPLIANT vs NON_COMPLIANT counts over 30 days for the audit trend narrative.",
   "references": [
     {
       "title": "Cisco Catalyst Add-on for Splunk (Splunkbase 7538)",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Intent API — Compliance endpoint",
-      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-compliance-status"
+      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-compliance-status",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Integration Guide (this repo)",
-      "url": "docs/guides/catalyst-center.md"
+      "url": "docs/guides/catalyst-center.md",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NIST SP 800-53 Rev. 5 — CM-6 Configuration Settings",
-      "url": "https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_0/home?element=CM-6"
+      "url": "https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_0/home?element=CM-6",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Active configuration push marking devices temporarily non-compliant.** During a Catalyst Center template deployment, devices receive new configurations in stages. Between the push and the next compliance check, devices may show as NON_COMPLIANT because the running config does not yet match the golden template. Distinguish by correlating with `index=catalyst sourcetype=\"cisco:dnac:audit:logs\"` for recent template deployment activity. Suppress by excluding `complianceStatus=IN_PROGRESS` from non-compliance counts and allowing 2 poll cycles after a configuration push before alerting.\n\n**Lab or pilot devices intentionally deviating from the golden template.** Lab switches or proof-of-concept equipment may run non-standard configurations that fail compliance checks by design. Distinguish by checking whether `deviceName` matches a lab naming convention. Suppress by maintaining a `catalyst_compliance_exceptions` lookup with `deviceName` and justification, and filtering excepted devices from compliance alerting.\n\n**Compliance check returning ERROR due to device unreachability.** If Catalyst Center cannot reach a device to check its configuration, the compliance status may show ERROR rather than COMPLIANT or NON_COMPLIANT. Distinguish by correlating with `index=catalyst sourcetype=\"cisco:dnac:devicehealth\"` for `reachabilityHealth=Unreachable` on the same device. Suppress by treating ERROR as a separate condition from NON_COMPLIANT — alert on reachability, not compliance.\n\n**NOT_APPLICABLE compliance status for devices that do not support the compliance type.** Some compliance types (e.g., IMAGE compliance for APs, EOX for virtual appliances) return NOT_APPLICABLE for unsupported device families. Distinguish by checking whether `complianceType` is appropriate for the device's platform. Suppress by filtering `| where complianceStatus NOT IN (\"NOT_APPLICABLE\",\"IN_PROGRESS\")` for compliance violation dashboards.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst` (UC-5.13.28)** — Planned work for 'Device Compliance Status Overview' shifts `_total` over `span=1h` while `deviceName`, `complianceType`, `status` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cisco:dnac:compliance`** — Scheduled automation elevates `complianceType` without crossing configured threshold for UC-5.13.28. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `deviceName`, `complianceType`, `status`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:compliance`** — First 48h baseline for UC-5.13.28 on `deviceName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `deviceName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

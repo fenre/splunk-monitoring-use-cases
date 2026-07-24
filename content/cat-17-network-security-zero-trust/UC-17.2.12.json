@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Security",
-  "dataSources": "SNMP OIDs, `cisco:asa` system events, vendor metrics API",
-  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), SNMP TA",
+  "exclusions": "Covers the detection logic documented for 'VPN Concentrator Capacity' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_vpn_concentrator_capacity` (UC-17.2.12), SOC dashboard panel \"Network — VPN Concentrator Capacity\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.2.12 positive (VPN, Concentrator, Capacity): ingest synthetic events into `index=snmp` sourcetype='snmp:cpu' where `avg_cpu` grouped by `host` satisfies -24h for 'VPN Concentrator Capacity'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.2.12 negative (Concentrator Capacity): ingest benign `snmp` / `snmp:cpu` events where `host` stays below -24h, or exclude the test entity via `network_exception_register.csv`. Variant 15 confirms zero alert rows for 'VPN Concentrator Capacity'."
+  },
+  "dataSources": "SNMP OIDs, `cisco:asa` system events, vendor metrics API Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), SNMP TA — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=snmp sourcetype=\"snmp:cpu\" host=\"vpn-headend-*\" earliest=-24h\n| timechart span=15m avg(cpu_utilization) as avg_cpu by host",
-  "description": "Tracks session count and CPU/memory against platform limits to avoid remote-access brownouts during peaks.",
-  "value": "Network operations teams monitor VPN concentrator CPU, memory, and throughput against hardware limits, preventing resource exhaustion that causes connection failures before session license limits are reached.",
+  "description": "Detects UC-17.2.12 — VPN, Concentrator, Capacity — using `index=snmp` sourcetype `snmp:cpu`, grouped by `host`. Outputs `avg_cpu` each `15m`; alert when -24h. Primary focus: Concentrator Capacity. Purpose-built for 'VPN Concentrator Capacity' in Network workflows.",
+  "value": "UC-17.2.12 operationalises 'VPN Concentrator Capacity' against `snmp:cpu` feeds so operators reduce unauthorized access, segmentation drift, and NAC policy failures without manual correlation.",
   "implementation": "Prefer vendor metrics (e.g., AnyConnect session count OID). Alert when CPU >80% sustained or sessions >85% of license. Simplify if only session logs: use UC-17.2.1 trend + license field.",
   "visualization": "Line chart (CPU vs sessions), Gauge (capacity %), Table (headends).",
   "cimModels": [],
@@ -22,15 +28,32 @@
   "references": [
     {
       "title": "Splunk_TA_paloalto",
-      "url": "https://splunkbase.splunk.com/app/2757"
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Palo Alto Networks documentation",
+      "url": "https://docs.paloaltonetworks.com/",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Remote workforce login storm** — Morning VPN/ZTNA session spike for 'VPN Concentrator Capacity'. Compare with historical same-hour baseline.\n\n2. **IdP or SAML metadata refresh** — Brief auth failures during federation cert rotation.\n\n3. **Split-tunnel policy change** — New route advertisements shift traffic patterns.\n\n4. **Synthetic ZTNA health checks** — Monitoring probes from known appliance IPs.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `src`, `valid_until`.",
   "mitreAttack": [
     "T1133"
   ],
   "equipment": [
     "cisco",
+    "m365",
     "paloalto",
     "snmp"
   ],
@@ -40,7 +63,13 @@
     "paloalto_pan_firewall",
     "snmp_generic"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• SNMP data from VPN concentrators in `index=snmp` with `sourcetype=snmp:cpu` or `sourcetype=snmp:memory`. Alternatively, ASA syslog messages for resource utilization.\n• Key fields: `host`, `cpu_utilization`, `memory_utilization`, `active_sessions`.\n• Cisco ASA SNMP OIDs: cpmCPUTotal5minRev (.1.3.6.1.4.1.9.9.109.1.1.1.1.8), ciscoMemoryPoolFree (.1.3.6.1.4.1.9.9.48.1.1.1.6).\n• Create a `vpn_capacity.csv` lookup: `host,max_sessions,max_throughput_mbps,cpu_warning,cpu_critical,memory_warning`.\n\nStep 1 — Configure data collection\nVerify SNMP data:\n```spl\nindex=snmp sourcetype=\"snmp:cpu\" host=\"vpn-*\" earliest=-1h\n| timechart span=5m avg(cpu_utilization) by host\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Concentrator resource utilization:\n```spl\nindex=snmp sourcetype=\"snmp:cpu\" host=\"vpn-*\" earliest=-24h\n| timechart span=15m avg(cpu_utilization) as avg_cpu max(cpu_utilization) as peak_cpu by host\n| appendpipe [\n    search index=snmp sourcetype=\"snmp:memory\" host=\"vpn-*\" earliest=-24h\n    | timechart span=15m avg(memory_utilization) as avg_mem by host\n]\n```\n\nCapacity scoring:\n```spl\nindex=snmp host=\"vpn-*\" earliest=-1h\n| stats avg(cpu_utilization) as cpu avg(memory_utilization) as mem by host\n| lookup vpn_capacity.csv host OUTPUT max_sessions cpu_warning cpu_critical memory_warning\n| eval status=case(cpu>=cpu_critical, \"CRITICAL\", cpu>=cpu_warning OR mem>=memory_warning, \"WARNING\", 1==1, \"OK\")\n```\n\nUnderstanding this SPL: Monitors the hardware health of VPN concentrators. CPU spikes above 80% on ASA typically cause session establishment delays. Memory exhaustion causes connection drops. These metrics complement session-count monitoring (UC-17.2.1) — a concentrator can have available session licenses but still be overloaded in CPU or memory.\n\nStep 3 — Validate\n(a) On ASA: `show cpu usage` and `show memory`. Compare with Splunk.\n\nStep 4 — Operationalize\nDashboard: Gauge tiles for CPU/memory per concentrator. Timechart trending.\nAlert: Warning at 70% CPU, critical at 85%.\n\nRunbook:\n1. **High CPU** — Check for DDoS, excessive logging, or crypto offload overload. Consider adding a second concentrator.\n2. **High memory** — Check for AnyConnect image cache, large ACL lists, or session leaks.\n\nStep 5 — Troubleshooting\n• **No SNMP data** — SNMP community string may be wrong, or ACL blocking the poller.\n• **CPU spikes during rekeying** — Normal for large IPSec deployments. Schedule rekeying off-peak.",
   "grandmaExplanation": "We check the health of the machines that handle all our remote connections, making sure they have enough processing power and memory to handle everyone without slowing down.",
-  "hardware": "ASA, FTD, Palo Alto GlobalProtect"
+  "hardware": "ASA, FTD, Palo Alto GlobalProtect",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=proofpoint:click` Proofpoint URL click-tracking and rewrite events (Threat Defense / TAP URL isolation)",
-  "app": "Proofpoint On-Demand Add-on for Splunk (`Splunk_TA_ProofpointOD`) or Proofpoint SIEM syslog mapped to `proofpoint:click`",
+  "exclusions": "Covers the detection logic documented for 'Proofpoint TAP URL Defense Click-Time Protection Follow-Through Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_proofpoint_tap_url_defense_click_time_protection` (UC-11.6.1), SOC dashboard panel \"Operations — Proofpoint TAP URL Defense Click-Time Protection Follow-Through Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.6.1 positive (Proofpoint, TAP, URL, Defense, Click): ingest synthetic events into `index=email` sourcetype='proofpoint:click' where `count` grouped by `entity` satisfies `total_clicks` >= 5, or `follow_through_pct` > 20 for 'Proofpoint TAP URL Defense Click-Time Protection Follow-Through Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.6.1 negative (Through Rate): ingest benign `email` / `proofpoint:click` events where `entity` stays below `total_clicks` >= 5, or `follow_through_pct` > 20, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Proofpoint TAP URL Defense Click-Time Protection Follow-Through Rate'."
+  },
+  "dataSources": "`sourcetype=proofpoint:click` Proofpoint URL click-tracking and rewrite events (Threat Defense / TAP URL isolation) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Proofpoint On-Demand Add-on for Splunk (`Splunk_TA_ProofpointOD`) or Proofpoint SIEM syslog mapped to `proofpoint:click` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=email sourcetype=\"proofpoint:click\" earliest=-7d\n| eval rewritten=coalesce(urlRewritten, URLRewritten, rewritten, \"unknown\")\n| eval disposition=coalesce(threatStatus, ThreatStatus, disposition, \"\")\n| eval user=coalesce(clickUser, recipient, Recipient, \"\")\n| where rewritten=\"true\" OR match(lower(_raw), \"(?i)rewrite\")\n| stats count(eval(match(lower(disposition),\"(?i)malicious|blocked|click.*block\"))) as blocked_clicks count as total_clicks by user\n| eval follow_through_pct=round(100*(total_clicks-blocked_clicks)/total_clicks,2)\n| where total_clicks>=5 AND follow_through_pct>20\n| sort -follow_through_pct",
-  "description": "URL rewriting is only effective if users stop after the warning. Measuring how often rewritten malicious links still record a risky follow-through highlights training gaps, aggressive users, or mobile clients skipping interstitials.",
-  "value": "Quantifies the human layer of TAP and drives targeted simulations or policy tightening for repeat click-through populations.",
+  "description": "Detects UC-11.6.1 — Proofpoint, TAP, URL, Defense, Click — using `index=email` sourcetype `proofpoint:click`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `total_clicks` >= 5, or `follow_through_pct` > 20. Primary focus: Through Rate. Purpose-built for 'Proofpoint TAP URL Defense Click-Time Protection Follow-Through Rate' in Operations workflows.",
+  "value": "Tracking `activity` via UC-11.6.1 on `proofpoint:click` feeds improves response to 'Proofpoint TAP URL Defense Click-Time Protection Follow-Through Rate' and reduces operational risk and delayed incident response.",
   "implementation": "(1) Ingest Proofpoint click telemetry with rewrite and final disposition fields. (2) Align field names to your TA version; use `spath` if JSON is nested. (3) Exclude mailer daemons via lookup. (4) Baseline departments. (5) Pair with LMS or HR nudges for outliers.",
   "visualization": "Bar chart (follow-through % by user or OU), line chart (weekly rate), table of top users.",
   "cimModels": [
@@ -23,18 +29,34 @@
   "references": [
     {
       "title": "Proofpoint — Targeted Attack Protection (URL defense)",
-      "url": "https://www.proofpoint.com/us/products/advanced-threat-protection/targeted-attack-protection"
+      "url": "https://www.proofpoint.com/us/products/advanced-threat-protection/targeted-attack-protection",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase — Splunk Add-on for Proofpoint On Demand",
-      "url": "https://splunkbase.splunk.com/app/3185"
+      "url": "https://splunkbase.splunk.com/app/3185",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Training clicks, marketing campaigns with rewritten links, and helpdesk re-tests that look like follow-through risk.",
+  "knownFalsePositives": "1. **Maintenance window on `email` (UC-11.6.1)** — Planned work for 'Proofpoint TAP URL Defense Click-Time Protection Follow-Through Rate' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `proofpoint:click`** — Scheduled automation elevates `rewritten` without crossing `total_clicks` >= 5 for UC-11.6.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `email` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `proofpoint:click`** — First 48h baseline for UC-11.6.1 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "securityDomain": "threat",
   "equipment": [
     "proofpoint",
     "syslog"
+  ],
+  "equipmentModels": [
+    "proofpoint_generic",
+    "syslog_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -43,5 +65,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch how Proofpoint treats and rewrites mail, so threats and DLP events line up with what the security team already sees in their console."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Proofpoint On-Demand Add-on for Splunk (`Splunk_TA_ProofpointOD`) or Proofpoint SIEM syslog mapped to `proofpoint:click` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=proofpoint:click into email. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`follow_through_pct, total_clicks`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how Proofpoint treats and rewrites mail, so threats and DLP events line up with what the security team already sees in their console.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

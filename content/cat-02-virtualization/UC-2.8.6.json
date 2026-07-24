@@ -9,11 +9,17 @@
     "Change"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:audit\"` — REST audit_log: `user`, `action`, `object_type` (dc|cluster), `object_name`, `before`, `after`",
-  "app": "Engine `audit_log` export via REST or DB CDC to Splunk",
+  "exclusions": "Covers the detection logic documented for 'oVirt Datacenter and Cluster Maintenance Mode Audit Trail' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_ovirt_datacenter_and_cluster_maintenance_mode_au` (UC-2.8.6), SOC dashboard panel \"Linux — oVirt Datacenter and Cluster Maintenance Mode Audit Trail\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.8.6 positive (oVirt, Datacenter, and, Cluster, Maintenance): ingest synthetic events into `index=ovirt` sourcetype='ovirt:audit' where `count` grouped by `entity` satisfies -7d for 'oVirt Datacenter and Cluster Maintenance Mode Audit Trail'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.8.6 negative (Audit Trail): ingest benign `ovirt` / `ovirt:audit` events where `entity` stays below -7d, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 1 confirms zero alert rows for 'oVirt Datacenter and Cluster Maintenance Mode Audit Trail'."
+  },
+  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:audit\"` — REST audit_log: `user`, `action`, `object_type` (dc|cluster), `object_name`, `before`, `after` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Engine `audit_log` export via REST or DB CDC to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ovirt sourcetype=\"ovirt:audit\" earliest=-7d\n| eval ot=lower(coalesce(object_type, entity_type))\n| where ot=\"datacenter\" OR ot=\"cluster\"\n| eval act=lower(action)\n| where match(act, \"(?i)maintenance|activate|deactivate|update\")\n| table _time, user, object_name, act, before, after",
-  "description": "Cluster-level maintenance disables scheduling safeguards. Auditing who toggled maintenance supports SOX/ITIL evidence and post-incident review.",
-  "value": "Improves accountability for high-blast-radius configuration changes.",
+  "description": "Alerts on Audit Trail activity in UC-2.8.6 ('oVirt Datacenter and Cluster Maintenance Mode Audit Trail') from `index=ovirt` sourcetype `ovirt:audit`. Rolls up `count` by `entity` across `the scheduled window` and pages when -7d. Covers oVirt, Datacenter, and, Cluster, Maintenance. Linux operators treat UC-2.8.6 as the canonical signal.",
+  "value": "Operators running UC-2.8.6 on `ovirt:audit` feeds shorten triage for Audit Trail tied to 'oVirt Datacenter and Cluster Maintenance Mode Audit Trail', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Ensure audit retention meets policy. Restrict index access. Schedule weekly digest to infra owners.",
   "visualization": "Table of changes; timechart by user; filter on production clusters via lookup.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "oVirt Engine Audit Log",
-      "url": "https://www.ovirt.org/develop/developer-guide/engine/"
+      "url": "https://www.ovirt.org/develop/developer-guide/engine/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "AOS storage metrics can look worse during background heal, curator, or disk removal work; match alerts to Nutanix task progress and maintenance windows.",
+  "knownFalsePositives": "1. **Patch Tuesday on `ovirt`** — Package managers spike `host` metrics for 'oVirt Datacenter and Cluster Maintenance Mode Audit Trail'. Correlate with apt/yum logs in the same `ovirt:audit` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ovirt:audit`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "ovirt"
+  ],
+  "equipmentModels": [
+    "ovirt_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -36,5 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Engine `audit_log` export via REST or DB CDC to Splunk — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ovirt:audit into ovirt. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

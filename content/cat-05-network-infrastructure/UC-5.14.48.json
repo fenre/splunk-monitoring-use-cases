@@ -9,24 +9,50 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=proxy` `sourcetype=traefik:access` field `RetryAttempts`",
-  "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes",
+  "exclusions": "Covers the detection logic documented for 'Traefik Retry Middleware Activations' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_traefik_retry_middleware_activations` (UC-5.14.48), SOC dashboard panel \"Operations — Traefik Retry Middleware Activations\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.14.48 positive (Traefik, Retry, Middleware, Activations): ingest synthetic events into `index=proxy` sourcetype='traefik:access' where `retries` grouped by `ServiceName` satisfies `RetryAttempts` > 0 for 'Traefik Retry Middleware Activations'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.14.48 negative (Middleware Activations): ingest benign `proxy` / `traefik:access` events where `ServiceName` stays below `RetryAttempts` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Traefik Retry Middleware Activations'."
+  },
+  "dataSources": "`index=proxy` `sourcetype=traefik:access` field `RetryAttempts` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"traefik:access\"\n| where RetryAttempts > 0\n| stats sum(RetryAttempts) as retries by ServiceName\n| sort - retries",
-  "description": "Retries mask flaky upstreams but add load when misconfigured.",
-  "value": "Operations teams track Traefik retry middleware activations per service, detecting backend instability and evaluating retry storm risk on degraded services.",
+  "description": "Alerts on risk tied to Traefik, Retry, Middleware, Activations through UC-5.14.48 on `index=proxy` sourcetype `traefik:access`. Summarises `retries` grouped by `ServiceName` across `the scheduled window` before applying `RetryAttempts` > 0. Operators tune 'Traefik Retry Middleware Activations' using UC-5.14.48 runbook steps.",
+  "value": "Tracking `retries` via UC-5.14.48 on `traefik:access` feeds improves response to 'Traefik Retry Middleware Activations' and reduces operational risk and delayed incident response.",
   "implementation": "Enable retries only on idempotent routes; watch for retry amplification.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
   "cimModels": [],
   "references": [
     {
       "title": "Vendor documentation",
-      "url": "https://doc.traefik.io/traefik/middlewares/http/retry/"
+      "url": "https://doc.traefik.io/traefik/middlewares/http/retry/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Edge cases: multi-vendor mixes and ad hoc feeds can include lab traffic and partial visibility that mimics issues until scopes are defined. Tuning tip: match this to «Traefik Retry Middleware Activations» and exclude change windows, scans, and lab VLANs you already expect.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy` (UC-5.14.48)** — Planned work for 'Traefik Retry Middleware Activations' shifts `retries` over `span=1h` while `ServiceName` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `traefik:access`** — Scheduled automation elevates `src` without crossing `RetryAttempts` > 0 for UC-5.14.48. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ServiceName`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `traefik:access`** — First 48h baseline for UC-5.14.48 on `ServiceName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ServiceName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog",
     "traefik"
+  ],
+  "equipmentModels": [
+    "syslog_generic",
+    "traefik_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -36,5 +62,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n* Traefik access logs with retry middleware information. Key access log fields: `RetryAttempts`, `RouterName`, `ServiceName`, `OriginStatus`. Data in `index=proxy` with `sourcetype=traefik:access`. Key metrics: `traefik_service_retries_total`.\n* Retry middleware: Traefik can retry failed requests to different backend servers. Configured with `retry.attempts` (max retries) and `retry.initialInterval`. Retries are triggered on network errors and 5xx responses. High retry rates indicate backend instability and can amplify load on already-struggling backends.\n\nStep 1 -- Configure data collection\n```yaml\n# Dynamic config\nhttp:\n  middlewares:\n    retry-middleware:\n      retry:\n        attempts: 3\n        initialInterval: 100ms\n  routers:\n    my-router:\n      rule: \"Host(`app.example.com`)\"\n      middlewares:\n      - retry-middleware\n      service: my-service\n```\nVerify:\n```spl\nindex=proxy sourcetype=\"traefik:access\" earliest=-4h\n| where tonumber(RetryAttempts) > 0\n| stats count sum(RetryAttempts) as total_retries by ServiceName\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Retry middleware activation analysis:**\n```spl\nindex=proxy sourcetype=\"traefik:access\" earliest=-4h\n| eval retries=tonumber(coalesce(RetryAttempts, 0))\n| where retries > 0\n| bin _time span=5m\n| stats count as retried_requests sum(retries) as total_retries avg(retries) as avg_retries max(retries) as max_retries by _time, ServiceName\n| eval severity=case(total_retries > 200, \"HIGH -- heavy retry activity\", retried_requests > 50, \"WARNING -- significant retried requests\", avg_retries > 2, \"WARNING -- requests averaging >2 retries\", 1==1, \"OK\")\n| where severity != \"OK\"\n| table _time, ServiceName, retried_requests, total_retries, avg_retries, max_retries, severity\n```\n\n**From metrics:**\n```spl\nindex=proxy sourcetype=\"traefik:metrics\" earliest=-4h\n| where match(metric_name, \"service_retries_total\")\n| bin _time span=5m\n| stats latest(metric_value) as retries by _time, service\n| streamstats current=f last(retries) as prev by service\n| eval retry_rate=retries - prev\n| where isnotnull(retry_rate) AND retry_rate > 0\n| table _time, service, retry_rate\n```\n\nStep 3 -- Validate\n(a) Intentionally return 503 from a backend and verify retries happen.\n(b) Traefik API: `curl http://localhost:8080/api/http/middlewares` -- shows retry config.\n(c) Check that successful retries result in 200 in the access log (OriginStatus may differ from DownstreamStatus).\n\nStep 4 -- Operationalize\nDashboard (\"Traefik -- Retries\"):\n* Row 1 -- Single-value: \"Retried requests (4h)\", \"Total retries\", \"Avg retries/request\".\n* Row 2 -- Retry rate timechart by service.\n\nAlerting:\n* High (> 200 retries/5m): backend instability.\n* Warning (avg retries > 2): most retried requests exhausting attempts.\n\nStep 5 -- Troubleshooting\n\n* **High retry rate on specific service** -- Backend servers in that service are intermittently failing. Check: (1) health check is catching unhealthy servers, (2) backend resource utilization (CPU, memory, connections).\n\n* **Retries causing cascade** -- Each retry adds load. If backends are already overloaded, retries make it worse. Consider: (1) reducing `attempts`, (2) increasing `initialInterval` for backoff, (3) circuit breaker middleware.\n\n* **All retry attempts exhausted** -- Request failed after max retries. Client receives the last error. Check: number of healthy backend servers -- if only 1-2 remain, retries to the same failing server are pointless.",
-  "grandmaExplanation": "We watch traefik retry middleware activations and catch issues early, before they turn into outages for the people who rely on the network."
+  "grandmaExplanation": "We watch traefik retry middleware activations and catch issues early, before they turn into outages for the people who rely on the network.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

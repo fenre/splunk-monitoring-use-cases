@@ -8,30 +8,55 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Great Expectations validations (`greatexpectations:validation`).",
-  "app": "Great Expectations checkpoint results forwarded as JSON to HEC.",
+  "exclusions": "Covers the detection logic documented for 'Great Expectations Failures by Suite' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_great_expectations_failures_by_suite` (UC-24.9.23), SOC dashboard panel \"Operations — Great Expectations Failures by Suite\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.9.23 positive (Great, Expectations, Failures, Suite): ingest synthetic events into `index=bi` sourcetype='greatexpectations:validation' where `count` grouped by `expectation_suite` satisfies `failures` > 0 for 'Great Expectations Failures by Suite'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.9.23 negative (by Suite): ingest benign `bi` / `greatexpectations:validation` events where `expectation_suite` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Great Expectations Failures by Suite'."
+  },
+  "dataSources": "Great Expectations validations (`greatexpectations:validation`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Great Expectations checkpoint results forwarded as JSON to HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=greatexpectations:validation success=\"false\"\n| stats count as failures, latest(_time) as last_failure by expectation_suite\n| where failures>0\n| sort - failures",
-  "description": "Counts Great Expectations failures grouped by suite so operators immediately see which specific suites are broken rather than a single global failure number.",
-  "value": "Object-level failure attribution turns a vague 'Great Expectations is failing' alert into an actionable list of exactly what to fix first.",
+  "description": "Monitors UC-24.9.23 — Great, Expectations, Failures, Suite — using `index=bi` sourcetype `greatexpectations:validation`, grouped by `expectation_suite`. Outputs `count` each `the scheduled window`; alert when `failures` > 0. Primary focus: by Suite. Purpose-built for 'Great Expectations Failures by Suite' in Operations workflows.",
+  "value": "Operators running UC-24.9.23 on `greatexpectations:validation` feeds shorten triage for by Suite tied to 'Great Expectations Failures by Suite', lowering operational risk and delayed incident response.",
   "implementation": "Ingest Great Expectations failure events; schedule every 15 minutes and alert on failures for business-critical suites.",
   "visualization": "Table of suite by failure count and last failure time.",
   "cimModels": [],
   "references": [
     {
       "title": "Great Expectations — Validate data",
-      "url": "https://docs.greatexpectations.io/docs/core/trigger_actions_based_on_results/"
+      "url": "https://docs.greatexpectations.io/docs/core/trigger_actions_based_on_results/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Great Expectations — Validation results",
-      "url": "https://docs.greatexpectations.io/docs/reference/learn/terms/validation_result/"
+      "url": "https://docs.greatexpectations.io/docs/reference/learn/terms/validation_result/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.9.23)** — Planned work for 'Great Expectations Failures by Suite' shifts `count` over `span=1h` while `expectation_suite` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `greatexpectations:validation`** — Scheduled automation elevates `src` without crossing `failures` > 0 for UC-24.9.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `expectation_suite`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `greatexpectations:validation`** — First 48h baseline for UC-24.9.23 on `expectation_suite` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `expectation_suite`, `exception_reason`, `valid_until`.",
   "equipment": [
     "checkpoint"
   ],
-  "grandmaExplanation": "We tell you exactly which parts of Great Expectations are failing, not just that something is wrong, so the right thing gets fixed first."
+  "equipmentModels": [
+    "checkpoint_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Great Expectations checkpoint results forwarded as JSON to HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=greatexpectations:validation into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`expectation_suite, failures`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We tell you exactly which parts of Great Expectations are failing, not just that something is wrong, so the right thing gets fixed first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

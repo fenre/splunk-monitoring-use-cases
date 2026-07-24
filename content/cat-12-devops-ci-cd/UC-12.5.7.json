@@ -9,11 +9,17 @@
     "Change"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=kube:events`, `sourcetype=argocd:application`",
-  "app": "Argo Rollouts, Flagger, Kubernetes audit, CI/CD webhook",
+  "exclusions": "Covers the detection logic documented for 'Deployment Rollback Frequency Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_deployment_rollback_frequency_tracking` (UC-12.5.7), SOC dashboard panel \"Operations — Deployment Rollback Frequency Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.5.7 positive (Deployment, Rollback, Frequency, Tracking): ingest synthetic events into `index=devops` sourcetype='kube:events' where `count` grouped by `namespace` satisfies detection threshold for 'Deployment Rollback Frequency Tracking'. Validate filter `rollback=\"true\" OR reason=\"Rollback\" OR message=\"*rollback*\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.5.7 negative (Frequency Tracking): ingest benign `devops` / `kube:events` events where `namespace` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Deployment Rollback Frequency Tracking'."
+  },
+  "dataSources": "`sourcetype=kube:events`, `sourcetype=argocd:application` Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+  "app": "Argo Rollouts, Flagger, Kubernetes audit, CI/CD webhook — Splunk Connect for Kubernetes (Splunkbase 5167)",
   "spl": "index=devops (sourcetype=\"kube:events\" OR sourcetype=\"argocd:application\")\n| search rollback=\"true\" OR reason=\"Rollback\" OR message=\"*rollback*\"\n| timechart span=1d count by namespace",
-  "description": "Frequent rollbacks indicate release quality or progressive-delivery issues; tracking frequency supports blameless review and release process tuning.",
-  "value": "Frequent rollbacks indicate release quality or progressive-delivery issues; tracking frequency supports blameless review and release process tuning.",
+  "description": "Alerts on risk tied to Deployment, Rollback, Frequency, Tracking through UC-12.5.7 on `index=devops` sourcetype `kube:events`. Summarises `count` grouped by `namespace` across `1d` before applying configured threshold. Operators tune 'Deployment Rollback Frequency Tracking' using UC-12.5.7 runbook steps.",
+  "value": "Tracking `activity` via UC-12.5.7 on `kube:events` feeds improves response to 'Deployment Rollback Frequency Tracking' and reduces operational risk and delayed incident response.",
   "implementation": "Tag rollback events from Argo Rollouts/Flagger, deployment controllers, or GitOps sync history. Deduplicate by deployment and revision. Report rollbacks per service and environment. Correlate with failed health checks or error spikes.",
   "visualization": "Line chart (rollbacks per day), Bar chart (rollbacks by service), Table (recent rollbacks with revision).",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 5167",
+      "url": "https://splunkbase.splunk.com/app/5167",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short-lived sync issues during cluster upgrades, credential rotations, or Git provider incidents.",
+  "knownFalsePositives": "1. **Maintenance window on `devops` (UC-12.5.7)** — Planned work for 'Deployment Rollback Frequency Tracking' shifts `count` over `span=1d` while `namespace` remains in-scope. Applies filter `rollback=\"true\" OR reason=\"Rollback\" OR message=\"*rollback*\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `kube:events`** — Scheduled automation elevates `src` without crossing configured threshold for UC-12.5.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `namespace`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kube:events`** — First 48h baseline for UC-12.5.7 on `namespace` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `namespace`, `exception_reason`, `valid_until`.",
   "equipment": [
     "argocd",
     "kubernetes"
@@ -34,6 +56,12 @@
   "equipmentModels": [
     "kubernetes_k8s"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Argo Rollouts, Flagger, Kubernetes audit, CI/CD webhook.\n• Ensure the following data sources are available: `sourcetype=kube:events`, `sourcetype=argocd:application`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTag rollback events from Argo Rollouts/Flagger, deployment controllers, or GitOps sync history. Deduplicate by deployment and revision. Report rollbacks per service and environment. Correlate with failed health checks or error spikes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=devops (sourcetype=\"kube:events\" OR sourcetype=\"argocd:application\")\n| search rollback=\"true\" OR reason=\"Rollback\" OR message=\"*rollback*\"\n| timechart span=1d count by namespace\n```\n\nUnderstanding this SPL\n\n**Deployment Rollback Frequency Tracking** — Frequent rollbacks indicate release quality or progressive-delivery issues; tracking frequency supports blameless review and release process tuning.\n\nDocumented **Data sources**: `sourcetype=kube:events`, `sourcetype=argocd:application`. **App/TA** (typical add-on context): Argo Rollouts, Flagger, Kubernetes audit, CI/CD webhook. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: devops; **sourcetype**: kube:events, argocd:application. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=devops, sourcetype=\"kube:events\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by namespace** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the Argo CD UI and application details. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (rollbacks per day), Bar chart (rollbacks by service), Table (recent rollbacks with revision).",
-  "grandmaExplanation": "We watch failed or rolled-back releases so we can tighten the path from commit to production."
+  "grandmaExplanation": "We watch failed or rolled-back releases so we can tighten the path from commit to production.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

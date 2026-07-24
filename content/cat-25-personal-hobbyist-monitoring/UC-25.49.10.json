@@ -8,23 +8,55 @@
     "Cost"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Wardrobe items (`wardrobe:item`), outfit wears (`outfit:wear`), skincare routines (`skincare:routine`), laundry cycles (`laundry:cycle`).",
-  "app": "Wardrobe and grooming logs — closet apps (Whering, Stylebook), cost-per-wear trackers, skincare-routine logs, and smart-laundry cycles — streamed to Splunk HEC via APIs and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Spend-Per-Season Fashion Budget' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_spend_per_season_fashion_budget` (UC-25.49.10), SOC dashboard panel \"Personal — Spend-Per-Season Fashion Budget\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.49.10 positive (Spend, Per, Season, Fashion, Budget): ingest synthetic events into `index=personal` sourcetype='wardrobe:item' where `spend` grouped by `_time` satisfies detection threshold for 'Spend-Per-Season Fashion Budget'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.49.10 negative (Fashion Budget): ingest benign `personal` / `wardrobe:item` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'Spend-Per-Season Fashion Budget'."
+  },
+  "dataSources": "Wardrobe items (`wardrobe:item`), outfit wears (`outfit:wear`), skincare routines (`skincare:routine`), laundry cycles (`laundry:cycle`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Wardrobe and grooming logs — closet apps (Whering, Stylebook), cost-per-wear trackers, skincare-routine logs, and smart-laundry cycles — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=wardrobe:item event=purchase\n| bin _time span=3mon\n| stats sum(price) as spend, count as items by _time\n| eval budget=300, over=if(spend>budget,1,0)\n| sort - _time",
-  "description": "Tracks clothing spend each season against a budget, keeping fashion enthusiasm within your means.",
-  "value": "Seasonal clothing spend creeps up unnoticed; a budget check keeps a wardrobe habit affordable.",
+  "description": "Monitors 'Spend-Per-Season Fashion Budget' (UC-25.49.10) using `index=personal` sourcetype `wardrobe:item` by aggregating `spend` grouped by `_time` over `3m` and alerting when configured threshold. Keywords: Spend, Per, Season, Fashion, Budget. Focuses on Fashion Budget behaviour so personal teams can triage UC-25.49.10 without ad-hoc log review.",
+  "value": "UC-25.49.10 accelerates insight into Fashion Budget ('Spend-Per-Season Fashion Budget') by tracking `spend` on `wardrobe:item` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Ingest purchases into `index=personal`; total spend per season against a budget.",
   "visualization": "Column chart of seasonal clothing spend with a budget line.",
   "cimModels": [],
   "references": [
     {
       "title": "Whering — digital wardrobe",
-      "url": "https://whering.co.uk/"
+      "url": "https://whering.co.uk/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It tracks what you spend on clothes each season against a budget, keeping fashion affordable."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.49.10)** — Connector for 'Spend-Per-Season Fashion Budget' stops polling `wardrobe:item`; stale `spend` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `spend` over `3m` is expected for UC-25.49.10, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `wardrobe:item`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `3m` bins on UTC vs local schedule skew goal threshold for 'Spend-Per-Season Fashion Budget'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Wardrobe, Fashion & Beauty — typical feeds: Wardrobe items (`wardrobe:item`), outfit wears (`outfit:wear`), skincare routines (`skincare:routine`), laundry cycles (`laundry:cycle`)..\n• **Sourcetypes in this search**: `wardrobe:item`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=wardrobe:item`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Wardrobe and grooming logs — closet apps (Whering, Stylebook), cost-per-wear trackers, skincare-routine logs, and smart-laundry cycles — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Ingest purchases into `index=personal`; total spend per season against a budget.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"wardrobe:item\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=wardrobe:item earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Spend-Per-Season Fashion Budget** over `personal` data (primarily `sourcetype=wardrobe:item`) across the full search range. The `sum` aggregation groups by `_time`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=wardrobe:item event=purchase\n| bin _time span=3mon\n| stats sum(price) as spend, count as items by _time\n| eval budget=300, over=if(spend>budget,1,0)\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=wardrobe:item earliest=-7d\n| head 50\n| table _time\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=wardrobe:item earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.49.10: Personal evidence` with the following panel layout:\n\n**Panel 1 — Column Chart Of Seasonal Clothing Spend With A Budget Line (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `wardrobe:item` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=wardrobe:item | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=3m` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `3m` buckets.",
+  "grandmaExplanation": "It tracks what you spend on clothes each season against a budget, keeping fashion affordable.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

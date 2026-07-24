@@ -9,30 +9,55 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture and greenhouse sensors (`plant:sensor`), aquarium controllers (`aquarium:sensor`).",
-  "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT.",
+  "exclusions": "Covers personal hobby monitoring for 'Frost Window After Rain' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_frost_window_after_rain` (UC-25.10.17), SOC dashboard panel \"Personal — Frost Window After Rain\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.10.17 positive (Frost, Window, After, Rain): ingest synthetic events into `index=personal` sourcetype='weatherflow:obs' where `min_temp`, `rain_mm` grouped by `_time` satisfies `hour` >= 0, `hour` < 7, `rain_mm` > 5, or `min_temp` < 1 for 'Frost Window After Rain'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.10.17 negative (After Rain): ingest benign `personal` / `weatherflow:obs` events where `_time` stays below `hour` >= 0, `hour` < 7, `rain_mm` > 5, or `min_temp` < 1, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 7 confirms zero alert rows for 'Frost Window After Rain'."
+  },
+  "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture and greenhouse sensors (`plant:sensor`), aquarium controllers (`aquarium:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=weatherflow:obs\n| eval hour=strftime(_time,\"%H\")\n| where hour>=0 AND hour<7\n| bin _time span=1d\n| stats min(temp_c) as min_temp, sum(rain_mm) as rain_mm by _time\n| where rain_mm>5 AND min_temp<1\n| sort min_temp",
-  "description": "Flags those tricky wet-then-cold nights where frost risk lands on already soaked plants, vehicles, or outdoor projects.",
-  "value": "Rain followed by a cold overnight low can be more damaging than a dry freeze; this query catches the combination, not just the temperature.",
+  "description": "Alerts on UC-25.10.17 — Frost, Window, After, Rain — using `index=personal` sourcetype `weatherflow:obs`, grouped by `_time`. Outputs `min_temp`, `rain_mm` each `1d`; alert when `hour` >= 0, `hour` < 7, `rain_mm` > 5, or `min_temp` < 1. Primary focus: After Rain. Purpose-built for 'Frost Window After Rain' in Personal workflows.",
+  "value": "UC-25.10.17 operationalises 'Frost Window After Rain' against `weatherflow:obs` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Forward weather observations with rainfall and temperature; review the next morning or alert before dawn when the combo appears.",
   "visualization": "Daily list of wet days followed by sub-1C overnight lows.",
   "cimModels": [],
   "references": [
     {
       "title": "Tempest API documentation",
-      "url": "https://weatherflow.github.io/Tempest/api/"
+      "url": "https://weatherflow.github.io/Tempest/api/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Ecowitt API",
-      "url": "https://doc.ecowitt.net/web/#/apiv3en?page_id=1"
+      "url": "https://doc.ecowitt.net/web/#/apiv3en?page_id=1",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.10.17)** — Connector for 'Frost Window After Rain' stops polling `weatherflow:obs`; stale `min_temp`, `rain_mm` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `min_temp`, `rain_mm` over `1d` is expected for UC-25.10.17, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `weatherflow:obs`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `hour` >= 0 for 'Frost Window After Rain'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It measures when a rainy day is turning into a frosty night that could do extra damage."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Weather, Environment & Garden — typical feeds: Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture/greenhouse sensors, aquarium controllers (`aquarium:sensor`.\n• **Sourcetypes in this search**: `weatherflow:obs`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=weatherflow:obs`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT..\n\n**Author notes:** Forward weather observations with rainfall and temperature; review the next morning or alert before dawn when the combo appears.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"weatherflow:obs\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=weatherflow:obs earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Frost Window After Rain** over `personal` data (primarily `sourcetype=weatherflow:obs`) across the full search range. It applies numeric thresholds on `hour` (>= 0) after min, sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `hour`, `min_temp`, `rain_mm`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=weatherflow:obs\n| eval hour=strftime(_time,\"%H\")\n| where hour>=0 AND hour<7\n| bin _time span=1d\n| stats min(temp_c) as min_temp, sum(rain_mm) as rain_mm by _time\n| where rain_mm>5 AND min_temp<1\n| sort min_temp\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=weatherflow:obs earliest=-7d\n| head 50\n| table _time, hour, min_temp, rain_mm\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=weatherflow:obs earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hour` before alerting:\n\n```spl\nindex=personal sourcetype=weatherflow:obs earliest=-30d\n| stats perc50(hour) AS p50 perc90(hour) AS p90 perc99(hour) AS p99 max(hour) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.10.17: Personal evidence` with the following panel layout:\n\n**Panel 1 — Daily List Of Wet Days Followed By Sub-1C Overnight Lows (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `weatherflow:obs` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=weatherflow:obs | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It measures when a rainy day is turning into a frosty night that could do extra damage.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "SQL Server `@@VERSION`, Oracle `opatch`, PostgreSQL `pg_version`",
-  "app": "DB Connect, inventory scripted input",
+  "exclusions": "Covers the detection logic documented for 'Database Patch Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_database_patch_compliance` (UC-7.1.39), SOC dashboard panel \"Operations — Database Patch Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.39 positive (Database, Patch, Compliance): ingest synthetic events into `index=database` sourcetype='dbconnect:instance_version' where `count` grouped by `entity` satisfies detection threshold for 'Database Patch Compliance'. Validate lookup `approved_db_patch`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.39 negative (Patch Compliance): ingest benign `database` / `dbconnect:instance_version` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Database Patch Compliance'."
+  },
+  "dataSources": "SQL Server `@@VERSION`, Oracle `opatch`, PostgreSQL `pg_version` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "DB Connect, inventory scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"dbconnect:instance_version\"\n| lookup approved_db_patch matrix_key OUTPUT approved_build\n| where build != approved_build\n| table host, engine, build, approved_build, last_patch_date",
-  "description": "Compares instance `@@VERSION` / `banner` / Oracle `DBA_REGISTRY_HISTORY` to approved patch levels per environment. Supports security patching SLAs.",
-  "value": "Compares instance `@@VERSION` / `banner` / Oracle `DBA_REGISTRY_HISTORY` to approved patch levels per environment. Supports security patching SLAs.",
+  "description": "Identifies 'Database Patch Compliance' (UC-7.1.39) using `index=database` sourcetype `dbconnect:instance_version` via lookup `approved_db_patch` by aggregating `count` grouped by `entity` over `the scheduled window` and alerting when configured threshold. Keywords: Database, Patch, Compliance. Focuses on Patch Compliance behaviour so operations teams can triage UC-7.1.39 without ad-hoc log review.",
+  "value": "UC-7.1.39 accelerates insight into Patch Compliance ('Database Patch Compliance') by tracking `activity` on `dbconnect:instance_version` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Maintain `approved_db_patch` lookup (engine, major, approved CU/RU). Daily compare. Alert on non-compliant production instances.",
   "visualization": "Table (non-compliant hosts), Pie chart (compliant %), Single value (drift count).",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "Splunk — DB Connect",
-      "url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/WhatisDBX"
+      "url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/WhatisDBX",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned changes, load tests, and vendor maintenance in the data platform can move the same metrics this search uses; we compare to baselines, change records, and on-call context before we treat a hit as a production incident.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.39)** — Planned work for 'Database Patch Compliance' shifts `count` over `span=1h` while `host` remains in-scope. Applies lookup `approved_db_patch`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbconnect:instance_version`** — Scheduled automation elevates `src` without crossing configured threshold for UC-7.1.39. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:instance_version`** — First 48h baseline for UC-7.1.39 on `host` is unstable; join `approved_db_patch` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mssql",
@@ -35,7 +57,13 @@
     "oracle_oracle_db",
     "postgresql_pg"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we cross-check the same window in SQL Server Management Studio, Azure Data Studio, or the Azure SQL portal with `sys.dm_*` views; Oracle Enterprise Manager, SQLcl, or SQL Developer with `V$` views; psql, pgAdmin, or the managed-PostgreSQL console with `pg_stat_*` and replication views so live metrics match what Splunk shows.\n• Install and configure the required add-on or app: DB Connect, inventory scripted input.\n• Ensure the following data sources are available: SQL Server `@@VERSION`, Oracle `opatch`, PostgreSQL `pg_version`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain `approved_db_patch` lookup (engine, major, approved CU/RU). Daily compare. Alert on non-compliant production instances.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"dbconnect:instance_version\"\n| lookup approved_db_patch matrix_key OUTPUT approved_build\n| where build != approved_build\n| table host, engine, build, approved_build, last_patch_date\n```\n\nUnderstanding this SPL\n\n**Database Patch Compliance** — Compares instance `@@VERSION` / `banner` / Oracle `DBA_REGISTRY_HISTORY` to approved patch levels per environment. Supports security patching SLAs.\n\nDocumented **Data sources**: SQL Server `@@VERSION`, Oracle `opatch`, PostgreSQL `pg_version`. **App/TA** (typical add-on context): DB Connect, inventory scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: dbconnect:instance_version. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"dbconnect:instance_version\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where build != approved_build` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Database Patch Compliance**): table host, engine, build, approved_build, last_patch_date\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (non-compliant hosts), Pie chart (compliant %), Single value (drift count).",
   "grandmaExplanation": "We follow PostgreSQL activity and space trends so we can keep vacuum, replication, and connection paths healthy as load grows.",
-  "subcategory": "7.4"
+  "prerequisiteUseCases": [],
+  "subcategory": "7.4",
+  "wave": "crawl"
 }

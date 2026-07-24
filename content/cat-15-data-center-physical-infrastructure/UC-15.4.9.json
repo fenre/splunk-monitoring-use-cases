@@ -9,11 +9,17 @@
     "Physical"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=power|cooling|environment` · `sourcetype=\"snmp:apc:envmon\"` (APC PowerNet / AirIR / ATS / NetBotz OIDs per deployment)",
-  "app": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions",
+  "exclusions": "Covers the detection logic documented for 'APC NetBotz Environmental SNMP Temperature Threshold Breach' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_apc_netbotz_environmental_snmp_temperature_thres` (UC-15.4.9), SOC dashboard panel \"Operations — APC NetBotz Environmental SNMP Temperature Threshold Breach\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-15.4.9 positive (APC, NetBotz, Environmental, SNMP, Temperature): ingest synthetic events into `index=environment` sourcetype='snmp:apc:envmon' where `count` grouped by `entity` satisfies `temp` > 30, or `temp` < 10 for 'APC NetBotz Environmental SNMP Temperature Threshold Breach'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.4.9 negative (Threshold Breach): ingest benign `environment` / `snmp:apc:envmon` events where `entity` stays below `temp` > 30, or `temp` < 10, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'APC NetBotz Environmental SNMP Temperature Threshold Breach'."
+  },
+  "dataSources": "`index=power|cooling|environment` · `sourcetype=\"snmp:apc:envmon\"` (APC PowerNet / AirIR / ATS / NetBotz OIDs per deployment) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions — Universal Forwarder (Splunkbase 617)",
   "spl": "index=environment sourcetype=\"snmp:apc:envmon\" earliest=-4h\n| eval temp=tonumber(coalesce(tempSensorTemperature, probeTemp, temp_c, \"\"))\n| eval probe=coalesce(probeName, sensor_name, \"\")\n| where temp>30 OR temp<10\n| table _time rack probe temp",
-  "description": "Hot spots at cabinet intakes precede thermal shutdowns; cold breaches matter for condensation in humid climates.",
-  "value": "Extends monitoring beyond BMS zones into cabinet granularity.",
+  "description": "Monitors UC-15.4.9 — APC, NetBotz, Environmental, SNMP, Temperature — using `index=environment` sourcetype `snmp:apc:envmon`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `temp` > 30, or `temp` < 10. Primary focus: Threshold Breach. Purpose-built for 'APC NetBotz Environmental SNMP Temperature Threshold Breach' in Operations workflows.",
+  "value": "UC-15.4.9 gives Operations teams earlier visibility into Threshold Breach through `snmp:apc:envmon` feeds, lowering operational risk and delayed incident response.",
   "implementation": "(1) Calibrate offsets per probe. (2) Map probes to U positions.",
   "visualization": "Heatmap by rack; sparkline.",
   "cimModels": [
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "Schneider Electric — APC product support",
-      "url": "https://www.se.com/ww/en/product-category/3100-2000-pdu/"
+      "url": "https://www.se.com/ww/en/product-category/3100-2000-pdu/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Connect for SNMP",
-      "url": "https://splunkbase.splunk.com/apps#/search=connect%20for%20snmp"
+      "url": "https://splunkbase.splunk.com/apps#/search=connect%20for%20snmp",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Power spikes during equipment power cycling, scheduled load shifting, or DR drills.",
+  "knownFalsePositives": "1. **Maintenance window on `environment` (UC-15.4.9)** — Planned work for 'APC NetBotz Environmental SNMP Temperature Threshold Breach' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:apc:envmon`** — Scheduled automation elevates `temp` without crossing `temp` > 30 for UC-15.4.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `environment` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:apc:envmon`** — First 48h baseline for UC-15.4.9 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apc_dc",
     "snmp"
@@ -46,6 +64,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=snmp:apc:envmon into environment. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`temp`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Microsoft Defender for Endpoint Alert Volume by Detection Source' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_microsoft_defender_for_endpoint_alert_volume_by_` (UC-10.16.10), SOC dashboard panel \"Security Infra — Microsoft Defender for Endpoint Alert Volume by Detection Source\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.16.10 positive (Microsoft, Defender, for, Endpoint, Alert): ingest synthetic events into `index=target_index` sourcetype='ms:defender:atp:alerts' where `count` grouped by `src`, `category`, `signature` satisfies -24h for 'Microsoft Defender for Endpoint Alert Volume by Detection Source'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.16.10 negative (Detection Source): ingest benign `target_index` / `ms:defender:atp:alerts` events where `src`, `category`, `signature` stays below -24h, or exclude the test entity via `soc_exception_register.csv`. Variant 4 confirms zero alert rows for 'Microsoft Defender for Endpoint Alert Volume by Detection Source'."
+  },
   "dataSources": "Microsoft 365 Defender alert feed via `sourcetype=ms:defender:atp:alerts` (Splunk Add-on for Microsoft Security)",
   "app": "Splunk Add-on for Microsoft Security (Splunkbase 6207)",
   "spl": "index=* sourcetype=\"ms:defender:atp:alerts\" earliest=-24h\n| eval src=coalesce(detectionSource, DetectionSource, \"unknown\")\n| eval sev=lower(coalesce(severity, Severity, \"\"))\n| where sev IN (\"high\",\"medium\")\n| stats count by src, category, signature\n| sort -count",
-  "description": "High and medium Defender for Endpoint alerts grouped by detection source and category expose noisy engines, mis-tuned custom indicators, and sudden shifts toward a single detection pipeline that may indicate an active campaign or ingestion drift.",
-  "value": "Surfaces which Defender detection sources drive alert volume so SOC leads can tune automation, suppressions, and hunting priorities before queues overflow.",
+  "description": "Alerts on risk tied to Microsoft, Defender, for, Endpoint, Alert through UC-10.16.10 on `index=target_index` sourcetype `ms:defender:atp:alerts`. Summarises `count` grouped by `src`, `category`, `signature` across `the scheduled window` before applying -24h. Operators tune 'Microsoft Defender for Endpoint Alert Volume by Detection Source' using UC-10.16.10 runbook steps.",
+  "value": "Tracking `activity` via UC-10.16.10 on `ms:defender:atp:alerts` feeds improves response to 'Microsoft Defender for Endpoint Alert Volume by Detection Source' and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Install Splunk Add-on for Microsoft Security and enable the Microsoft Defender for Endpoint Alerts modular input (or equivalent API collection). Send data to a dedicated security index. Confirm field extractions for `detectionSource`, `severity`, `category`, and `signature` match your add-on version; rename in SPL if your deployment uses alternate spellings. Schedule hourly for trending; alert on week-over-week spikes for a single detection source.",
   "visualization": "Stacked bar chart (alerts by detection source), treemap (category × source), timechart of total high/medium alerts.",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "Splunk Add-on for Microsoft Security",
-      "url": "https://splunkbase.splunk.com/app/6207"
+      "url": "https://splunkbase.splunk.com/app/6207",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Source types — Splunk Add-on for Microsoft Security",
-      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-365-defender/Sourcetypes/"
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-365-defender/Sourcetypes/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Defender volume by source can swing when we enable a new data connector, a preview feature lights up, or a test machine floods test alerts.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-10.16.10)** — Planned work for 'Microsoft Defender for Endpoint Alert Volume by Detection Source' shifts `count` over `span=1h` while `src`, `category`, `signature` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `ms:defender:atp:alerts`** — Scheduled automation elevates `category` without crossing configured threshold for UC-10.16.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`, `category`, `signature`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ms:defender:atp:alerts`** — First 48h baseline for UC-10.16.10 on `src` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "defender"
+  ],
+  "equipmentModels": [
+    "defender_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -40,6 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We see which Microsoft defender streams are loudest so we can tune, route, or re-scope detections on that platform without drowning the SOC."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Microsoft Security (Splunkbase 6207)). Enable the modular input or HEC token that writes sourcetype=ms:defender:atp:alerts into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`category, signature, src`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We see which Microsoft defender streams are loudest so we can tune, route, or re-scope detections on that platform without drowning the SOC.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

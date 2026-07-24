@@ -9,42 +9,65 @@
     "Performance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Kitchen telemetry (`meater:cook`, `anova:session`, `instantpot:cook`, `kitchen:appliance`, `bbq:probe`, `pantry:item`).",
-  "app": "Meater probes, Anova Precision Cooker sessions, Instant Pot logs, wine-fridge sensors, ESPHome kitchen sensors, and pantry inventory feeds via MQTT and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Anova Temperature Stability Warning' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_anova_temperature_stability_warning` (UC-25.15.20), SOC dashboard panel \"Personal — Anova Temperature Stability Warning\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.15.20 positive (Anova, Temperature, Stability, Warning): ingest synthetic events into `index=personal` sourcetype='anova:session' where `avg_temp_error_c`, `max_temp_error_c` grouped by `session_id` satisfies `avg_temp_error_c` > 0.5, or `max_temp_error_c` > 1.5 for 'Anova Temperature Stability Warning'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.15.20 negative (Stability Warning): ingest benign `personal` / `anova:session` events where `session_id` stays below `avg_temp_error_c` > 0.5, or `max_temp_error_c` > 1.5, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'Anova Temperature Stability Warning'."
+  },
+  "dataSources": "Kitchen telemetry (`meater:cook`, `anova:session`, `instantpot:cook`, `kitchen:appliance`, `bbq:probe`, `pantry:item`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Meater probes, Anova Precision Cooker sessions, Instant Pot logs, wine-fridge sensors, ESPHome kitchen sensors, and pantry inventory feeds via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=anova:session\n| eval temp_error_c=abs(temp_delta_c)\n| stats avg(temp_error_c) as avg_temp_error_c, max(temp_error_c) as max_temp_error_c by session_id\n| where avg_temp_error_c>0.5 OR max_temp_error_c>1.5\n| sort - avg_temp_error_c",
-  "description": "Uses Anova sous-vide sessions telemetry to monitor how tightly the bath stayed near target temperature in index=personal.",
-  "value": "Splunk turns the feed into an operational check for heating sessions that wandered enough to affect texture, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Detects 'Anova Temperature Stability Warning' patterns (UC-25.15.20) sourced from `index=personal` sourcetype `anova:session`. Threshold bundle: `avg_temp_error_c` > 0.5, or `max_temp_error_c` > 1.5; aggregation grain: `session_id`; metrics: `avg_temp_error_c`, `max_temp_error_c`. Watch terms: Anova, Temperature, Stability, Warning.",
+  "value": "UC-25.15.20 gives Personal teams earlier visibility into Stability Warning through `anova:session` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Anova sous-vide sessions data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Session table of average and max temperature error.",
   "cimModels": [],
   "references": [
     {
       "title": "MEATER",
-      "url": "https://meater.com/"
+      "url": "https://meater.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Anova support",
-      "url": "https://support.anovaculinary.com/"
+      "url": "https://support.anovaculinary.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Instant Pot",
-      "url": "https://instantpot.com/"
+      "url": "https://instantpot.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ESPHome",
-      "url": "https://esphome.io/"
+      "url": "https://esphome.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Home Assistant REST sensor",
-      "url": "https://www.home-assistant.io/integrations/rest/"
+      "url": "https://www.home-assistant.io/integrations/rest/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.15.20)** — Connector for 'Anova Temperature Stability Warning' stops polling `anova:session`; stale `avg_temp_error_c`, `max_temp_error_c` on `session_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_temp_error_c`, `max_temp_error_c` over `1w` is expected for UC-25.15.20, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `anova:session`. Dedup with `stats latest(*) by session_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_temp_error_c` > 0.5 for 'Anova Temperature Stability Warning'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It highlights how tightly the bath stayed near target temperature so you can spot heating sessions that wandered enough to affect texture before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Kitchen, Cooking & Fermentation — typical feeds: Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), .\n• **Sourcetypes in this search**: `anova:session`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=anova:session`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC..\n\n**Author notes:** Ingest Anova sous-vide sessions data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"anova:session\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=anova:session earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Anova Temperature Stability Warning** over `personal` data (primarily `sourcetype=anova:session`) across the full search range. It applies numeric thresholds on `avg_temp_error_c` (> 0.5) after avg, max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `avg_temp_error_c`, `max_temp_error_c`, `session_id`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=anova:session\n| eval temp_error_c=abs(temp_delta_c)\n| stats avg(temp_error_c) as avg_temp_error_c, max(temp_error_c) as max_temp_error_c by session_id\n| where avg_temp_error_c>0.5 OR max_temp_error_c>1.5\n| sort - avg_temp_error_c\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=anova:session earliest=-7d\n| head 50\n| table avg_temp_error_c, max_temp_error_c, session_id\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=anova:session earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `avg_temp_error_c` before alerting:\n\n```spl\nindex=personal sourcetype=anova:session earliest=-30d\n| stats perc50(avg_temp_error_c) AS p50 perc90(avg_temp_error_c) AS p90 perc99(avg_temp_error_c) AS p99 max(avg_temp_error_c) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.15.20: Personal evidence` with the following panel layout:\n\n**Panel 1 — Session Table Of Average And Max Temperature Error (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `anova:session` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=anova:session | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It highlights how tightly the bath stayed near target temperature so you can spot heating sessions that wandered enough to affect texture before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

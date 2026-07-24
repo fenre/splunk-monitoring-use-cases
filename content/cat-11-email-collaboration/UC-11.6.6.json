@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Proofpoint TRAP Threat Response Auto-Pull Quarantine Action Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_proofpoint_trap_threat_response_auto_pull_quaran` (UC-11.6.6), SOC dashboard panel \"Operations — Proofpoint TRAP Threat Response Auto-Pull Quarantine Action Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.6.6 positive (Proofpoint, TRAP, Threat, Response, Auto): ingest synthetic events into `index=email` sourcetype='proofpoint:quarantine' where `values` grouped by `mid`, `actor` satisfies -7d for 'Proofpoint TRAP Threat Response Auto-Pull Quarantine Action Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.6.6 negative (Action Audit): ingest benign `email` / `proofpoint:quarantine` events where `mid`, `actor` stays below -7d, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Proofpoint TRAP Threat Response Auto-Pull Quarantine Action Audit'."
+  },
   "dataSources": "`sourcetype=proofpoint:quarantine` quarantine, remediation, or TRAP auto-pull actions on messages",
   "app": "Proofpoint TAP Modular Input for Splunk (Splunkbase 3681) or Proofpoint On-Demand Add-on with quarantine feed",
   "spl": "index=email sourcetype=\"proofpoint:quarantine\" earliest=-7d\n| eval action=coalesce(action, Action, remediation_action, \"\")\n| eval actor=coalesce(admin_user, Admin, operator, system_actor, \"trap\")\n| eval mid=coalesce(message_id, MessageID, msg_id, \"\")\n| where match(lower(action), \"(?i)pull|delete|remove|remediate|purge|auto\")\n| stats count values(action) as actions earliest(_time) as first_seen latest(_time) as last_seen by mid actor\n| sort -count",
-  "description": "Threat Response auto-pull removes malicious mail post-delivery; auditing those actions proves what was retracted, by whom or what automation, and supports investigations when users dispute missing messages.",
-  "value": "Strengthens accountability for aggressive remediation, supports insider-threat reviews, and satisfies regulators asking for traceability of mailbox interventions.",
+  "description": "Identifies Action Audit anomalies for UC-11.6.6 with window `the scheduled window` on `index=email` sourcetype `proofpoint:quarantine`. Combines `values` by `mid`, `actor` and compares against -7d. Mapped to keywords Proofpoint, TRAP, Threat, Response, Auto for dashboard routing.",
+  "value": "Alerting on Proofpoint, TRAP, Threat, Response, Auto through UC-11.6.6 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "(1) Enable quarantine / TRAP audit logging to Splunk. (2) Retain message IDs for correlation to TAP events. (3) Separate human vs system actors. (4) Export weekly digest to IR leadership. (5) Integrate with case management IDs if present.",
   "visualization": "Table (message ID, actor, actions, time window), timeline, bar chart (actions per day).",
   "cimModels": [
@@ -23,17 +29,32 @@
   "references": [
     {
       "title": "Proofpoint — Threat Response",
-      "url": "https://www.proofpoint.com/us/products/advanced-threat-protection/threat-response"
+      "url": "https://www.proofpoint.com/us/products/advanced-threat-protection/threat-response",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase — Proofpoint TAP Modular Input",
-      "url": "https://splunkbase.splunk.com/app/3681"
+      "url": "https://splunkbase.splunk.com/app/3681",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Quarantine auto-pull during SOC runs; some pulls are part of a playbook, not a mis-fire.",
+  "knownFalsePositives": "1. **Maintenance window on `email` (UC-11.6.6)** — Planned work for 'Proofpoint TRAP Threat Response Auto-Pull Quarantine Action Audit' shifts `values` over `span=1h` while `mid`, `actor` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `proofpoint:quarantine`** — Scheduled automation elevates `actor` without crossing configured threshold for UC-11.6.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `mid`, `actor`** — Health checks in `email` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `proofpoint:quarantine`** — First 48h baseline for UC-11.6.6 on `mid` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `mid`, `exception_reason`, `valid_until`.",
   "securityDomain": "audit",
   "equipment": [
     "proofpoint"
+  ],
+  "equipmentModels": [
+    "proofpoint_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -42,5 +63,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch how Proofpoint treats and rewrites mail, so threats and DLP events line up with what the security team already sees in their console."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Proofpoint TAP Modular Input for Splunk (Splunkbase 3681) or Proofpoint On-Demand Add-on with quarantine feed). Enable the modular input or HEC token that writes sourcetype=proofpoint:quarantine into email. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`actor, mid`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how Proofpoint treats and rewrites mail, so threats and DLP events line up with what the security team already sees in their console.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

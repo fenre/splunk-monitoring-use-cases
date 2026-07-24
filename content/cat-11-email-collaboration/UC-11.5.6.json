@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=zoom:account`, `sourcetype=webex:license`, `sourcetype=m365:license`",
-  "app": "Splunk Connect for Zoom, Webex TA, Microsoft 365 licensing inputs",
+  "exclusions": "Covers the detection logic documented for 'Video Conferencing License Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_video_conferencing_license_utilization` (UC-11.5.6), SOC dashboard panel \"Operations — Video Conferencing License Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.5.6 positive (Video, Conferencing, License, Utilization): ingest synthetic events into `index=saas` sourcetype='zoom:account' where `count` grouped by `entity` satisfies `used_pct` > 90, or `used_pct` < 60 for 'Video Conferencing License Utilization'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.5.6 negative (License Utilization): ingest benign `saas` / `zoom:account` events where `entity` stays below `used_pct` > 90, or `used_pct` < 60, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Video Conferencing License Utilization'."
+  },
+  "dataSources": "`sourcetype=zoom:account`, `sourcetype=webex:license`, `sourcetype=m365:license` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Connect for Zoom, Webex TA, Microsoft 365 licensing inputs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=saas (sourcetype=\"zoom:account\" OR sourcetype=\"webex:license\" OR sourcetype=\"m365:license\")\n| eval used_pct=round(assigned_licenses/nullif(total_licenses,0)*100,1)\n| where used_pct > 90 OR used_pct < 60\n| table platform, sku, assigned_licenses, total_licenses, used_pct",
-  "description": "Underused licenses waste budget; near-capacity entitlements risk meeting blocks during peaks—utilization guides true-up and consolidation across Zoom/Webex/Teams.",
-  "value": "Underused licenses waste budget; near-capacity entitlements risk meeting blocks during peaks—utilization guides true-up and consolidation across Zoom/Webex/Teams.",
+  "description": "Surfaces UC-11.5.6 — Video, Conferencing, License, Utilization — using `index=saas` sourcetype `zoom:account`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `used_pct` > 90, or `used_pct` < 60. Primary focus: License Utilization. Purpose-built for 'Video Conferencing License Utilization' in Operations workflows.",
+  "value": "For 'Video Conferencing License Utilization', UC-11.5.6 converts `activity` on `zoom:account` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Ingest license counts and active assignments from each vendor’s admin API on a daily schedule. Map SKUs to collaboration products. Alert above 90% utilization and report under-60% for reclamation. Normalize multi-platform duplicates where possible via email identity.",
   "visualization": "Bar chart (utilization % by platform), Table (SKU detail), Line chart (assigned licenses over time).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "True-up timing, co-term renewals, and short peaks during all-hands that look like a shortage.",
+  "knownFalsePositives": "1. **Maintenance window on `saas` (UC-11.5.6)** — Planned work for 'Video Conferencing License Utilization' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `zoom:account`** — Scheduled automation elevates `used_pct` without crossing `used_pct` > 90 for UC-11.5.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `saas` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zoom:account`** — First 48h baseline for UC-11.5.6 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "m365"
@@ -33,6 +55,12 @@
   "equipmentModels": [
     "cisco_webex"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Connect for Zoom, Webex TA, Microsoft 365 licensing inputs.\n• Ensure the following data sources are available: `sourcetype=zoom:account`, `sourcetype=webex:license`, `sourcetype=m365:license`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest license counts and active assignments from each vendor’s admin API on a daily schedule. Map SKUs to collaboration products. Alert above 90% utilization and report under-60% for reclamation. Normalize multi-platform duplicates where possible via email identity.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=saas (sourcetype=\"zoom:account\" OR sourcetype=\"webex:license\" OR sourcetype=\"m365:license\")\n| eval used_pct=round(assigned_licenses/nullif(total_licenses,0)*100,1)\n| where used_pct > 90 OR used_pct < 60\n| table platform, sku, assigned_licenses, total_licenses, used_pct\n```\n\nUnderstanding this SPL\n\n**Video Conferencing License Utilization** — Underused licenses waste budget; near-capacity entitlements risk meeting blocks during peaks—utilization guides true-up and consolidation across Zoom/Webex/Teams.\n\nDocumented **Data sources**: `sourcetype=zoom:account`, `sourcetype=webex:license`, `sourcetype=m365:license`. **App/TA** (typical add-on context): Splunk Connect for Zoom, Webex TA, Microsoft 365 licensing inputs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: saas; **sourcetype**: zoom:account, webex:license, m365:license. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=saas, sourcetype=\"zoom:account\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **used_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where used_pct > 90 OR used_pct < 60` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Video Conferencing License Utilization**): table platform, sku, assigned_licenses, total_licenses, used_pct\n\n\nStep 3 — Validate\nCompare with each vendor’s admin portal (Zoom, Webex, Microsoft) for the same service or device and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (utilization % by platform), Table (SKU detail), Line chart (assigned licenses over time).",
-  "grandmaExplanation": "We track collaboration license use, so we buy only what we need and still have seats when everyone jumps on a call."
+  "grandmaExplanation": "We track collaboration license use, so we buy only what we need and still have seats when everyone jumps on a call.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,30 +8,55 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Dagster logs (`dagster:daemon`, `dagster:run`), GraphQL run/asset queries, and structured event-log JSON (`dagster:event`).",
-  "app": "Dagster daemon and run-worker logs via Universal Forwarder; Dagster GraphQL API and event-log records via HEC scripted inputs; Dagster instance storage (run/event tables) via Splunk DB Connect.",
+  "exclusions": "Covers the detection logic documented for 'Dagster Run Duration Regression' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_dagster_run_duration_regression` (UC-24.7.23), SOC dashboard panel \"Operations — Dagster Run Duration Regression\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.7.23 positive (Dagster, Run, Duration, Regression): ingest synthetic events into `index=bi` sourcetype='dagster:event' where `avg_min` grouped by `job_name` satisfies `p95_min` > 20 for 'Dagster Run Duration Regression'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.23 negative (Duration Regression): ingest benign `bi` / `dagster:event` events where `job_name` stays below `p95_min` > 20, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Dagster Run Duration Regression'."
+  },
+  "dataSources": "Dagster logs (`dagster:daemon`, `dagster:run`), GraphQL run/asset queries, and structured event-log JSON (`dagster:event`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Dagster daemon and run-worker logs via Universal Forwarder; Dagster GraphQL API and event-log records via HEC scripted inputs; Dagster instance storage (run/event tables) via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=dagster:event event_type=\"RUN_SUCCESS\"\n| eval duration_min=round(duration_ms/60000,1)\n| stats avg(duration_min) as avg_min, p95(duration_min) as p95_min by job_name\n| where p95_min>20\n| sort - p95_min",
-  "description": "Tracks successful Dagster run durations and flags jobs whose 95th-percentile runtime crosses an SLA, indicating growing data volumes or inefficient ops.",
-  "value": "Steadily slower jobs eventually miss their windows; early detection lets teams optimise before a hard failure.",
+  "description": "Surfaces UC-24.7.23 — Dagster, Run, Duration, Regression — using `index=bi` sourcetype `dagster:event`, grouped by `job_name`. Outputs `avg_min` each `the scheduled window`; alert when `p95_min` > 20. Primary focus: Duration Regression. Purpose-built for 'Dagster Run Duration Regression' in Operations workflows.",
+  "value": "UC-24.7.23 operationalises 'Dagster Run Duration Regression' against `dagster:event` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Compute duration from run start/end events; schedule daily over a trailing week and review regressions with owners.",
   "visualization": "Table of job by p95 duration, trend line.",
   "cimModels": [],
   "references": [
     {
       "title": "Dagster — Monitoring & alerting",
-      "url": "https://docs.dagster.io/guides/monitor-alert"
+      "url": "https://docs.dagster.io/guides/monitor-alert",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Dagster — GraphQL API",
-      "url": "https://docs.dagster.io/guides/operate/graphql"
+      "url": "https://docs.dagster.io/guides/operate/graphql",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.23)** — Planned work for 'Dagster Run Duration Regression' shifts `avg_min` over `span=1h` while `job_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `dagster:event`** — Scheduled automation elevates `duration_min` without crossing `p95_min` > 20 for UC-24.7.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dagster:event`** — First 48h baseline for UC-24.7.23 on `job_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],
-  "grandmaExplanation": "We measure how long each Dagster job takes and warn you when they get slow enough to eventually run late."
+  "equipmentModels": [
+    "db_connect_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Dagster daemon and run-worker logs via Universal Forwarder; Dagster GraphQL API and event-log records via HEC scripted inputs; Dagster instance storage (run/event tables) via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=dagster:event into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`job_name, p95_min`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We measure how long each Dagster job takes and warn you when they get slow enough to eventually run late.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

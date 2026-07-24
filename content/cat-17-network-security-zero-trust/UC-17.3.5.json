@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "ZT posture assessment data",
+  "exclusions": "Covers the detection logic documented for 'Posture Assessment Trending' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_posture_assessment_trending` (UC-17.3.5), SOC dashboard panel \"Network — Posture Assessment Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.5 positive (Posture, Assessment, Trending): ingest synthetic events into `index=zt` sourcetype='zt:posture' where `compliance` grouped by `check_type` satisfies detection threshold for 'Posture Assessment Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.5 negative (Assessment Trending): ingest benign `zt` / `zt:posture` events where `check_type` stays below detection threshold, or exclude the test entity via `network_exception_register.csv`. Variant 7 confirms zero alert rows for 'Posture Assessment Trending'."
+  },
+  "dataSources": "ZT posture assessment data Indexes: zt. Sourcetypes: zt:posture. Key fields: check_type. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `Splunk_TA_microsoft-cloudservices` (Entra ID / Intune)",
   "spl": "index=zt sourcetype=\"zt:posture\"\n| timechart span=1d avg(compliance_pct) as compliance by check_type",
-  "description": "Endpoint posture compliance rates over time measure security improvement and identify persistent non-compliance areas.",
-  "value": "Zero Trust operations teams track device posture compliance as a continuous signal over time, correlating dips with OS updates, new posture requirements, and endpoint agent issues, and feeding posture trends into access policy decisions.",
+  "description": "Surfaces UC-17.3.5 — Posture, Assessment, Trending — using `index=zt` sourcetype `zt:posture`, grouped by `check_type`. Outputs `compliance` each `1d`; alert when configured threshold. Primary focus: Assessment Trending. Purpose-built for 'Posture Assessment Trending' in Network workflows.",
+  "value": "UC-17.3.5 operationalises 'Posture Assessment Trending' against `zt:posture` feeds so operators reduce unauthorized access, segmentation drift, and NAC policy failures without manual correlation.",
   "implementation": "Track posture assessment results over time by check type (AV, encryption, OS patch, firewall). Report on compliance improvement trends. Alert when compliance drops below target. Identify persistent non-compliance patterns.",
   "visualization": "Line chart (compliance trend by check), Bar chart (compliance by OS), Single value (overall compliance %), Table (non-compliant checks).",
   "cimModels": [],
@@ -21,22 +27,26 @@
   "references": [
     {
       "title": "Netskope Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3808"
+      "url": "https://splunkbase.splunk.com/app/3808",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk_TA_paloalto",
-      "url": "https://splunkbase.splunk.com/app/2757"
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110"
+      "url": "https://splunkbase.splunk.com/app/3110",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Posture failures during scheduled patch cycles, OS upgrades, or after AV definition rotations.",
+  "knownFalsePositives": "1. **Maintenance window on `zt` (UC-17.3.5)** — Planned work for 'Posture Assessment Trending' shifts `compliance` over `span=1d` while `check_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `zt:posture`** — Scheduled automation elevates `src` without crossing configured threshold for UC-17.3.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `check_type`** — Health checks in `zt` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zt:posture`** — First 48h baseline for UC-17.3.5 on `check_type` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `check_type`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078",
     "T1133"
@@ -53,6 +63,12 @@
     "paloalto_pan_firewall",
     "paloalto_prisma"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Device posture data from ZTNA/SSE platforms in `index=ztna` or `index=azure`. Zscaler ZPA/ZIA: `sourcetype=zscaler:zpa:user_activity` (includes device posture signals). CrowdStrike ZTA: `sourcetype=crowdstrike:zta` with Zero Trust Assessment scores. Microsoft Intune: `sourcetype=ms:intune:compliance`. Key fields vary: Zscaler includes `PostureProfile`, `PostureStatus`. CrowdStrike ZTA provides a 1-100 score per device.\n• In Zero Trust, device posture is a continuous signal — not just a point-in-time check at login. Posture is re-evaluated throughout the session, and access can be revoked mid-session if the device becomes non-compliant.\n• Create a `zt_posture_thresholds.csv` lookup: `app_tier,min_posture_score,required_checks` defining posture requirements per application tier.\n\nStep 1 — Configure data collection\nVerify posture signal data:\n```spl\nindex=ztna sourcetype=\"zscaler:zpa:user_activity\" earliest=-24h\n| where isnotnull(PostureProfile)\n| stats count by PostureProfile, PostureStatus\n```\n\nOr for CrowdStrike ZTA:\n```spl\nindex=crowdstrike sourcetype=\"crowdstrike:zta\" earliest=-24h\n| stats avg(score) as avg_score perc95(score) as p95_score min(score) as min_score by aid\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Posture trending:\n```spl\nindex=ztna earliest=-30d\n| eval posture_pass=if(PostureStatus=\"Pass\" OR PostureStatus=\"Compliant\", 1, 0)\n| timechart span=1d avg(posture_pass) as compliance_rate\n| eval compliance_pct=round(compliance_rate*100, 1)\n```\n\nUnderstanding this SPL: Trends the device posture compliance rate over 30 days. In a Zero Trust model, the target should be >95%. Dips correlate with: OS updates that change default settings, new posture requirements being enabled, or endpoint protection agent issues. A sustained downtrend means the endpoint management program is falling behind.\n\nFailed posture by check type:\n```spl\nindex=ztna earliest=-7d\n| where PostureStatus!=\"Pass\" AND PostureStatus!=\"Compliant\"\n| stats count dc(User) as users by PostureProfile\n| sort - count\n```\n\nStep 3 — Validate\n(a) Check the ZTNA admin console for device posture status.\n(b) Disable a posture check on a test device and verify the status change.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Compliance rate trend. Row 2 — Top failed posture checks. Row 3 — CrowdStrike ZTA score distribution.\nAlert: When compliance rate drops below 90%.\n\nRunbook:\n1. **Compliance dip after OS update** — Expected. Should recover within 48h.\n2. **New posture check added** — Monitor for 72h to gauge impact before enforcing.\n3. **CrowdStrike ZTA score declining** — Sensor health issue. Check CrowdStrike console.\n\nStep 5 — Troubleshooting\n• **PostureStatus always Pass** — Posture checks may be too lenient. Review posture profile configuration.\n• **No posture data** — ZTNA client may not have posture module installed. Check client deployment.",
-  "grandmaExplanation": "In Zero Trust, we do not just check your device once when you log in — we keep checking it all day long. We track how many devices pass these ongoing checks over time, and when fewer pass, we investigate what changed."
+  "grandmaExplanation": "In Zero Trust, we do not just check your device once when you log in — we keep checking it all day long. We track how many devices pass these ongoing checks over time, and when fewer pass, we investigate what changed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

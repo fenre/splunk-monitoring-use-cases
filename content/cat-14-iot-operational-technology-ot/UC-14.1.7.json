@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "LoRaWAN NS API (gateway stats, rx/tx packets)",
-  "app": "Custom (LoRaWAN Network Server API, e.g. ChirpStack)",
+  "exclusions": "Covers the detection logic documented for 'LoRaWAN Gateway Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_lorawan_gateway_health` (UC-14.1.7), SOC dashboard panel \"Operations — LoRaWAN Gateway Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.1.7 positive (LoRaWAN, Gateway, Health): ingest synthetic events into `index=iot` sourcetype='lorawan:gateway_stats' where `avg_rssi`, `uplink_pct`, `downlink_pct` grouped by `gateway_id`, `_time` satisfies `uplink_total` > 0, `downlink_total` > 0, `uplink_pct` < 95, or `downlink_pct` < 95 for 'LoRaWAN Gateway Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.1.7 negative (Gateway Health): ingest benign `iot` / `lorawan:gateway_stats` events where `gateway_id`, `_time` stays below `uplink_total` > 0, `downlink_total` > 0, `uplink_pct` < 95, or `downlink_pct` < 95, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'LoRaWAN Gateway Health'."
+  },
+  "dataSources": "LoRaWAN NS API (gateway stats, rx/tx packets) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom (LoRaWAN Network Server API, e.g. ChirpStack) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=iot sourcetype=\"lorawan:gateway_stats\"\n| eval uplink_success_rate=if(uplink_total>0, (uplink_ok/uplink_total)*100, null), downlink_success_rate=if(downlink_total>0, (downlink_ok/downlink_total)*100, null)\n| bin _time span=1h\n| stats avg(rssi) as avg_rssi, avg(uplink_success_rate) as uplink_pct, avg(downlink_success_rate) as downlink_pct by gateway_id, _time\n| where uplink_pct < 95 OR downlink_pct < 95 OR avg_rssi < -120\n| table gateway_id, avg_rssi, uplink_pct, downlink_pct",
-  "description": "Gateway uplink/downlink success rate and RSSI trending indicate network coverage and reliability. Degraded gateways cause packet loss and affect IoT application availability.",
-  "value": "Gateway uplink/downlink success rate and RSSI trending indicate network coverage and reliability. Degraded gateways cause packet loss and affect IoT application availability.",
+  "description": "Surfaces UC-14.1.7 — LoRaWAN, Gateway, Health — using `index=iot` sourcetype `lorawan:gateway_stats`, grouped by `gateway_id`, `_time`. Outputs `avg_rssi`, `uplink_pct`, `downlink_pct` each `1h`; alert when `uplink_total` > 0, `downlink_total` > 0, `uplink_pct` < 95, or `downlink_pct` < 95. Primary focus: Gateway Health. Purpose-built for 'LoRaWAN Gateway Health' in Operations workflows.",
+  "value": "For 'LoRaWAN Gateway Health', UC-14.1.7 converts `avg_rssi`, `uplink_pct`, `downlink_pct` on `lorawan:gateway_stats` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Poll LoRaWAN Network Server API (ChirpStack, TTN, etc.) for gateway statistics. Ingest rx/tx packet counts, success/failure, and RSSI per gateway. Configure HEC or scripted input to forward JSON to Splunk. Alert when uplink or downlink success rate drops below 95% or RSSI trends below -120 dBm. Track gateway health for capacity planning.",
   "visualization": "Table (gateways with degraded success rate), Line chart (RSSI trend by gateway), Gauge (uplink/downlink success %), Status grid (gateway × health).",
   "cimModels": [
@@ -23,10 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Gateway or device gaps during planned RF surveys, firmware joins, or regional routing changes.",
+  "knownFalsePositives": "1. **Maintenance window on `iot` (UC-14.1.7)** — Planned work for 'LoRaWAN Gateway Health' shifts `avg_rssi`, `uplink_pct`, `downlink_pct` over `span=1h` while `gateway_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `lorawan:gateway_stats`** — Scheduled automation elevates `_time` without crossing `uplink_total` > 0 for UC-14.1.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `gateway_id`, `_time`** — Health checks in `iot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `lorawan:gateway_stats`** — First 48h baseline for UC-14.1.7 on `gateway_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `gateway_id`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (LoRaWAN Network Server API, e.g. ChirpStack).\n• Ensure the following data sources are available: LoRaWAN NS API (gateway stats, rx/tx packets).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll LoRaWAN Network Server API (ChirpStack, TTN, etc.) for gateway statistics. Ingest rx/tx packet counts, success/failure, and RSSI per gateway. Configure HEC or scripted input to forward JSON to Splunk. Alert when uplink or downlink success rate drops below 95% or RSSI trends below -120 dBm. Track gateway health for capacity planning.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=iot sourcetype=\"lorawan:gateway_stats\"\n| eval uplink_success_rate=if(uplink_total>0, (uplink_ok/uplink_total)*100, null), downlink_success_rate=if(downlink_total>0, (downlink_ok/downlink_total)*100, null)\n| bin _time span=1h\n| stats avg(rssi) as avg_rssi, avg(uplink_success_rate) as uplink_pct, avg(downlink_success_rate) as downlink_pct by gateway_id, _time\n| where uplink_pct < 95 OR downlink_pct < 95 OR avg_rssi < -120\n| table gateway_id, avg_rssi, uplink_pct, downlink_pct\n```\n\nUnderstanding this SPL\n\n**LoRaWAN Gateway Health** — Gateway uplink/downlink success rate and RSSI trending indicate network coverage and reliability. Degraded gateways cause packet loss and affect IoT application availability.\n\nDocumented **Data sources**: LoRaWAN NS API (gateway stats, rx/tx packets). **App/TA** (typical add-on context): Custom (LoRaWAN Network Server API, e.g. ChirpStack). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: iot; **sourcetype**: lorawan:gateway_stats. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=iot, sourcetype=\"lorawan:gateway_stats\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **uplink_success_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by gateway_id, _time** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where uplink_pct < 95 OR downlink_pct < 95 OR avg_rssi < -120` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **LoRaWAN Gateway Health**): table gateway_id, avg_rssi, uplink_pct, downlink_pct\n\n\nStep 3 — Validate\nRun the search in a known window. Spot-check a few events against the BMS console (for example Niagara, Tridium, or Honeywell) and confirm zones, values, and alarms line up. Verify field names and that the right roles can search the index.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (gateways with degraded success rate), Line chart (RSSI trend by gateway), Gauge (uplink/downlink success %), Status grid (gateway × health).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with wireless field gateways and the devices that count on them before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with wireless field gateways and the devices that count on them before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

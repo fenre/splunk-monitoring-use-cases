@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Device Compliance Status and Policy Enforcement' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `iam_device_compliance_status_and_policy_enforcement` (UC-9.6.1), SOC dashboard panel \"IAM — Device Compliance Status and Policy Enforcement\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-9.6.1 positive (Device, Compliance, Status, and, Policy): ingest synthetic events into `index=meraki` sourcetype='target_sourcetype' where `count` grouped by `os_type` satisfies `noncompliant_count` > 0 for 'Device Compliance Status and Policy Enforcement'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.6.1 negative (Policy Enforcement): ingest benign `meraki` / `target_sourcetype` events where `os_type` stays below `noncompliant_count` > 0, or exclude the test entity via `iam_exception_register.csv`. Variant 4 confirms zero alert rows for 'Device Compliance Status and Policy Enforcement'."
+  },
   "dataSources": "`index=meraki sourcetype=meraki:webhook` (HEC) or `meraki:webhooklogs:api` (polled) in `Splunk_TA_cisco_meraki` (Splunkbase 5580). The polled device inputs do NOT cover Meraki Systems Manager (SM/MDM); compliance status arrives via SM webhook events. For richer SM detail, write a custom modular input that polls `GET /networks/{networkId}/sm/devices`.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype IN (\"meraki:webhook\",\"meraki:webhooklogs:api\") (alertTypeId=\"sm_device_compliance\" OR like(alertType, \"%compliance%\") OR like(alertType, \"%mdm%\"))\n| spath\n| eval compliance_status=coalesce('alertData.complianceStatus', 'data.complianceStatus', complianceStatus)\n| eval os_type=coalesce('alertData.osName', 'data.osName', osName, \"unknown\")\n| stats count as total_devices, count(eval(compliance_status IN (\"noncompliant\",\"unknown\"))) as noncompliant_count by os_type\n| eval compliance_pct=round((total_devices-noncompliant_count)*100/total_devices, 2)\n| where noncompliant_count > 0\n| sort - noncompliant_count",
-  "description": "Ensures all managed devices comply with security policies and configuration standards.",
-  "value": "Ensures all managed devices comply with security policies and configuration standards.",
+  "description": "Monitors risk tied to Device, Compliance, Status, and, Policy through UC-9.6.1 on `index=meraki` sourcetype `configured sourcetype`. Summarises `count` grouped by `os_type` across `the scheduled window` before applying `noncompliant_count` > 0. Operators tune 'Device Compliance Status and Policy Enforcement' using UC-9.6.1 runbook steps.",
+  "value": "Tracking `activity` via UC-9.6.1 on UC-9.6.1 search results improves response to 'Device Compliance Status and Policy Enforcement' and reduces account takeover risk, help-desk load, and audit findings.",
   "implementation": "Meraki Systems Manager (SM) data is NOT polled by the standard `Splunk_TA_cisco_meraki` device modular inputs. To monitor SM device compliance: (1) configure `cisco_meraki_webhook` (HEC, real-time, sourcetype `meraki:webhook`) OR `cisco_meraki_webhook_logs` (polled, sourcetype `meraki:webhooklogs:api`) and subscribe to SM compliance alerts in the Meraki Dashboard, OR (2) write a custom modular input that polls `GET /networks/{networkId}/sm/devices` and `GET /networks/{networkId}/sm/devices/{deviceId}/securityCenters` and writes results to `index=meraki sourcetype=meraki:sm:devices`. This UC uses the webhook path (works with either input).",
   "visualization": "Compliance status table; compliance percentage gauge; noncompliant device list.",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned policy rollouts, pilot tenants, and emergency relaxations for incidents; require change tickets for production changes.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-9.6.1)** — Planned work for 'Device Compliance Status and Policy Enforcement' shifts `count` over `span=1h` while `os_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `compliance_status` without crossing `noncompliant_count` > 0 for UC-9.6.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `os_type`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-9.6.1 on `os_type` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `os_type`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078"
   ],
@@ -36,6 +58,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: `index=meraki sourcetype=meraki:webhook` (HEC) or `meraki:webhooklogs:api` (polled) in `Splunk_TA_cisco_meraki` (Splunkbase 5580). The polled device inputs do NOT cover Meraki Systems Manager (SM/MDM); compliance status arrives via SM webhook events. For richer SM detail, write a custom modular input that polls `GET /networks/{networkId}/sm/devices`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMeraki Systems Manager (SM) data is NOT polled by the standard `Splunk_TA_cisco_meraki` device modular inputs. To monitor SM device compliance: (1) configure `cisco_meraki_webhook` (HEC, real-time, sourcetype `meraki:webhook`) OR `cisco_meraki_webhook_logs` (polled, sourcetype `meraki:webhooklogs:api`) and subscribe to SM compliance alerts in the Meraki Dashboard, OR (2) write a custom modular input that polls `GET /networks/{networkId}/sm/devices` and `GET /networks/{networkId}/sm/devices/{devi…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype IN (\"meraki:webhook\",\"meraki:webhooklogs:api\") (alertTypeId=\"sm_device_compliance\" OR like(alertType, \"%compliance%\") OR like(alertType, \"%mdm%\"))\n| spath\n| eval compliance_status=coalesce('alertData.complianceStatus', 'data.complianceStatus', complianceStatus)\n| eval os_type=coalesce('alertData.osName', 'data.osName', osName, \"unknown\")\n| stats count as total_devices, count(eval(compliance_status IN (\"noncompliant\",\"unknown\"))) as noncompliant_count by os_type\n| eval compliance_pct=round((total_devices-noncompliant_count)*100/total_devices, 2)\n| where noncompliant_count > 0\n| sort - noncompliant_count\n```\n\nUnderstanding this SPL\n\n**Device Compliance Status and Policy Enforcement** — Ensures all managed devices comply with security policies and configuration standards.\n\nDocumented **Data sources**: `index=meraki sourcetype=meraki:webhook` (HEC) or `meraki:webhooklogs:api` (polled) in `Splunk_TA_cisco_meraki` (Splunkbase 5580). The polled device inputs do NOT cover Meraki Systems Manager (SM/MDM); compliance status arrives via SM webhook events. For richer SM detail, write a custom modular input that polls `GET /networks/{networkId}/sm/devices`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts structured paths (JSON/XML) with `spath`.\n• `eval` defines or adjusts **compliance_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **os_type** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by os_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **compliance_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where noncompliant_count > 0` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Compliance status table; compliance percentage gauge; noncompliant device list.",
-  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — Device Compliance Status and Policy Enforcement"
+  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — Device Compliance Status and Policy Enforcement",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

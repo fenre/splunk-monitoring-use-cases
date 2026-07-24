@@ -9,24 +9,43 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`), uptime probes (`uptime:probe`).",
-  "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Container CPU Throttle Hotspots' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_container_cpu_throttle_hotspots` (UC-25.8.12), SOC dashboard panel \"Personal — Container CPU Throttle Hotspots\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.8.12 positive (Container, CPU, Throttle, Hotspots): ingest synthetic events into `index=personal` sourcetype='docker:stats' where `throttle_periods`, `avg_cpu` grouped by `container_name` satisfies `throttle_periods` > 0, or `avg_cpu` > 70 for 'Container CPU Throttle Hotspots'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.8.12 negative (Throttle Hotspots): ingest benign `personal` / `docker:stats` events where `container_name` stays below `throttle_periods` > 0, or `avg_cpu` > 70, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Container CPU Throttle Hotspots'."
+  },
+  "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`), uptime probes (`uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=docker:stats\n| stats sum(cpu_throttle_periods) as throttle_periods, avg(cpu_pct) as avg_cpu by container_name\n| where throttle_periods>0 AND avg_cpu>70\n| sort - throttle_periods",
-  "description": "Finds containers that are both busy and being throttled by cgroup limits, the precise recipe for confusing intermittent slowness.",
-  "value": "CPU throttling is invisible from inside many containers; surfacing it from host metrics explains why a 'healthy' app still feels laggy.",
+  "description": "Monitors Throttle Hotspots anomalies for UC-25.8.12 with window `the scheduled window` on `index=personal` sourcetype `docker:stats`. Combines `throttle_periods`, `avg_cpu` by `container_name` and compares against `throttle_periods` > 0, or `avg_cpu` > 70. Mapped to keywords Container, CPU, Throttle, Hotspots for dashboard routing.",
+  "value": "Alerting on Container, CPU, Throttle, Hotspots through UC-25.8.12 reduces missed training goals, stale hobby data, and connector failures by surfacing `throttle_periods`, `avg_cpu` early.",
   "implementation": "Forward Docker stats including throttling counters; review the worst offenders and revisit CPU limits or workload placement.",
   "visualization": "Table of containers by throttle periods and average CPU usage.",
   "cimModels": [],
   "references": [
     {
       "title": "Docker Engine API",
-      "url": "https://docs.docker.com/engine/api/"
+      "url": "https://docs.docker.com/engine/api/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.8.12)** — Connector for 'Container CPU Throttle Hotspots' stops polling `docker:stats`; stale `throttle_periods`, `avg_cpu` on `container_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `throttle_periods`, `avg_cpu` over `1w` is expected for UC-25.8.12, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `docker:stats`. Dedup with `stats latest(*) by container_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `throttle_periods` > 0 for 'Container CPU Throttle Hotspots'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "proxmox",
@@ -36,5 +55,12 @@
   "equipmentModels": [
     "snmp_ups"
   ],
-  "grandmaExplanation": "It logs which containers are hitting CPU limits often enough that they may feel slow or unresponsive."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Docker — Docker stats via telegraf or scripted input on host → HEC.\n• **Subcategory context**: Home Lab & Self-Hosting — typical feeds: Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`)..\n• **Sourcetypes in this search**: `docker:stats`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Docker** events into `index=personal` with `sourcetype=docker:stats`.\n\n**Collection method:** Docker stats via telegraf or scripted input on host → HEC.\n\n**Reference endpoint / path:** `docker stats --no-stream JSON`.\n\n**Suggested poll interval:** 60s.\n\n**Key fields to extract:** `container_name, cpu_percent, mem_usage, mem_limit`.\n\n**Typical connector stack:** Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC..\n\n**Author notes:** Forward Docker stats including throttling counters; review the worst offenders and revisit CPU limits or workload placement.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"docker:stats\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=docker:stats earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Container CPU Throttle Hotspots** over `personal` data (primarily `sourcetype=docker:stats`) across the full search range. It applies numeric thresholds on `throttle_periods` (> 0) after sum, avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `avg_cpu`, `container_name`, `throttle_periods`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=docker:stats\n| stats sum(cpu_throttle_periods) as throttle_periods, avg(cpu_pct) as avg_cpu by container_name\n| where throttle_periods>0 AND avg_cpu>70\n| sort - throttle_periods\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Portainer or `docker stats` on the host. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=docker:stats earliest=-7d\n| head 50\n| table avg_cpu, container_name, throttle_periods\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=docker:stats earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `throttle_periods` before alerting:\n\n```spl\nindex=personal sourcetype=docker:stats earliest=-30d\n| stats perc50(throttle_periods) AS p50 perc90(throttle_periods) AS p90 perc99(throttle_periods) AS p99 max(throttle_periods) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.8.12: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Containers By Throttle Periods And Average Cpu Usage (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Docker — no Docker events / missing fields:** If `docker:stats` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Docker connector script is still running (`systemctl status` or cron log).\n\n**Docker — NULL values in extracted fields:** The Docker JSON export shape drifted — compare a raw event (`index=personal sourcetype=docker:stats | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Docker — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Docker — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Docker APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It logs which containers are hitting CPU limits often enough that they may feel slow or unresponsive.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

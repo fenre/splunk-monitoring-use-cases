@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`predicate.buildDefinition`, `subject.digest`",
-  "app": "SLSA provenance JSON, GitHub attestations",
+  "exclusions": "Covers the detection logic documented for 'Package Provenance Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_package_provenance_tracking` (UC-12.3.11), SOC dashboard panel \"Operations — Package Provenance Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.3.11 positive (Package, Provenance, Tracking): ingest synthetic events into `index=cicd` sourcetype='slsa:provenance' where `count` grouped by `entity` satisfies detection threshold for 'Package Provenance Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.3.11 negative (Provenance Tracking): ingest benign `cicd` / `slsa:provenance` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Package Provenance Tracking'."
+  },
+  "dataSources": "`predicate.buildDefinition`, `subject.digest` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "SLSA provenance JSON, GitHub attestations — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cicd sourcetype=\"slsa:provenance\"\n| where builder_id!=\"https://github.com/org/trusted-workflow\" OR commit_ref!=expected_git_sha\n| table _time, artifact_digest, builder_id, commit_ref, expected_git_sha",
-  "description": "SLSA provenance predicate links artifact digest to git source SHA and builder ID—detects builds not from trusted pipelines.",
-  "value": "SLSA provenance predicate links artifact digest to git source SHA and builder ID—detects builds not from trusted pipelines.",
+  "description": "Detects 'Package Provenance Tracking' patterns (UC-12.3.11) sourced from `index=cicd` sourcetype `slsa:provenance`. Threshold bundle: configured threshold; aggregation grain: `entity`; metrics: `count`. Watch terms: Package, Provenance, Tracking.",
+  "value": "UC-12.3.11 gives Operations teams earlier visibility into Provenance Tracking through `slsa:provenance` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Store expected builder allowlist. Alert on provenance mismatch for prod images.",
   "visualization": "Table (mismatches), Bar chart (by builder), Timeline.",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Alerts from scheduled scans, pilot repositories, or vendor API throttling during bulk operations.",
+  "knownFalsePositives": "1. **Maintenance window on `cicd` (UC-12.3.11)** — Planned work for 'Package Provenance Tracking' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `slsa:provenance`** — Scheduled automation elevates `src` without crossing configured threshold for UC-12.3.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `slsa:provenance`** — First 48h baseline for UC-12.3.11 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "github"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SLSA provenance JSON, GitHub attestations.\n• Ensure the following data sources are available: `predicate.buildDefinition`, `subject.digest`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nStore expected builder allowlist. Alert on provenance mismatch for prod images.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cicd sourcetype=\"slsa:provenance\"\n| where builder_id!=\"https://github.com/org/trusted-workflow\" OR commit_ref!=expected_git_sha\n| table _time, artifact_digest, builder_id, commit_ref, expected_git_sha\n```\n\nUnderstanding this SPL\n\n**Package Provenance Tracking** — SLSA provenance predicate links artifact digest to git source SHA and builder ID—detects builds not from trusted pipelines.\n\nDocumented **Data sources**: `predicate.buildDefinition`, `subject.digest`. **App/TA** (typical add-on context): SLSA provenance JSON, GitHub attestations. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cicd; **sourcetype**: slsa:provenance. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cicd, sourcetype=\"slsa:provenance\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where builder_id!=\"https://github.com/org/trusted-workflow\" OR commit_ref!=expected_git_sha` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Package Provenance Tracking**): table _time, artifact_digest, builder_id, commit_ref, expected_git_sha\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the GitHub audit log. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (mismatches), Bar chart (by builder), Timeline.",
-  "grandmaExplanation": "We watch packages and artifacts so supply-chain risk, storage, and policy checks stay under control."
+  "equipmentModels": [
+    "github_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SLSA provenance JSON, GitHub attestations.\n• Ensure the following data sources are available: `predicate.buildDefinition`, `subject.digest`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nStore expected builder allowlist. Alert on provenance mismatch for prod images.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cicd sourcetype=\"slsa:provenance\"\n| where builder_id!=\"https://github.com/org/trusted-workflow\" OR commit_ref!=expected_git_sha\n| table _time, artifact_digest, builder_id, commit_ref, expected_git_sha\n```\n\nUnderstanding this SPL\n\n**Package Provenance Tracking** — SLSA provenance predicate links artifact digest to git source SHA and builder ID—detects builds not from trusted pipelines.\n\nDocumented **Data sources**: `predicate.buildDefinition`, `subject.digest`. **App/TA** (typical add-on context): SLSA provenance JSON, GitHub attestations. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cicd; **sourcetype**: slsa:provenance. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cicd, sourcetype=\"slsa:provenance\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where builder_id!=\"https://github.com/org/trusted-workflow\" OR commit_ref!=expected_git_sha` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Package Provenance Tracking**): table _time, artifact_digest, builder_id, commit_ref, expected_git_sha\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the GitHub audit log. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (mismatches), Bar chart (by builder), Timeline.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (SLSA provenance JSON, GitHub attestations — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=slsa:provenance into cicd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch packages and artifacts so supply-chain risk, storage, and policy checks stay under control.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

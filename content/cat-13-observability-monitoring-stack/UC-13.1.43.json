@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`| rest /services/server/info` (scripted aggregate), `sourcetype=splunk:version_inventory`",
-  "app": "Monitoring Console, REST inventory",
+  "exclusions": "Covers the detection logic documented for 'Splunk Version Compliance (operational inventory)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_splunk_version_compliance_operational_inventory` (UC-13.1.43), SOC dashboard panel \"Operations — Splunk Version Compliance (operational inventory)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-13.1.43 positive (Splunk, Version, Compliance, (operational, inventory)): ingest synthetic events into `index=inventory` sourcetype='splunk:version_inventory' where `version_count` grouped by `group` satisfies `version_count` > 1 for 'Splunk Version Compliance (operational inventory)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-13.1.43 negative ((operational inventory)): ingest benign `inventory` / `splunk:version_inventory` events where `group` stays below `version_count` > 1, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Splunk Version Compliance (operational inventory)'."
+  },
+  "dataSources": "`| rest /services/server/info` (scripted aggregate), `sourcetype=splunk:version_inventory` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Monitoring Console, REST inventory — Universal Forwarder (Splunkbase 617)",
   "spl": "index=inventory sourcetype=\"splunk:version_inventory\"\n| stats dc(version) as version_count, values(version) as versions by group\n| where version_count > 1\n| table group, versions",
-  "description": "Drift across Splunk Enterprise versions breaks feature parity and support eligibility.",
-  "value": "Drift across Splunk Enterprise versions breaks feature parity and support eligibility.",
+  "description": "Detects (operational inventory) anomalies for UC-13.1.43 with window `the scheduled window` on `index=inventory` sourcetype `splunk:version_inventory`. Combines `version_count` by `group` and compares against `version_count` > 1. Mapped to keywords Splunk, Version, Compliance, (operational, inventory) for dashboard routing.",
+  "value": "Alerting on Splunk, Version, Compliance, (operational, inventory) through UC-13.1.43 reduces operational risk and delayed incident response by surfacing `version_count` early.",
   "implementation": "Nightly scheduled search hits `server/info` on all peers via SH with credentials or forwarder-side scripted input. Compare to approved matrix. Report non-compliant hosts.",
   "visualization": "Table (hosts × version), Pie chart (version distribution).",
   "cimModels": [
@@ -22,10 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Signals move after deploys, config edits, and traffic shifts. We compare with the right product view and a short history before an outage page.",
+  "knownFalsePositives": "1. **Maintenance window on `inventory` (UC-13.1.43)** — Planned work for 'Splunk Version Compliance (operational inventory)' shifts `version_count` over `span=1h` while `group` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `splunk:version_inventory`** — Scheduled automation elevates `src` without crossing `version_count` > 1 for UC-13.1.43. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `group`** — Health checks in `inventory` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `splunk:version_inventory`** — First 48h baseline for UC-13.1.43 on `group` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `group`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Monitoring Console, REST inventory.\n• Ensure the following data sources are available: `| rest /services/server/info` (scripted aggregate), `sourcetype=splunk:version_inventory`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNightly scheduled search hits `server/info` on all peers via SH with credentials or forwarder-side scripted input. Compare to approved matrix. Report non-compliant hosts.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=inventory sourcetype=\"splunk:version_inventory\"\n| stats dc(version) as version_count, values(version) as versions by group\n| where version_count > 1\n| table group, versions\n```\n\nUnderstanding this SPL\n\n**Splunk Version Compliance (operational inventory)** — Drift across Splunk Enterprise versions breaks feature parity and support eligibility.\n\nDocumented **Data sources**: `| rest /services/server/info` (scripted aggregate), `sourcetype=splunk:version_inventory`. **App/TA** (typical add-on context): Monitoring Console, REST inventory. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: inventory; **sourcetype**: splunk:version_inventory. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=inventory, sourcetype=\"splunk:version_inventory\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by group** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where version_count > 1` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Splunk Version Compliance (operational inventory)**): table group, versions\n\n\nStep 3 — Validate\nRun the search for a time range you can explain. Compare with the closest Grafana dashboard, APM UI, or Splunk monitoring console, and spot-check a few raw rows for fields that matter.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (hosts × version), Pie chart (version distribution).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch platform health and capacity for search, indexing, and data delivery so the system we use for answers does not go dark or slow first."
+  "grandmaExplanation": "We watch platform health and capacity for search, indexing, and data delivery so the system we use for answers does not go dark or slow first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

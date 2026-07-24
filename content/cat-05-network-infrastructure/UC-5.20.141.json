@@ -9,24 +9,42 @@
     "Security"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Monitors DHCPv6 Prefix Delegation (PD) operations where a delegating router assigns IPv6 prefixes to requesting routers (RFC 8415 §6.3). Tracks prefix assignments, renewals, expirations, and unauthorized delegation requests. Essential for ISPs, campus networks, and branch deployments where customer/site routers request prefixes.",
-  "app": "Splunk Enterprise",
+  "exclusions": "Covers the detection logic documented for 'IPv6 DHCPv6 Prefix Delegation (PD) Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_dhcpv6_prefix_delegation_pd_monitoring` (UC-5.20.141), SOC dashboard panel \"Operations — IPv6 DHCPv6 Prefix Delegation (PD) Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.141 positive (IPv6, DHCPv6, Prefix, Delegation, (PD)): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `values` grouped by `host`, `pd_event` satisfies `events` > 5, or `events` > 10 for 'IPv6 DHCPv6 Prefix Delegation (PD) Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.141 negative ((PD) Monitoring): ingest benign `network` / `cisco:ios` events where `host`, `pd_event` stays below `events` > 5, or `events` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'IPv6 DHCPv6 Prefix Delegation (PD) Monitoring'."
+  },
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Monitors DHCPv6 Prefix Delegation (PD) operations where a delegating router assigns IPv6 prefixes to requesting routers (RFC 8415 §6.3). Tracks prefix assignments, renewals, expirations, and unauthorized delegation requests. Essential for ISPs, campus networks, and branch deployments where customer/site routers request prefixes. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-24h\n  (\"prefix.*delegation\" OR \"DHCPv6\" OR \"PD.*assign\" OR \"PD.*expire\" OR \"PD.*renew\")\n| eval pd_event=case(\n    match(_raw, \"(?i)PD.*assign|prefix.*delegat.*assign\"), \"PREFIX_ASSIGNED\",\n    match(_raw, \"(?i)PD.*renew|prefix.*delegat.*renew\"), \"PREFIX_RENEWED\",\n    match(_raw, \"(?i)PD.*expire|prefix.*delegat.*expire\"), \"PREFIX_EXPIRED\",\n    match(_raw, \"(?i)PD.*fail|prefix.*delegat.*fail|no.*prefix.*available\"), \"PREFIX_FAILED\",\n    match(_raw, \"(?i)unauthorized.*PD|rogue.*delegat\"), \"UNAUTHORIZED_PD\",\n    1=1, null())\n| where isnotnull(pd_event)\n| rex field=_raw \"prefix\\s*(?<delegated_prefix>[0-9a-fA-F:]+/\\d+)\"\n| stats count as events values(delegated_prefix) as prefixes by host, pd_event\n| eval severity=case(\n    pd_event=\"UNAUTHORIZED_PD\", \"CRITICAL — unauthorized prefix delegation request\",\n    pd_event=\"PREFIX_FAILED\" AND events > 5, \"HIGH — prefix delegation failures — pool exhaustion?\",\n    pd_event=\"PREFIX_EXPIRED\" AND events > 10, \"MEDIUM — multiple prefix expirations\",\n    1=1, null())\n| where isnotnull(severity)\n| sort -events",
-  "description": "Monitors DHCPv6 Prefix Delegation (PD) operations where prefixes are assigned to requesting routers. Tracks the lifecycle of delegated prefixes (assignment, renewal, expiration, failure) and detects unauthorized delegation requests. Prefix delegation failures can leave entire downstream networks without IPv6 connectivity.",
-  "value": "DHCPv6 PD is how branch offices, customer sites, and home networks obtain their IPv6 prefix. If PD fails, every host behind the requesting router loses IPv6. Monitoring PD operations ensures timely detection of pool exhaustion, unauthorized delegation requests, and prefix lifecycle issues before they cause outages.",
+  "description": "Surfaces UC-5.20.141 — IPv6, DHCPv6, Prefix, Delegation, (PD) — using `index=network` sourcetype `cisco:ios`, grouped by `host`, `pd_event`. Outputs `values` each `the scheduled window`; alert when `events` > 5, or `events` > 10. Primary focus: (PD) Monitoring. Purpose-built for 'IPv6 DHCPv6 Prefix Delegation (PD) Monitoring' in Operations workflows.",
+  "value": "Operators running UC-5.20.141 on `cisco:ios` feeds shorten triage for (PD) Monitoring tied to 'IPv6 DHCPv6 Prefix Delegation (PD) Monitoring', lowering operational risk and delayed incident response.",
   "implementation": "Monitor DHCPv6 PD events in router syslog. Track prefix assignments and expirations. Alert on failures and unauthorized requests.",
   "visualization": "(1) Table: delegated prefixes with lifecycle state. (2) Timechart: PD events over time. (3) Single-value: active delegated prefixes. (4) Alert: PD failures.",
   "references": [
     {
       "title": "RFC 8415 — Dynamic Host Configuration Protocol for IPv6 (DHCPv6) — §6.3 Prefix Delegation",
-      "url": "https://www.rfc-editor.org/rfc/rfc8415#section-6.3"
+      "url": "https://www.rfc-editor.org/rfc/rfc8415#section-6.3",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 3633 — IPv6 Prefix Options for DHCPv6 (historical)",
-      "url": "https://www.rfc-editor.org/rfc/rfc3633"
+      "url": "https://www.rfc-editor.org/rfc/rfc3633",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Scheduled renewals.** Regular prefix renewals are normal operational events, not alerts.\n\n**Lab environments.** Frequent PD requests in test environments with short lease times are expected.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.141)** — Planned work for 'IPv6 DHCPv6 Prefix Delegation (PD) Monitoring' shifts `values` over `span=1h` while `host`, `pd_event` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `cisco:ios`** — Scheduled automation elevates `pd_event` without crossing `events` > 5 for UC-5.20.141. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `pd_event`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.141 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "juniper",
@@ -44,7 +62,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• DHCPv6 server with prefix delegation configured.\n• Router syslog to Splunk.\n\nStep 1 — Verify DHCPv6 PD configuration:\n```\nshow ipv6 dhcp pool\nshow ipv6 dhcp binding\n```\n\nStep 2 — Monitor PD events in syslog.\n\nStep 3 — Validate: Request a prefix from a test router. Verify the event appears in Splunk.\n\nStep 4 — Operationalize\n**Dashboard:** Prefix delegation lifecycle. **Alert:** PD failure or pool exhaustion — high.\n\nStep 5 — Troubleshooting\n• Pool exhaustion: Expand prefix pool or reduce lease times.\n• PD failure: Check DUID matching and pool configuration.",
+  "detailedImplementation": "Prerequisites\n• DHCPv6 server with prefix delegation configured.\n• Router syslog to Splunk.\n\nStep 1 — Verify DHCPv6 PD configuration:\n```\nshow ipv6 dhcp pool\nshow ipv6 dhcp binding\n```\n\nStep 2 — Monitor PD events in syslog.\n\nStep 3 — Validate: Request a prefix from a test router. Verify the event appears in Splunk.\n\nStep 4 — Operationalize\n**Dashboard:** Prefix delegation lifecycle. **Alert:** PD failure or pool exhaustion — high.\n\nStep 5 — Troubleshooting\n• Pool exhaustion: Expand prefix pool or reduce lease times.\n• PD failure: Check DUID matching and pool configuration.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ios, cisco:iosxe into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`events, host, pd_event, severity`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When a branch office needs its own block of IPv6 addresses, it asks the central office to delegate a range. It's like a franchise getting permission to use part of the company's phone number block. We track which branches have their numbers, when they need to renew, and catch anyone unauthorized trying to grab a block.",
   "prerequisiteUseCases": [
     "UC-5.20.21"

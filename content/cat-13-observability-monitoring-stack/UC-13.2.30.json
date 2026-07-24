@@ -8,11 +8,17 @@
     "Configuration"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=_internal sourcetype=itsi_internal_log`, Configuration Assistant UI",
-  "app": "Splunk ITSI 4.20+",
+  "exclusions": "Covers the detection logic documented for 'Configuration Assistant Recommendations Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_configuration_assistant_recommendations_tracking` (UC-13.2.30), SOC dashboard panel \"Operations — Configuration Assistant Recommendations Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-13.2.30 positive (Configuration, Assistant, Recommendations, Tracking): ingest synthetic events into `index=_internal` sourcetype='itsi_internal_log' where `sum` grouped by `recommendation_type`, `action_taken` satisfies detection threshold for 'Configuration Assistant Recommendations Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-13.2.30 negative (Recommendations Tracking): ingest benign `_internal` / `itsi_internal_log` events where `recommendation_type`, `action_taken` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Configuration Assistant Recommendations Tracking'."
+  },
+  "dataSources": "`index=_internal sourcetype=itsi_internal_log`, Configuration Assistant UI Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk ITSI 4.20+ — Universal Forwarder (Splunkbase 617)",
   "spl": "index=_internal sourcetype=itsi_internal_log component=ConfigurationAssistant\n| stats count by recommendation_type action_taken\n| eval implementation_rate=round(count/sum(count)*100, 1)",
-  "description": "The Configuration Assistant (ITSI 4.20+) provides AI-powered optimization recommendations. Tracking which recommendations are implemented vs ignored ensures continuous ITSI health improvement.",
-  "value": "The Configuration Assistant (ITSI 4.20+) provides AI-powered optimization recommendations. Tracking which recommendations are implemented vs ignored ensures continuous ITSI health improvement.",
+  "description": "Alerts on UC-13.2.30 — Configuration, Assistant, Recommendations, Tracking — using `index=_internal` sourcetype `itsi_internal_log`, grouped by `recommendation_type`, `action_taken`. Outputs `sum` each `the scheduled window`; alert when configured threshold. Primary focus: Recommendations Tracking. Purpose-built for 'Configuration Assistant Recommendations Tracking' in Operations workflows.",
+  "value": "UC-13.2.30 operationalises 'Configuration Assistant Recommendations Tracking' against `itsi_internal_log` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Review Configuration Assistant recommendations weekly. Categorize by type: threshold tuning, KPI consolidation, entity rule optimization, base search performance. Track implementation rate and measure impact (reduced skipped searches, fewer false positives, improved health score stability). Prioritize recommendations that affect critical services.",
   "visualization": "Table (recommendation type, count, implementation status), Single value (implementation rate %).",
   "cimModels": [
@@ -22,12 +28,35 @@
   "references": [
     {
       "title": "Splunk ITSI",
-      "url": "https://splunkbase.splunk.com/app/1841"
+      "url": "https://splunkbase.splunk.com/app/1841",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Episode and score noise from content changes, seasonality, and who is in scope. We check maintenance and drill paths before we escalate.",
+  "knownFalsePositives": "1. **Maintenance window on `_internal` (UC-13.2.30)** — Planned work for 'Configuration Assistant Recommendations Tracking' shifts `sum` over `span=1h` while `recommendation_type`, `action_taken` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `itsi_internal_log`** — Scheduled automation elevates `action_taken` without crossing configured threshold for UC-13.2.30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `recommendation_type`, `action_taken`** — Health checks in `_internal` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `itsi_internal_log`** — First 48h baseline for UC-13.2.30 on `recommendation_type` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `recommendation_type`, `exception_reason`, `valid_until`.",
   "equipment": [
     "itsi"
+  ],
+  "equipmentModels": [
+    "itsi_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -36,6 +65,8 @@
       "note": "ITSI"
     }
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI 4.20+.\n• Ensure the following data sources are available: `index=_internal sourcetype=itsi_internal_log`, Configuration Assistant UI.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nReview Configuration Assistant recommendations weekly. Categorize by type: threshold tuning, KPI consolidation, entity rule optimization, base search performance. Track implementation rate and measure impact (reduced skipped searches, fewer false positives, improved health score stability). Prioritize recommendations that affect critical services.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal sourcetype=itsi_internal_log component=ConfigurationAssistant\n| stats count by recommendation_type action_taken\n| eval implementation_rate=round(count/sum(count)*100, 1)\n```\n\nUnderstanding this SPL\n\n**Configuration Assistant Recommendations Tracking** — The Configuration Assistant (ITSI 4.20+) provides AI-powered optimization recommendations. Tracking which recommendations are implemented vs ignored ensures continuous ITSI health improvement.\n\nDocumented **Data sources**: `index=_internal sourcetype=itsi_internal_log`, Configuration Assistant UI. **App/TA** (typical add-on context): Splunk ITSI 4.20+. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal; **sourcetype**: itsi_internal_log. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal, sourcetype=itsi_internal_log. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by recommendation_type action_taken** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **implementation_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nRun the search over calm and busy windows. Compare with the Splunk monitoring console and relevant health and introspection views, and spot-check key fields in sample events.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (recommendation type, count, implementation status), Single value (implementation rate %).",
-  "grandmaExplanation": "We track service health, episodes, and related signals in one workspace so the team can see what broke and who owns it without juggling every console."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI 4.20+.\n• Ensure the following data sources are available: `index=_internal sourcetype=itsi_internal_log`, Configuration Assistant UI.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nReview Configuration Assistant recommendations weekly. Categorize by type: threshold tuning, KPI consolidation, entity rule optimization, base search performance. Track implementation rate and measure impact (reduced skipped searches, fewer false positives, improved health score stability). Prioritize recommendations that affect critical services.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal sourcetype=itsi_internal_log component=ConfigurationAssistant\n| stats count by recommendation_type action_taken\n| eval implementation_rate=round(count/sum(count)*100, 1)\n```\n\nUnderstanding this SPL\n\n**Configuration Assistant Recommendations Tracking** — The Configuration Assistant (ITSI 4.20+) provides AI-powered optimization recommendations. Tracking which recommendations are implemented vs ignored ensures continuous ITSI health improvement.\n\nDocumented **Data sources**: `index=_internal sourcetype=itsi_internal_log`, Configuration Assistant UI. **App/TA** (typical add-on context): Splunk ITSI 4.20+. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal; **sourcetype**: itsi_internal_log. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal, sourcetype=itsi_internal_log. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by recommendation_type action_taken** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **implementation_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nRun the search over calm and busy windows. Compare with the Splunk monitoring console and relevant health and introspection views, and spot-check key fields in sample events.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (recommendation type, count, implementation status), Single value (implementation rate %).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk ITSI 4.20+ — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=itsi_internal_log into _internal. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action_taken, recommendation_type`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We track service health, episodes, and related signals in one workspace so the team can see what broke and who owns it without juggling every console.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

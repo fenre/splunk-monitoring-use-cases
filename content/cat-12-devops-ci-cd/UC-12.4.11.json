@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "ArgoCD /api/v1/applications",
-  "app": "Custom (ArgoCD API)",
+  "exclusions": "Covers the detection logic documented for 'ArgoCD Application Sync Status' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_argocd_application_sync_status` (UC-12.4.11), SOC dashboard panel \"Operations — ArgoCD Application Sync Status\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.4.11 positive (ArgoCD, Application, Sync, Status): ingest synthetic events into `index=devops` sourcetype='argocd:application' where `count` grouped by `entity` satisfies detection threshold for 'ArgoCD Application Sync Status'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.4.11 negative (Sync Status): ingest benign `devops` / `argocd:application` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'ArgoCD Application Sync Status'."
+  },
+  "dataSources": "ArgoCD /api/v1/applications Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom (ArgoCD API) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"argocd:application\"\n| where sync_status!=\"Synced\" OR health_status!=\"Healthy\" OR health_status=\"Degraded\"\n| table _time, name, namespace, sync_status, health_status, revision, message\n| sort -_time",
-  "description": "Out-of-sync or degraded applications in ArgoCD indicate GitOps drift or deployment failures. Detection ensures desired state matches cluster state and enables rapid remediation.",
-  "value": "Out-of-sync or degraded applications in ArgoCD indicate GitOps drift or deployment failures. Detection ensures desired state matches cluster state and enables rapid remediation.",
+  "description": "Monitors UC-12.4.11 — ArgoCD, Application, Sync, Status — using `index=devops` sourcetype `argocd:application`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Sync Status. Purpose-built for 'ArgoCD Application Sync Status' in Operations workflows.",
+  "value": "UC-12.4.11 operationalises 'ArgoCD Application Sync Status' against `argocd:application` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Poll ArgoCD API /api/v1/applications for application list. Ingest sync.status, health.status, revision, message. Alert when sync_status is OutOfSync or health_status is Degraded/Progressing for >5 min. Track sync and health history. Correlate with Git commits and cluster events. Report on application sync health and remediation time.",
   "visualization": "Table (out-of-sync/degraded apps), Single value (synced apps %), Status grid (app × sync/health), Timeline (sync status changes).",
   "cimModels": [
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Signals that reflect approved hotfixes, provider upgrades, or brownout tests rather than misuse.",
+  "knownFalsePositives": "1. **Maintenance window on `devops` (UC-12.4.11)** — Planned work for 'ArgoCD Application Sync Status' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `argocd:application`** — Scheduled automation elevates `src` without crossing configured threshold for UC-12.4.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `argocd:application`** — First 48h baseline for UC-12.4.11 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "argocd"
   ],
+  "equipmentModels": [
+    "argocd_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (ArgoCD API).\n• Ensure the following data sources are available: ArgoCD /api/v1/applications.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll ArgoCD API /api/v1/applications for application list. Ingest sync.status, health.status, revision, message. Alert when sync_status is OutOfSync or health_status is Degraded/Progressing for >5 min. Track sync and health history. Correlate with Git commits and cluster events. Report on application sync health and remediation time.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=devops sourcetype=\"argocd:application\"\n| where sync_status!=\"Synced\" OR health_status!=\"Healthy\" OR health_status=\"Degraded\"\n| table _time, name, namespace, sync_status, health_status, revision, message\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**ArgoCD Application Sync Status** — Out-of-sync or degraded applications in ArgoCD indicate GitOps drift or deployment failures. Detection ensures desired state matches cluster state and enables rapid remediation.\n\nDocumented **Data sources**: ArgoCD /api/v1/applications. **App/TA** (typical add-on context): Custom (ArgoCD API). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: devops; **sourcetype**: argocd:application. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=devops, sourcetype=\"argocd:application\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where sync_status!=\"Synced\" OR health_status!=\"Healthy\" OR health_status=\"Degraded\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **ArgoCD Application Sync Status**): table _time, name, namespace, sync_status, health_status, revision, message\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the Argo CD UI and application details. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (out-of-sync/degraded apps), Single value (synced apps %), Status grid (app × sync/health), Timeline (sync status changes).",
-  "grandmaExplanation": "We watch GitOps sync and Argo signals so clusters stay aligned with the desired configuration in Git."
+  "grandmaExplanation": "We watch GitOps sync and Argo signals so clusters stay aligned with the desired configuration in Git.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=custom:meminfo_delta` (or vmstat-class feed) with `pgscan_direct` and `pgsteal_direct` from `/proc/vmstat` deltas",
-  "app": "`Splunk_TA_nix` and a small scripted input for `/proc/vmstat` deltas",
+  "exclusions": "Covers the detection logic documented for 'Page Cache Pressure and Reclaim Activity' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_page_cache_pressure_and_reclaim_activity` (UC-1.1.47), SOC dashboard panel \"Linux — Page Cache Pressure and Reclaim Activity\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.47 positive (Page, Cache, Pressure, and, Reclaim): ingest synthetic events into `index=os` sourcetype='custom:meminfo_delta' where `scan_avg`, `steal_avg` grouped by `host` satisfies `scan_avg` > 0, `scan_avg` > 0, or `steal_ratio` > 0.7 for 'Page Cache Pressure and Reclaim Activity'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.47 negative (Reclaim Activity): ingest benign `os` / `custom:meminfo_delta` events where `host` stays below `scan_avg` > 0, `scan_avg` > 0, or `steal_ratio` > 0.7, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 5 confirms zero alert rows for 'Page Cache Pressure and Reclaim Activity'."
+  },
+  "dataSources": "`sourcetype=custom:meminfo_delta` (or vmstat-class feed) with `pgscan_direct` and `pgsteal_direct` from `/proc/vmstat` deltas Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` and a small scripted input for `/proc/vmstat` deltas — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:meminfo_delta host=*\n| stats avg(pgscan_direct) as scan_avg, avg(pgsteal_direct) as steal_avg by host\n| eval steal_ratio=if(scan_avg>0, steal_avg/scan_avg, null())\n| where scan_avg>0 AND steal_ratio > 0.7",
-  "description": "Flags hosts where the kernel is spending a high share of direct reclaim scans on successful steals, a sign the system is under real memory pressure and stealing pages from the page cache aggressively.",
-  "value": "Spotting reclaim-heavy periods early helps you add RAM, tune workloads, or fix leaks before latency spreads to databases, batch jobs, and user-facing services on the same box.",
+  "description": "Surfaces 'Page Cache Pressure and Reclaim Activity' patterns (UC-1.1.47) sourced from `index=os` sourcetype `custom:meminfo_delta`. Threshold bundle: `scan_avg` > 0, `scan_avg` > 0, or `steal_ratio` > 0.7; aggregation grain: `host`; metrics: `scan_avg`, `steal_avg`. Watch terms: Page, Cache, Pressure, and, Reclaim.",
+  "value": "UC-1.1.47 gives Linux teams earlier visibility into Reclaim Activity through `custom:meminfo_delta` feeds, lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Ship time-delta’d `/proc/vmstat` metrics as `pgscan_direct` and `pgsteal_direct`. Alert when the ratio of steals to scans stays above 0.7 for the analysis window, indicating the host is doing heavy direct reclaim.",
   "visualization": "Timechart, Single Value",
   "cimModels": [
@@ -21,17 +27,38 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short bursts during backups or large file copies that intentionally churn the page cache; missing or zero `pgscan_direct` in a sample, which can inflate ratios—tune the search to require `scan_avg>0` if needed.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Page Cache Pressure and Reclaim Activity'. Correlate with apt/yum logs in the same `custom:meminfo_delta` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:meminfo_delta`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `scan_avg` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• Install `Splunk_TA_nix` and add a scripted input (or an extension) that records `/proc/vmstat` on an interval and emits **delta** values for `pgscan_direct` and `pgsteal_direct` or absolute counters your SPL differences correctly.\n• Ensure the fields used in the search exist in the chosen sourcetype.\n• See docs/implementation-guide.md for inputs.conf layout.\n\nStep 1 — Configure data collection\nParse `/proc/vmstat` on a fixed schedule; compute per-interval deltas in the script or in SPL before this alert. Point events at `index=os` and your agreed sourcetype (here `custom:meminfo_delta`).\n\nStep 2 — Create the search and alert\n\n```spl\nindex=os sourcetype=custom:meminfo_delta host=*\n| stats avg(pgscan_direct) as scan_avg, avg(pgsteal_direct) as steal_avg by host\n| eval steal_ratio=if(scan_avg>0, steal_avg/scan_avg, null())\n| where steal_ratio > 0.7\n```\n\n**Understanding this SPL** — Averages the delta rates per host, forms `steal_ratio`, and flags hosts where a large share of direct scans result in a steal, which is typical of memory pressure. Add `scan_avg>0` in the `where` if you want to drop idle hosts.\n\n\nStep 3 — Validate\nOn the host, run `vmstat 1` and watch `si`/`so` and overall memory behavior; use `cat /proc/vmstat | egrep 'pgsteal|pgscan'` to sanity-check the same counters your script ships.\n\nStep 4 — Operationalize\nChart steal ratio on a host dashboard, tie alerts to the owning app team, and document when to add RAM versus tune application cache settings.\n\n",
-  "grandmaExplanation": "We help you know when the server is so tight on memory that it keeps reclaiming file cache, which is often when things start feeling slow for everyone on that machine."
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install `Splunk_TA_nix` and add a scripted input (or an extension) that records `/proc/vmstat` on an interval and emits **delta** values for `pgscan_direct` and `pgsteal_direct` or absolute counters your SPL differences correctly.\n• Ensure the fields used in the search exist in the chosen sourcetype.\n• See docs/implementation-guide.md for inputs.conf layout.\n\nStep 1 — Configure data collection\nParse `/proc/vmstat` on a fixed schedule; compute per-interval deltas in the script or in SPL before this alert. Point events at `index=os` and your agreed sourcetype (here `custom:meminfo_delta`).\n\nStep 2 — Create the search and alert\n\n```spl\nindex=os sourcetype=custom:meminfo_delta host=*\n| stats avg(pgscan_direct) as scan_avg, avg(pgsteal_direct) as steal_avg by host\n| eval steal_ratio=if(scan_avg>0, steal_avg/scan_avg, null())\n| where steal_ratio > 0.7\n```\n\n**Understanding this SPL** — Averages the delta rates per host, forms `steal_ratio`, and flags hosts where a large share of direct scans result in a steal, which is typical of memory pressure. Add `scan_avg>0` in the `where` if you want to drop idle hosts.\n\n\nStep 3 — Validate\nOn the host, run `vmstat 1` and watch `si`/`so` and overall memory behavior; use `cat /proc/vmstat | egrep 'pgsteal|pgscan'` to sanity-check the same counters your script ships.\n\nStep 4 — Operationalize\nChart steal ratio on a host dashboard, tie alerts to the owning app team, and document when to add RAM versus tune application cache settings.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` and a small scripted input for `/proc/vmstat` deltas — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=custom:meminfo_delta into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, scan_avg, steal_ratio`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you know when the server is so tight on memory that it keeps reclaiming file cache, which is often when things start feeling slow for everyone on that machine.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

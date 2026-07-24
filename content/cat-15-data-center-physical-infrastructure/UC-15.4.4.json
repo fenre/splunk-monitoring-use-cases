@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=power|cooling|environment` · `sourcetype=\"snmp:apc:pdu\"` (APC PowerNet / AirIR / ATS / NetBotz OIDs per deployment)",
-  "app": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions",
+  "exclusions": "Covers the detection logic documented for 'APC PDU SNMP Per-Outlet Power Draw Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_apc_pdu_snmp_per_outlet_power_draw_trending` (UC-15.4.4), SOC dashboard panel \"Operations — APC PDU SNMP Per-Outlet Power Draw Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-15.4.4 positive (APC, PDU, SNMP, Per, Outlet): ingest synthetic events into `index=power` sourcetype='snmp:apc:pdu' where `avg` grouped by `pdu_name`, `outlet` satisfies -7d for 'APC PDU SNMP Per-Outlet Power Draw Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.4.4 negative (Draw Trending): ingest benign `power` / `snmp:apc:pdu` events where `pdu_name`, `outlet` stays below -7d, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'APC PDU SNMP Per-Outlet Power Draw Trending'."
+  },
+  "dataSources": "`index=power|cooling|environment` · `sourcetype=\"snmp:apc:pdu\"` (APC PowerNet / AirIR / ATS / NetBotz OIDs per deployment) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions — Universal Forwarder (Splunkbase 617)",
   "spl": "index=power sourcetype=\"snmp:apc:pdu\" earliest=-7d\n| eval amps=tonumber(coalesce(rPDU2OutletMeteredStatusLoad, rPDU2OutletSwitchedStatusLoad, outlet_amps, \"\"))/10\n| eval outlet=coalesce(outlet_id, outletIndex, \"\")\n| timechart span=1h avg(amps) by pdu_name outlet",
-  "description": "Outlet-level trending attributes growth to specific blades without rack PDUs guessing.",
-  "value": "Supports chargeback and finds zombie gear drawing idle power.",
+  "description": "Monitors when Draw Trending criteria fire for 'APC PDU SNMP Per-Outlet Power Draw Trending' (UC-15.4.4) in `index=power` sourcetype `snmp:apc:pdu`. Pipeline aggregates `avg` by `pdu_name`, `outlet` over `1h`. Alert logic enforces -7d. Title terms: APC, PDU, SNMP, Per, Outlet. Eliminates manual hunting for UC-15.4.4 conditions.",
+  "value": "UC-15.4.4 helps teams contain APC, PDU, SNMP, Per, Outlet scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "(1) Confirm MIB scaling (0.1 A units). (2) Label outlets in DCIM. (3) Alert on step changes after installs.",
   "visualization": "Multiline per outlet; heatmap.",
   "cimModels": [
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "Schneider Electric — APC product support",
-      "url": "https://www.se.com/ww/en/product-category/3100-2000-pdu/"
+      "url": "https://www.se.com/ww/en/product-category/3100-2000-pdu/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Connect for SNMP",
-      "url": "https://splunkbase.splunk.com/apps#/search=connect%20for%20snmp"
+      "url": "https://splunkbase.splunk.com/apps#/search=connect%20for%20snmp",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Power spikes during equipment power cycling, scheduled load shifting, or DR drills.",
+  "knownFalsePositives": "1. **Maintenance window on `power` (UC-15.4.4)** — Planned work for 'APC PDU SNMP Per-Outlet Power Draw Trending' shifts `avg` over `span=1h` while `pdu_name`, `outlet` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `snmp:apc:pdu`** — Scheduled automation elevates `outlet` without crossing configured threshold for UC-15.4.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pdu_name`, `outlet`** — Health checks in `power` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:apc:pdu`** — First 48h baseline for UC-15.4.4 on `pdu_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pdu_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apc_dc",
     "snmp"
@@ -46,6 +64,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=snmp:apc:pdu into power. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`outlet, pdu_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

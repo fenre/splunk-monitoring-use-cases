@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`/proc/interrupts`, `/proc/softirqs`, `mpstat` output",
-  "app": "`Splunk_TA_nix` (scripted input)",
+  "exclusions": "Covers the detection logic documented for 'Linux Softirq / Hardirq Time' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_linux_softirq_hardirq_time` (UC-1.1.129), SOC dashboard panel \"Linux — Linux Softirq / Hardirq Time\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.129 positive (Linux, Softirq, Hardirq, Time): ingest synthetic events into `index=os` sourcetype='irq_stats' where `count` grouped by `host`, `cpu` satisfies `softirq` > 30, or `hardirq` > 15 for 'Linux Softirq / Hardirq Time'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.129 negative (Hardirq Time): ingest benign `os` / `irq_stats` events where `host`, `cpu` stays below `softirq` > 30, or `hardirq` > 15, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 13 confirms zero alert rows for 'Linux Softirq / Hardirq Time'."
+  },
+  "dataSources": "`/proc/interrupts`, `/proc/softirqs`, `mpstat` output Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` (scripted input) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=irq_stats host=* cpu=*\n| stats latest(softirq_pct) as softirq, latest(hardirq_pct) as hardirq by host, cpu\n| where softirq > 30 OR hardirq > 15",
-  "description": "Detect interrupt storms (softirq/hardirq) that degrade system performance. High IRQ time indicates network, block I/O, or timer storms.",
-  "value": "Detect interrupt storms (softirq/hardirq) that degrade system performance. High IRQ time indicates network, block I/O, or timer storms.",
+  "description": "Identifies UC-1.1.129 — Linux, Softirq, Hardirq, Time — using `index=os` sourcetype `irq_stats`, grouped by `host`, `cpu`. Outputs `count` each `the scheduled window`; alert when `softirq` > 30, or `hardirq` > 15. Primary focus: Hardirq Time. Purpose-built for 'Linux Softirq / Hardirq Time' in Linux workflows.",
+  "value": "UC-1.1.129 gives Linux teams earlier visibility into Hardirq Time through `irq_stats` feeds, lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Create a scripted input that parses `/proc/softirqs` and `/proc/interrupts` (or use `mpstat -I SUM` for softirq/hardirq percentages). Calculate softirq and hardirq as percentage of CPU time. Run every 60 seconds. Alert when combined IRQ time exceeds 20% sustained for 10 minutes. Correlate with network/block device activity.",
   "visualization": "Line chart (softirq/hardirq % over time), Table of hosts with elevated IRQ, Stacked area chart by IRQ type.",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Packet captures, storage benchmarks, or DPDK can legitimately run CPUs hot with high softirq. `irq_stats` field definitions differ when sourced from `mpstat` vs parsed `/proc`—ensure percentages are 0–100. Replace any literal `threshold` tokens in derived searches with real macros.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Linux Softirq / Hardirq Time'. Correlate with apt/yum logs in the same `irq_stats` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `irq_stats`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `softirq` > 30.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix` (scripted input).\n• Ensure the following data sources are available: `/proc/interrupts`, `/proc/softirqs`, `mpstat` output.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate a scripted input that parses `/proc/softirqs` and `/proc/interrupts` (or use `mpstat -I SUM` for softirq/hardirq percentages). Calculate softirq and hardirq as percentage of CPU time. Run every 60 seconds. Alert when combined IRQ time exceeds 20% sustained for 10 minutes. Correlate with network/block device activity.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=irq_stats host=* cpu=*\n| stats latest(softirq_pct) as softirq, latest(hardirq_pct) as hardirq by host, cpu\n| where softirq > 30 OR hardirq > 15\n```\n\nUnderstanding this SPL\n\n**Linux Softirq / Hardirq Time** — Detect interrupt storms (softirq/hardirq) that degrade system performance. High IRQ time indicates network, block I/O, or timer storms.\n\nDocumented **Data sources**: `/proc/interrupts`, `/proc/softirqs`, `mpstat` output. **App/TA** (typical add-on context): `Splunk_TA_nix` (scripted input). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: irq_stats. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=irq_stats. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, cpu** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where softirq > 30 OR hardirq > 15` — typically the threshold or rule expression for this monitoring goal.\n\nCIM **Performance.CPU** (`cpu_load_percent`) does not separate softirq/hardirq; keep this use case on `irq_stats` or extend the data model with custom knowledge objects if you need `tstats`.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (softirq/hardirq % over time), Table of hosts with elevated IRQ, Stacked area chart by IRQ type.",
-  "grandmaExplanation": "We track how much CPU time goes to interrupt handling so storms from networking or storage show up before average utilization looks bad."
+  "grandmaExplanation": "We track how much CPU time goes to interrupt handling so storms from networking or storage show up before average utilization looks bad.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

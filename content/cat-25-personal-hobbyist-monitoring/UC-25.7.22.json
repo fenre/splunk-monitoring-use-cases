@@ -9,50 +9,75 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Media and gaming telemetry (`jellyfin:activity`, `emby:session`, `steam:player`, `steamdeck:session`, `xbox:activity`, `nintendo:play`, `tautulli:play`, `antennapod:episode`, `retroarch:session`, `sonarr:event`).",
-  "app": "Jellyfin, Emby, Steam, Steam Deck logs, Xbox and Nintendo exports, Tautulli, AntennaPod, RetroArch, and the *arr stack via official APIs, local databases, webhook payloads, and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Nintendo Switch Docked Share by Month' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_nintendo_switch_docked_share_by_month` (UC-25.7.22), SOC dashboard panel \"Personal — Nintendo Switch Docked Share by Month\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.7.22 positive (Nintendo, Switch, Docked, Share, Month): ingest synthetic events into `index=personal` sourcetype='nintendo:play' where `count` grouped by `player`, `_time` satisfies `total_sessions` >= 5 for 'Nintendo Switch Docked Share by Month'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.7.22 negative (by Month): ingest benign `personal` / `nintendo:play` events where `player`, `_time` stays below `total_sessions` >= 5, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Nintendo Switch Docked Share by Month'."
+  },
+  "dataSources": "Media and gaming telemetry (`jellyfin:activity`, `emby:session`, `steam:player`, `steamdeck:session`, `xbox:activity`, `nintendo:play`, `tautulli:play`, `antennapod:episode`, `retroarch:session`, `sonarr:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Jellyfin, Emby, Steam, Steam Deck logs, Xbox and Nintendo exports, Tautulli, AntennaPod, RetroArch, and the *arr stack via official APIs, local databases, webhook payloads, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=nintendo:play\n| bin _time span=1mon\n| stats count(eval(mode=\"docked\")) as docked_sessions, count as total_sessions by player _time\n| eval docked_share_pct=round(100*docked_sessions/total_sessions,1)\n| where total_sessions>=5\n| sort - _time",
-  "description": "Uses Nintendo play exports telemetry to monitor how much of Switch time was docked versus handheld in index=personal.",
-  "value": "Splunk turns the feed into an operational check for household play-style changes across the month, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Detects UC-25.7.22 — Nintendo, Switch, Docked, Share, Month — using `index=personal` sourcetype `nintendo:play`, grouped by `player`, `_time`. Outputs `count` each `1m`; alert when `total_sessions` >= 5. Primary focus: by Month. Purpose-built for 'Nintendo Switch Docked Share by Month' in Personal workflows.",
+  "value": "For 'Nintendo Switch Docked Share by Month', UC-25.7.22 converts `activity` on `nintendo:play` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Nintendo play exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Monthly docked-share chart by player.",
   "cimModels": [],
   "references": [
     {
       "title": "Jellyfin documentation",
-      "url": "https://jellyfin.org/docs/"
+      "url": "https://jellyfin.org/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Emby support",
-      "url": "https://emby.media/support/"
+      "url": "https://emby.media/support/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Steam Web API",
-      "url": "https://developer.valvesoftware.com/wiki/Steam_Web_API"
+      "url": "https://developer.valvesoftware.com/wiki/Steam_Web_API",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Tautulli documentation",
-      "url": "https://docs.tautulli.com/"
+      "url": "https://docs.tautulli.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "AntennaPod",
-      "url": "https://github.com/AntennaPod/AntennaPod"
+      "url": "https://github.com/AntennaPod/AntennaPod",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "nxapi",
-      "url": "https://github.com/samuelthomas2774/nxapi"
+      "url": "https://github.com/samuelthomas2774/nxapi",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RetroArch docs",
-      "url": "https://docs.libretro.com/"
+      "url": "https://docs.libretro.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.7.22)** — Connector for 'Nintendo Switch Docked Share by Month' stops polling `nintendo:play`; stale `count` on `player`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1m` is expected for UC-25.7.22, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nintendo:play`. Dedup with `stats latest(*) by player`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew `total_sessions` >= 5 for 'Nintendo Switch Docked Share by Month'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It totals how much of Switch time was docked versus handheld so you can spot household play-style changes across the month before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Media, Gaming & Entertainment — typical feeds: Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player/achievements (`steam:player`), Sonarr/Radarr events (`sonarr:e.\n• **Sourcetypes in this search**: `nintendo:play`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=nintendo:play`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and *arr stack (Sonarr/Radarr) APIs and webhooks via HEC..\n\n**Author notes:** Ingest Nintendo play exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"nintendo:play\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=nintendo:play earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Nintendo Switch Docked Share by Month** over `personal` data (primarily `sourcetype=nintendo:play`) across the full search range. It applies numeric thresholds on `total_sessions` (>= 5) after count — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `player`, `total_sessions`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=nintendo:play\n| bin _time span=1mon\n| stats count(eval(mode=\"docked\")) as docked_sessions, count as total_sessions by player _time\n| eval docked_share_pct=round(100*docked_sessions/total_sessions,1)\n| where total_sessions>=5\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=nintendo:play earliest=-7d\n| head 50\n| table _time, player, total_sessions\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=nintendo:play earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `total_sessions` before alerting:\n\n```spl\nindex=personal sourcetype=nintendo:play earliest=-30d\n| stats perc50(total_sessions) AS p50 perc90(total_sessions) AS p90 perc99(total_sessions) AS p99 max(total_sessions) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.7.22: Personal evidence` with the following panel layout:\n\n**Panel 1 — Monthly Docked-Share Chart By Player (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `nintendo:play` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=nintendo:play | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1m` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1m` buckets.",
+  "grandmaExplanation": "It totals how much of Switch time was docked versus handheld so you can spot household play-style changes across the month before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=syslog` (sshd messages), scripted input or Stream for TCP/22 probe",
-  "app": "`Splunk_TA_nix`, `Splunk_TA_syslog`",
+  "exclusions": "Covers the detection logic documented for 'SSH Service Availability Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ssh_service_availability_monitoring` (UC-8.6.1), SOC dashboard panel \"Operations — SSH Service Availability Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.6.1 positive (SSH, Service, Availability, Monitoring): ingest synthetic events into `index=os` sourcetype='syslog' where `count` grouped by `host]` satisfies -15m for 'SSH Service Availability Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.6.1 negative (Availability Monitoring): ingest benign `os` / `syslog` events where `host]` stays below -15m, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'SSH Service Availability Monitoring'."
+  },
+  "dataSources": "`sourcetype=syslog` (sshd messages), scripted input or Stream for TCP/22 probe Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix`, `Splunk_TA_syslog` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "| inputlookup monitored_linux_hosts.csv\n| fields host\n| join type=left max=1 host [search index=os sourcetype=syslog process=sshd earliest=-15m | stats count as ssh_events by host]\n| where isnull(ssh_events) OR ssh_events=0\n| eval status=\"SSH_DOWN\"\n| table host, status",
-  "description": "SSH is the primary remote administration channel for Linux and Unix servers. An unresponsive SSH daemon locks out operators and often signals broader system distress (OOM, hung kernel, storage full). Nagios `check_ssh` is one of the most universally deployed checks; Splunk replicates it through absence-of-event detection and syslog-based availability trending.",
-  "value": "SSH is the primary remote administration channel for Linux and Unix servers. An unresponsive SSH daemon locks out operators and often signals broader system distress (OOM, hung kernel, storage full). Nagios `check_ssh` is one of the most universally deployed checks; Splunk replicates it through absence-of-event detection and syslog-based availability trending.",
+  "description": "Identifies when Availability Monitoring criteria fire for 'SSH Service Availability Monitoring' (UC-8.6.1) in `index=os` sourcetype `syslog`. Pipeline aggregates `count` by `host]` over `the scheduled window`. Alert logic enforces -15m. Title terms: SSH, Service, Availability, Monitoring. Eliminates manual hunting for UC-8.6.1 conditions.",
+  "value": "UC-8.6.1 helps teams contain SSH, Service, Availability, Monitoring scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ingest sshd syslog messages (Linux) via Universal Forwarder. Maintain a lookup (`monitored_linux_hosts.csv`) of expected hosts. Use `tstats` or a scheduled search every 5 minutes to detect hosts with no sshd events in the last 10 minutes. Optionally deploy a scripted input that performs a TCP connect to port 22 and logs result (0=up, 1=down) for direct availability data. Alert on SSH_DOWN status for more than 2 consecutive intervals to reduce false positives during restart.",
   "visualization": "Single value (hosts with SSH down), Table (host, last seen, duration down), Timeline (SSH availability per host), Heatmap (host × time availability).",
   "cimModels": [
@@ -22,14 +28,40 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `os` (UC-8.6.1)** — Planned work for 'SSH Service Availability Monitoring' shifts `count` over `span=1h` while `host]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `syslog`** — Scheduled automation elevates `status` without crossing configured threshold for UC-8.6.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host]`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `syslog`** — First 48h baseline for UC-8.6.1 on `host]` is unstable; join `monitored_linux_hosts.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host]`, `exception_reason`, `valid_until`.",
   "equipment": [
     "linux",
     "syslog"
   ],
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`, `Splunk_TA_syslog`.\n• Ensure the following data sources are available: `sourcetype=syslog` (sshd messages), scripted input or Stream for TCP/22 probe.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest sshd syslog messages (Linux) via Universal Forwarder. Maintain a lookup (`monitored_linux_hosts.csv`) of expected hosts. Use `tstats` or a scheduled search every 5 minutes to detect hosts with no sshd events in the last 10 minutes. Optionally deploy a scripted input that performs a TCP connect to port 22 and logs result (0=up, 1=down) for direct availability data. Alert on SSH_DOWN status for more than 2 consecutive intervals to reduce false positives during restart.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup monitored_linux_hosts.csv\n| fields host\n| join type=left max=1 host [search index=os sourcetype=syslog process=sshd earliest=-15m | stats count as ssh_events by host]\n| where isnull(ssh_events) OR ssh_events=0\n| eval status=\"SSH_DOWN\"\n| table host, status\n```\n\nUnderstanding this SPL\n\n**SSH Service Availability Monitoring** — SSH is the primary remote administration channel for Linux and Unix servers. An unresponsive SSH daemon locks out operators and often signals broader system distress (OOM, hung kernel, storage full). Nagios `check_ssh` is one of the most universally deployed checks; Splunk replicates it through absence-of-event detection and syslog-based availability trending.\n\nDocumented **Data sources**: `sourcetype=syslog` (sshd messages), scripted input or Stream for TCP/22 probe. **App/TA** (typical add-on context): `Splunk_TA_nix`, `Splunk_TA_syslog`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Keeps or drops fields with `fields` to shape columns and size.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(ssh_events) OR ssh_events=0` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **SSH Service Availability Monitoring**): table host, status\n\n\nStep 3 — Validate\nCompare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (hosts with SSH down), Table (host, last seen, duration down), Timeline (SSH availability per host), Heatmap (host × time availability).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch for signs that remote login is the primary remote administration channel for Linux and Unix servers."
+  "grandmaExplanation": "We watch for signs that remote login is the primary remote administration channel for Linux and Unix servers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

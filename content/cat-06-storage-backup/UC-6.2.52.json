@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Certificate inventory indexed as `truenas:alert` or custom `truenas:dataset` x509 scan",
-  "app": "Nightly script via `openssl s_client` or TrueNAS cert API",
+  "exclusions": "Covers the detection logic documented for 'TrueNAS UI and service TLS certificate expiration monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_truenas_ui_and_service_tls_certificate_expiratio` (UC-6.2.52), SOC dashboard panel \"Operations — TrueNAS UI and service TLS certificate expiration monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.52 positive (TrueNAS, and, service, TLS, certificate): ingest synthetic events into `index=storage` sourcetype='truenas:alert' where `min_days` grouped by `hostname`, `cn`, `service` satisfies `days_left` < 30 for 'TrueNAS UI and service TLS certificate expiration monitoring'. Validate filter `certificate OR x509 OR TLS OR SSL`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.52 negative (expiration monitoring): ingest benign `storage` / `truenas:alert` events where `hostname`, `cn`, `service` stays below `days_left` < 30, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'TrueNAS UI and service TLS certificate expiration monitoring'."
+  },
+  "dataSources": "Certificate inventory indexed as `truenas:alert` or custom `truenas:dataset` x509 scan Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Nightly script via `openssl s_client` or TrueNAS cert API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"truenas:alert\" earliest=-7d\n| search certificate OR x509 OR TLS OR SSL\n| eval days_left=coalesce(days_until_expiry, cert_days_remaining)\n| where days_left < 30\n| stats min(days_left) as min_days by hostname, cn, service",
-  "description": "Expired certificates break HTTPS admin, replication auth, and some cloud sync providers—often during holiday change freezes.",
-  "value": "Avoids preventable outages on admin and API integrations relied on by automation.",
+  "description": "Monitors UC-6.2.52 — TrueNAS, and, service, TLS, certificate — using `index=storage` sourcetype `truenas:alert`, grouped by `hostname`, `cn`, `service`. Outputs `min_days` each `the scheduled window`; alert when `days_left` < 30. Filter chain includes filter `certificate OR x509 OR TLS OR SSL`. Purpose-built for 'TrueNAS UI and service TLS certificate expiration monitoring' in Operations workflows.",
+  "value": "Tracking `min_days` via UC-6.2.52 on `truenas:alert` feeds improves response to 'TrueNAS UI and service TLS certificate expiration monitoring' and reduces operational risk and delayed incident response.",
   "implementation": "Store `notAfter` in epoch; compute days in SPL or at ingest. Integrate with ITSM for auto-tickets at 30/14/7 days.",
   "visualization": "Table (CN, days left), timeline.",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "TrueNAS SCALE API documentation",
-      "url": "https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/"
+      "url": "https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TrueNAS CORE/SCALE docs — alerts",
-      "url": "https://www.truenas.com/docs/"
+      "url": "https://www.truenas.com/docs/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.52)** — Planned work for 'TrueNAS UI and service TLS certificate expiration monitoring' shifts `min_days` over `span=1h` while `hostname`, `cn`, `service` remains in-scope. Applies filter `certificate OR x509 OR TLS OR SSL`. Cross-check CMDB CHG.\n\n2. **Batch `min` on `truenas:alert`** — Scheduled automation elevates `cn` without crossing `days_left` < 30 for UC-6.2.52. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `hostname`, `cn`, `service`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:alert`** — First 48h baseline for UC-6.2.52 on `hostname` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `hostname`, `exception_reason`, `valid_until`.",
   "equipment": [
     "truenas"
+  ],
+  "equipmentModels": [
+    "truenas_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Nightly script via `openssl s_client` or TrueNAS cert API — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=truenas:alert into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cn, days_left, hostname, service`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

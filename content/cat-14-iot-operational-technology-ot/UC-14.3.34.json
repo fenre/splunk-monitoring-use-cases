@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=edge-hub-health` sourcetype=edge_hub, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log connection_event",
-  "app": "Splunk Edge Hub (health monitoring), Splunk OT Intelligence",
+  "exclusions": "Covers the detection logic documented for 'Protocol Gateway Health & Connectivity Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_protocol_gateway_health_connectivity_monitoring` (UC-14.3.34), SOC dashboard panel \"Operations — Protocol Gateway Health & Connectivity Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.3.34 positive (Protocol, Gateway, Health, Connectivity, Monitoring): ingest synthetic events into `index=edge-hub-health` sourcetype='edge_hub' where `count` grouped by `gateway_name`, `host` satisfies `response_time` < 1000, `error_count` < 5, `response_time` >= 1000, or `error_count` > 10 for 'Protocol Gateway Health & Connectivity Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.3.34 negative (Connectivity Monitoring): ingest benign `edge-hub-health` / `edge_hub` events where `gateway_name`, `host` stays below `response_time` < 1000, `error_count` < 5, `response_time` >= 1000, or `error_count` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Protocol Gateway Health & Connectivity Monitoring'."
+  },
+  "dataSources": "`index=edge-hub-health` sourcetype=edge_hub, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log connection_event Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub (health monitoring), Splunk OT Intelligence — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-health sourcetype=edge_hub gateway_name=*\n| stats latest(connection_status) as status, latest(response_time_ms) as response_time,\n        count(eval(error_code!=0)) as error_count by gateway_name, host\n| eval gateway_health=case(\n    status=\"CONNECTED\" AND response_time < 1000 AND error_count < 5, \"HEALTHY\",\n    status=\"CONNECTED\" AND response_time >= 1000, \"SLOW\",\n    status=\"DISCONNECTED\" OR error_count > 10, \"DEGRADED\",\n    1=1, \"UNKNOWN\")",
-  "description": "Tracks OPC-UA/Modbus/MQTT gateway uptime and connection quality to prevent silent data loss.",
-  "value": "Tracks OPC-UA/Modbus/MQTT gateway uptime and connection quality to prevent silent data loss.",
+  "description": "Surfaces 'Protocol Gateway Health & Connectivity Monitoring' (UC-14.3.34) using `index=edge-hub-health` sourcetype `edge_hub` by aggregating `count` grouped by `gateway_name`, `host` over `the scheduled window` and alerting when `response_time` < 1000, `error_count` < 5, `response_time` >= 1000, or `error_count` > 10. Keywords: Protocol, Gateway, Health, Connectivity, Monitoring. Focuses on Connectivity Monitoring behaviour so operations teams can triage UC-14.3.34 without ad-hoc log review.",
+  "value": "UC-14.3.34 accelerates insight into Connectivity Monitoring ('Protocol Gateway Health & Connectivity Monitoring') by tracking `activity` on `edge_hub` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Edge Hub continuously monitors OPC-UA (port 4840), Modbus TCP (port 502), and MQTT broker (port 1883) connectivity every 15 seconds. Log connection attempts + response times to edge-hub-health index (sourcetype=edge_hub). Track error codes (authentication failures, timeouts, handshake errors). Store 100K health events locally. If gateway disconnects, LED ring turns red. Resume transmission via local SQLite backlog (FIFO) when connectivity restored. Configure alert thresholds: downtime > 1 minute = critical, response time > 2s = warning.",
   "visualization": "Gateway uptime timeline, response time histogram, error rate trend.",
   "cimModels": [
@@ -22,20 +28,47 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensors offline during scheduled site visits, calibration, or replacement campaigns.",
+  "knownFalsePositives": "1. **Maintenance window on `edge-hub-health` (UC-14.3.34)** — Planned work for 'Protocol Gateway Health & Connectivity Monitoring' shifts `count` over `span=1h` while `gateway_name`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `edge_hub`** — Scheduled automation elevates `host` without crossing `response_time` < 1000 for UC-14.3.34. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `gateway_name`, `host`** — Health checks in `edge-hub-health` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `edge_hub`** — First 48h baseline for UC-14.3.34 on `gateway_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `gateway_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub",
     "modbus",
     "mqtt",
     "opcua"
   ],
+  "equipmentModels": [
+    "edge_hub_generic",
+    "modbus_generic",
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     "Splunk Edge Hub",
     "Splunk OT Intelligence"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (health monitoring), Splunk OT Intelligence.\n• Ensure the following data sources are available: `index=edge-hub-health` sourcetype=edge_hub, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log connection_event.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEdge Hub continuously monitors OPC-UA (port 4840), Modbus TCP (port 502), and MQTT broker (port 1883) connectivity every 15 seconds. Log connection attempts + response times to edge-hub-health index (sourcetype=edge_hub). Track error codes (authentication failures, timeouts, handshake errors). Store 100K health events locally. If gateway disconnects, LED ring turns red. Resume transmission via local SQLite backlog (FIFO) when connectivity restored. Configure alert thresholds: downtime > 1 minute…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-health sourcetype=edge_hub gateway_name=*\n| stats latest(connection_status) as status, latest(response_time_ms) as response_time,\n        count(eval(error_code!=0)) as error_count by gateway_name, host\n| eval gateway_health=case(\n    status=\"CONNECTED\" AND response_time < 1000 AND error_count < 5, \"HEALTHY\",\n    status=\"CONNECTED\" AND response_time >= 1000, \"SLOW\",\n    status=\"DISCONNECTED\" OR error_count > 10, \"DEGRADED\",\n    1=1, \"UNKNOWN\")\n```\n\nUnderstanding this SPL\n\n**Protocol Gateway Health & Connectivity Monitoring** — Tracks OPC-UA/Modbus/MQTT gateway uptime and connection quality to prevent silent data loss.\n\nDocumented **Data sources**: `index=edge-hub-health` sourcetype=edge_hub, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log connection_event. **App/TA** (typical add-on context): Splunk Edge Hub (health monitoring), Splunk OT Intelligence. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-health; **sourcetype**: edge_hub. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-health, sourcetype=edge_hub. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by gateway_name, host** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **gateway_health** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gateway uptime timeline, response time histogram, error rate trend.",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with this area: protocol gateway health & connectivity before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with this area: protocol gateway health & connectivity before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

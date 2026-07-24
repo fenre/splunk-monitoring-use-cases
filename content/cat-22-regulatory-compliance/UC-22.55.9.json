@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Mark a component with `cr_achieved_sl=1` against `cr_target_sl=3`. UC-22.55.9 MUST flag `cr_status=\"sl_gap\"`.",
-    "negativeScenario": "Record vendor attestation with `cr_achieved_sl=3` for `cr_target_sl=3` and signed attestation document. UC-22.55.9 MUST record `cr_status=\"compliant\"`."
+    "positiveScenario": "UC-22.55.9 positive (CLC, 50701, Component, Security, Requirements): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `count` grouped by `entity` satisfies detection threshold for 'CLC/TS 50701 Component Security Requirements (CRs) — IEC 62443-4-2 alignment for every commissioned component'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.55.9 negative (commissioned component): ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv`. Variant 10 confirms zero alert rows for 'CLC/TS 50701 Component Security Requirements (CRs) — IEC 62443-4-2 alignment for every commissioned component'."
   },
   "dataSources": "KV Store `rail_cr_compliance_lookup`. Vendor attestation documents stored with signed metadata. Cross-reference to `rail_asset_inventory_lookup` (UC-22.55.3) for asset-to-component linkage.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_cr_compliance_lookup\n| where component_status=\"commissioned\"\n| eval cr_status = case(\n    isnull(vendor_attestation_signed_at), \"vendor_attestation_missing\",\n    isnull(cr_achieved_sl), \"cr_unmeasured\",\n    cr_achieved_sl < cr_target_sl, \"sl_gap\",\n    cr_iec_4_2_compliance=\"non_compliant\", \"non_compliant\",\n    1=1, \"compliant\")\n| where cr_status != \"compliant\"\n| table component_id asset_id cr_target_sl cr_achieved_sl cr_iec_4_2_compliance vendor_attestation_signed_at vendor_attestation_signed_by cr_status",
-  "description": "Verifies every commissioned cyber-relevant component has vendor attestation and CR achievement against IEC 62443-4-2.",
-  "value": "Component-level CR is where supplier accountability meets operator verification. NB will inspect the attestation chain during assessment.",
+  "description": "Detects UC-22.55.9 — CLC, 50701, Component, Security, Requirements — using `index=target_index` sourcetype `configured sourcetype`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: commissioned component. Purpose-built for 'CLC/TS 50701 Component Security Requirements (CRs) — IEC 62443-4-2 alignment for every commissioned component' in Compliance workflows.",
+  "value": "For 'CLC/TS 50701 Component Security Requirements (CRs) — IEC 62443-4-2 alignment for every commissioned component', UC-22.55.9 converts `activity` on UC-22.55.9 search results into actionable rows and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Procurement gathers vendor attestations during purchase. (2) `rail_cr_compliance_lookup` is populated at commissioning. (3) Schedule UC-22.55.9 weekly Monday 05:30.",
   "visualization": "(Panel 1) CR-status by component type. (Panel 2) SL-gap queue. (Panel 3) Vendor-attestation-missing queue. (Panel 4) Vendor SL distribution.",
   "cimModels": [
@@ -47,14 +47,26 @@
   "references": [
     {
       "title": "IEC 62443-4-2 — Technical security requirements for IACS components",
-      "url": "https://webstore.iec.ch/publication/34421"
+      "url": "https://webstore.iec.ch/publication/34421",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CLC/TS 50701:2021 clause 7.3",
-      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Vendor in IEC certification process** — vendor may have ISA Secure / TUV certification in progress. Suppression: `cr_status_override=certification_pending`.\n\n**Suppression mechanism**: KV Store `clc_22_55_9_exceptions` with documented Procurement-Cybersecurity-Lead approval and 180-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Component Security Requirements (CRs) — IEC 62443-4-2 alignment for every commissioned component' (UC-22.55.9) on `entity` during scheduled clause CLC-TS-50701-c7-3 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (component-security-requirement governance)"
   ],
@@ -80,7 +92,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_cr_compliance_lookup`.\n- Procurement intake workflow.\n\n## Step 1 — CR collection\n\n```ini\n[rail_cr_compliance_lookup]\nenforceTypes = true\nfield.component_id = string\nfield.asset_id = string\nfield.component_status = string\nfield.cr_target_sl = number\nfield.cr_achieved_sl = number\nfield.cr_iec_4_2_compliance = string\nfield.vendor_attestation_signed_at = number\nfield.vendor_attestation_signed_by = string\nfield.vendor_attestation_url = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.9: CLC/TS 50701 CR Compliance]\ncron_schedule = 30 5 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.9,reg=CLC-TS-50701,clause=CLC-TS-50701-c7-3\naction.notable.param.rule_title = Rail component CR gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `vendor_attestation_missing` or `sl_gap`** (owner: Procurement Cybersecurity Lead, severity P2): request attestation from vendor or escalate to engineering for compensating control.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **ISA Secure / TUV NORD certification**: prefer certified components; un-certified components require fuller documentation.\n- **Vendor lifecycle**: end-of-support components fail CR; coordinate with UC-22.55.25 decommissioning.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_cr_compliance_lookup`.\n- Procurement intake workflow.\n\n## Step 1 — CR collection\n\n```ini\n[rail_cr_compliance_lookup]\nenforceTypes = true\nfield.component_id = string\nfield.asset_id = string\nfield.component_status = string\nfield.cr_target_sl = number\nfield.cr_achieved_sl = number\nfield.cr_iec_4_2_compliance = string\nfield.vendor_attestation_signed_at = number\nfield.vendor_attestation_signed_by = string\nfield.vendor_attestation_url = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.9: CLC/TS 50701 CR Compliance]\ncron_schedule = 30 5 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.9,reg=CLC-TS-50701,clause=CLC-TS-50701-c7-3\naction.notable.param.rule_title = Rail component CR gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `vendor_attestation_missing` or `sl_gap`** (owner: Procurement Cybersecurity Lead, severity P2): request attestation from vendor or escalate to engineering for compensating control.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **ISA Secure / TUV NORD certification**: prefer certified components; un-certified components require fuller documentation.\n- **Vendor lifecycle**: end-of-support components fail CR; coordinate with UC-22.55.25 decommissioning.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cr_status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Every piece of computer equipment we buy for the railway must come with a manufacturer's signed promise saying 'this device has these cyber-protections built in'. We check every one against what we need; if a promise is missing or weaker than required, the team is alerted.",
   "prerequisiteUseCases": [
     "UC-22.55.3",

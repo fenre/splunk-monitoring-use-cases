@@ -9,50 +9,75 @@
     "Reliability"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Home automation orchestration (`homeassistant:event`, `matter:event`, `thread:router`, `alexa:routine`, `googlehome:event`, `zigbee2mqtt:bridge`, `smartthings:event`, `nodered:event`).",
-  "app": "Home Assistant, Matter and Thread border routers, Alexa routine logs, Google Home automations, Zigbee2MQTT bridges, SmartThings, Node-RED, and webhooks streamed to Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Alexa Duplicate Routine Execution' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_alexa_duplicate_routine_execution` (UC-25.4.27), SOC dashboard panel \"Personal — Alexa Duplicate Routine Execution\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.4.27 positive (Alexa, Duplicate, Routine, Execution): ingest synthetic events into `index=personal` sourcetype='alexa:routine' where `count` grouped by `routine_name`, `trigger_id`, `_time` satisfies `routine_runs` > 1 for 'Alexa Duplicate Routine Execution'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.4.27 negative (Routine Execution): ingest benign `personal` / `alexa:routine` events where `routine_name`, `trigger_id`, `_time` stays below `routine_runs` > 1, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'Alexa Duplicate Routine Execution'."
+  },
+  "dataSources": "Home automation orchestration (`homeassistant:event`, `matter:event`, `thread:router`, `alexa:routine`, `googlehome:event`, `zigbee2mqtt:bridge`, `smartthings:event`, `nodered:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Home Assistant, Matter and Thread border routers, Alexa routine logs, Google Home automations, Zigbee2MQTT bridges, SmartThings, Node-RED, and webhooks streamed to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=alexa:routine\n| bin _time span=5m\n| stats count as routine_runs by routine_name trigger_id _time\n| where routine_runs>1\n| sort - routine_runs",
-  "description": "Uses Alexa routine triggers telemetry to monitor multiple executions from the same trigger window in index=personal.",
-  "value": "Splunk turns the feed into an operational check for duplicate routine runs that annoy the household, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Surfaces 'Alexa Duplicate Routine Execution' (UC-25.4.27) using `index=personal` sourcetype `alexa:routine` by aggregating `count` grouped by `routine_name`, `trigger_id`, `_time` over `5m` and alerting when `routine_runs` > 1. Keywords: Alexa, Duplicate, Routine, Execution. Focuses on Routine Execution behaviour so personal teams can triage UC-25.4.27 without ad-hoc log review.",
+  "value": "UC-25.4.27 accelerates insight into Routine Execution ('Alexa Duplicate Routine Execution') by tracking `activity` on `alexa:routine` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Ingest Alexa routine triggers data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Five-minute bucket table of duplicate routine executions.",
   "cimModels": [],
   "references": [
     {
       "title": "Home Assistant",
-      "url": "https://www.home-assistant.io/docs/"
+      "url": "https://www.home-assistant.io/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Home Assistant Matter integration",
-      "url": "https://www.home-assistant.io/integrations/matter/"
+      "url": "https://www.home-assistant.io/integrations/matter/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Home Assistant Thread integration",
-      "url": "https://www.home-assistant.io/integrations/thread/"
+      "url": "https://www.home-assistant.io/integrations/thread/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Alexa smart home docs",
-      "url": "https://developer.amazon.com/en-US/docs/alexa/smarthome/steps-to-build-a-smart-home-skill.html"
+      "url": "https://developer.amazon.com/en-US/docs/alexa/smarthome/steps-to-build-a-smart-home-skill.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Google Home automations",
-      "url": "https://developers.home.google.com/automations"
+      "url": "https://developers.home.google.com/automations",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Node-RED",
-      "url": "https://nodered.org/docs/"
+      "url": "https://nodered.org/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Zigbee2MQTT",
-      "url": "https://www.zigbee2mqtt.io/"
+      "url": "https://www.zigbee2mqtt.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.4.27)** — Connector for 'Alexa Duplicate Routine Execution' stops polling `alexa:routine`; stale `count` on `routine_name`, `trigger_id`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `5m` is expected for UC-25.4.27, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `alexa:routine`. Dedup with `stats latest(*) by routine_name`.\n\n4. **Timezone bucket misalignment** — `5m` bins on UTC vs local schedule skew `routine_runs` > 1 for 'Alexa Duplicate Routine Execution'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It nudges multiple executions from the same trigger window so you can spot duplicate routine runs that annoy the household before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Smart Home Platforms & Automation — typical feeds: Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Hubitat/openHAB logs, Node-RED flow events (`nodered:event`)..\n• **Sourcetypes in this search**: `alexa:routine`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=alexa:routine`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC..\n\n**Author notes:** Ingest Alexa routine triggers data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"alexa:routine\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=alexa:routine earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Alexa Duplicate Routine Execution** over `personal` data (primarily `sourcetype=alexa:routine`) across the full search range. It applies numeric thresholds on `routine_runs` (> 1) after aggregation — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `routine_name`, `routine_runs`, `trigger_id`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=alexa:routine\n| bin _time span=5m\n| stats count as routine_runs by routine_name trigger_id _time\n| where routine_runs>1\n| sort - routine_runs\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=alexa:routine earliest=-7d\n| head 50\n| table _time, routine_name, routine_runs, trigger_id\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=alexa:routine earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `routine_runs` before alerting:\n\n```spl\nindex=personal sourcetype=alexa:routine earliest=-30d\n| stats perc50(routine_runs) AS p50 perc90(routine_runs) AS p90 perc99(routine_runs) AS p99 max(routine_runs) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.4.27: Personal evidence` with the following panel layout:\n\n**Panel 1 — Five-Minute Bucket Table Of Duplicate Routine Executions (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `alexa:routine` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=alexa:routine | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=5m` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `5m` buckets.",
+  "grandmaExplanation": "It nudges multiple executions from the same trigger window so you can spot duplicate routine runs that annoy the household before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

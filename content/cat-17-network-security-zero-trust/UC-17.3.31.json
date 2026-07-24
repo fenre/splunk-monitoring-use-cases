@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Cato DLP and CASB Event Analysis (Cato Networks)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_cato_dlp_and_casb_event_analysis_cato_networks` (UC-17.3.31), SOC dashboard panel \"Network — Cato DLP and CASB Event Analysis (Cato Networks)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.31 positive (Cato, DLP, and, CASB, Event): ingest synthetic events into `index=sase` sourcetype='target_sourcetype' where `count` grouped by `app`, `pol`, `viol`, `action` satisfies -7d for 'Cato DLP and CASB Event Analysis (Cato Networks)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.31 negative ((Cato Networks)): ingest benign `sase` / `target_sourcetype` events where `app`, `pol`, `viol`, `action` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 8 confirms zero alert rows for 'Cato DLP and CASB Event Analysis (Cato Networks)'."
+  },
   "dataSources": "Cato CASB / DLP / SaaS governance events; `sourcetype=cato:events` or `cato:sase`",
   "app": "Cato Networks Events App (Splunkbase 8037); Cato SWG/CASB/DLP event categories via Events API",
   "spl": "index=sase sourcetype IN (\"cato:events\",\"cato:sase\") earliest=-7d\n| eval cat=lower(coalesce(event_sub_type, saas_category, \"\"))\n| eval app=coalesce(app_name, saas_app, destination_app, \"unknown\")\n| eval pol=coalesce(policy_name, dlp_policy, casb_policy, \"unknown\")\n| eval viol=coalesce(violation_type, data_classification, sensitive_type, \"unspecified\")\n| where match(cat,\"dlp|casb|saas|shadow|upload|sanction|cloud\")\n| stats count by app pol viol action\n| sort -count",
-  "description": "Inline CASB and DLP inspect cloud application traffic for unsanctioned SaaS, sensitive data movement, and policy violations in one SASE pass. Aggregating these events highlights shadow IT growth, risky uploads, and repeat offenders before data leaves the organization’s control.",
-  "value": "Data protection teams analyze Cato DLP incidents by data type and direction alongside CASB shadow IT detection, identifying sensitive data exfiltration attempts to unauthorized cloud services and users uploading PII or financial data to high-risk applications.",
+  "description": "Detects UC-17.3.31 — Cato, DLP, and, CASB, Event — using `index=sase` sourcetype `configured sourcetype`, grouped by `app`, `pol`, `viol`, `action`. Outputs `count` each `the scheduled window`; alert when -7d. Primary focus: (Cato Networks). Purpose-built for 'Cato DLP and CASB Event Analysis (Cato Networks)' in Network workflows.",
+  "value": "UC-17.3.31 accelerates insight into (Cato Networks) ('Cato DLP and CASB Event Analysis (Cato Networks)') by tracking `activity` on UC-17.3.31 search results, reducing unauthorized access, segmentation drift, and NAC policy failures before spreadsheet checks hide regressions.",
   "implementation": "Map Cato severity to your insider-risk tiers. Correlate DLP blocks with HR flags only through approved processes. Create executive rollups: top unsanctioned apps, volume by data class, and trend after policy updates. Integrate with ticketing for mandatory review of high-severity violations.",
   "visualization": "Bar chart (violations by SaaS app), Stacked bar (action × classification), Table (top policies triggered), Line chart (shadow IT events / day).",
   "cimModels": [],
@@ -22,20 +28,44 @@
   "references": [
     {
       "title": "Cato Networks Events App",
-      "url": "https://splunkbase.splunk.com/app/8037"
+      "url": "https://splunkbase.splunk.com/app/8037",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Network_Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "DLP hits from authorized data exports, finance reports, contracts with PII content sent to vendors.",
+  "knownFalsePositives": "1. **Maintenance window on `sase` (UC-17.3.31)** — Planned work for 'Cato DLP and CASB Event Analysis (Cato Networks)' shifts `count` over `span=1h` while `app`, `pol`, `viol`, `action` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `pol` without crossing configured threshold for UC-17.3.31. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `app`, `pol`, `viol`, `action`** — Health checks in `sase` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-17.3.31 on `app` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `app`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1048",
     "T1048.001",
     "T1102"
   ],
-  "detailedImplementation": "Prerequisites\n• Cato Networks DLP and CASB events in `index=cato` with `sourcetype=cato:events` where `event_sub_type` is DLP or CASB. Key fields: `dlp_rule_name`, `dlp_action` (Allow/Alert/Block), `data_type` (Credit Card/SSN/PII/Source Code), `application`, `user_name`, `file_name`, `file_type`, `direction` (upload/download), `risk_score` (for CASB).\n• Cato DLP inspects data inline (uploads, downloads, clipboard, form submissions). CASB provides visibility into SaaS application usage with risk scoring. Together they prevent data exfiltration to unauthorized cloud services.\n\nStep 1 — Configure data collection\nVerify DLP/CASB events:\n```spl\nindex=cato sourcetype=\"cato:events\" event_sub_type IN (\"DLP\", \"CASB\") earliest=-7d\n| stats count by event_sub_type, dlp_action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — DLP incident analysis:\n```spl\nindex=cato sourcetype=\"cato:events\" event_sub_type=DLP earliest=-7d\n| stats count dc(user_name) as users by dlp_rule_name, data_type, dlp_action, direction\n| sort - count\n```\n\nUnderstanding this SPL: Shows which DLP rules fire most, what data types are being detected, and whether the action was alert (logged only) or block (prevented). 'Alert' actions on sensitive data types (credit cards, SSN) should be reviewed to determine if they should be upgraded to 'Block'. Upload direction is higher risk than download (data leaving the organization). Many DLP hits from one user may indicate intentional data exfiltration.\n\nShadow IT detection (CASB):\n```spl\nindex=cato sourcetype=\"cato:events\" event_sub_type=CASB earliest=-7d\n| stats dc(user_name) as users sum(eval(if(direction=\"upload\", 1, 0))) as uploads by application, risk_score\n| where risk_score > 7 AND uploads > 0\n| sort - uploads\n```\n\nStep 3 — Validate\n(a) Upload a test file with dummy credit card numbers. Verify DLP detection.\n(b) Access a high-risk cloud app. Verify CASB event.\n\nStep 4 — Operationalize\nDashboard: Row 1 — DLP incidents by data type. Row 2 — CASB shadow IT apps. Row 3 — Top users by DLP hits.\nAlert: Immediate on DLP block events involving PII or financial data.\n\nRunbook:\n1. **DLP block on PII upload** — Verify intent with user. If accidental, educate. If intentional, escalate.\n2. **Shadow IT with uploads** — Block the application or restrict to read-only via CASB.\n3. **DLP alert-only on sensitive data** — Upgrade to block after business review.\n\nStep 5 — Troubleshooting\n• **No DLP events** — DLP rules may not be enabled. Check Cato Security > DLP.\n• **CASB risk_score always 0** — CASB application risk may need manual categorization for custom apps.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cato Networks DLP and CASB events in `index=cato` with `sourcetype=cato:events` where `event_sub_type` is DLP or CASB. Key fields: `dlp_rule_name`, `dlp_action` (Allow/Alert/Block), `data_type` (Credit Card/SSN/PII/Source Code), `application`, `user_name`, `file_name`, `file_type`, `direction` (upload/download), `risk_score` (for CASB).\n• Cato DLP inspects data inline (uploads, downloads, clipboard, form submissions). CASB provides visibility into SaaS application usage with risk scoring. Together they prevent data exfiltration to unauthorized cloud services.\n\nStep 1 — Configure data collection\nVerify DLP/CASB events:\n```spl\nindex=cato sourcetype=\"cato:events\" event_sub_type IN (\"DLP\", \"CASB\") earliest=-7d\n| stats count by event_sub_type, dlp_action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — DLP incident analysis:\n```spl\nindex=cato sourcetype=\"cato:events\" event_sub_type=DLP earliest=-7d\n| stats count dc(user_name) as users by dlp_rule_name, data_type, dlp_action, direction\n| sort - count\n```\n\nUnderstanding this SPL: Shows which DLP rules fire most, what data types are being detected, and whether the action was alert (logged only) or block (prevented). 'Alert' actions on sensitive data types (credit cards, SSN) should be reviewed to determine if they should be upgraded to 'Block'. Upload direction is higher risk than download (data leaving the organization). Many DLP hits from one user may indicate intentional data exfiltration.\n\nShadow IT detection (CASB):\n```spl\nindex=cato sourcetype=\"cato:events\" event_sub_type=CASB earliest=-7d\n| stats dc(user_name) as users sum(eval(if(direction=\"upload\", 1, 0))) as uploads by application, risk_score\n| where risk_score > 7 AND uploads > 0\n| sort - uploads\n```\n\nStep 3 — Validate\n(a) Upload a test file with dummy credit card numbers. Verify DLP detection.\n(b) Access a high-risk cloud app. Verify CASB event.\n\nStep 4 — Operationalize\nDashboard: Row 1 — DLP incidents by data type. Row 2 — CASB shadow IT apps. Row 3 — Top users by DLP hits.\nAlert: Immediate on DLP block events involving PII or financial data.\n\nRunbook:\n1. **DLP block on PII upload** — Verify intent with user. If accidental, educate. If intentional, escalate.\n2. **Shadow IT with uploads** — Block the application or restrict to read-only via CASB.\n3. **DLP alert-only on sensitive data** — Upgrade to block after business review.\n\nStep 5 — Troubleshooting\n• **No DLP events** — DLP rules may not be enabled. Check Cato Security > DLP.\n• **CASB risk_score always 0** — CASB application risk may need manual categorization for custom apps.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cato Networks Events App (Splunkbase 8037); Cato SWG/CASB/DLP event categories via Events API). Enable the modular input or HEC token that writes sourcetype=cato:events, cato:sase into sase. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action, app, pol, viol`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We scan everything employees upload and download through our cloud security for sensitive information like credit card numbers or personal data. We also watch for people using unauthorized cloud services to share company files, because that is how data leaks happen.",
-  "hardware": "Cato Socket, Cato vSocket, Cato SDP Client — all user and site traffic eligible for CASB/DLP inspection at the PoP."
+  "hardware": "Cato Socket, Cato vSocket, Cato SDP Client — all user and site traffic eligible for CASB/DLP inspection at the PoP.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

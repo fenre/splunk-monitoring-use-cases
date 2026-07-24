@@ -9,28 +9,42 @@
     "Performance"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=pan:traffic` — Monitors IPv6 connectivity to major cloud providers (AWS, Azure, GCP, Oracle Cloud) including BGP peering status, prefix reachability, latency, and path asymmetry. As workloads move to cloud, IPv6 connectivity to cloud endpoints becomes critical for dual-stack applications.\n\n**Cloud IPv6 connectivity aspects:**\n1. **AWS VPC IPv6.** AWS VPCs support dual-stack. Direct Connect supports IPv6 BGP peering.\n2. **Azure Virtual Network.** Azure VNets support IPv6 with dual-stack subnets. ExpressRoute supports IPv6 BGP.\n3. **GCP VPC.** GCP supports IPv6 for external VPC and Cloud Interconnect.\n4. **Path monitoring.** Cloud provider IPv6 paths may differ from IPv4 paths. Monitor latency and packet loss independently.\n5. **Private peering.** Direct Connect/ExpressRoute IPv6 BGP sessions must be monitored separately from IPv4 sessions.",
-  "app": "Splunk Enterprise / ITSI",
+  "exclusions": "Covers the detection logic documented for 'IPv6 Cloud Provider Connectivity and Peering Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_cloud_provider_connectivity_and_peering_hea` (UC-5.20.130), SOC dashboard panel \"Operations — IPv6 Cloud Provider Connectivity and Peering Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.130 positive (IPv6, Cloud, Provider, Connectivity, and): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `total_bytes`, `avg_duration` grouped by `cloud_dest` satisfies `flows` > 0, `avg_duration` < 1, `flows` > 0, or `avg_duration` >= 1 for 'IPv6 Cloud Provider Connectivity and Peering Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.130 negative (Peering Health): ingest benign `network` / `cisco:ios` events where `cloud_dest` stays below `flows` > 0, `avg_duration` < 1, `flows` > 0, or `avg_duration` >= 1, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'IPv6 Cloud Provider Connectivity and Peering Health'."
+  },
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=pan:traffic` — Monitors IPv6 connectivity to major cloud providers (AWS, Azure, GCP, Oracle Cloud) including BGP peering status, prefix reachability, latency, and path asymmetry. As workloads move to cloud, IPv6 connectivity to cloud endpoints becomes critical for dual-stack applications.\n\n**Cloud IPv6 connectivity aspects:**\n1. **AWS VPC IPv6.** AWS VPCs support dual-stack. Direct Connect supports IPv6 BGP peering.\n2. **Azure Virtual Network.** Azure VNets support IPv6 with dual-stack subnets. ExpressRoute supports IPv6 BGP.\n3. **GCP VPC.** GCP supports IPv6 for external VPC and Cloud Interconnect.\n4. **Path monitoring.** Cloud provider IPv6 paths may differ from IPv4 paths. Monitor latency and packet loss independently.\n5. **Private peering.** Direct Connect/ExpressRoute IPv6 BGP sessions must be monitored separately from IPv4 sessions. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise / ITSI — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"pan:traffic\") earliest=-4h\n| eval cloud_dest=case(\n    match(dest, \"^2600:1f\") OR match(dest, \"^2406:da\"), \"AWS\",\n    match(dest, \"^2603:\"), \"Azure\",\n    match(dest, \"^2607:f8b0:\"), \"Google Cloud\",\n    match(dest, \"^2a05:d\"), \"AWS (EU)\",\n    1=1, null())\n| where isnotnull(cloud_dest)\n| stats count as flows sum(bytes) as total_bytes avg(duration) as avg_duration by cloud_dest\n| eval status=case(\n    flows > 0 AND avg_duration < 1, \"OK — \" . flows . \" flows to \" . cloud_dest,\n    flows > 0 AND avg_duration >= 1, \"DEGRADED — elevated latency to \" . cloud_dest,\n    flows=0, \"NO CONNECTIVITY to \" . cloud_dest . \" via IPv6\")\n| sort cloud_dest",
-  "description": "Monitors IPv6 connectivity to major cloud providers (AWS, Azure, GCP) including traffic flows, latency, and reachability. As organizations move workloads to cloud with dual-stack support, IPv6 connectivity to cloud endpoints becomes as critical as IPv4.",
-  "value": "Cloud workloads increasingly require IPv6 connectivity. If IPv6 paths to cloud providers are degraded or broken, dual-stack applications fall back to IPv4, potentially causing performance issues or hitting IPv4 NAT limitations. Dedicated cloud IPv6 monitoring ensures the fastest path to cloud resources is always available.",
+  "description": "Detects UC-5.20.130 — IPv6, Cloud, Provider, Connectivity, and — using `index=network` sourcetype `cisco:ios`, grouped by `cloud_dest`. Outputs `total_bytes`, `avg_duration` each `the scheduled window`; alert when `flows` > 0, `avg_duration` < 1, `flows` > 0, or `avg_duration` >= 1. Primary focus: Peering Health. Purpose-built for 'IPv6 Cloud Provider Connectivity and Peering Health' in Operations workflows.",
+  "value": "Operators running UC-5.20.130 on `cisco:ios` feeds shorten triage for Peering Health tied to 'IPv6 Cloud Provider Connectivity and Peering Health', lowering operational risk and delayed incident response.",
   "implementation": "Monitor traffic flows to known cloud provider IPv6 prefixes. Track latency and compare with IPv4 paths. Alert on IPv6 cloud connectivity loss.",
   "visualization": "(1) Table: cloud provider IPv6 connectivity status. (2) Latency comparison: IPv6 vs IPv4 to each cloud. (3) Traffic volume to cloud by protocol version.",
   "references": [
     {
       "title": "AWS — IPv6 support in VPC",
-      "url": "https://docs.aws.amazon.com/vpc/latest/userguide/how-it-works.html#vpc-ip-addressing"
+      "url": "https://docs.aws.amazon.com/vpc/latest/userguide/how-it-works.html#vpc-ip-addressing",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Azure — IPv6 for Azure Virtual Network",
-      "url": "https://docs.microsoft.com/en-us/azure/virtual-network/ipv6-overview"
+      "url": "https://docs.microsoft.com/en-us/azure/virtual-network/ipv6-overview",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "GCP — IPv6 support",
-      "url": "https://cloud.google.com/vpc/docs/"
+      "url": "https://cloud.google.com/vpc/docs/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**IPv4-only cloud services.** Some cloud services are still IPv4-only. Zero IPv6 flows to those services is expected.\n\n**Cloud prefix changes.** Cloud providers occasionally update their IP ranges. Update the lookup periodically.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.130)** — Planned work for 'IPv6 Cloud Provider Connectivity and Peering Health' shifts `total_bytes`, `avg_duration` over `span=1h` while `cloud_dest` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cisco:ios`** — Scheduled automation elevates `cloud_dest` without crossing `flows` > 0 for UC-5.20.130. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cloud_dest`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.130 on `cloud_dest` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cloud_dest`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure",
     "cisco",
@@ -53,7 +67,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Firewall/router logging for IPv6 traffic.\n• Cloud provider IPv6 prefix lists.\n\nStep 1 — Create cloud provider prefix lookup from published IP ranges (AWS ip-ranges.json, Azure ServiceTags, GCP cloud.json).\n\nStep 2 — Monitor IPv6 traffic to cloud prefixes.\n\nStep 3 — Compare IPv6 vs IPv4 latency to cloud endpoints.\n\nStep 4 — Operationalize\n**Dashboard:** Cloud IPv6 connectivity. **Alert:** Zero IPv6 flows to a previously-reachable cloud — high.\n\nStep 5 — Troubleshooting\n• No IPv6 to cloud: Check BGP peering on Direct Connect/ExpressRoute. Verify IPv6 address family is enabled.",
+  "detailedImplementation": "Prerequisites\n• Firewall/router logging for IPv6 traffic.\n• Cloud provider IPv6 prefix lists.\n\nStep 1 — Create cloud provider prefix lookup from published IP ranges (AWS ip-ranges.json, Azure ServiceTags, GCP cloud.json).\n\nStep 2 — Monitor IPv6 traffic to cloud prefixes.\n\nStep 3 — Compare IPv6 vs IPv4 latency to cloud endpoints.\n\nStep 4 — Operationalize\n**Dashboard:** Cloud IPv6 connectivity. **Alert:** Zero IPv6 flows to a previously-reachable cloud — high.\n\nStep 5 — Troubleshooting\n• No IPv6 to cloud: Check BGP peering on Direct Connect/ExpressRoute. Verify IPv6 address family is enabled.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise / ITSI — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ios, pan:traffic into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`avg_duration, cloud_dest, flows, status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Our company stores important files in remote warehouses (cloud providers like AWS and Azure). We need to make sure the roads using new-format addresses (IPv6) to these warehouses are working properly and not slower than the old roads (IPv4).",
   "prerequisiteUseCases": [
     "UC-5.20.44",

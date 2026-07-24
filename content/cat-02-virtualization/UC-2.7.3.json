@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "`index=pve` `sourcetype=\"proxmox:task\"` (pmxcfs, cluster join) and `sourcetype=\"proxmox:ha\"` with corosync/pmxcfs keywords; optional dedicated `sourcetype=\"linux_syslog\"` host corosync file",
-  "app": "Splunk Universal Forwarder with inputs on `/var/log/corosync/corosync.log` and `journalctl -u corosync`; tag or merge into `proxmox:task` patterns",
+  "exclusions": "Covers the detection logic documented for 'Proxmox VE Cluster Quorum Loss Detection from Corosync and pmxcfs Signals' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_proxmox_ve_cluster_quorum_loss_detection_from_co` (UC-2.7.3), SOC dashboard panel \"Linux — Proxmox VE Cluster Quorum Loss Detection from Corosync and pmxcfs Signals\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.7.3 positive (Proxmox, Cluster, Quorum, Loss, Detection): ingest synthetic events into `index=pve` sourcetype='proxmox:task' where `values` grouped by `sev`, `_time` satisfies `sigs` >= 5 for 'Proxmox VE Cluster Quorum Loss Detection from Corosync and pmxcfs Signals'. Validate filter `match(lower(_raw), \"(?i)quorum`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.7.3 negative (pmxcfs Signals): ingest benign `pve` / `proxmox:task` events where `sev`, `_time` stays below `sigs` >= 5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 14 confirms zero alert rows for 'Proxmox VE Cluster Quorum Loss Detection from Corosync and pmxcfs Signals'."
+  },
+  "dataSources": "`index=pve` `sourcetype=\"proxmox:task\"` (pmxcfs, cluster join) and `sourcetype=\"proxmox:ha\"` with corosync/pmxcfs keywords; optional dedicated `sourcetype=\"linux_syslog\"` host corosync file Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder with inputs on `/var/log/corosync/corosync.log` and `journalctl -u corosync`; tag or merge into `proxmox:task` patterns — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=pve (sourcetype=\"proxmox:task\" OR sourcetype=\"proxmox:ha\") earliest=-4h\n| search match(lower(_raw), \"(?i)quorum|qdevice|not quorate|lost.*quorum|split.?brain|totem.*fault|ring.*fault\")\n| eval sev=if(match(lower(_raw), \"(?i)lost.*quorum|not quorate|split.?brain\"), \"critical\", \"warning\")\n| bin _time span=5m\n| stats count as sigs, values(host) as nodes by sev, _time\n| where sigs>=5 AND sev=\"critical\"",
-  "description": "Quorum loss freezes cluster management APIs and can strand operators during incidents. Corosync and pmxcfs messages are the earliest observable signals of ring faults, vote drift, or qdevice misconfiguration.",
-  "value": "Shortens time-to-detect for cluster brain-split conditions and prevents destructive manual intervention on partially connected nodes.",
+  "description": "Surfaces UC-2.7.3 — Proxmox, Cluster, Quorum, Loss, Detection — using `index=pve` sourcetype `proxmox:task`, grouped by `sev`, `_time`. Outputs `values` each `5m`; alert when `sigs` >= 5. Filter chain includes filter `match(lower(_raw), \"(?i)quorum`. Purpose-built for 'Proxmox VE Cluster Quorum Loss Detection from Corosync and pmxcfs Signals' in Linux workflows.",
+  "value": "Alerting on Proxmox, Cluster, Quorum, Loss, Detection through UC-2.7.3 reduces capacity incidents, patch regressions, and service outages by surfacing `activity` early.",
   "implementation": "Route corosync logs with host, ring, and node identity. Build eventtypes for quorum phrases. Page on critical phrases; throttle warnings with a sustained-count threshold. Correlate with NIC driver updates and switch port events.",
   "visualization": "Timeline of quorum-related signals; choropleth or table of affected nodes; raw drilldown.",
   "cimModels": [
@@ -22,13 +28,33 @@
   "references": [
     {
       "title": "Proxmox Cluster Manager pvecm",
-      "url": "https://pve.proxmox.com/pve-docs/chapter-pvecm.html"
+      "url": "https://pve.proxmox.com/pve-docs/chapter-pvecm.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 833",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Nutanix Prism alerts and jobs can line up with disk rebuilds, rolling upgrades, or RF changes; wait for the cluster task list to show completion before over-reacting to transient counters.",
+  "knownFalsePositives": "1. **Patch Tuesday on `pve`** — Package managers spike `sev` metrics for 'Proxmox VE Cluster Quorum Loss Detection from Corosync and pmxcfs Signals'. Correlate with apt/yum logs in the same `proxmox:task` window.\n\n2. **Nightly backup I/O on `sev`** — Predictable `values` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `proxmox:task`** — Nagios/Zabbix polls `sev` and mimics sustained load without crossing `sigs` >= 5.\n\n4. **New host onboarding** — `sev` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `sev`, `valid_until`.",
   "equipment": [
     "proxmox",
     "syslog"
+  ],
+  "equipmentModels": [
+    "proxmox_generic",
+    "syslog_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -37,5 +63,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We listen for signs that the servers lost agreement on who is in charge, which is when automatic fixes can accidentally make things worse unless people step in carefully."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder with inputs on `/var/log/corosync/corosync.log` and `journalctl -u corosync`; tag or merge into `proxmox:task` patterns — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=proxmox:task, proxmox:ha into pve. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, sev, sigs`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We listen for signs that the servers lost agreement on who is in charge, which is when automatic fixes can accidentally make things worse unless people step in carefully.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

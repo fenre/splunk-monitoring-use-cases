@@ -9,25 +9,43 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "BlueCat DNS/DHCP Server (BDDS) lease activity (`sourcetype=bluecat:dhcp`) forwarded by syslog, supplemented by polling the BlueCat Address Manager (BAM) REST API for structured scope-utilisation metrics. Key fields: `action` (DHCPACK / DHCPNAK / DHCPDECLINE), `scope`, `client_mac`, `client_hostname`, `lease_duration`.",
-  "app": "BlueCat BDDS syslog (raw forwarder), BlueCat Address Manager REST API (scripted input). No Splunkbase TA at the time of authoring; field extraction lives in a custom `props.conf` / `transforms.conf` pair under a local app.",
+  "exclusions": "Covers the detection logic documented for 'BlueCat DHCP Lease Utilization and Scope Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_bluecat_dhcp_lease_utilization_and_scope_health` (UC-5.6.19), SOC dashboard panel \"Operations — BlueCat DHCP Lease Utilization and Scope Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.6.19 positive (BlueCat, DHCP, Lease, Utilization, and): ingest synthetic events into `index=dhcp` sourcetype='bluecat:dhcp' where `unique_clients` grouped by `scope` satisfies `failure_rate` > 5, or `acks` < 10 for 'BlueCat DHCP Lease Utilization and Scope Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.6.19 negative (Scope Health): ingest benign `dhcp` / `bluecat:dhcp` events where `scope` stays below `failure_rate` > 5, or `acks` < 10, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'BlueCat DHCP Lease Utilization and Scope Health'."
+  },
+  "dataSources": "BlueCat DNS/DHCP Server (BDDS) lease activity (`sourcetype=bluecat:dhcp`) forwarded by syslog, supplemented by polling the BlueCat Address Manager (BAM) REST API for structured scope-utilisation metrics. Key fields: `action` (DHCPACK / DHCPNAK / DHCPDECLINE), `scope`, `client_mac`, `client_hostname`, `lease_duration`. Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "BlueCat BDDS syslog (raw forwarder), BlueCat Address Manager REST API (scripted input). No Splunkbase TA at the time of authoring; field extraction lives in a custom `props.conf` / `transforms.conf` pair under a local app. — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=dhcp sourcetype=\"bluecat:dhcp\"\n| stats count(eval(action=\"DHCPACK\")) as acks, count(eval(action=\"DHCPNAK\")) as naks, dc(client_mac) as unique_clients by scope\n| eval failure_rate=round(naks/(acks+naks)*100,2)\n| where failure_rate > 5 OR acks < 10\n| sort - failure_rate",
-  "description": "Reports per-scope DHCP behaviour by counting successful ACKs vs failed NAKs and tracking the unique-client churn that drives lease-pool consumption. Flags scopes whose failure rate exceeds 5% (typically misconfigured policy or pool starvation) or whose ACK count is anomalously low (silent broadcast-domain failure).",
-  "value": "DHCP scope exhaustion is a silent campus-wide outage waiting to happen. When a corporate VLAN runs out of leases, every device that comes online — laptops resuming from sleep, IoT sensors after a power cycle — fails to get an address and silently loses connectivity. BlueCat does not publish utilisation as a syslog event by default; it must be derived from lease churn or polled from BAM. This UC closes that visibility gap and lets capacity planning see the curve climbing weeks before the cliff.",
+  "description": "Monitors Scope Health anomalies for UC-5.6.19 with window `the scheduled window` on `index=dhcp` sourcetype `bluecat:dhcp`. Combines `unique_clients` by `scope` and compares against `failure_rate` > 5, or `acks` < 10. Mapped to keywords BlueCat, DHCP, Lease, Utilization, and for dashboard routing.",
+  "value": "Alerting on BlueCat, DHCP, Lease, Utilization, and through UC-5.6.19 reduces operational risk and delayed incident response by surfacing `unique_clients` early.",
   "implementation": "Configure BlueCat BDDS to forward DHCP logs to Splunk via syslog. Poll BlueCat Address Manager API for scope utilisation data on a 15-minute schedule. Alert when any scope exceeds 85% utilisation, when the ACK count for a scope drops below the historical floor, or when the failure rate climbs above 5%.",
   "visualization": "Gauge (worst scope utilisation %), Table (scope health by network), Line chart (lease churn over time, per scope), Heatmap (utilisation across the entire scope inventory).",
   "cimModels": [],
   "references": [
     {
       "title": "BlueCat DNS/DHCP Server documentation",
-      "url": "https://docs.bluecatnetworks.com/r/DNS-DHCP-Server-Administration-Guide"
+      "url": "https://docs.bluecatnetworks.com/r/DNS-DHCP-Server-Administration-Guide",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "BlueCat Address Manager API reference",
-      "url": "https://docs.bluecatnetworks.com/r/Address-Manager-API-Guide"
+      "url": "https://docs.bluecatnetworks.com/r/Address-Manager-API-Guide",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Mass authentication failures masquerading as DHCP NAKs.** When 802.1X authentication fails for a VLAN, clients may DHCPDECLINE / DHCPNAK rapidly even though the DHCP scope is healthy. Correlate with ISE/RADIUS auth-fail rates before paging.\n\n**Client-side reservation conflicts.** Devices configured with static reservations that no longer match the scope (post-renumbering) generate persistent NAK chatter from a small set of MACs. Suppress by aggregating distinct client MACs per scope before alerting.\n\n**End-of-day rapid-churn windows.** In office environments, the 17:00 wave of laptops sleeping then re-acquiring leases temporarily inflates `unique_clients` and depresses scope utilisation calculations. Use a rolling 4-hour median, not a 15-minute snapshot, for the headline alert.",
+  "knownFalsePositives": "1. **Maintenance window on `dhcp` (UC-5.6.19)** — Planned work for 'BlueCat DHCP Lease Utilization and Scope Health' shifts `unique_clients` over `span=1h` while `scope` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `bluecat:dhcp`** — Scheduled automation elevates `failure_rate` without crossing `failure_rate` > 5 for UC-5.6.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `scope`** — Health checks in `dhcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bluecat:dhcp`** — First 48h baseline for UC-5.6.19 on `scope` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `scope`, `exception_reason`, `valid_until`.",
   "equipment": [
     "bluecat",
     "syslog"
@@ -37,6 +55,12 @@
     "bluecat_bdds"
   ],
   "status": "community",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (BlueCat BDDS syslog (raw forwarder), BlueCat Address Manager REST API (scripted input). No Splunkbase TA at the time of authoring; field extraction lives in a custom `props.conf` / `transforms.conf` pair under a local app. — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=bluecat:dhcp into dhcp. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`acks, failure_rate, scope`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We track how full each pool of network addresses is. When the pool runs out, devices in that part of the building cannot get on the network at all. We alert long before the pool fills up so the team can expand it without anyone losing connectivity.",
+  "prerequisiteUseCases": [],
   "wave": "crawl"
 }

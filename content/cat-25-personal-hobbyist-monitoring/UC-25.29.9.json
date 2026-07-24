@@ -8,26 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`).",
-  "app": "Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Late-Night Gaming vs Next-Day Tiredness' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_late_night_gaming_vs_next_day_tiredness` (UC-25.29.9), SOC dashboard panel \"Personal — Late-Night Gaming vs Next-Day Tiredness\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.29.9 positive (Late, Night, Gaming, Next, Day): ingest synthetic events into `index=personal` sourcetype='game:session' where `sleep`, `avg_sleep` grouped by `_time`, `late` satisfies `late_gaming` > 30 for 'Late-Night Gaming vs Next-Day Tiredness'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.29.9 negative (Day Tiredness): ingest benign `personal` / `game:session` events where `_time`, `late` stays below `late_gaming` > 30, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'Late-Night Gaming vs Next-Day Tiredness'."
+  },
+  "dataSources": "Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal (sourcetype=game:session OR sourcetype=oura:daily)\n| bin _time span=1d\n| stats sum(eval(if(strftime(_time,\"%H\")>=23,minutes,0))) as late_gaming, avg(sleep_score) as sleep by _time\n| eval late=if(late_gaming>30,1,0)\n| stats avg(sleep) as avg_sleep by late",
-  "description": "Compares your sleep quality on nights you gamed late against nights you did not, testing whether the late sessions cost you.",
-  "value": "Linking late gaming to next-day recovery makes an abstract trade-off concrete enough to actually change the habit.",
+  "description": "Monitors UC-25.29.9 for Late, Night, Gaming, Next, Day over `index=personal` sourcetype `game:session` with thresholds `late_gaming` > 30. Groups `sleep`, `avg_sleep` by `_time`, `late` each `1d`. Centered on Day Tiredness indicators. Supports repeatable personal triage for 'Late-Night Gaming vs Next-Day Tiredness'.",
+  "value": "For 'Late-Night Gaming vs Next-Day Tiredness', UC-25.29.9 converts `sleep`, `avg_sleep` on `game:session` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Join gaming sessions with sleep scores in `index=personal`; compare average sleep by whether you gamed late.",
   "visualization": "Bar chart of average sleep score with versus without late gaming.",
   "cimModels": [],
   "references": [
     {
       "title": "Steam — Web API",
-      "url": "https://steamcommunity.com/dev"
+      "url": "https://steamcommunity.com/dev",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.29.9)** — Connector for 'Late-Night Gaming vs Next-Day Tiredness' stops polling `game:session`; stale `sleep`, `avg_sleep` on `_time`, `late` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sleep`, `avg_sleep` over `1d` is expected for UC-25.29.9, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `game:session`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `late_gaming` > 30 for 'Late-Night Gaming vs Next-Day Tiredness'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],
-  "grandmaExplanation": "It compares how well you sleep after late-night gaming versus early nights, showing whether the late sessions are worth it."
+  "equipmentModels": [
+    "asterisk_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Oura Ring — Oura Cloud API v2 → HEC scripted input.\n• **Subcategory context**: Games & Tabletop — typical feeds: Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`)..\n• **Sourcetypes in this search**: `game:session`, `oura:daily`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Oura Ring** events into `index=personal` with `sourcetype=game:session`.\n\n**Collection method:** Oura Cloud API v2 → HEC scripted input.\n\n**Reference endpoint / path:** `GET /v2/usercollection/daily_sleep`.\n\n**Suggested poll interval:** 86400s (daily sync).\n\n**Key fields to extract:** `score, contributors, heart_rate, hrv`.\n\n**Typical connector stack:** Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs..\n\n**Author notes:** Join gaming sessions with sleep scores in `index=personal`; compare average sleep by whether you gamed late.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"game:session\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=game:session earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Late-Night Gaming vs Next-Day Tiredness** over `personal` data (primarily `sourcetype=game:session`) across the full search range. It applies numeric thresholds on `late_gaming` (> 30) after sum, avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `late`, `late_gaming`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal (sourcetype=game:session OR sourcetype=oura:daily)\n| bin _time span=1d\n| stats sum(eval(if(strftime(_time,\"%H\")>=23,minutes,0))) as late_gaming, avg(sleep_score) as sleep by _time\n| eval late=if(late_gaming>30,1,0)\n| stats avg(sleep) as avg_sleep by late\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Oura app → Readiness / Sleep tabs. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=game:session earliest=-7d\n| head 50\n| table _time, late, late_gaming\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=game:session earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `late_gaming` before alerting:\n\n```spl\nindex=personal sourcetype=game:session earliest=-30d\n| stats perc50(late_gaming) AS p50 perc90(late_gaming) AS p90 perc99(late_gaming) AS p99 max(late_gaming) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.29.9: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Average Sleep Score With Versus Without Late Gaming (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Oura Ring — no Oura Ring events / missing fields:** If `game:session` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Oura Ring connector script is still running (`systemctl status` or cron log).\n\n**Oura Ring — NULL values in extracted fields:** The Oura Ring JSON export shape drifted — compare a raw event (`index=personal sourcetype=game:session | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Oura Ring — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Oura Ring — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Oura Ring APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It compares how well you sleep after late-night gaming versus early nights, showing whether the late sessions are worth it.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

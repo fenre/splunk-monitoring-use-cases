@@ -8,26 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Seismograph (`seismo:reading`), Geiger counter (`geiger:cpm`), lightning strikes (`lightning:strike`), radon (`radon:reading`), all-sky meteor camera (`allsky:capture`), river-level gauge (`riverlevel:reading`), magnetometer (`magnetometer:reading`).",
-  "app": "DIY citizen-science sensors — Raspberry Shake seismograph, DIY Geiger counter, AS3935/Blitzortung lightning detector, radon monitor, all-sky meteor camera, river-level gauge, and magnetometer — streamed to Splunk HEC via MQTT and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Meteor Shower Peak-Night Ranking' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_meteor_shower_peak_night_ranking` (UC-25.20.11), SOC dashboard panel \"Personal — Meteor Shower Peak-Night Ranking\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.20.11 positive (Meteor, Shower, Peak, Night, Ranking): ingest synthetic events into `index=personal` sourcetype='allsky:capture' where `typical` grouped by `_time` satisfies detection threshold for 'Meteor Shower Peak-Night Ranking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.20.11 negative (Night Ranking): ingest benign `personal` / `allsky:capture` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 11 confirms zero alert rows for 'Meteor Shower Peak-Night Ranking'."
+  },
+  "dataSources": "Seismograph (`seismo:reading`), Geiger counter (`geiger:cpm`), lightning strikes (`lightning:strike`), radon (`radon:reading`), all-sky meteor camera (`allsky:capture`), river-level gauge (`riverlevel:reading`), magnetometer (`magnetometer:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "DIY citizen-science sensors — Raspberry Shake seismograph, DIY Geiger counter, AS3935/Blitzortung lightning detector, radon monitor, all-sky meteor camera, river-level gauge, and magnetometer — streamed to Splunk HEC via MQTT and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=allsky:capture event=detection\n| bin _time span=1d\n| stats count as meteors by _time\n| eventstats avg(meteors) as typical\n| eval peak=if(meteors>typical*3,1,0)\n| sort - meteors\n| head 10",
-  "description": "Ranks your busiest meteor nights against a typical night, letting your own camera confirm when a shower actually peaked overhead.",
-  "value": "Predicted shower peaks often miss local conditions; your own detection count is the honest record of what your sky really delivered.",
+  "description": "Surfaces UC-25.20.11 — Meteor, Shower, Peak, Night, Ranking — using `index=personal` sourcetype `allsky:capture`, grouped by `_time`. Outputs `typical` each `1d`; alert when configured threshold. Primary focus: Night Ranking. Purpose-built for 'Meteor Shower Peak-Night Ranking' in Personal workflows.",
+  "value": "UC-25.20.11 helps teams contain Meteor, Shower, Peak, Night, Ranking scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Ingest all-sky detections; schedule after each night and rank nights by how far above typical the count rose.",
   "visualization": "Ranked table of the busiest meteor nights versus typical.",
   "cimModels": [],
   "references": [
     {
       "title": "IMO — International Meteor Organization",
-      "url": "https://www.imo.net/"
+      "url": "https://www.imo.net/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.20.11)** — Connector for 'Meteor Shower Peak-Night Ranking' stops polling `allsky:capture`; stale `typical` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `typical` over `1d` is expected for UC-25.20.11, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `allsky:capture`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold for 'Meteor Shower Peak-Night Ranking'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It ranks your best shooting-star nights so you can see which meteor showers really put on a show over your house."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Citizen Science & Backyard Sensing — typical feeds: Seismograph (`seismo:reading`), Geiger counter (`geiger:cpm`), lightning strikes (`lightning:strike`), radon (`radon:reading`), all-sky meteor camera (`allsky:capture`), river-level gauge (`riverlevel.\n• **Sourcetypes in this search**: `allsky:capture`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=allsky:capture`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** DIY citizen-science sensors — Raspberry Shake seismograph, Geiger counter, AS3935/Blitzortung lightning detector, radon monitor, all-sky meteor camera, river-level gauge, and magnetometer — via MQTT and scripted inputs to Splunk HEC..\n\n**Author notes:** Ingest all-sky detections; schedule after each night and rank nights by how far above typical the count rose.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"allsky:capture\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=allsky:capture earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Meteor Shower Peak-Night Ranking** over `personal` data (primarily `sourcetype=allsky:capture`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `_time`, `peak`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=allsky:capture event=detection\n| bin _time span=1d\n| stats count as meteors by _time\n| eventstats avg(meteors) as typical\n| eval peak=if(meteors>typical*3,1,0)\n| sort - meteors\n| head 10\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=allsky:capture earliest=-7d\n| head 50\n| table _time, peak\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=allsky:capture earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.20.11: Personal evidence` with the following panel layout:\n\n**Panel 1 — Ranked Table Of The Busiest Meteor Nights Versus Typical (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `allsky:capture` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=allsky:capture | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It ranks your best shooting-star nights so you can see which meteor showers really put on a show over your house.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -54,6 +54,17 @@ from build.models import (
     RegulationFramework,
 )
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT / "src"))
+
+try:
+    from splunk_uc.audits.gold_profile import audit_uc as _audit_uc_gold_v1
+    from splunk_uc.audits.gold_profile_v2 import audit_uc_v2 as _audit_uc_gold_v2
+except ImportError:  # pragma: no cover
+    _audit_uc_gold_v1 = None  # type: ignore[assignment,misc]
+    _audit_uc_gold_v2 = None  # type: ignore[assignment,misc]
+
 try:
     import jsonschema
     from jsonschema import ValidationError as _SchemaValidationError
@@ -381,6 +392,7 @@ def _load_categories_from_content(cat: Catalog, project_root: Path, *, reproduci
                 sub_buckets[bucket_key] = sub_record
                 record["s"].append(sub_record)
             uc_short = _canonical_uc_to_legacy(canonical)
+            _attach_sidecar_quality_scores(uc_short, canonical, uc_path)
             sub_record["u"].append(uc_short)
 
         # Re-derive every field the legacy post-processor block sets.
@@ -928,19 +940,53 @@ def _compute_quality(uc: dict[str, Any]) -> tuple[str, int, list[str]]:
     return (tier, max(0, min(100, depth)), gaps)
 
 
+def _attach_sidecar_quality_scores(
+    uc_short: dict[str, Any],
+    canonical: dict[str, Any],
+    uc_path: Path,
+) -> None:
+    """Score from canonical sidecar truth (gold v1 + v2 audits)."""
+    if _audit_uc_gold_v1 is None or _audit_uc_gold_v2 is None:
+        return
+    audit_path = uc_path
+    try:
+        audit_path.relative_to(_REPO_ROOT)
+    except ValueError:
+        audit_path = _REPO_ROOT / uc_path.name
+    try:
+        v1 = _audit_uc_gold_v1(canonical, audit_path)
+        v2 = _audit_uc_gold_v2(canonical, audit_path)
+    except ValueError:
+        return
+    uc_short["_qs"] = v1["depth_score"]
+    tier = v1["tier"]
+    if v2["tier"] == "v2-pass":
+        tier = "gold"
+    uc_short["_qt"] = tier
+    gaps = list(v1.get("gaps") or [])
+    if v2["tier"] != "v2-pass":
+        gaps.extend(v2.get("gaps") or [])
+    if gaps:
+        uc_short["_qg"] = gaps
+
+
 def _inject_quality_scores(record: dict[str, Any]) -> None:
     """Add quality scores to each UC and aggregate per subcategory."""
     for sub in record.get("s", []):
         scores: list[int] = []
         tier_dist = {"gold": 0, "silver": 0, "bronze": 0, "none": 0}
         for uc in sub.get("u", []):
-            tier, depth, gaps = _compute_quality(uc)
-            uc["_qs"] = depth
-            uc["_qt"] = tier
-            if gaps:
-                uc["_qg"] = gaps
+            if "_qt" in uc and "_qs" in uc:
+                tier = uc["_qt"]
+                depth = int(uc["_qs"])
+            else:
+                tier, depth, gaps = _compute_quality(uc)
+                uc["_qs"] = depth
+                uc["_qt"] = tier
+                if gaps:
+                    uc["_qg"] = gaps
             scores.append(depth)
-            tier_dist[tier] += 1
+            tier_dist[tier] = tier_dist.get(tier, 0) + 1
         if scores:
             sub["qa"] = round(sum(scores) / len(scores), 1)
             sub["qd"] = tier_dist

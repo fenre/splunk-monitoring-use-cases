@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Akamai Guardicore flow/connection data",
+  "exclusions": "Covers the detection logic documented for 'Akamai Guardicore Reveal Map Anomalies' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_akamai_guardicore_reveal_map_anomalies` (UC-17.3.50), SOC dashboard panel \"Network — Akamai Guardicore Reveal Map Anomalies\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.50 positive (Akamai, Guardicore, Reveal, Map, Anomalies): ingest synthetic events into `index=microseg` sourcetype='guardicore:network' where `count` grouped by `src_asset`, `dst_asset`, `dst_port`, `process_name` satisfies `count` > 5 for 'Akamai Guardicore Reveal Map Anomalies'. Validate lookup `known_flows.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.50 negative (Map Anomalies): ingest benign `microseg` / `guardicore:network` events where `src_asset`, `dst_asset`, `dst_port`, `process_name` stays below `count` > 5, or exclude the test entity via `network_exception_register.csv`. Variant 6 confirms zero alert rows for 'Akamai Guardicore Reveal Map Anomalies'."
+  },
+  "dataSources": "Akamai Guardicore flow/connection data Indexes: microseg. Sourcetypes: guardicore:network. Key fields: dst_asset, dst_port, flow_key, known, process_name, src_asset. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=microseg sourcetype=\"guardicore:network\" earliest=-24h\n| eval flow_key=src_asset.\":\".tostring(src_port).\"->\".dst_asset.\":\".tostring(dst_port)\n| lookup known_flows.csv flow_key OUTPUT known\n| where isnull(known)\n| stats count by src_asset, dst_asset, dst_port, process_name\n| where count > 5\n| sort -count",
-  "description": "Guardicore's Reveal feature maps all process-level communication between workloads. New or unexpected connections that deviate from the learned application dependency map may indicate lateral movement, compromised workloads, or configuration drift.",
-  "value": "Security analytics teams detect anomalies on the Guardicore Reveal map — new communication pairs, new processes initiating network traffic, and high-volume flows not seen in the 30-day baseline — distinguishing legitimate deployments from potential lateral movement or data exfiltration.",
+  "description": "Identifies Map Anomalies anomalies for UC-17.3.50 with window `the scheduled window` on `index=microseg` sourcetype `guardicore:network`. Combines `count` by `src_asset`, `dst_asset`, `dst_port`, `process_name` and compares against `count` > 5. Mapped to keywords Akamai, Guardicore, Reveal, Map, Anomalies for dashboard routing.",
+  "value": "Alerting on Akamai, Guardicore, Reveal, Map, Anomalies through UC-17.3.50 reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing `activity` early.",
   "implementation": "Export the Guardicore application dependency map as a lookup. Run anomaly detection against new flows. Alert on never-before-seen process-port combinations to critical segments. Tune for deployment rollouts.",
   "visualization": "Table (new flows), Network graph (dependencies), Bar chart (anomalies by segment), Timeline (first seen).",
   "cimModels": [],
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "Akamai Guardicore Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/7426"
+      "url": "https://splunkbase.splunk.com/app/7426",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Network_Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Maintenance window on `microseg` (UC-17.3.50)** — Planned work for 'Akamai Guardicore Reveal Map Anomalies' shifts `count` over `span=1h` while `src_asset`, `dst_asset`, `dst_port`, `process_name` remains in-scope. Applies lookup `known_flows.csv`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `guardicore:network`** — Scheduled automation elevates `dst_asset` without crossing `count` > 5 for UC-17.3.50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_asset`, `dst_asset`, `dst_port`, `process_name`** — Health checks in `microseg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `guardicore:network`** — First 48h baseline for UC-17.3.50 on `src_asset` is unstable; join `known_flows.csv` prior to threshold.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src_asset`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1021",
     "T1018",
@@ -37,7 +55,16 @@
   "equipment": [
     "guardicore"
   ],
-  "detailedImplementation": "Prerequisites\n• Akamai Guardicore Centra flow data in `index=microseg` with `sourcetype=guardicore:syslog`. Key fields: `src_ip`, `dst_ip`, `src_label`, `dst_label`, `dstPort`, `proto`, `bytes`, `action`, `process_name` (process on the source).\n• Guardicore Reveal provides a real-time network map showing all communication between workloads. Anomalies are new or changed communication patterns that deviate from the established map.\n\nStep 1 — Configure data collection\nVerify flow data depth:\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" earliest=-24h\n| stats count dc(src_ip) as unique_sources dc(dst_ip) as unique_dests dc(dstPort) as unique_ports by action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — New communication pairs (not seen in baseline):\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" earliest=-24h\n| stats count sum(bytes) as total_bytes by src_label, dst_label, dstPort\n| lookup gc_comm_baseline.csv src_label dst_label dstPort OUTPUT baseline_count first_seen\n| where isnull(baseline_count)\n| eval total_mb=round(total_bytes/1048576,1)\n| sort - total_mb\n```\n\nUnderstanding this SPL: Identifies communication pairs not seen in the 30-day baseline — new 'edges' on the Reveal map. New communications could be: a legitimate new application deployed, a configuration change opening new paths, or an attacker moving laterally. The data volume helps prioritize: high-volume new pairs need immediate review.\n\nProcess-level anomalies:\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" earliest=-24h\n| where isnotnull(process_name)\n| lookup gc_process_baseline.csv src_ip process_name OUTPUT baseline_seen\n| where isnull(baseline_seen)\n| stats count by src_ip, src_label, process_name, dst_label, dstPort\n| sort - count\n```\n\nStep 3 — Validate\n(a) In Guardicore Centra: Reveal tab > compare map with Splunk.\n(b) Start a new service on a test workload. Verify the new pair appears.\n\nStep 4 — Operationalize\nDashboard: Row 1 — New communication pairs. Row 2 — High-volume new flows. Row 3 — New processes.\nAlert: When a new high-volume communication pair appears involving a critical segment.\n\nRunbook:\n1. **New pair, high volume** — Could be data exfiltration. Verify with workload owner.\n2. **New process** — Could be malware. Check process hash against threat intel.\n3. **Many new pairs simultaneously** — Major deployment or network change. Verify with ops.\n\nStep 5 — Troubleshooting\n• **Baseline not built** — Run the baseline search weekly: `| stats count by src_label, dst_label, dstPort | outputlookup gc_comm_baseline.csv`.\n• **Too many new pairs** — Baseline may be too narrow. Extend baseline window.",
+  "equipmentModels": [
+    "guardicore_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Akamai Guardicore Centra flow data in `index=microseg` with `sourcetype=guardicore:syslog`. Key fields: `src_ip`, `dst_ip`, `src_label`, `dst_label`, `dstPort`, `proto`, `bytes`, `action`, `process_name` (process on the source).\n• Guardicore Reveal provides a real-time network map showing all communication between workloads. Anomalies are new or changed communication patterns that deviate from the established map.\n\nStep 1 — Configure data collection\nVerify flow data depth:\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" earliest=-24h\n| stats count dc(src_ip) as unique_sources dc(dst_ip) as unique_dests dc(dstPort) as unique_ports by action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — New communication pairs (not seen in baseline):\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" earliest=-24h\n| stats count sum(bytes) as total_bytes by src_label, dst_label, dstPort\n| lookup gc_comm_baseline.csv src_label dst_label dstPort OUTPUT baseline_count first_seen\n| where isnull(baseline_count)\n| eval total_mb=round(total_bytes/1048576,1)\n| sort - total_mb\n```\n\nUnderstanding this SPL: Identifies communication pairs not seen in the 30-day baseline — new 'edges' on the Reveal map. New communications could be: a legitimate new application deployed, a configuration change opening new paths, or an attacker moving laterally. The data volume helps prioritize: high-volume new pairs need immediate review.\n\nProcess-level anomalies:\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" earliest=-24h\n| where isnotnull(process_name)\n| lookup gc_process_baseline.csv src_ip process_name OUTPUT baseline_seen\n| where isnull(baseline_seen)\n| stats count by src_ip, src_label, process_name, dst_label, dstPort\n| sort - count\n```\n\nStep 3 — Validate\n(a) In Guardicore Centra: Reveal tab > compare map with Splunk.\n(b) Start a new service on a test workload. Verify the new pair appears.\n\nStep 4 — Operationalize\nDashboard: Row 1 — New communication pairs. Row 2 — High-volume new flows. Row 3 — New processes.\nAlert: When a new high-volume communication pair appears involving a critical segment.\n\nRunbook:\n1. **New pair, high volume** — Could be data exfiltration. Verify with workload owner.\n2. **New process** — Could be malware. Check process hash against threat intel.\n3. **Many new pairs simultaneously** — Major deployment or network change. Verify with ops.\n\nStep 5 — Troubleshooting\n• **Baseline not built** — Run the baseline search weekly: `| stats count by src_label, dst_label, dstPort | outputlookup gc_comm_baseline.csv`.\n• **Too many new pairs** — Baseline may be too narrow. Extend baseline window.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Akamai Guardicore Add-on for Splunk (Splunkbase 7426)). Enable the modular input or HEC token that writes sourcetype=guardicore:network into microseg. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dst_asset, dst_port, flow_key, known`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Guardicore maps every connection between our servers. When a new connection appears that we have never seen before, we investigate — is it a new application we deployed, or is it an attacker trying to move from one server to another? The more data flowing through an unknown connection, the more urgently we check.",
-  "hardware": "Akamai Guardicore Centra, Guardicore Agents"
+  "hardware": "Akamai Guardicore Centra, Guardicore Agents",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

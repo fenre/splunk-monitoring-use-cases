@@ -8,21 +8,43 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Device Online/Offline Status Monitoring (Meraki)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_device_online_offline_status_monitoring_meraki` (UC-5.8.18), SOC dashboard panel \"Operations — Device Online/Offline Status Monitoring (Meraki)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.8.18 positive (Device, Online, Offline, Status, Monitoring): ingest synthetic events into `index=meraki` sourcetype='meraki:devicesavailabilities' where `count` grouped by `serial`, `name`, `network.id`, `network.name` satisfies -1h for 'Device Online/Offline Status Monitoring (Meraki)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.8.18 negative (Monitoring (Meraki)): ingest benign `meraki` / `meraki:devicesavailabilities` events where `serial`, `name`, `network.id`, `network.name` stays below -1h, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Device Online/Offline Status Monitoring (Meraki)'."
+  },
   "dataSources": "Splunk_TA_cisco_meraki (Splunkbase #5580): Devices Availabilities input (sourcetype=meraki:devicesavailabilities, daily, TA v3.3+) and Devices Availabilities Change History input (sourcetype=meraki:devicesavailabilitieschangehistory, hourly) for transition timestamps.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:devicesavailabilities\" earliest=-1h\n| stats latest(status) as device_status,\n        latest(_time) as last_status_check,\n        latest(productType) as product_type\n         by serial, name, network.id, network.name\n| where device_status != \"online\"\n| join type=left serial [\n    search index=meraki sourcetype=\"meraki:devicesavailabilitieschangehistory\" earliest=-24h\n    | stats latest(_time) as last_change_time,\n            latest(status) as new_status,\n            latest(previousStatus) as prev_status\n             by serial\n  ]\n| eval offline_minutes = round((now() - coalesce(last_change_time, last_status_check))/60, 0)\n| sort - offline_minutes",
-  "description": "Tracks device connectivity status to quickly identify and respond to device failures.",
-  "value": "Network operations teams monitor Meraki device online/offline status with impact-aware urgency classification, distinguishing gateway outages (site down) from AP outages (coverage gaps) and tracking offline duration for dispatch decisions.",
+  "description": "Surfaces Monitoring (Meraki) anomalies for UC-5.8.18 with window `the scheduled window` on `index=meraki` sourcetype `meraki:devicesavailabilities`. Combines `count` by `serial`, `name`, `network.id`, `network.name` and compares against -1h. Mapped to keywords Device, Online, Offline, Status, Monitoring for dashboard routing.",
+  "value": "Alerting on Device, Online, Offline, Status, Monitoring through UC-5.8.18 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "1. Enable Devices Availabilities and Devices Availabilities Change History inputs (both in TA v3.3+). 2. The Availabilities input gives current state; the Change History input lists every status transition (online -> offline -> online ...) with previousStatus, status, and ts. 3. Joining the two lets you report on each currently-down device along with how long it has been down. 4. For paging-grade alerting, configure a Meraki Dashboard alert profile on 'device offline for X minutes' and ingest via the Webhook Logs (HEC) input.",
   "visualization": "Device status table; offline count gauge; status change timeline.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Brief cellular or power blips to appliances can flip offline/online; use duration filters and local ping where possible before heavy paging.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.8.18)** — Planned work for 'Device Online/Offline Status Monitoring (Meraki)' shifts `count` over `span=1h` while `serial`, `name`, `network.id`, `network.name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `meraki:devicesavailabilities`** — Scheduled automation elevates `name` without crossing configured threshold for UC-5.8.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `serial`, `name`, `network.id`, `network.name`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:devicesavailabilities`** — First 48h baseline for UC-5.8.18 on `serial` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `serial`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
@@ -30,6 +52,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Devices Availabilities input (sourcetype=meraki:devicesavailabilities, daily, TA v3.3+) and Devices Availabilities Change History input (sourcetype=meraki:devicesavailabilitieschangehistory, hourly) for transition timestamps..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n1. Enable Devices Availabilities and Devices Availabilities Change History inputs (both in TA v3.3+). 2. The Availabilities input gives current state; the Change History input lists every status transition (online -> offline -> online ...) with previousStatus, status, and ts. 3. Joining the two lets you report on each currently-down device along with how long it has been down. 4. For paging-grade alerting, configure a Meraki Dashboard alert profile on 'device offline for X minutes' and ingest vi…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki:devicesavailabilities\" earliest=-1h\n| stats latest(status) as device_status,\n        latest(_time) as last_status_check,\n        latest(productType) as product_type\n         by serial, name, network.id, network.name\n| where device_status != \"online\"\n| join type=left serial [\n    search index=meraki sourcetype=\"meraki:devicesavailabilitieschangehistory\" earliest=-24h\n    | stats latest(_time) as last_change_time,\n            latest(status) as new_status,\n            latest(previousStatus) as prev_status\n             by serial\n  ]\n| eval offline_minutes = round((now() - coalesce(last_change_time, last_status_check))/60, 0)\n| sort - offline_minutes\n```\n\nUnderstanding this SPL\n\n**Device Online/Offline Status Monitoring (Meraki)** — Network operations teams monitor Meraki device online/offline status with impact-aware urgency classification, distinguishing gateway outages (site down) from AP outages (coverage gaps) and tracking offline duration for dispatch decisions.\n\nDocumented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Devices Availabilities input (sourcetype=meraki:devicesavailabilities, daily, TA v3.3+) and Devices Availabilities Change History input (sourcetype=meraki:devicesavailabilitieschangehistory, hourly) for transition timestamps. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:devicesavailabilities. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki:devicesavailabilities\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by serial, name, network.id, network.name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where device_status != \"online\"` — typically the threshold or rule expression for this monitoring goal.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **offline_minutes** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Device status table; offline count gauge; status change timeline.",
-  "grandmaExplanation": "We help you know quickly when a Meraki box drops offline, before users open tickets about dead Wi‑Fi or VPN."
+  "grandmaExplanation": "We help you know quickly when a Meraki box drops offline, before users open tickets about dead Wi‑Fi or VPN.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

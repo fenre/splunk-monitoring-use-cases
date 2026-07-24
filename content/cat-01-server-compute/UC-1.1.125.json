@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`journalctl --disk-usage`, `journalctl --verify`",
-  "app": "`Splunk_TA_nix` (scripted input)",
+  "exclusions": "Covers the detection logic documented for 'Linux Journal / Journald Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_linux_journal_journald_health` (UC-1.1.125), SOC dashboard panel \"Linux — Linux Journal / Journald Health\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.125 positive (Linux, Journal, Journald, Health): ingest synthetic events into `index=os` sourcetype='journal_health' where `journal_mb` grouped by `host` satisfies detection threshold for 'Linux Journal / Journald Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.125 negative (Journald Health): ingest benign `os` / `journal_health` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 7 confirms zero alert rows for 'Linux Journal / Journald Health'."
+  },
+  "dataSources": "`journalctl --disk-usage`, `journalctl --verify` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` (scripted input) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=journal_health host=*\n| timechart span=1h avg(disk_usage_mb) as journal_mb by host",
-  "description": "Journal corruption, excessive disk usage, and rate-limited entries indicate logging problems that can hide critical events and fill disk.",
-  "value": "Journal corruption, excessive disk usage, and rate-limited entries indicate logging problems that can hide critical events and fill disk.",
+  "description": "Identifies UC-1.1.125 — Linux, Journal, Journald, Health — using `index=os` sourcetype `journal_health`, grouped by `host`. Outputs `journal_mb` each `1h`; alert when configured threshold. Primary focus: Journald Health. Purpose-built for 'Linux Journal / Journald Health' in Linux workflows.",
+  "value": "UC-1.1.125 operationalises 'Linux Journal / Journald Health' against `journal_health` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
   "implementation": "Create a scripted input that runs `journalctl --disk-usage` (parse \"Archived and active: X.XG\" or similar) and `journalctl --verify 2>&1` (check exit code and output for \"corrupt\" or \"inconsistent\"). For suppressed messages, parse `journalctl -u systemd-journald` for \"Suppressed\" or use `journalctl --output=short-full` rate stats. Run every 300 seconds. Alert on corruption; alert when journal exceeds 4GB or suppressed count is high.",
   "visualization": "Table (host, size, corruption status), Line chart (journal size over time), Single value (corruption count).",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "The sample SPL is trending-only—add `where disk_usage_mb` thresholds for true alerts. `journalctl --verify` is heavy; do not run every minute in production. VPN or offline hosts can have stale `disk_usage_mb` that still trends upward on next successful poll.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Linux Journal / Journald Health'. Correlate with apt/yum logs in the same `journal_health` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `journal_health`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix` (scripted input).\n• Ensure the following data sources are available: `journalctl --disk-usage`, `journalctl --verify`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate a scripted input that runs `journalctl --disk-usage` (parse \"Archived and active: X.XG\" or similar) and `journalctl --verify 2>&1` (check exit code and output for \"corrupt\" or \"inconsistent\"). For suppressed messages, parse `journalctl -u systemd-journald` for \"Suppressed\" or use `journalctl --output=short-full` rate stats. Run every 300 seconds. Alert on corruption; alert when journal exceeds 4GB or suppressed count is high.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=journal_health host=*\n| timechart span=1h avg(disk_usage_mb) as journal_mb by host\n```\n\nUnderstanding this SPL\n\n**Linux Journal / Journald Health** — Journal corruption, excessive disk usage, and rate-limited entries indicate logging problems that can hide critical events and fill disk.\n\nDocumented **Data sources**: `journalctl --disk-usage`, `journalctl --verify`. **App/TA** (typical add-on context): `Splunk_TA_nix` (scripted input). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: journal_health. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=journal_health. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1h** buckets with a separate series **by host** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (host, size, corruption status), Line chart (journal size over time), Single value (corruption count).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We track systemd journal size and health so the machine’s own logs do not break or hide what happened when we need them most."
+  "grandmaExplanation": "We track systemd journal size and health so the machine’s own logs do not break or hide what happened when we need them most.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,27 +8,55 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Rivery runs (`rivery:run`).",
-  "app": "Rivery river run events via the Rivery API to HEC.",
+  "exclusions": "Covers the detection logic documented for 'Rivery River Run Duration p95' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_rivery_river_run_duration_p95` (UC-24.8.65), SOC dashboard panel \"Operations — Rivery River Run Duration p95\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.8.65 positive (Rivery, River, Run, Duration, p95): ingest synthetic events into `index=bi` sourcetype='rivery:run' where `avg_min` grouped by `river_name` satisfies `p95_min` > 60 for 'Rivery River Run Duration p95'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.8.65 negative (Duration p95): ingest benign `bi` / `rivery:run` events where `river_name` stays below `p95_min` > 60, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Rivery River Run Duration p95'."
+  },
+  "dataSources": "Rivery runs (`rivery:run`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Rivery river run events via the Rivery API to HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=rivery:run status=\"Completed\"\n| eval dur_min=round(duration_ms/60000,2)\n| stats avg(dur_min) as avg_min, p95(dur_min) as p95_min, count as runs by river_name\n| where p95_min>60\n| sort - p95_min",
-  "description": "Computes the 95th-percentile run duration for each river in Rivery and flags the slowest, pointing owners at the specific content or jobs that need optimisation.",
-  "value": "Tail latency, not the average, is what users feel; ranking Rivery rivers by p95 focuses tuning effort where it removes the most pain.",
+  "description": "Detects when Duration p95 criteria fire for 'Rivery River Run Duration p95' (UC-24.8.65) in `index=bi` sourcetype `rivery:run`. Pipeline aggregates `avg_min` by `river_name` over `the scheduled window`. Alert logic enforces `p95_min` > 60. Title terms: Rivery, River, Run, Duration, p95. Eliminates manual hunting for UC-24.8.65 conditions.",
+  "value": "UC-24.8.65 helps teams contain Rivery, River, Run, Duration, p95 scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ingest Rivery timing data; schedule daily over a trailing week and review the slowest rivers with their owners.",
   "visualization": "Table of river by p95 run duration, trend line.",
   "cimModels": [],
   "references": [
     {
       "title": "Rivery — Documentation",
-      "url": "https://docs.rivery.io/"
+      "url": "https://docs.rivery.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Rivery — Activities & monitoring",
-      "url": "https://docs.rivery.io/docs/rivery-activities"
+      "url": "https://docs.rivery.io/docs/rivery-activities",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We measure how slow the worst cases are in Rivery so the sluggish ones get fixed before people give up on them."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.8.65)** — Planned work for 'Rivery River Run Duration p95' shifts `avg_min` over `span=1h` while `river_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `rivery:run`** — Scheduled automation elevates `dur_min` without crossing `p95_min` > 60 for UC-24.8.65. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `river_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `rivery:run`** — First 48h baseline for UC-24.8.65 on `river_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `river_name`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Rivery river run events via the Rivery API to HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=rivery:run into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`p95_min, river_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We measure how slow the worst cases are in Rivery so the sluggish ones get fixed before people give up on them.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

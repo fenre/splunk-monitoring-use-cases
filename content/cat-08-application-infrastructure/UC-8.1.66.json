@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`stats` `bytes` and `limit_maxbytes` on `memcached:stats`",
-  "app": "collectd/Telegraf memcached input",
+  "exclusions": "Covers the detection logic documented for 'Memcached Memory Usage vs maxbytes Threshold' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_memcached_memory_usage_vs_maxbytes_threshold` (UC-8.1.66), SOC dashboard panel \"Operations — Memcached Memory Usage vs maxbytes Threshold\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.1.66 positive (Memcached, Memory, Usage, maxbytes, Threshold): ingest synthetic events into `index=infrastructure` sourcetype='memcached:stats' where `count` grouped by `entity` satisfies `lim` > 0, or `used_pct` > 90 for 'Memcached Memory Usage vs maxbytes Threshold'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.66 negative (maxbytes Threshold): ingest benign `infrastructure` / `memcached:stats` events where `entity` stays below `lim` > 0, or `used_pct` > 90, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Memcached Memory Usage vs maxbytes Threshold'."
+  },
+  "dataSources": "`stats` `bytes` and `limit_maxbytes` on `memcached:stats` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "collectd/Telegraf memcached input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=infrastructure sourcetype=\"memcached:stats\"\n| eval used=tonumber(bytes)\n| eval lim=tonumber(limit_maxbytes)\n| eval used_pct=if(lim>0, round(100*used/lim,1), null())\n| where used_pct > 90 OR used > lim*0.95",
-  "description": "When `bytes` approaches `limit_maxbytes`, evictions accelerate and new large items may fail. Watching used percentage avoids surprise latency cliffs during traffic growth.",
-  "value": "Supports right-sizing memory per cluster before peak events exhaust slab space.",
+  "description": "Alerts on UC-8.1.66 — Memcached, Memory, Usage, maxbytes, Threshold — using `index=infrastructure` sourcetype `memcached:stats`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `lim` > 0, or `used_pct` > 90. Primary focus: maxbytes Threshold. Purpose-built for 'Memcached Memory Usage vs maxbytes Threshold' in Operations workflows.",
+  "value": "UC-8.1.66 gives Operations teams earlier visibility into maxbytes Threshold through `memcached:stats` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Confirm 64-bit counters parse correctly. For multiple instances per host, include `instance` or `port` in the host key. Alert at 90% with warning; 95% page on-call.",
   "visualization": "Area chart (used vs lim), Gauge (used_pct).",
   "cimModels": [
@@ -23,12 +29,31 @@
   "references": [
     {
       "title": "Memcached — Memory allocation",
-      "url": "https://github.com/memcached/memcached/wiki/UserManual"
+      "url": "https://github.com/memcached/memcached/wiki/UserManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Cache misses spike after cache flush, deploys with new cache keys, or during warm-up after restart. Compare with those events before treating as a fault.",
+  "knownFalsePositives": "1. **Maintenance window on `infrastructure` (UC-8.1.66)** — Planned work for 'Memcached Memory Usage vs maxbytes Threshold' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `memcached:stats`** — Scheduled automation elevates `used` without crossing `lim` > 0 for UC-8.1.66. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `infrastructure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `memcached:stats`** — First 48h baseline for UC-8.1.66 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "memcached"
+  ],
+  "equipmentModels": [
+    "memcached_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -37,6 +62,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to support right-sizing memory per cluster before peak events exhaust slab space."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (collectd/Telegraf memcached input — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=memcached:stats into infrastructure. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`lim, used_pct`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to support right-sizing memory per cluster before peak events exhaust slab space.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

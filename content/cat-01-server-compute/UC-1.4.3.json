@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "IPMI SEL (System Event Log) via scripted input, syslog from BMC",
-  "app": "Custom scripted input (`ipmitool`), SNMP, vendor management syslog (iLO/iDRAC)",
+  "exclusions": "Covers the detection logic documented for 'Power Supply Failure' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_power_supply_failure` (UC-1.4.3), SOC dashboard panel \"Linux — Power Supply Failure\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.4.3 positive (Power, Supply, Failure): ingest synthetic events into `index=hardware` sourcetype='ipmi:sel' where `count` grouped by `entity` satisfies detection threshold for 'Power Supply Failure'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.4.3 negative (Supply Failure): ingest benign `hardware` / `ipmi:sel` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 1 confirms zero alert rows for 'Power Supply Failure'."
+  },
+  "dataSources": "IPMI SEL (System Event Log) via scripted input, syslog from BMC Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (`ipmitool`), SNMP, vendor management syslog (iLO/iDRAC) — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=hardware sourcetype=ipmi:sel (\"Power Supply\" OR \"PS\" OR \"power_supply\") (\"Failure\" OR \"Absent\" OR \"fault\" OR \"lost\")\n| table _time host sensor event_description\n| sort -_time",
-  "description": "Lost power supply redundancy means a single PSU failure away from an unplanned outage. Replacement needs to happen before the remaining PSU fails.",
-  "value": "When one of two power feeds drops out or a supply fails, the server may still be running on the remaining path — but you are one fault away from a hard stop until someone replaces the part.",
+  "description": "Detects Supply Failure activity in UC-1.4.3 ('Power Supply Failure') from `index=hardware` sourcetype `ipmi:sel`. Rolls up `count` by `entity` across `the scheduled window` and pages when configured threshold. Covers Power, Supply, Failure. Linux operators treat UC-1.4.3 as the canonical signal.",
+  "value": "Operators running UC-1.4.3 on `ipmi:sel` feeds shorten triage for Supply Failure tied to 'Power Supply Failure', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Forward IPMI System Event Log data. Enable syslog forwarding from iLO/iDRAC to Splunk. Alert immediately on PSU failure events.",
   "visualization": "Events timeline, Status indicator per host, Alert panel.",
   "cimModels": [],
@@ -20,10 +26,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 833",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Vendors use different phrasing (for example `PS Redundancy Lost` vs. `Power Supply Failed`). Redundant A/B maintenance and hot-swap can generate duplicate SEL rows. Validate against the out-of-band console or a physical site check before a full incident bridge.",
+  "knownFalsePositives": "1. **Patch Tuesday on `hardware`** — Package managers spike `host` metrics for 'Power Supply Failure'. Correlate with apt/yum logs in the same `ipmi:sel` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ipmi:sel`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hardware_bmc",
     "snmp",
@@ -35,6 +57,12 @@
     "hardware_bmc_ipmi",
     "snmp_generic"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`ipmitool`), SNMP, vendor management syslog (iLO/iDRAC).\n• Ensure the following data sources are available: IPMI SEL (System Event Log) via scripted input, syslog from BMC.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect the SEL with `ipmitool sel elist` (or vendor equivalents) and forward `sourcetype=ipmi:sel` with `event_description` (or `message`) parsed. Alternatively forward BMC syslog. Alert on substrings you prove match PSU failure in your environment.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust as needed):\n\n```spl\nindex=hardware sourcetype=ipmi:sel (\"Power Supply\" OR \"PS\" OR \"power_supply\") (\"Failure\" OR \"Absent\" OR \"fault\" OR \"lost\")\n| table _time host sensor event_description\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Power Supply Failure** — Lost power supply redundancy means a single PSU failure away from an unplanned outage. Replacement needs to happen before the remaining PSU fails.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=ipmi:sel`.\n• The keyword search narrows to likely PSU events (tune to your vendor’s strings).\n• `table` and `sort` list recent events for triage.\n\n\nStep 3 — Validate\nInduce a test SEL on a lab BMC if possible, or compare past vendor tickets to the exact text in your index. For full details, see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We look for out-of-band messages that say a power feed or supply is missing or bad, so you can fix it while the box still has another power path to lean on."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`ipmitool`), SNMP, vendor management syslog (iLO/iDRAC).\n• Ensure the following data sources are available: IPMI SEL (System Event Log) via scripted input, syslog from BMC.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect the SEL with `ipmitool sel elist` (or vendor equivalents) and forward `sourcetype=ipmi:sel` with `event_description` (or `message`) parsed. Alternatively forward BMC syslog. Alert on substrings you prove match PSU failure in your environment.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust as needed):\n\n```spl\nindex=hardware sourcetype=ipmi:sel (\"Power Supply\" OR \"PS\" OR \"power_supply\") (\"Failure\" OR \"Absent\" OR \"fault\" OR \"lost\")\n| table _time host sensor event_description\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Power Supply Failure** — Lost power supply redundancy means a single PSU failure away from an unplanned outage. Replacement needs to happen before the remaining PSU fails.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=ipmi:sel`.\n• The keyword search narrows to likely PSU events (tune to your vendor’s strings).\n• `table` and `sort` list recent events for triage.\n\n\nStep 3 — Validate\nInduce a test SEL on a lab BMC if possible, or compare past vendor tickets to the exact text in your index. For full details, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted input (`ipmitool`), SNMP, vendor management syslog (iLO/iDRAC) — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=ipmi:sel into hardware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We look for out-of-band messages that say a power feed or supply is missing or bad, so you can fix it while the box still has another power path to lean on.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

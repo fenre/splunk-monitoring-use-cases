@@ -8,28 +8,42 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'SD-WAN Overlay vs Underlay Performance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_sd_wan_overlay_vs_underlay_performance` (UC-5.9.29), SOC dashboard panel \"Operations — SD-WAN Overlay vs Underlay Performance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.9.29 positive (WAN, Overlay, Underlay, Performance): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `avg_latency`, `avg_loss`, `avg_jitter` grouped by `thousandeyes.source.agent.name`, `server.address`, `path_type` satisfies detection threshold for 'SD-WAN Overlay vs Underlay Performance'. Validate macro `stream_index`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.9.29 negative (Underlay Performance): ingest benign `target_index` / `target_sourcetype` events where `thousandeyes.source.agent.name`, `server.address`, `path_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'SD-WAN Overlay vs Underlay Performance'."
+  },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` with `thousandeyes.test.domain=\"cea\"` from `ta_cisco_thousandeyes` (Splunkbase 7719). This UC uses Enterprise Agent tests strategically placed at SD-WAN branch sites and hub/data center sites. **Overlay tests:** Agent-to-Server or Agent-to-Agent tests configured to traverse the SD-WAN fabric (via SD-WAN vEdge/cEdge) measure the overlay path performance. **Underlay tests:** Separate Agent-to-Server tests configured to target underlay WAN IP addresses (MPLS PE, DIA next-hop, or broadband gateway) measure raw transport performance. Metrics: `network.latency` (seconds), `network.loss` (percentage), `network.jitter` (milliseconds). The key differentiation is achieved through test naming conventions or ThousandEyes tags (streamed as OTel attributes).",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`stream_index` thousandeyes.test.type=\"agent-to-server\" (thousandeyes.test.name=\"*overlay*\" OR thousandeyes.test.name=\"*underlay*\")\n| eval path_type=if(match(thousandeyes.test.name, \"(?i)overlay\"), \"Overlay\", \"Underlay\")\n| stats avg(network.latency) as avg_latency avg(network.loss) as avg_loss avg(network.jitter) as avg_jitter by thousandeyes.source.agent.name, server.address, path_type\n| eval avg_latency_ms=round(avg_latency*1000,1)\n| xyseries thousandeyes.source.agent.name path_type avg_latency_ms\n| eval overlay_premium_ms=round(Overlay - Underlay, 1)\n| sort -overlay_premium_ms",
-  "description": "Compares SD-WAN overlay (fabric-routed) path performance against the raw underlay (transport-level) path performance to quantify the overhead introduced by the SD-WAN fabric. By running parallel ThousandEyes tests — one through the overlay, one against the underlay — this UC isolates whether performance issues originate in the SD-WAN fabric (policy routing, encryption, tunneling overhead) or in the underlying transport (ISP, MPLS, broadband).",
-  "value": "SD-WAN vendors promise intelligent path selection, but operators need data to verify. If overlay latency is 50 ms but underlay latency is only 10 ms, the SD-WAN fabric is adding 40 ms of overhead — a critical finding for real-time applications. Conversely, if overlay and underlay latency are nearly identical, the SD-WAN is performing well and any application slowness is due to other factors. This comparison is essential for: (1) validating SD-WAN POC performance claims, (2) diagnosing application performance issues (\"is SD-WAN the bottleneck?\"), (3) justifying transport upgrades (if the underlay is degraded, upgrading to a better circuit is the fix, not changing SD-WAN vendors), and (4) detecting SD-WAN fabric failures (if overlay latency spikes while underlay remains stable, the fabric has a problem).",
+  "description": "Detects Underlay Performance activity in UC-5.9.29 ('SD-WAN Overlay vs Underlay Performance') from `index=target_index` sourcetype `configured sourcetype`. Rolls up `avg_latency`, `avg_loss`, `avg_jitter` by `thousandeyes.source.agent.name`, `server.address`, `path_type` across `the scheduled window` and pages when configured threshold. Uses macro `stream_index`. Operations operators treat UC-5.9.29 as the canonical signal.",
+  "value": "Operators running UC-5.9.29 on macro `stream_index` shorten triage for Underlay Performance tied to 'SD-WAN Overlay vs Underlay Performance', lowering operational risk and delayed incident response.",
   "implementation": "Requires deliberate test design: create paired Agent-to-Server tests at each SD-WAN site — one routed through the overlay fabric, one targeting the underlay transport directly. Use consistent naming conventions (e.g., \"SiteA-HubDC-Overlay\" and \"SiteA-ISP-Underlay\") so SPL can categorize them.",
   "visualization": "(1) Side-by-side bar chart: overlay vs underlay latency per site. (2) Table: site, overlay latency, underlay latency, overlay premium (difference). (3) Timechart: overlay and underlay latency trending for a specific site. (4) Single value: average overlay premium across all sites.",
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes SD-WAN monitoring best practices",
-      "url": "https://www.thousandeyes.com/solutions/sd-wan"
+      "url": "https://www.thousandeyes.com/solutions/sd-wan",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes OTel v2 — Network metrics",
-      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics"
+      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Overlay path selection differences.** The SD-WAN fabric may route overlay traffic through a different underlay transport than the one you're testing. For example, your underlay test hits the MPLS PE, but the overlay currently routes via the broadband link. The comparison is only valid when you know which underlay transport the overlay is using.\n\n**Overlay encryption overhead.** IPsec encryption in the SD-WAN tunnel adds 1–3 ms of latency. This is expected and not a performance problem — it's the cost of encryption. Only flag overlay premium > 10 ms as potentially problematic.\n\n**SD-WAN path failover during measurement.** If the SD-WAN fabric switches from MPLS to broadband mid-test, the overlay measurement reflects a blended result. Use short measurement intervals and look at per-round data rather than averages.\n\n**Test naming inconsistency.** The SPL relies on test names containing \"overlay\" or \"underlay.\" If naming conventions aren't followed, the `path_type` classification will be wrong. Alternatively, use ThousandEyes tags instead of name matching.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.9.29)** — Planned work for 'SD-WAN Overlay vs Underlay Performance' shifts `avg_latency`, `avg_loss`, `avg_jitter` over `span=1h` while `thousandeyes.source.agent.name`, `server.address`, `path_type` remains in-scope. Applies macro `stream_index`. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `server.address` without crossing configured threshold for UC-5.9.29. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `thousandeyes.source.agent.name`, `server.address`, `path_type`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.9.29 on `thousandeyes.source.agent.name` is unstable; join `stream_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `thousandeyes.source.agent.name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

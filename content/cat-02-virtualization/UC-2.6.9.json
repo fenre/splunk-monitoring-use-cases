@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=xd` `sourcetype=\"citrix:upm:log\"` fields `user`, `profile_load_time_sec`, `profile_size_mb`, `streaming_enabled`, `error_message`, `vda_host`",
-  "app": "Splunk Universal Forwarder on VDAs, Citrix UPM log collection",
+  "exclusions": "Covers the detection logic documented for 'Citrix Profile Management Load Time' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_citrix_profile_management_load_time` (UC-2.6.9), SOC dashboard panel \"Linux — Citrix Profile Management Load Time\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.9 positive (Citrix, Profile, Management, Load, Time): ingest synthetic events into `index=xd` sourcetype='citrix:upm:log' where `avg_load`, `avg_size` grouped by `vda_host`, `_time` satisfies `p95_load` > 15 for 'Citrix Profile Management Load Time'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.9 negative (Load Time): ingest benign `xd` / `citrix:upm:log` events where `vda_host`, `_time` stays below `p95_load` > 15, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 14 confirms zero alert rows for 'Citrix Profile Management Load Time'."
+  },
+  "dataSources": "`index=xd` `sourcetype=\"citrix:upm:log\"` fields `user`, `profile_load_time_sec`, `profile_size_mb`, `streaming_enabled`, `error_message`, `vda_host` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder on VDAs, Citrix UPM log collection — Universal Forwarder (Splunkbase 617)",
   "spl": "index=xd sourcetype=\"citrix:upm:log\" event_type=\"ProfileLoad\"\n| bin _time span=1h\n| stats avg(profile_load_time_sec) as avg_load, perc95(profile_load_time_sec) as p95_load, avg(profile_size_mb) as avg_size, count as loads by vda_host, _time\n| where p95_load > 15\n| table _time, vda_host, loads, avg_load, p95_load, avg_size",
-  "description": "Citrix User Profile Management (UPM) loads user profiles at session logon — including registry hives, application settings, and redirected folders. Large or corrupted profiles cause logon delays that can extend login times by minutes. Profile streaming can significantly reduce load times (from 54 seconds to 20 seconds in Citrix tests), but only if properly configured. Monitoring profile load times identifies users with bloated profiles and validates that profile optimization features are effective.",
-  "value": "Citrix User Profile Management (UPM) loads user profiles at session logon — including registry hives, application settings, and redirected folders. Large or corrupted profiles cause logon delays that can extend login times by minutes. Profile streaming can significantly reduce load times (from 54 seconds to 20 seconds in Citrix tests), but only if properly configured. Monitoring profile load times identifies users with bloated profiles and validates that profile optimization features are effective.",
+  "description": "Surfaces UC-2.6.9 — Citrix, Profile, Management, Load, Time — using `index=xd` sourcetype `citrix:upm:log`, grouped by `vda_host`, `_time`. Outputs `avg_load`, `avg_size` each `1h`; alert when `p95_load` > 15. Primary focus: Load Time. Purpose-built for 'Citrix Profile Management Load Time' in Linux workflows.",
+  "value": "Alerting on Citrix, Profile, Management, Load, Time through UC-2.6.9 reduces capacity incidents, patch regressions, and service outages by surfacing `avg_load`, `avg_size` early.",
   "implementation": "Citrix Profile Management logs to `%SystemRoot%\\System32\\LogFiles\\UserProfileManager` on each VDA. Configure centralized log storage via UPM policy (store logs on a network share). Forward these logs to Splunk via Universal Forwarder. Parse for profile load/unload timing events. Track profile size growth per user over time. Alert on: p95 profile load time exceeding 15 seconds, individual profiles exceeding 500 MB, or UPM errors indicating profile corruption (\"Error while processing profile\" events). Validate that profile streaming is enabled and effective by comparing load times with/without streaming.",
   "visualization": "Line chart (profile load time trending), Bar chart (top users by profile size), Table (slow profile loads with user details).",
   "cimModels": [
@@ -21,14 +27,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `xd`** — Package managers spike `vda_host` metrics for 'Citrix Profile Management Load Time'. Correlate with apt/yum logs in the same `citrix:upm:log` window.\n\n2. **Nightly backup I/O on `vda_host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `citrix:upm:log`** — Nagios/Zabbix polls `vda_host` and mimics sustained load without crossing `p95_load` > 15.\n\n4. **New host onboarding** — `vda_host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `vda_host`, `valid_until`.",
   "equipment": [
     "citrix",
     "m365"
   ],
+  "equipmentModels": [
+    "citrix_generic",
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Universal Forwarder on VDAs, Citrix UPM log collection.\n• Ensure the following data sources are available: `index=xd` `sourcetype=\"citrix:upm:log\"` fields `user`, `profile_load_time_sec`, `profile_size_mb`, `streaming_enabled`, `error_message`, `vda_host`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCitrix Profile Management logs to `%SystemRoot%\\System32\\LogFiles\\UserProfileManager` on each VDA. Configure centralized log storage via UPM policy (store logs on a network share). Forward these logs to Splunk via Universal Forwarder. Parse for profile load/unload timing events. Track profile size growth per user over time. Alert on: p95 profile load time exceeding 15 seconds, individual profiles exceeding 500 MB, or UPM errors indicating profile corruption (\"Error while processing profile\" even…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=xd sourcetype=\"citrix:upm:log\" event_type=\"ProfileLoad\"\n| bin _time span=1h\n| stats avg(profile_load_time_sec) as avg_load, perc95(profile_load_time_sec) as p95_load, avg(profile_size_mb) as avg_size, count as loads by vda_host, _time\n| where p95_load > 15\n| table _time, vda_host, loads, avg_load, p95_load, avg_size\n```\n\nUnderstanding this SPL\n\n**Citrix Profile Management Load Time** — Citrix User Profile Management (UPM) loads user profiles at session logon — including registry hives, application settings, and redirected folders. Large or corrupted profiles cause logon delays that can extend login times by minutes. Profile streaming can significantly reduce load times (from 54 seconds to 20 seconds in Citrix tests), but only if properly configured. Monitoring profile load times identifies users with bloated profiles and validates that profile…\n\nDocumented **Data sources**: `index=xd` `sourcetype=\"citrix:upm:log\"` fields `user`, `profile_load_time_sec`, `profile_size_mb`, `streaming_enabled`, `error_message`, `vda_host`. **App/TA** (typical add-on context): Splunk Universal Forwarder on VDAs, Citrix UPM log collection. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: xd; **sourcetype**: citrix:upm:log. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=xd, sourcetype=\"citrix:upm:log\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by vda_host, _time** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where p95_load > 15` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Citrix Profile Management Load Time**): table _time, vda_host, loads, avg_load, p95_load, avg_size\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (profile load time trending), Bar chart (top users by profile size), Table (slow profile loads with user details).",
-  "grandmaExplanation": "We keep an eye on profile Management Load Time and raise the alarm before it drags down real work or real outages start."
+  "grandmaExplanation": "We keep an eye on profile Management Load Time and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Port Scan Detection on OT Networks' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_port_scan_detection_on_ot_networks` (UC-14.9.16), SOC dashboard panel \"Operations — Port Scan Detection on OT Networks\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.9.16 positive (Port, Scan, Detection, Networks): ingest synthetic events into `index=nozomi` sourcetype='nozomi:alert' where `count` grouped by `entity` satisfies detection threshold for 'Port Scan Detection on OT Networks'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.9.16 negative (OT Networks): ingest benign `nozomi` / `nozomi:alert` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Port Scan Detection on OT Networks'."
+  },
   "dataSources": "`sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"SCAN\")",
   "app": "`Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)",
   "spl": "index=nozomi sourcetype=\"nozomi:alert\" type_id=\"SCAN*\"\n| table _time, name, src_ip, dst_ip, zone, risk\n| sort -_time",
-  "description": "Port scanning is a reconnaissance technique used by attackers to map OT network topology and identify exploitable services. OT security platforms detect port scan events with scanner and target component identification. Port scans in OT networks are almost never legitimate and warrant immediate investigation.",
-  "value": "Port scanning is a reconnaissance technique used by attackers to map OT network topology and identify exploitable services. OT security platforms detect port scan events with scanner and target component identification. Port scans in OT networks are almost never legitimate and warrant immediate investigation.",
+  "description": "Alerts on 'Port Scan Detection on OT Networks' (UC-14.9.16) using `index=nozomi` sourcetype `nozomi:alert` by aggregating `count` grouped by `entity` over `the scheduled window` and alerting when configured threshold. Keywords: Port, Scan, Detection, Networks. Focuses on OT Networks behaviour so operations teams can triage UC-14.9.16 without ad-hoc log review.",
+  "value": "UC-14.9.16 accelerates insight into OT Networks ('Port Scan Detection on OT Networks') by tracking `activity` on `nozomi:alert` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Both platforms detect port scanning in OT networks. Alert immediately on any port scan event. Identify scanner source — is it an authorized vulnerability scanner or unknown? Correlate with network baseline. Block scanning source at network boundary if unauthorized. Escalate to SOC and OT security team.",
   "visualization": "Port scan alert log; scanner source identification; target analysis; network map overlay.",
   "cimModels": [
@@ -22,18 +28,40 @@
   "references": [
     {
       "title": "Splunkbase app 5748",
-      "url": "https://splunkbase.splunk.com/app/5748"
+      "url": "https://splunkbase.splunk.com/app/5748",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 6905",
-      "url": "https://splunkbase.splunk.com/app/6905"
+      "url": "https://splunkbase.splunk.com/app/6905",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Port scan-like traffic from misconfigured IT scanners, asset tools, or overlapping address space.",
+  "knownFalsePositives": "1. **Maintenance window on `nozomi` (UC-14.9.16)** — Planned work for 'Port Scan Detection on OT Networks' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `nozomi:alert`** — Scheduled automation elevates `src` without crossing configured threshold for UC-14.9.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `nozomi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nozomi:alert`** — First 48h baseline for UC-14.9.16 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
   ],
+  "equipmentModels": [
+    "cisco_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905).\n• Ensure the following data sources are available: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"SCAN\").\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBoth platforms detect port scanning in OT networks. Alert immediately on any port scan event. Identify scanner source — is it an authorized vulnerability scanner or unknown? Correlate with network baseline. Block scanning source at network boundary if unauthorized. Escalate to SOC and OT security team.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nozomi sourcetype=\"nozomi:alert\" type_id=\"SCAN*\"\n| table _time, name, src_ip, dst_ip, zone, risk\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Port Scan Detection on OT Networks** — Port scanning is a reconnaissance technique used by attackers to map OT network topology and identify exploitable services. OT security platforms detect port scan events with scanner and target component identification. Port scans in OT networks are almost never legitimate and warrant immediate investigation.\n\nDocumented **Data sources**: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"SCAN\"). **App/TA** (typical add-on context): `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nozomi; **sourcetype**: nozomi:alert. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nozomi, sourcetype=\"nozomi:alert\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **Port Scan Detection on OT Networks**): table _time, name, src_ip, dst_ip, zone, risk\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nRun the search for a time range that should include both routine and change activity, then compare the same assets, flows, and alerts in the Cisco Cyber Vision UI and in Nozomi Guardian or CMC, matching whichever source the event came from. Reconcile severities, counts, and key fields in both tools.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Port scan alert log; scanner source identification; target analysis; network map overlay.",
-  "grandmaExplanation": "We look for port-scan-like behavior in OT so an IT tool or bad actor poking the segment shows up with context."
+  "grandmaExplanation": "We look for port-scan-like behavior in OT so an IT tool or bad actor poking the segment shows up with context.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

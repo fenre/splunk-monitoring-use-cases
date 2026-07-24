@@ -9,24 +9,42 @@
     "Availability"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'NDP Exhaustion (NS Flood) DDoS Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ndp_exhaustion_ns_flood_ddos_detection` (UC-5.20.74), SOC dashboard panel \"Operations — NDP Exhaustion (NS Flood) DDoS Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.74 positive (NDP, Exhaustion, (NS, Flood), DDoS): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `host`, `indicator` satisfies `events` > 10, `events` > 100, or `events` > 50 for 'NDP Exhaustion (NS Flood) DDoS Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.74 negative (DDoS Detection): ingest benign `network` / `cisco:ios` events where `host`, `indicator` stays below `events` > 10, `events` > 100, or `events` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'NDP Exhaustion (NS Flood) DDoS Detection'."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=netflow` containing Neighbor Solicitation events and IPv6 traffic to non-existent hosts. NDP exhaustion (also called NDP table exhaustion or NS flooding) is an IPv6-specific denial-of-service attack with no direct IPv4 equivalent:\n\n1. **Attack mechanism.** An attacker sends packets to many non-existent IPv6 addresses within a subnet (e.g., random addresses in the target's /64). For each address, the router must create an INCOMPLETE NDP cache entry and send a Neighbor Solicitation. The NDP cache fills with INCOMPLETE entries.\n2. **Impact.** When the NDP cache is full, the router cannot resolve new legitimate addresses. Existing entries expire and cannot be renewed. All new connections through the router fail — a denial of service.\n3. **Amplification factor.** Unlike IPv4 where a /24 scan sends 254 packets, an attacker can target up to 2^64 addresses in a /64. Even at modest packet rates, the router's NDP cache fills because each target creates a cache entry.\n4. **RFC 6583 mitigation.** RFC 6583 documents this attack and recommends rate-limiting NDP solicitations, capping INCOMPLETE entries, and implementing per-interface NDP entry limits.\n5. **Destination Guard.** Cisco's Destination Guard (UC-5.20.34) blocks traffic to addresses not in the SISF binding table, preventing NDP exhaustion for unknown destinations.",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812).",
   "spl": "index=network sourcetype=\"cisco:ios\" (\"%IPV6-4-NORESOURCE\" OR \"%IPV6_ND-3-RESOLVE\" OR \"%SISF-4-PAK_DROP\" AND \"DG\") earliest=-15m\n| eval indicator=case(\n    match(_raw, \"NORESOURCE\"), \"NDP cache exhausted — cannot create new entries\",\n    match(_raw, \"RESOLVE\") AND match(_raw, \"fail\"), \"NDP resolution failure — address not on link\",\n    match(_raw, \"DG\"), \"Destination Guard blocked traffic to unknown host\",\n    1=1, \"NDP issue\")\n| stats count as events by host, indicator\n| eval severity=case(\n    match(indicator, \"exhausted\") AND events > 10, \"CRITICAL — NDP table FULL on \" . host,\n    match(indicator, \"Destination Guard\") AND events > 100, \"HIGH — significant NDP exhaustion attempt blocked by Destination Guard on \" . host,\n    events > 50, \"MEDIUM — elevated NDP failures on \" . host,\n    1=1, \"LOW\")\n| sort -events",
-  "description": "Detects NDP exhaustion denial-of-service attacks where an attacker floods a router with traffic destined for non-existent IPv6 addresses within a /64 subnet. Each non-existent destination forces the router to create an INCOMPLETE NDP cache entry. When the cache fills, the router cannot resolve any new legitimate addresses — causing a denial of service for all hosts on the subnet. This attack is unique to IPv6 (no direct IPv4 equivalent) and is documented in RFC 6583.",
-  "value": "NDP exhaustion is a trivial attack to launch (send packets to random addresses in a /64) but devastating in impact (all IPv6 connectivity through the router stops). The attack can be launched from anywhere that can route packets to the target subnet — it does not require local access. Without detection, the router simply stops forwarding IPv6 traffic with no clear indication of why. Early detection of NDP cache filling enables response before the router is completely saturated.",
+  "description": "Surfaces UC-5.20.74 — NDP, Exhaustion, (NS, Flood), DDoS — using `index=network` sourcetype `cisco:ios`, grouped by `host`, `indicator`. Outputs `count` each `the scheduled window`; alert when `events` > 10, `events` > 100, or `events` > 50. Primary focus: DDoS Detection. Purpose-built for 'NDP Exhaustion (NS Flood) DDoS Detection' in Operations workflows.",
+  "value": "Tracking `activity` via UC-5.20.74 on `cisco:ios` feeds improves response to 'NDP Exhaustion (NS Flood) DDoS Detection' and reduces operational risk and delayed incident response.",
   "implementation": "Monitor NDP cache utilisation via SNMP or syslog. Detect spikes in INCOMPLETE entries. Monitor NDP resolution failure rates. Alert on NDP cache resource exhaustion events. Correlate with Destination Guard events.",
   "visualization": "(1) Gauge: NDP cache utilisation per router. (2) Timechart: INCOMPLETE NDP entries over time. (3) Alert panel: NDP exhaustion indicators. (4) Table: top sources sending traffic to non-existent IPv6 destinations.",
   "references": [
     {
       "title": "RFC 6583 — Operational Neighbor Discovery Problems (NDP exhaustion attack documentation)",
-      "url": "https://www.rfc-editor.org/rfc/rfc6583"
+      "url": "https://www.rfc-editor.org/rfc/rfc6583",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.4 — NDP DoS mitigation)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Legitimate traffic to decommissioned hosts.** When a server is decommissioned but DNS records remain, clients continue to send traffic to its IPv6 address. Each attempt creates an INCOMPLETE NDP entry. Clean up stale DNS records.\n\n**Rapid VM provisioning/deprovisioning.** In environments where VMs are created and destroyed rapidly (CI/CD pipelines, auto-scaling), traffic to recently-destroyed VMs creates INCOMPLETE entries. This is normal churn in dynamic environments.\n\n**Network scanning tools.** Legitimate vulnerability scanners that scan IPv6 subnets will trigger NDP entries for each scanned address. Schedule scans during maintenance windows and exclude scanner sources.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.74)** — Planned work for 'NDP Exhaustion (NS Flood) DDoS Detection' shifts `count` over `span=1h` while `host`, `indicator` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `indicator` without crossing `events` > 10 for UC-5.20.74. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `indicator`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.74 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "arista",
     "cisco",

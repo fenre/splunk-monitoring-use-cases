@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Newly discovered PLC at a remote lift station, not in CMDB. UC-22.53.27 MUST surface with `inventory_status=\"unmanaged\"`.",
-    "negativeScenario": "PLC fully inventoried with owner, lifecycle status, last-seen current. UC-22.53.27 MUST record `inventory_status=\"current\"`."
+    "positiveScenario": "UC-22.53.27 positive (AWIA, Asset, Inventory, evidence, the): ingest synthetic events into `index=ot_asset` sourcetype='target_sourcetype' where `count` grouped by `pwsid`, `asset_id` satisfies -1d for 'AWIA OT / IT Asset Inventory — evidence the continuously maintained inventory covers SCADA, PLCs, HMIs, RTUs at remote sites, network infrastructure, internet-exposed services, and remote-access endpoints'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.53.27 negative (access endpoints): ingest benign `ot_asset` / `target_sourcetype` events where `pwsid`, `asset_id` stays below -1d, or exclude the test entity via `compliance_exception_register.csv`. Variant 13 confirms zero alert rows for 'AWIA OT / IT Asset Inventory — evidence the continuously maintained inventory covers SCADA, PLCs, HMIs, RTUs at remote sites, network infrastructure, internet-exposed services, and remote-access endpoints'."
   },
   "dataSources": "ServiceNow CMDB, OT visibility (Dragos / Claroty / Nozomi / Armis), network scanner (Tenable / Lansweeper), external attack-surface management.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
   "spl": "(index=ot_asset OR index=cmdb OR index=net_scan OR index=easm) earliest=-1d@d\n| stats first(asset_class) as asset_class first(hostname) as hostname first(ip) as ip last(_time) as last_seen first(owner) as owner first(lifecycle_status) as lifecycle_status first(internet_exposed) as internet_exposed first(remote_access_endpoint) as remote_access_endpoint by pwsid asset_id\n| eval inventory_record_complete = if(isnotnull(owner) AND isnotnull(lifecycle_status) AND isnotnull(asset_class), \"true\", \"false\")\n| eval inventory_status = case(\n    isnull(asset_id), \"unmanaged\",\n    isnull(owner) OR isnull(lifecycle_status), \"incomplete\",\n    (now() - last_seen) > (30 * 86400), \"unseen_30d\",\n    1=1, \"current\")\n| where inventory_status != \"current\"\n| table pwsid asset_id asset_class hostname ip last_seen owner lifecycle_status internet_exposed remote_access_endpoint inventory_record_complete inventory_status",
-  "description": "Joins OT / IT / scanner / EASM data to surface unmanaged, incomplete, or unseen assets.",
-  "value": "An incomplete inventory means an incomplete RRA, incomplete vulnerability management, and incomplete patching. AWIA Top Actions cite inventory as the gateway control.",
+  "description": "Identifies UC-22.53.27 — AWIA, Asset, Inventory, evidence, the — using `index=ot_asset` sourcetype `configured sourcetype`, grouped by `pwsid`, `asset_id`. Outputs `count` each `the scheduled window`; alert when -1d. Primary focus: access endpoints. Purpose-built for 'AWIA OT / IT Asset Inventory — evidence the continuously maintained inventory covers SCADA, PLCs, HMIs, RTUs at remote sites, network infrastructure, internet-exposed services, and remote-access endpoints' in Compliance workflows.",
+  "value": "UC-22.53.27 gives Compliance teams earlier visibility into access endpoints through UC-22.53.27 search results, lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Onboard CMDB + OT visibility + scanners + EASM. (2) Daily UC-22.53.27. (3) Archive.",
   "visualization": "(Panel 1) Inventory completeness RAG. (Panel 2) Unmanaged-asset feed.",
   "cimModels": [
@@ -46,14 +46,26 @@
   "references": [
     {
       "title": "EPA / CISA — OT/IT Asset Inventory",
-      "url": "https://www.epa.gov/waterresilience/forms/water-sector-cybersecurity"
+      "url": "https://www.epa.gov/waterresilience/forms/water-sector-cybersecurity",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CISA — Hardware and Software Inventory",
-      "url": "https://www.cisa.gov/cybersecurity-performance-goals"
+      "url": "https://www.cisa.gov/cybersecurity-performance-goals",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Air-gapped lab** — excluded.\n\n2. **Mobile asset** — expected unseen-30d during travel.\n\n**Suppression**: `awia_22_53_27_exceptions`; 30-day max.",
+  "knownFalsePositives": "1. **Authorised AWIA control testing** — Internal audit exercises 'AWIA OT / IT Asset Inventory — evidence the continuously maintained inventory covers SCADA, PLCs, HMIs, RTUs at remote sites, network infrastructure, internet-exposed services, and remote-access endpoints' (UC-22.53.27) on `pwsid` during scheduled clause AWIA-EPA-asset-inventory sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=ot_asset` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `awia_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `ot_asset` for `pwsid`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `pwsid` during normal service delivery.\n\n**Suppression mechanism:** `awia_exception_register.csv` keyed on `pwsid`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1592",
     "T1133"
@@ -89,7 +101,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.8 deployed.\n- Splunk ES, ServiceNow add-on, OT broker.\n- Indexes `index=ot_asset`, `index=cmdb`, `index=net_scan`, `index=easm`, `index=audit_evidence`.\n\n## Step 1 — Configure data collection\n\nReconcile CMDB authority with OT visibility passive discovery; surface deltas.\n\n## Step 2 — Create the search and alert\n\nDaily 13:00.\n\n```ini\n[UC-22.53.27: AWIA OT/IT Inventory]\ncron_schedule = 0 13 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.27,reg=AWIA,clause=AWIA-EPA-asset-inventory\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: drop CMDB record; UC fires.  Negative: complete; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — OT/IT Inventory`. Runbook: register, classify, owner-assign within 5 business days.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Remote lift-station discovery**: passive OT visibility may miss a remote PLC behind cellular; supplement with cellular-gateway inventory.\n- **EASM signal**: a Shodan / Censys-flagged internet-exposed water-utility HMI must be cross-referenced into the inventory and the segmentation UC (UC-22.53.22).",
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.8 deployed.\n- Splunk ES, ServiceNow add-on, OT broker.\n- Indexes `index=ot_asset`, `index=cmdb`, `index=net_scan`, `index=easm`, `index=audit_evidence`.\n\n## Step 1 — Configure data collection\n\nReconcile CMDB authority with OT visibility passive discovery; surface deltas.\n\n## Step 2 — Create the search and alert\n\nDaily 13:00.\n\n```ini\n[UC-22.53.27: AWIA OT/IT Inventory]\ncron_schedule = 0 13 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.27,reg=AWIA,clause=AWIA-EPA-asset-inventory\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: drop CMDB record; UC fires.  Negative: complete; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — OT/IT Inventory`. Runbook: register, classify, owner-assign within 5 business days.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Remote lift-station discovery**: passive OT visibility may miss a remote PLC behind cellular; supplement with cellular-gateway inventory.\n- **EASM signal**: a Shodan / Censys-flagged internet-exposed water-utility HMI must be cross-referenced into the inventory and the segmentation UC (UC-22.53.22).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).). Enable the modular input or HEC token that writes sourcetype=see SPL into ot_asset, cmdb, net_scan. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`asset_id, inventory_record_complete, inventory_status, pwsid`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "You can't protect what you don't know about. We continuously discover every computer, controller, and network device in the water plants and the offices, and ring the bell if anything appears that isn't on the official list.",
   "prerequisiteUseCases": [
     "UC-22.53.8"

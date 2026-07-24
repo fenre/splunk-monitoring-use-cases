@@ -8,32 +8,42 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Network Health Score Anomaly Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_network_health_score_anomaly_detection` (UC-5.13.20), SOC dashboard panel \"Operations — Network Health Score Anomaly Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.13.20 positive (Network, Health, Score, Anomaly, Detection): ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:networkhealth' where `health`, `baseline`, `stdev_health` grouped by `_time` satisfies `healthScore` > 0, or `stdev_health` > 0 for 'Network Health Score Anomaly Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.13.20 negative (Anomaly Detection): ingest benign `catalyst` / `cisco:dnac:networkhealth` events where `_time` stays below `healthScore` > 0, or `stdev_health` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Network Health Score Anomaly Detection'."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:networkhealth` from the `networkhealth` modular input in `TA_cisco_catalyst` (Splunkbase 7538). Same data feed as UC-5.13.16. Requires **7–30 days of historical data** for the `eventstats` baseline to be meaningful. One aggregate event per poll × ~500 bytes — lightweight even over long lookbacks.",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:networkhealth\"\n| where healthScore > 0\n| bin _time span=1h\n| stats avg(healthScore) as health by _time\n| eventstats avg(health) as baseline stdev(health) as stdev_health\n| where health < (baseline - 2*stdev_health) AND stdev_health > 0\n| eval deviation=round((baseline-health)/stdev_health,1)\n| sort -deviation",
-  "description": "Applies statistical anomaly detection to the aggregate network health score, flagging hours where the score dropped significantly below its own historical baseline — catching degradation that fixed-threshold alerts (UC-5.13.18) miss because the network normally runs at 92 and dropped to 78, which is above the threshold of 70 but deeply anomalous for *this* network.",
-  "value": "Fixed thresholds can't account for networks that naturally run at different health levels. A hospital campus that normally scores 95 and drops to 80 is in serious trouble — but 80 is 'healthy' by fleet standards. A retail chain that normally scores 78 and drops to 65 is also anomalous — but from a completely different baseline. This UC catches both by computing per-network baselines from history. It also catches *gradual* degradation that never crosses the fixed threshold: a network slowly declining from 92 to 75 over 6 weeks won't trigger UC-5.13.18's threshold of 70, but the 2σ anomaly detection will flag the hours at 75 as unusual compared to the 92 baseline.",
+  "description": "Alerts on 'Network Health Score Anomaly Detection' patterns (UC-5.13.20) sourced from `index=catalyst` sourcetype `cisco:dnac:networkhealth`. Threshold bundle: `healthScore` > 0, or `stdev_health` > 0; aggregation grain: `_time`; metrics: `health`, `baseline`, `stdev_health`. Watch terms: Network, Health, Score, Anomaly, Detection.",
+  "value": "UC-5.13.20 gives Operations teams earlier visibility into Anomaly Detection through `cisco:dnac:networkhealth` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Requires UC-5.13.16 and UC-5.13.17 with at least 7 days of retained data. Schedule as a twice-daily report (not real-time alert) because the statistical baseline shifts with each search window. Use 14-day lookback for stable baselines.",
   "visualization": "(1) Table: anomalous hours with `_time`, `health`, `baseline`, `stdev_health`, `deviation` — sorted by deviation descending. (2) Line chart: `health` over the search window with shaded band for `baseline ± 2σ`. Hours below the band are the anomalies. (3) Single value: count of anomalous hours in the last 7 days. (4) Scatter: `baseline` (x) vs `health` (y) for each hour — points below the diagonal are degraded.",
   "references": [
     {
       "title": "Cisco Catalyst Add-on for Splunk (Splunkbase 7538)",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Intent API — Network Health endpoint",
-      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-overall-network-health"
+      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-overall-network-health",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Integration Guide (this repo)",
-      "url": "docs/guides/catalyst-center.md"
+      "url": "docs/guides/catalyst-center.md",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk eventstats command — statistical overlays",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eventstats"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eventstats",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Planned maintenance causing health score to deviate from the statistical baseline.** During firmware upgrades or network changes, the health score drops below the normal operating range, triggering a statistical anomaly. Distinguish by correlating with `index=catalyst sourcetype=\"cisco:dnac:audit:logs\"` for planned change activity. Suppress by excluding known maintenance windows from the baseline computation: use `| where NOT (maintenance_flag=1)` before computing `eventstats`.\n\n**Seasonal network usage pattern creating periodic deviations.** Network health may follow predictable patterns (lower during business hours, higher on weekends) that appear anomalous compared to a flat 7-day baseline. Distinguish by checking whether the same pattern occurs at the same time in previous weeks. Suppress by using a time-aware baseline: compute separate baselines for business hours and off-hours, or use day-of-week segmented statistics.\n\n**Assurance recomputation introducing brief outliers that inflate standard deviation.** A single poll returning `healthScore=0` during recomputation will widen the standard deviation and may cause subsequent normal scores to appear anomalous. Distinguish by checking whether the outlier event has `healthScore=0` exactly (characteristic of API recomputation). Suppress by adding `| where healthScore>0` before computing the baseline (already in the default SPL).\n\n**Major inventory change shifting the health score distribution.** Adding a large batch of devices (e.g., a new building coming online) changes the health score composition. The statistical baseline computed from prior data becomes invalid. Distinguish by tracking `totalCount` alongside `healthScore` — if the count changed significantly, the baseline needs resetting. Suppress by requiring a minimum of 48 hours of data after a significant inventory change before re-enabling anomaly detection.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst` (UC-5.13.20)** — Planned work for 'Network Health Score Anomaly Detection' shifts `health`, `baseline`, `stdev_health` over `span=1h` while `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `cisco:dnac:networkhealth`** — Scheduled automation elevates `deviation` without crossing `healthScore` > 0 for UC-5.13.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:networkhealth`** — First 48h baseline for UC-5.13.20 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

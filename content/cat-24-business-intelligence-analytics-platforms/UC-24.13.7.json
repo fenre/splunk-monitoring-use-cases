@@ -9,27 +9,55 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "All cat-24 sourcetypes summarised into a `bi_platform_summary` index via scheduled saved searches.",
-  "app": "Cross-platform rollup built from the cat-24 sourcetypes already ingested (BI tools, orchestration, ELT, data quality, governance) via saved-search summary indexing.",
+  "exclusions": "Covers the detection logic documented for 'Cross-Platform Extract-and-Refresh SLA Scorecard' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cross_platform_extract_and_refresh_sla_scorecard` (UC-24.13.7), SOC dashboard panel \"Operations — Cross-Platform Extract-and-Refresh SLA Scorecard\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.13.7 positive (Cross, Platform, Extract, and, Refresh): ingest synthetic events into `index=bi_platform_summary` sourcetype='target_sourcetype' where `on_time`, `total` grouped by `platform` satisfies detection threshold for 'Cross-Platform Extract-and-Refresh SLA Scorecard'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.13.7 negative (SLA Scorecard): ingest benign `bi_platform_summary` / `target_sourcetype` events where `platform` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Cross-Platform Extract-and-Refresh SLA Scorecard'."
+  },
+  "dataSources": "All cat-24 sourcetypes summarised into a `bi_platform_summary` index via scheduled saved searches. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cross-platform rollup built from the cat-24 sourcetypes already ingested (BI tools, orchestration, ELT, data quality, governance) via saved-search summary indexing. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi_platform_summary metric=\"refresh_sla\"\n| stats sum(on_time) as on_time, sum(total) as total by platform\n| eval sla_pct=round(100*on_time/total,1)\n| sort sla_pct",
-  "description": "Combines extract, dataset, reload and pipeline refresh outcomes from Tableau, Power BI, Qlik, dbt and orchestration into one on-time SLA percentage per platform.",
-  "value": "Executives want one number for 'is our data on time?'; a cross-platform SLA scorecard replaces a dozen tool-specific dashboards.",
+  "description": "Monitors UC-24.13.7 — Cross, Platform, Extract, and, Refresh — using `index=bi_platform_summary` sourcetype `configured sourcetype`, grouped by `platform`. Outputs `on_time`, `total` each `the scheduled window`; alert when configured threshold. Primary focus: SLA Scorecard. Purpose-built for 'Cross-Platform Extract-and-Refresh SLA Scorecard' in Operations workflows.",
+  "value": "Tracking `on_time`, `total` via UC-24.13.7 on UC-24.13.7 search results improves response to 'Cross-Platform Extract-and-Refresh SLA Scorecard' and reduces operational risk and delayed incident response.",
   "implementation": "Summarise refresh/pipeline outcomes into the rollup index; schedule daily and publish the scorecard to leadership.",
   "visualization": "Scorecard of platform by on-time SLA, trend line.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk — Use summary indexing for increased search efficiency",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesummaryindexing"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesummaryindexing",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk — About the Common Information Model",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Overview"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Overview",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We turn all the different data-refresh checks into one simple on-time score for each tool."
+  "knownFalsePositives": "1. **Maintenance window on `bi_platform_summary` (UC-24.13.7)** — Planned work for 'Cross-Platform Extract-and-Refresh SLA Scorecard' shifts `on_time`, `total` over `span=1h` while `platform` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `sla_pct` without crossing configured threshold for UC-24.13.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `platform`** — Health checks in `bi_platform_summary` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-24.13.7 on `platform` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `platform`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cross-platform rollup built from the cat-24 sourcetypes already ingested (BI tools, orchestration, ELT, data quality, governance) via saved-search summary indexing. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into bi_platform_summary. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`platform`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We turn all the different data-refresh checks into one simple on-time score for each tool.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

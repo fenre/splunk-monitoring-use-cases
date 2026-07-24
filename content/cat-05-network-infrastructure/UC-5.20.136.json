@@ -8,24 +8,42 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=zeek:conn` — Detects abuse of ICMPv6 Redirect messages (type 137). Redirect messages tell a host to use a different next-hop for a specific destination. An attacker can forge redirects to perform man-in-the-middle attacks, redirecting a victim's traffic through the attacker's machine.",
-  "app": "Splunk Enterprise Security",
+  "exclusions": "Covers the detection logic documented for 'IPv6 NDP Redirect Message Abuse Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_ndp_redirect_message_abuse_detection` (UC-5.20.136), SOC dashboard panel \"Operations — IPv6 NDP Redirect Message Abuse Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.136 positive (IPv6, NDP, Redirect, Message, Abuse): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `unique_targets` grouped by `host`, `redirect_source` satisfies `redirects` > 50, `unique_targets` > 10, or `redirects` > 10 for 'IPv6 NDP Redirect Message Abuse Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.136 negative (Abuse Detection): ingest benign `network` / `cisco:ios` events where `host`, `redirect_source` stays below `redirects` > 50, `unique_targets` > 10, or `redirects` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'IPv6 NDP Redirect Message Abuse Detection'."
+  },
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=zeek:conn` — Detects abuse of ICMPv6 Redirect messages (type 137). Redirect messages tell a host to use a different next-hop for a specific destination. An attacker can forge redirects to perform man-in-the-middle attacks, redirecting a victim's traffic through the attacker's machine. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"zeek:conn\" OR sourcetype=\"suricata:alert\") earliest=-24h\n  (\"redirect\" AND (\"ICMPv6\" OR \"icmpv6\" OR \"type.*137\"))\n| rex field=_raw \"(?:target|new.?hop)\\s*(?<redirect_target>[0-9a-fA-F:]+)\"\n| rex field=_raw \"(?:src|from)\\s*(?<redirect_source>[0-9a-fA-F:]+)\"\n| stats count as redirects dc(redirect_target) as unique_targets by host, redirect_source\n| eval severity=case(\n    redirects > 50, \"HIGH — excessive ICMPv6 redirects from \" . redirect_source . \" — possible MITM\",\n    unique_targets > 10, \"HIGH — redirects for many targets from single source — systematic attack\",\n    redirects > 10, \"MEDIUM — elevated redirect rate from \" . redirect_source,\n    1=1, null())\n| where isnotnull(severity)\n| sort -redirects",
-  "description": "Detects abuse of ICMPv6 Redirect messages (type 137) used for man-in-the-middle attacks. An attacker forges redirect messages to reroute a victim's traffic through the attacker's machine. Legitimate redirects are rare in modern networks — most can be disabled without impact.",
-  "value": "ICMPv6 redirects are a classic MITM vector. Because redirects change a host's routing table entry for a specific destination, they allow surgical traffic interception. Unlike RA spoofing (which affects all traffic), redirect attacks target specific flows. Most enterprise networks should disable redirect acceptance on hosts and filter redirects at switches.",
+  "description": "Monitors UC-5.20.136 — IPv6, NDP, Redirect, Message, Abuse — using `index=network` sourcetype `cisco:ios`, grouped by `host`, `redirect_source`. Outputs `unique_targets` each `the scheduled window`; alert when `redirects` > 50, `unique_targets` > 10, or `redirects` > 10. Primary focus: Abuse Detection. Purpose-built for 'IPv6 NDP Redirect Message Abuse Detection' in Operations workflows.",
+  "value": "Alerting on IPv6, NDP, Redirect, Message, Abuse through UC-5.20.136 reduces operational risk and delayed incident response by surfacing `unique_targets` early.",
   "implementation": "Monitor for ICMPv6 type 137 messages. Alert on high redirect rates or redirects from unauthorized sources.",
   "visualization": "(1) Table: redirect sources and targets. (2) Single-value: redirect count. (3) Timeline: redirect events.",
   "references": [
     {
       "title": "RFC 4861 — Neighbor Discovery for IPv6 (§8 — Redirect)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4861#section-8"
+      "url": "https://www.rfc-editor.org/rfc/rfc4861#section-8",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 4890 — Recommendations for Filtering ICMPv6 Messages (redirect is MAY DROP)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4890"
+      "url": "https://www.rfc-editor.org/rfc/rfc4890",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Router redirects.** Legitimate redirects from default gateways telling hosts about a more optimal next-hop. These are valid but rare in well-designed networks.\n\n**Multiple routers on segment.** When multiple routers serve a segment, the default gateway may redirect traffic to the optimal router. This is legitimate.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.136)** — Planned work for 'IPv6 NDP Redirect Message Abuse Detection' shifts `unique_targets` over `span=1h` while `host`, `redirect_source` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `cisco:ios`** — Scheduled automation elevates `redirect_source` without crossing `redirects` > 50 for UC-5.20.136. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `redirect_source`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.136 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "suricata",
@@ -44,7 +62,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Network sensor or router logging for ICMPv6.\n\nStep 1 — Disable redirect acceptance on hosts:\nLinux: `sysctl -w net.ipv6.conf.all.accept_redirects=0`\nWindows: `netsh interface ipv6 set global icmpredirects=disabled`\n\nStep 2 — Monitor for redirect messages on the network.\n\nStep 3 — Validate: Attempt to send a forged redirect. Verify detection fires.\n\nStep 4 — Operationalize\n**Dashboard:** ICMPv6 redirect monitoring. **Alert:** Redirects from unauthorized source — high.\n\nStep 5 — Troubleshooting\n• Disable redirect acceptance on all endpoints to eliminate the attack vector entirely.",
+  "detailedImplementation": "Prerequisites\n• Network sensor or router logging for ICMPv6.\n\nStep 1 — Disable redirect acceptance on hosts:\nLinux: `sysctl -w net.ipv6.conf.all.accept_redirects=0`\nWindows: `netsh interface ipv6 set global icmpredirects=disabled`\n\nStep 2 — Monitor for redirect messages on the network.\n\nStep 3 — Validate: Attempt to send a forged redirect. Verify detection fires.\n\nStep 4 — Operationalize\n**Dashboard:** ICMPv6 redirect monitoring. **Alert:** Redirects from unauthorized source — high.\n\nStep 5 — Troubleshooting\n• Disable redirect acceptance on all endpoints to eliminate the attack vector entirely.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ios, zeek:conn, suricata:alert into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, redirect_source, redirects, severity`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Normally, the post office tells you 'there's a closer mailbox for that destination.' But a bad actor can forge these redirect notices to make your letters go through their hands first. We watch for suspicious redirect notices, especially from people who aren't real post office workers.",
   "prerequisiteUseCases": [
     "UC-5.20.21",

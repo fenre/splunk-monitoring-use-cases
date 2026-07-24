@@ -9,28 +9,42 @@
     "Configuration"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'MLD Snooping Health and Group Membership Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_mld_snooping_health_and_group_membership_monitor` (UC-5.20.27), SOC dashboard panel \"Operations — MLD Snooping Health and Group Membership Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.27 positive (MLD, Snooping, Health, and, Group): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `unique_groups` grouped by `host`, `vlan` satisfies detection threshold for 'MLD Snooping Health and Group Membership Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.27 negative (Membership Monitoring): ingest benign `network` / `cisco:ios` events where `host`, `vlan` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'MLD Snooping Health and Group Membership Monitoring'."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=syslog` containing MLD snooping state and group membership information. MLD (Multicast Listener Discovery, RFC 3810 for MLDv2) is the IPv6 equivalent of IGMP — it manages multicast group membership on Layer 2 switches. Switches use MLD Snooping to learn which ports have joined specific multicast groups and restrict multicast traffic to only those ports.\n\nCritically, MLD Snooping must be functioning correctly for NDP to work reliably. NDP uses several well-known multicast groups:\n- ff02::1 — All Nodes (Router Advertisements)\n- ff02::2 — All Routers (Router Solicitations)\n- ff02::1:ff00:0/104 — Solicited-Node Multicast (Neighbor Solicitations)\n\nIf MLD Snooping is misconfigured or broken, these multicast groups may not be properly forwarded, causing NDP failures, address resolution failures, and intermittent connectivity.\n\nCisco: `show ipv6 mld snooping` and `show ipv6 mld snooping groups` provide current state. Syslog events for MLD state changes appear as `%MLD-6-GROUP_JOIN`, `%MLD-6-GROUP_LEAVE`.",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812). SC4SNMP for MLD snooping table polling.",
   "spl": "index=network sourcetype=\"cisco:ios\" (\"MLD\" AND (\"GROUP_JOIN\" OR \"GROUP_LEAVE\" OR \"SNOOPING\"))\n| rex field=_raw \"group\\s+(?<mcast_group>[0-9a-fA-F:]+)\"\n| rex field=_raw \"(?:vlan|VLAN)\\s*(?<vlan>\\d+)\"\n| stats count as events dc(mcast_group) as unique_groups values(mcast_group) as groups by host, vlan\n| eval has_ndp_groups=if(match(mvjoin(groups, \",\"), \"ff02::1|ff02::2|ff02::1:ff\"), \"YES\", \"NO\")\n| table host, vlan, events, unique_groups, has_ndp_groups",
-  "description": "Monitors MLD (Multicast Listener Discovery) Snooping health on Layer 2 switches to ensure that IPv6 multicast — and critically, NDP multicast groups — are properly forwarded to all ports that need them. MLD is the IPv6 equivalent of IGMP, and MLD Snooping is the IPv6 equivalent of IGMP Snooping. If MLD Snooping is disabled or misconfigured, two failure modes occur: (1) All IPv6 multicast is flooded to all ports (performance waste on large VLANs), or (2) NDP-critical multicast groups (ff02::1 for Router Advertisements, ff02::1:ffXX:XXXX for Solicited-Node multicast used by Neighbor Solicitation) are not forwarded to the correct ports, breaking NDP and causing IPv6 connectivity failures. This use case monitors MLD Snooping state, group membership, and the presence of NDP-critical groups on each VLAN.",
-  "value": "Broken MLD Snooping is one of the most difficult IPv6 problems to diagnose because it manifests as intermittent NDP failures. A host may be unable to resolve the default gateway (because ff02::2 Router Solicitation multicast is not forwarded) or unable to resolve specific neighbors (because Solicited-Node Multicast is not forwarded to the target's port). The symptoms look like random connectivity drops that clear themselves when the MLD Snooping state is refreshed — leading to 'works sometimes, fails sometimes' trouble tickets. Monitoring MLD Snooping health ensures that the multicast foundation required by IPv6 NDP is always functioning correctly.",
+  "description": "Detects UC-5.20.27 for MLD, Snooping, Health, and, Group over `index=network` sourcetype `cisco:ios` with thresholds configured threshold. Groups `unique_groups` by `host`, `vlan` each `the scheduled window`. Centered on Membership Monitoring indicators. Supports repeatable operations triage for 'MLD Snooping Health and Group Membership Monitoring'.",
+  "value": "For 'MLD Snooping Health and Group Membership Monitoring', UC-5.20.27 converts `unique_groups` on `cisco:ios` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Poll MLD Snooping status and group membership from switches via CLI or SNMP. Verify that NDP-critical multicast groups (ff02::1, ff02::2, ff02::1:ff00:0/104) are present in the snooping table for each VLAN. Alert on VLANs where MLD Snooping is disabled or where NDP-critical groups are missing. Track group membership churn over time.",
   "visualization": "(1) Table: per-VLAN MLD Snooping status with NDP group presence. (2) Single-value: VLANs without NDP-critical multicast groups. (3) Timechart: MLD group join/leave events over time — high churn may indicate instability. (4) Dashboard: MLD Snooping coverage across the switch fleet.",
   "references": [
     {
       "title": "RFC 3810 — Multicast Listener Discovery Version 2 (MLDv2) for IPv6",
-      "url": "https://www.rfc-editor.org/rfc/rfc3810"
+      "url": "https://www.rfc-editor.org/rfc/rfc3810",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 4861 — Neighbor Discovery for IP version 6 (§7 — Multicast address requirements for NDP)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4861"
+      "url": "https://www.rfc-editor.org/rfc/rfc4861",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.5 — MLD and multicast security)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**MLD Snooping intentionally disabled.** Some networks disable MLD Snooping on specific VLANs for simplicity or compatibility. In this case, all IPv6 multicast is flooded to all ports — NDP works (because the multicast reaches everyone) but bandwidth is wasted. This is a design decision, not a failure.\n\n**Solicited-Node Multicast groups are transient.** Each IPv6 address generates a corresponding Solicited-Node Multicast group (ff02::1:ffXX:XXXX). Groups appear and disappear as hosts join and leave the VLAN. The NDP-critical check should focus on ff02::1 (always present) and ff02::2 (present when routers are on the VLAN).\n\n**MLD Querier election.** MLD requires a querier (typically the router) to periodically send MLD Queries. If the router fails, MLD membership may time out and groups disappear. This is a real problem (not a false positive) but may be transient during router failovers.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.27)** — Planned work for 'MLD Snooping Health and Group Membership Monitoring' shifts `unique_groups` over `span=1h` while `host`, `vlan` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `cisco:ios`** — Scheduled automation elevates `vlan` without crossing configured threshold for UC-5.20.27. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `vlan`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.27 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "arista",
     "cisco",

@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "ES notable events (detection time, response time, closure time)",
-  "app": "Splunk ES",
+  "exclusions": "Covers the detection logic documented for 'MTTD and MTTR Tracking' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_mttd_and_mttr_tracking` (UC-10.7.3), SOC dashboard panel \"Security Infra — MTTD and MTTR Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.7.3 positive (MTTD, and, MTTR, Tracking): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `avg_mttd`, `avg_mttr` grouped by `entity` satisfies detection threshold for 'MTTD and MTTR Tracking'. Validate macro `notable`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.7.3 negative (MTTR Tracking): ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 1 confirms zero alert rows for 'MTTD and MTTR Tracking'."
+  },
+  "dataSources": "ES notable events (detection time, response time, closure time) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk ES — Universal Forwarder (Splunkbase 617)",
   "spl": "`notable` status=\"Closed\"\n| eval mttd_hours=round((detection_time-event_time)/3600,1)\n| eval mttr_hours=round((closure_time-detection_time)/3600,1)\n| stats avg(mttd_hours) as avg_mttd, avg(mttr_hours) as avg_mttr, perc95(mttr_hours) as p95_mttr",
-  "description": "MTTD and MTTR are the primary metrics for SOC effectiveness. Tracking drives process improvement and justifies investment.",
-  "value": "MTTD and MTTR are the primary metrics for SOC effectiveness. Tracking drives process improvement and justifies investment.",
+  "description": "Monitors MTTR Tracking activity in UC-10.7.3 ('MTTD and MTTR Tracking') from `index=target_index` sourcetype `configured sourcetype`. Rolls up `avg_mttd`, `avg_mttr` by `entity` across `the scheduled window` and pages when configured threshold. Uses macro `notable`. Security Infra operators treat UC-10.7.3 as the canonical signal.",
+  "value": "Operators running UC-10.7.3 on macro `notable` shorten triage for MTTR Tracking tied to 'MTTD and MTTR Tracking', lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Ensure ES workflows capture detection, triage, and resolution timestamps. Calculate MTTD (event to detection) and MTTR (detection to resolution). Track by severity, type, and analyst. Report weekly/monthly to leadership.",
   "visualization": "Single value (avg MTTD/MTTR), Line chart (MTTD/MTTR trends), Bar chart (by incident type), Gauge (vs target).",
   "cimModels": [
@@ -22,10 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Metric steps during major incidents, postmortems, and automation rollouts; exclude scheduled drills when benchmarking.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ES.\n• Ensure the following data sources are available: ES notable events (detection time, response time, closure time).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnsure ES workflows capture detection, triage, and resolution timestamps. Calculate MTTD (event to detection) and MTTR (detection to resolution). Track by severity, type, and analyst. Report weekly/monthly to leadership.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n`notable` status=\"Closed\"\n| eval mttd_hours=round((detection_time-event_time)/3600,1)\n| eval mttr_hours=round((closure_time-detection_time)/3600,1)\n| stats avg(mttd_hours) as avg_mttd, avg(mttr_hours) as avg_mttr, perc95(mttr_hours) as p95_mttr\n```\n\nUnderstanding this SPL\n\n**MTTD and MTTR Tracking** — MTTD and MTTR are the primary metrics for SOC effectiveness. Tracking drives process improvement and justifies investment.\n\nDocumented **Data sources**: ES notable events (detection time, response time, closure time). **App/TA** (typical add-on context): Splunk ES. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Invokes macro `notable` — in Search, use the UI or expand to inspect the underlying SPL.\n• `eval` defines or adjusts **mttd_hours** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **mttr_hours** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n\n\nStep 3 — Validate\nUse notables with time-to-triage and time-to-resolve fields (or your SIEM equivalents) and cross-check a sample in the ES Incident Review queue. Compare metric swings to process changes, staffing changes, and major incidents.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (avg MTTD/MTTR), Line chart (MTTD/MTTR trends), Bar chart (by incident type), Gauge (vs target).",
-  "grandmaExplanation": "We use this for MTTD and MTTR Tracking so leadership can see trends and the SOC can see workload and quality over time."
+  "knownFalsePositives": "1. **Active major incident triage** — Analysts leave notables open while pivoting on parent campaign for 'MTTD and MTTR Tracking'. Check open MAJ ticket and `index=risk` contributions.\n\n2. **Correlation rule tuning** — Recent Content Management edit recategorises urgency. Compare `lastModified` on correlation search.\n\n3. **Risk-Based Alerting aggregation** — Individual rule fires consolidated into informational notables; per-rule count drops while risk score remains elevated.\n\n4. **Holiday on-call gap** — Valid aged notables during staffing gap; escalate paging rather than suppress rule globally.\n\n**Suppression mechanism:** ES Notable Event Suppression or `soc_exception_register.csv` keyed on `rule_name`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ES.\n• Ensure the following data sources are available: ES notable events (detection time, response time, closure time).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnsure ES workflows capture detection, triage, and resolution timestamps. Calculate MTTD (event to detection) and MTTR (detection to resolution). Track by severity, type, and analyst. Report weekly/monthly to leadership.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n`notable` status=\"Closed\"\n| eval mttd_hours=round((detection_time-event_time)/3600,1)\n| eval mttr_hours=round((closure_time-detection_time)/3600,1)\n| stats avg(mttd_hours) as avg_mttd, avg(mttr_hours) as avg_mttr, perc95(mttr_hours) as p95_mttr\n```\n\nUnderstanding this SPL\n\n**MTTD and MTTR Tracking** — MTTD and MTTR are the primary metrics for SOC effectiveness. Tracking drives process improvement and justifies investment.\n\nDocumented **Data sources**: ES notable events (detection time, response time, closure time). **App/TA** (typical add-on context): Splunk ES. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Invokes macro `notable` — in Search, use the UI or expand to inspect the underlying SPL.\n• `eval` defines or adjusts **mttd_hours** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **mttr_hours** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n\n\nStep 3 — Validate\nUse notables with time-to-triage and time-to-resolve fields (or your SIEM equivalents) and cross-check a sample in the ES Incident Review queue. Compare metric swings to process changes, staffing changes, and major incidents.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (avg MTTD/MTTR), Line chart (MTTD/MTTR trends), Bar chart (by incident type), Gauge (vs target).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk ES — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this for MTTD and MTTR Tracking so leadership can see trends and the SOC can see workload and quality over time.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

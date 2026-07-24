@@ -8,21 +8,43 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Warm Spare Failover and Appliance Redundancy (Meraki MX)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_warm_spare_failover_and_appliance_redundancy_mer` (UC-5.2.36), SOC dashboard panel \"Operations — Warm Spare Failover and Appliance Redundancy (Meraki MX)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.2.36 positive (Warm, Spare, Failover, and, Appliance): ingest synthetic events into `index=meraki` sourcetype='meraki' where `values` grouped by `host`, `scope.devices{}.serial`, `network.name`, `]` satisfies `ha_event_count` > 0 for 'Warm Spare Failover and Appliance Redundancy (Meraki MX)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.2.36 negative ((Meraki MX)): ingest benign `meraki` / `meraki` events where `host`, `scope.devices{}.serial`, `network.name`, `]` stays below `ha_event_count` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Warm Spare Failover and Appliance Redundancy (Meraki MX)'."
+  },
   "dataSources": "SC4S Meraki vendor pack (sourcetype=meraki) receiving MX warm-spare HA events as type=events, plus Splunk_TA_cisco_meraki Assurance Alerts input for HA-related Dashboard alerts.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA).",
   "spl": "index=meraki sourcetype=\"meraki\" type=events\n    (\"warm spare\" OR \"warm-spare\" OR \"HA\" OR \"redundancy\"\n     OR \"primary\" OR \"spare\" OR \"vrrp\")\n    earliest=-7d\n| rex \"(?<role>primary|spare|active|standby)\"\n| stats count as ha_event_count,\n        values(role) as roles_seen\n         by host\n| where ha_event_count > 0\n| append [\n    search index=meraki sourcetype=\"meraki:assurancealerts\" deviceType=\"MX\"\n        (title=\"*HA*\" OR title=\"*spare*\" OR title=\"*primary*\") earliest=-7d\n    | stats values(title) as ha_alerts, count by scope.devices{}.serial, network.name\n  ]",
-  "description": "Ensures warm spare failover mechanism is operational and redundancy is maintained.",
-  "value": "NOC teams monitor Meraki MX warm spare failover events and redundancy status to ensure appliance-level high availability and detect loss of backup protection.",
+  "description": "Surfaces UC-5.2.36 for Warm, Spare, Failover, and, Appliance over `index=meraki` sourcetype `meraki` with thresholds `ha_event_count` > 0. Groups `values` by `host`, `scope.devices{}.serial`, `network.name`, `]` each `the scheduled window`. Centered on (Meraki MX) indicators. Supports repeatable operations triage for 'Warm Spare Failover and Appliance Redundancy (Meraki MX)'.",
+  "value": "For 'Warm Spare Failover and Appliance Redundancy (Meraki MX)', UC-5.2.36 converts `activity` on `meraki` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "1. Configure SC4S for MX syslog. 2. Warm-spare role transitions are emitted as type=events with role keywords. 3. Enable the Assurance Alerts input for Dashboard-side HA alerts (warm-spare unreachable, primary failed, etc.). 4. Trigger paging-grade alerts on every HA role change — these are real failover incidents.",
   "visualization": "HA status dashboard; failover timeline; redundancy health gauge.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Rehearsed failovers, firmware rollouts, and power tests create warm-standby messages you already expect.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.2.36)** — Planned work for 'Warm Spare Failover and Appliance Redundancy (Meraki MX)' shifts `values` over `span=1h` while `host`, `scope.devices{}.serial`, `network.name`, `]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `meraki`** — Scheduled automation elevates `scope.devices{}.serial` without crossing `ha_event_count` > 0 for UC-5.2.36. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `scope.devices{}.serial`, `network.name`, `]`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki`** — First 48h baseline for UC-5.2.36 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
@@ -30,6 +52,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA)..\n• Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving MX warm-spare HA events as type=events, plus Splunk_TA_cisco_meraki Assurance Alerts input for HA-related Dashboard alerts..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n1. Configure SC4S for MX syslog. 2. Warm-spare role transitions are emitted as type=events with role keywords. 3. Enable the Assurance Alerts input for Dashboard-side HA alerts (warm-spare unreachable, primary failed, etc.). 4. Trigger paging-grade alerts on every HA role change — these are real failover incidents.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki\" type=events\n    (\"warm spare\" OR \"warm-spare\" OR \"HA\" OR \"redundancy\"\n     OR \"primary\" OR \"spare\" OR \"vrrp\")\n    earliest=-7d\n| rex \"(?<role>primary|spare|active|standby)\"\n| stats count as ha_event_count,\n        values(role) as roles_seen\n         by host\n| where ha_event_count > 0\n| append [\n    search index=meraki sourcetype=\"meraki:assurancealerts\" deviceType=\"MX\"\n        (title=\"*HA*\" OR title=\"*spare*\" OR title=\"*primary*\") earliest=-7d\n    | stats values(title) as ha_alerts, count by scope.devices{}.serial, network.name\n  ]\n```\n\nUnderstanding this SPL\n\n**Warm Spare Failover and Appliance Redundancy (Meraki MX)** — NOC teams monitor Meraki MX warm spare failover events and redundancy status to ensure appliance-level high availability and detect loss of backup protection.\n\nDocumented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving MX warm-spare HA events as type=events, plus Splunk_TA_cisco_meraki Assurance Alerts input for HA-related Dashboard alerts. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where ha_event_count > 0` — typically the threshold or rule expression for this monitoring goal.\n• Appends rows from a subsearch with `append`.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: HA status dashboard; failover timeline; redundancy health gauge.",
-  "grandmaExplanation": "We catch warm-spare handovers so a spare box taking over is something you know about, not a mystery outage after the fact."
+  "grandmaExplanation": "We catch warm-spare handovers so a spare box taking over is something you know about, not a mystery outage after the fact.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

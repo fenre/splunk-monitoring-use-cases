@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=aws:cloudwatch:guardduty (GuardDuty; often via EventBridge) (GuardDuty; often via EventBridge) (GuardDuty; often via EventBridge) (GuardDuty; often via EventBridge) (GuardDuty; often via EventBridge)`",
-  "app": "`Splunk_TA_aws`",
+  "exclusions": "Covers the detection logic documented for 'GuardDuty Finding Ingestion' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_guardduty_finding_ingestion` (UC-4.1.8), SOC dashboard panel \"Operations — GuardDuty Finding Ingestion\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-4.1.8 positive (GuardDuty, Finding, Ingestion): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch:guardduty' where `count` grouped by `entity` satisfies `severity` >= 7 for 'GuardDuty Finding Ingestion'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.8 negative (Finding Ingestion): ingest benign `aws` / `aws:cloudwatch:guardduty` events where `entity` stays below `severity` >= 7, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'GuardDuty Finding Ingestion'."
+  },
+  "dataSources": "`sourcetype=aws:cloudwatch:guardduty (GuardDuty; often via EventBridge) (GuardDuty; often via EventBridge) (GuardDuty; often via EventBridge) (GuardDuty; often via EventBridge) (GuardDuty; often via EventBridge)` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch:guardduty\"\n| spath output=severity path=detail.severity\n| spath output=finding_type path=detail.type\n| where severity >= 7\n| table _time finding_type severity detail.title detail.description\n| sort -severity",
-  "description": "GuardDuty provides ML-powered threat detection for AWS accounts. Centralizing findings in Splunk enables correlation with other security data.",
-  "value": "GuardDuty provides ML-powered threat detection for AWS accounts. Centralizing findings in Splunk enables correlation with other security data.",
+  "description": "Surfaces UC-4.1.8 — GuardDuty, Finding, Ingestion — using `index=aws` sourcetype `aws:cloudwatch:guardduty`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `severity` >= 7. Primary focus: Finding Ingestion. Purpose-built for 'GuardDuty Finding Ingestion' in Operations workflows.",
+  "value": "UC-4.1.8 gives Operations teams earlier visibility into Finding Ingestion through `aws:cloudwatch:guardduty` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Enable GuardDuty in all regions. Configure CloudWatch Events rule to forward findings to an SNS topic or S3. Ingest via Splunk_TA_aws. Alert on High/Critical findings (severity ≥7).",
   "visualization": "Table by severity, Bar chart (finding types), Trend line (findings over time), Single value.",
   "cimModels": [
@@ -24,10 +30,26 @@
   "references": [
     {
       "title": "Splunk_TA_aws",
-      "url": "https://splunkbase.splunk.com/app/1876"
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Intrusion_Detection",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Alerts",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Benign port scans, red-team, authorized network scanners, and new accounts/regions before suppressions and baselines are tuned.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.8)** — Planned work for 'GuardDuty Finding Ingestion' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch:guardduty`** — Scheduled automation elevates `src` without crossing `severity` >= 7 for UC-4.1.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch:guardduty`** — First 48h baseline for UC-4.1.8 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1580",
     "T1526"
@@ -36,6 +58,16 @@
     "aws",
     "m365"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudwatch:guardduty`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable GuardDuty in all regions. Configure CloudWatch Events rule to forward findings to an SNS topic or S3. Ingest via Splunk_TA_aws. Alert on High/Critical findings (severity ≥7).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch:guardduty\"\n| spath output=severity path=detail.severity\n| spath output=finding_type path=detail.type\n| where severity >= 7\n| table _time finding_type severity detail.title detail.description\n| sort -severity\n```\n\nUnderstanding this SPL\n\n**GuardDuty Finding Ingestion** — GuardDuty provides ML-powered threat detection for AWS accounts. Centralizing findings in Splunk enables correlation with other security data.\n\nDocumented **Data sources**: `sourcetype=aws:cloudwatch:guardduty`. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch:guardduty. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch:guardduty\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts structured paths (JSON/XML) with `spath`.\n• Extracts structured paths (JSON/XML) with `spath`.\n• Filters the current rows with `where severity >= 7` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **GuardDuty Finding Ingestion**): table _time finding_type severity detail.title detail.description\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table by severity, Bar chart (finding types), Trend line (findings over time), Single value.",
-  "grandmaExplanation": "We keep an eye on guardduty finding ingestion. The serious GuardDuty finding types the service raises, in one place, so a small team does not miss something loud in the console. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first."
+  "equipmentModels": [
+    "aws_generic",
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudwatch:guardduty`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable GuardDuty in all regions. Configure CloudWatch Events rule to forward findings to an SNS topic or S3. Ingest via Splunk_TA_aws. Alert on High/Critical findings (severity ≥7).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch:guardduty\"\n| spath output=severity path=detail.severity\n| spath output=finding_type path=detail.type\n| where severity >= 7\n| table _time finding_type severity detail.title detail.description\n| sort -severity\n```\n\nUnderstanding this SPL\n\n**GuardDuty Finding Ingestion** — GuardDuty provides ML-powered threat detection for AWS accounts. Centralizing findings in Splunk enables correlation with other security data.\n\nDocumented **Data sources**: `sourcetype=aws:cloudwatch:guardduty`. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch:guardduty. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch:guardduty\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts structured paths (JSON/XML) with `spath`.\n• Extracts structured paths (JSON/XML) with `spath`.\n• Filters the current rows with `where severity >= 7` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **GuardDuty Finding Ingestion**): table _time finding_type severity detail.title detail.description\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table by severity, Bar chart (finding types), Trend line (findings over time), Single value.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:cloudwatch:guardduty into aws. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`severity`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on guardduty finding ingestion. The serious GuardDuty finding types the service raises, in one place, so a small team does not miss something loud in the console. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

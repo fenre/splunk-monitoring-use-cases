@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`NormalizedRUConsumption`, `Total Request Units`",
-  "app": "`Splunk_TA_microsoft-cloudservices`, Azure Monitor metrics",
+  "exclusions": "Covers the detection logic documented for 'Azure Cosmos DB RU Consumption' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_azure_cosmos_db_ru_consumption` (UC-7.3.9), SOC dashboard panel \"Operations — Azure Cosmos DB RU Consumption\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.3.9 positive (Azure, Cosmos, Consumption): ingest synthetic events into `index=azure` sourcetype='mssql:azuremonitor' where `norm_ru` grouped by `DatabaseName`, `CollectionName` satisfies `norm_ru` > 0.9 for 'Azure Cosmos DB RU Consumption'. Validate filter `metric_name=\"NormalizedRUConsumption\" OR \"*Cosmos*\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.3.9 negative (RU Consumption): ingest benign `azure` / `mssql:azuremonitor` events where `DatabaseName`, `CollectionName` stays below `norm_ru` > 0.9, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Azure Cosmos DB RU Consumption'."
+  },
+  "dataSources": "`NormalizedRUConsumption`, `Total Request Units` Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_microsoft-cloudservices`, Azure Monitor metrics — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=azure sourcetype=\"mssql:azuremonitor\" OR sourcetype=\"azure:metrics\"\n| search metric_name=\"NormalizedRUConsumption\" OR \"*Cosmos*\"\n| timechart span=5m avg(average) as norm_ru by DatabaseName, CollectionName\n| where norm_ru > 0.9",
-  "description": "Normalized RU/s consumption vs provisioned throughput identifies hot partitions and autoscale effectiveness.",
-  "value": "Normalized RU/s consumption vs provisioned throughput identifies hot partitions and autoscale effectiveness.",
+  "description": "Alerts on UC-7.3.9 — Azure, Cosmos, Consumption — using `index=azure` sourcetype `mssql:azuremonitor`, grouped by `DatabaseName`, `CollectionName`. Outputs `norm_ru` each `5m`; alert when `norm_ru` > 0.9. Filter chain includes filter `metric_name=\"NormalizedRUConsumption\" OR \"*Cosmos*\"`. Purpose-built for 'Azure Cosmos DB RU Consumption' in Operations workflows.",
+  "value": "UC-7.3.9 gives Operations teams earlier visibility into RU Consumption through `mssql:azuremonitor` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Map exact metric names from your Azure diagnostic settings. Alert when normalized consumption >90% sustained. Split by partition key if available in custom dimensions.",
   "visualization": "Line chart (RU consumption %), Table (collections over threshold), Single value (hottest collection).",
   "cimModels": [
@@ -22,14 +28,40 @@
   "references": [
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110"
+      "url": "https://splunkbase.splunk.com/app/3110",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Autoscale events, service tier changes, and Microsoft-side maintenance in Azure can move CPU and storage metrics; compare with the Azure service health and your deployment pipeline.",
+  "knownFalsePositives": "1. **Maintenance window on `azure` (UC-7.3.9)** — Planned work for 'Azure Cosmos DB RU Consumption' shifts `norm_ru` over `span=5m` while `DatabaseName`, `CollectionName` remains in-scope. Applies filter `metric_name=\"NormalizedRUConsumption\" OR \"*Cosmos*\"`. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `mssql:azuremonitor`** — Scheduled automation elevates `CollectionName` without crossing `norm_ru` > 0.9 for UC-7.3.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `DatabaseName`, `CollectionName`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mssql:azuremonitor`** — First 48h baseline for UC-7.3.9 on `DatabaseName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `DatabaseName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure",
     "m365"
   ],
+  "equipmentModels": [
+    "azure_generic",
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we cross-check the same window in SQL Server Management Studio, Azure Data Studio, or the Azure SQL portal with `sys.dm_*` views so live metrics match what Splunk shows.\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices`, Azure Monitor metrics.\n• Ensure the following data sources are available: `NormalizedRUConsumption`, `Total Request Units`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap exact metric names from your Azure diagnostic settings. Alert when normalized consumption >90% sustained. Split by partition key if available in custom dimensions.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=azure sourcetype=\"mssql:azuremonitor\" OR sourcetype=\"azure:metrics\"\n| search metric_name=\"NormalizedRUConsumption\" OR \"*Cosmos*\"\n| timechart span=5m avg(average) as norm_ru by DatabaseName, CollectionName\n| where norm_ru > 0.9\n```\n\nUnderstanding this SPL\n\n**Azure Cosmos DB RU Consumption** — Normalized RU/s consumption vs provisioned throughput identifies hot partitions and autoscale effectiveness.\n\nDocumented **Data sources**: `NormalizedRUConsumption`, `Total Request Units`. **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices`, Azure Monitor metrics. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: azure; **sourcetype**: mssql:azuremonitor, azure:metrics. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=azure, sourcetype=\"mssql:azuremonitor\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by DatabaseName, CollectionName** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where norm_ru > 0.9` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (RU consumption %), Table (collections over threshold), Single value (hottest collection).",
-  "grandmaExplanation": "Normalized RU/s consumption vs provisioned throughput identifies hot partitions and autoscale effectiveness We use it to stay ahead of pain for applications and the people who depend on the data."
+  "grandmaExplanation": "Normalized RU/s consumption vs provisioned throughput identifies hot partitions and autoscale effectiveness We use it to stay ahead of pain for applications and the people who depend on the data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

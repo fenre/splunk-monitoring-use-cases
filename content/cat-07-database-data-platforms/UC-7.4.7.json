@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`_cat/indices`, `_stats`",
-  "app": "Custom scripted input (ES REST API)",
+  "exclusions": "Covers the detection logic documented for 'Elasticsearch Index Size and Document Count Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_elasticsearch_index_size_and_document_count_tren` (UC-7.4.7), SOC dashboard panel \"Operations — Elasticsearch Index Size and Document Count Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.4.7 positive (Elasticsearch, Index, Size, and, Document): ingest synthetic events into `index=database` sourcetype='elasticsearch:indices' where `total_gb`, `doc_count` grouped by `index` satisfies detection threshold for 'Elasticsearch Index Size and Document Count Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.4.7 negative (Count Trending): ingest benign `database` / `elasticsearch:indices` events where `index` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Elasticsearch Index Size and Document Count Trending'."
+  },
+  "dataSources": "`_cat/indices`, `_stats` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (ES REST API) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"elasticsearch:indices\"\n| eval size_gb=round(store.size_in_bytes/1073741824, 2)\n| timechart span=1d sum(size_gb) as total_gb, sum(docs.count) as doc_count by index\n| predict total_gb as predicted_gb future_timespan=30",
-  "description": "Growth forecasting for indices enables proactive storage provisioning and index lifecycle management (ILM) tuning.",
-  "value": "Growth forecasting for indices enables proactive storage provisioning and index lifecycle management (ILM) tuning.",
+  "description": "Identifies 'Elasticsearch Index Size and Document Count Trending' patterns (UC-7.4.7) sourced from `index=database` sourcetype `elasticsearch:indices`. Threshold bundle: configured threshold; aggregation grain: `index`; metrics: `total_gb`, `doc_count`. Watch terms: Elasticsearch, Index, Size, and, Document.",
+  "value": "UC-7.4.7 gives Operations teams earlier visibility into Count Trending through `elasticsearch:indices` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Poll `GET _cat/indices?v&h=index,docs.count,store.size&bytes=b` or `GET _stats` every 6–24 hours. Parse index name, document count, store size. Track per-index and cluster-wide growth. Use `predict` for 30-day forecast. Alert when projected size exceeds available storage. Support ILM policy tuning based on growth rate.",
   "visualization": "Line chart (index size and doc count with prediction), Table (indices by size and growth rate), Bar chart (top growing indices).",
   "cimModels": [
@@ -21,16 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned index rollovers, rebalancing, and cluster restarts can move shard counts and health states briefly; correlate with Elasticsearch or OpenSearch change records.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.4.7)** — Planned work for 'Elasticsearch Index Size and Document Count Trending' shifts `total_gb`, `doc_count` over `span=1d` while `index` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `elasticsearch:indices`** — Scheduled automation elevates `size_gb` without crossing configured threshold for UC-7.4.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `index`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `elasticsearch:indices`** — First 48h baseline for UC-7.4.7 on `index` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `index`, `exception_reason`, `valid_until`.",
   "equipment": [
     "elasticsearch"
   ],
   "equipmentModels": [
     "elasticsearch_es"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we confirm in pgAdmin, psql, and `pg_stat*` views, or the managed PostgreSQL console.\n• Install and configure the required add-on or app: Custom scripted input (ES REST API).\n• Ensure the following data sources are available: `_cat/indices`, `_stats`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll `GET _cat/indices?v&h=index,docs.count,store.size&bytes=b` or `GET _stats` every 6–24 hours. Parse index name, document count, store size. Track per-index and cluster-wide growth. Use `predict` for 30-day forecast. Alert when projected size exceeds available storage. Support ILM policy tuning based on growth rate.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"elasticsearch:indices\"\n| eval size_gb=round(store.size_in_bytes/1073741824, 2)\n| timechart span=1d sum(size_gb) as total_gb, sum(docs.count) as doc_count by index\n| predict total_gb as predicted_gb future_timespan=30\n```\n\nUnderstanding this SPL\n\n**Elasticsearch Index Size and Document Count Trending** — Growth forecasting for indices enables proactive storage provisioning and index lifecycle management (ILM) tuning.\n\nDocumented **Data sources**: `_cat/indices`, `_stats`. **App/TA** (typical add-on context): Custom scripted input (ES REST API). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: elasticsearch:indices. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"elasticsearch:indices\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **size_gb** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by index** — ideal for trending and alerting on this use case.\n• Pipeline stage (see **Elasticsearch Index Size and Document Count Trending**): predict total_gb as predicted_gb future_timespan=30\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (index size and doc count with prediction), Table (indices by size and growth rate), Bar chart (top growing indices).",
-  "grandmaExplanation": "We follow search cluster health, indexing, and query latency so we can keep log and search services responsive when load or mapping changes."
+  "grandmaExplanation": "We follow search cluster health, indexing, and query latency so we can keep log and search services responsive when load or mapping changes.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

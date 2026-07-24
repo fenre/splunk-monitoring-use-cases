@@ -8,27 +8,55 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Port Utilization and Congestion Alerts (Meraki MS)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_port_utilization_and_congestion_alerts_meraki_ms` (UC-5.1.36), SOC dashboard panel \"Operations — Port Utilization and Congestion Alerts (Meraki MS)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.36 positive (Port, Utilization, and, Congestion, Alerts): ingest synthetic events into `index=meraki` sourcetype='meraki:switchportsoverview' where `count` grouped by `organizationId` satisfies `pct_in_use` > 80 for 'Port Utilization and Congestion Alerts (Meraki MS)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.36 negative ((Meraki MS)): ingest benign `meraki` / `meraki:switchportsoverview` events where `organizationId` stays below `pct_in_use` > 80, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Port Utilization and Congestion Alerts (Meraki MS)'."
+  },
   "dataSources": "Splunk_TA_cisco_meraki (Splunkbase #5580): Switch Ports Overview input (sourcetype=meraki:switchportsoverview, daily, OAuth scope switch:telemetry:read). Optional: configure the Webhook Logs (HEC) input + Meraki Dashboard alerts on port_status_changed for near-real-time per-port flap detection (sourcetype=meraki:webhook).",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:switchportsoverview\" earliest=-24h\n| stats latest(counts.byStatus.active.total) as active_ports,\n        latest(counts.byStatus.inactive.total) as inactive_ports,\n        latest(counts.total) as total_ports\n         by organizationId\n| eval pct_in_use = round(active_ports*100/total_ports, 1)\n| where pct_in_use > 80\n| sort - pct_in_use",
-  "description": "Identifies port saturation and congestion events that require capacity upgrades or load balancing adjustments.",
-  "value": "Operations teams monitor Meraki MS switch port utilization and congestion, identifying saturated ports that require link aggregation or capacity upgrades.",
+  "description": "Detects UC-5.1.36 — Port, Utilization, and, Congestion, Alerts — using `index=meraki` sourcetype `meraki:switchportsoverview`, grouped by `organizationId`. Outputs `count` each `the scheduled window`; alert when `pct_in_use` > 80. Primary focus: (Meraki MS). Purpose-built for 'Port Utilization and Congestion Alerts (Meraki MS)' in Operations workflows.",
+  "value": "UC-5.1.36 helps teams contain Port, Utilization, and, Congestion, Alerts scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "1. In Splunk_TA_cisco_meraki, enable the Switch Ports Overview input. The TA polls GET /organizations/{orgId}/switch/ports/overview daily and writes one event per network with counts.byStatus.{active,inactive,disconnected}, counts.byMedia.{wired,wireless} and counts.byLinkSpeed.{10mbps,100mbps,1Gbps,10Gbps}. 2. Per-port utilization counters are NOT exposed by the Dashboard API; for live per-port flap detection enable the Webhook Logs (HEC) input and configure a Meraki alert profile that triggers on 'switch port status changed'. 3. Tune the 80% in-use threshold to your capacity policy.",
   "visualization": "Table of congested ports; timeline showing peak congestion; port utilization heatmap.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short bursts during backups, patch pushes, or video calls can approach thresholds without an outage. Match alerts to business hours and known batch jobs.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.1.36)** — Planned work for 'Port Utilization and Congestion Alerts (Meraki MS)' shifts `count` over `span=1h` while `organizationId` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `meraki:switchportsoverview`** — Scheduled automation elevates `pct_in_use` without crossing `pct_in_use` > 80 for UC-5.1.36. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `organizationId`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:switchportsoverview`** — First 48h baseline for UC-5.1.36 on `organizationId` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `organizationId`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Switch Ports Overview input (sourcetype=meraki:switchportsoverview, daily, OAuth scope switch:telemetry:read). Optional: configure the Webhook Logs (HEC) input + Meraki Dashboard alerts on port_status_changed for near-real-time per-port flap detection (sourcetype=meraki:webhook)..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n1. In Splunk_TA_cisco_meraki, enable the Switch Ports Overview input. The TA polls GET /organizations/{orgId}/switch/ports/overview daily and writes one event per network with counts.byStatus.{active,inactive,disconnected}, counts.byMedia.{wired,wireless} and counts.byLinkSpeed.{10mbps,100mbps,1Gbps,10Gbps}. 2. Per-port utilization counters are NOT exposed by the Dashboard API; for live per-port flap detection enable the Webhook Logs (HEC) input and configure a Meraki alert profile that triggers…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki:switchportsoverview\" earliest=-24h\n| stats latest(counts.byStatus.active.total) as active_ports,\n        latest(counts.byStatus.inactive.total) as inactive_ports,\n        latest(counts.total) as total_ports\n         by organizationId\n| eval pct_in_use = round(active_ports*100/total_ports, 1)\n| where pct_in_use > 80\n| sort - pct_in_use\n```\n\nUnderstanding this SPL\n\n**Port Utilization and Congestion Alerts (Meraki MS)** — Operations teams monitor Meraki MS switch port utilization and congestion, identifying saturated ports that require link aggregation or capacity upgrades.\n\nDocumented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Switch Ports Overview input (sourcetype=meraki:switchportsoverview, daily, OAuth scope switch:telemetry:read). Optional: configure the Webhook Logs (HEC) input + Meraki Dashboard alerts on port_status_changed for near-real-time per-port flap detection (sourcetype=meraki:webhook). **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:switchportsoverview. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki:switchportsoverview\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by organizationId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **pct_in_use** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where pct_in_use > 80` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of congested ports; timeline showing peak congestion; port utilization heatmap.",
-  "grandmaExplanation": "We help you know early when something looks wrong with port utilization and congestion alerts so the team can act before it grows into a bigger outage."
+  "grandmaExplanation": "We help you know early when something looks wrong with port utilization and congestion alerts so the team can act before it grows into a bigger outage.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

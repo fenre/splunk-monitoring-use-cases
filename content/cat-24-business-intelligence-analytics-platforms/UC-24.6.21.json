@@ -8,30 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "BusinessObjects audit (`businessobjects:audit`) and CMS logs.",
-  "app": "SAP BusinessObjects auditing data store via DB Connect and CMS/APS logs via UF.",
+  "exclusions": "Covers the detection logic documented for 'SAP BusinessObjects Weekly Active User Trend' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_sap_businessobjects_weekly_active_user_trend` (UC-24.6.21), SOC dashboard panel \"Operations — SAP BusinessObjects Weekly Active User Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.6.21 positive (SAP, BusinessObjects, Weekly, Active, User): ingest synthetic events into `index=bi` sourcetype='businessobjects:audit' where `active_users`, `avg_users` grouped by `entity` satisfies detection threshold for 'SAP BusinessObjects Weekly Active User Trend'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.6.21 negative (User Trend): ingest benign `bi` / `businessobjects:audit` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'SAP BusinessObjects Weekly Active User Trend'."
+  },
+  "dataSources": "BusinessObjects audit (`businessobjects:audit`) and CMS logs. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "SAP BusinessObjects auditing data store via DB Connect and CMS/APS logs via UF. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=businessobjects:audit\n| timechart span=1w dc(user_name) as active_users\n| eventstats avg(active_users) as avg_users\n| eval below_trend=if(active_users<avg_users*0.85,1,0)",
-  "description": "Trends the number of distinct weekly active users of SAP BusinessObjects and flags weeks where engagement drops below trend, an early signal of eroding adoption or an access problem.",
-  "value": "Adoption is the return on a BI investment; a declining active-user trend for SAP BusinessObjects surfaces churn before a renewal or rationalisation review.",
+  "description": "Surfaces UC-24.6.21 — SAP, BusinessObjects, Weekly, Active, User — using `index=bi` sourcetype `businessobjects:audit`, grouped by `entity`. Outputs `active_users`, `avg_users` each `1w`; alert when configured threshold. Primary focus: User Trend. Purpose-built for 'SAP BusinessObjects Weekly Active User Trend' in Operations workflows.",
+  "value": "UC-24.6.21 operationalises 'SAP BusinessObjects Weekly Active User Trend' against `businessobjects:audit` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest SAP BusinessObjects usage/activity events; schedule weekly and review adoption dips with the platform owner.",
   "visualization": "Timechart of SAP BusinessObjects weekly active users with trend band.",
   "cimModels": [],
   "references": [
     {
       "title": "SAP — BusinessObjects BI Platform admin",
-      "url": "https://help.sap.com/docs/SAP_BUSINESSOBJECTS_BUSINESS_INTELLIGENCE_PLATFORM"
+      "url": "https://help.sap.com/docs/SAP_BUSINESSOBJECTS_BUSINESS_INTELLIGENCE_PLATFORM",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "SAP — BI Platform auditing",
-      "url": "https://help.sap.com/docs/SAP_BUSINESSOBJECTS_BUSINESS_INTELLIGENCE_PLATFORM/auditing"
+      "url": "https://help.sap.com/docs/SAP_BUSINESSOBJECTS_BUSINESS_INTELLIGENCE_PLATFORM/auditing",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.6.21)** — Planned work for 'SAP BusinessObjects Weekly Active User Trend' shifts `active_users`, `avg_users` over `span=1w` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `businessobjects:audit`** — Scheduled automation elevates `below_trend` without crossing configured threshold for UC-24.6.21. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `businessobjects:audit`** — First 48h baseline for UC-24.6.21 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],
-  "grandmaExplanation": "We track how many people actually use SAP BusinessObjects each week so a drop in usage is noticed early."
+  "equipmentModels": [
+    "db_connect_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (SAP BusinessObjects auditing data store via DB Connect and CMS/APS logs via UF. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=businessobjects:audit into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`below_trend`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We track how many people actually use SAP BusinessObjects each week so a drop in usage is noticed early.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=linux_secure` (PAM + auth log lines for failed logins)",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Covers the detection logic documented for 'PAM Authentication Failure Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_pam_authentication_failure_tracking` (UC-1.1.73), SOC dashboard panel \"Linux — PAM Authentication Failure Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.73 positive (PAM, Authentication, Failure, Tracking): ingest synthetic events into `index=os` sourcetype='linux_secure' where `count` grouped by `host`, `user`, `src` satisfies `failures` > 5 for 'PAM Authentication Failure Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.73 negative (Failure Tracking): ingest benign `os` / `linux_secure` events where `host`, `user`, `src` stays below `failures` > 5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 7 confirms zero alert rows for 'PAM Authentication Failure Tracking'."
+  },
+  "dataSources": "`sourcetype=linux_secure` (PAM + auth log lines for failed logins) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=linux_secure pam \"authentication failure\"\n| stats count as failures by host, user, src\n| where failures>5",
-  "description": "Counts PAM **authentication failure** lines per **host**, **user**, and **source** IP, then raises when a tuple exceeds a small number of failures in the search window (brute-force or typo clusters).",
-  "value": "A burst of PAM denials is one of the cheapest ways to see password-spray, stolen-account retries, and broken automation accounts before a lockout policy even fires on every system.",
+  "description": "Alerts on UC-1.1.73 — PAM, Authentication, Failure, Tracking — using `index=os` sourcetype `linux_secure`, grouped by `host`, `user`, `src`. Outputs `count` each `the scheduled window`; alert when `failures` > 5. Primary focus: Failure Tracking. Purpose-built for 'PAM Authentication Failure Tracking' in Linux workflows.",
+  "value": "UC-1.1.73 operationalises 'PAM Authentication Failure Tracking' against `linux_secure` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
   "implementation": "The Distro’s **syslog** format varies—tune the quoted phrase. Add **geo** and **threat** lookups later; for day one, a simple **failures>5** with `earliest=-15m` in the saved search is enough to page.",
   "visualization": "Table, Timechart",
   "cimModels": [
@@ -23,18 +29,40 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Shared jump hosts where many analysts mistype a password; vulnerability scanners; accounts stuck in a reboot loop; lockout not aligned with Splunk time zone—**always** align **TZ** in props.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'PAM Authentication Failure Tracking'. Correlate with apt/yum logs in the same `linux_secure` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_secure`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `failures` > 5.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "syslog"
   ],
-  "detailedImplementation": "Prerequisites\n• **linux_secure** (or the sourcetype your TA actually uses for **auth.log** / **secure**).\n\n**SPL** — The `src` field must be extracted; if it is not, add `rex` for **rhost=** on OpenSSH PAM sub-events.\n\n**CIM** — The `cimSpl` threshold ( **>5** in **15m** ) matches the spirit of the **failures>5** raw search; align window and threshold together when you go **tstats**-only in production.\n\n\nStep 3 — Validate\nRun several bad passwords on a **test** user and see them in Search; on host, `faillock` or `grep` the **auth** file for the same second.\n\nStep 4 — Operationalize\nAuto-suppress a **src** that is your main **WAF** or **SOCKS** if all staff exit there and it creates thousands of false clusters.\n\n",
-  "grandmaExplanation": "We help you see when someone keeps typing the wrong password or the wrong account is trying over and over, which is often the first sign of a break-in attempt."
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• **linux_secure** (or the sourcetype your TA actually uses for **auth.log** / **secure**).\n\n**SPL** — The `src` field must be extracted; if it is not, add `rex` for **rhost=** on OpenSSH PAM sub-events.\n\n**CIM** — The `cimSpl` threshold ( **>5** in **15m** ) matches the spirit of the **failures>5** raw search; align window and threshold together when you go **tstats**-only in production.\n\n\nStep 3 — Validate\nRun several bad passwords on a **test** user and see them in Search; on host, `faillock` or `grep` the **auth** file for the same second.\n\nStep 4 — Operationalize\nAuto-suppress a **src** that is your main **WAF** or **SOCKS** if all staff exit there and it creates thousands of false clusters.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=linux_secure into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`failures, host, src, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see when someone keeps typing the wrong password or the wrong account is trying over and over, which is often the first sign of a break-in attempt.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

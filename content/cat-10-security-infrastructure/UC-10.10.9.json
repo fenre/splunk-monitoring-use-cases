@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "YARA scanner JSON/CEF forwarded to Splunk",
-  "app": "Custom TA / HEC",
+  "exclusions": "Covers the detection logic documented for 'YARA scan result ingestion and match alerting' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_yara_scan_result_ingestion_and_match_alerting` (UC-10.10.9), SOC dashboard panel \"Security Infra — YARA scan result ingestion and match alerting\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.10.9 positive (YARA, scan, result, ingestion, and): ingest synthetic events into `index=yara` sourcetype='yara:scan' where `count` grouped by `entity` satisfies `match_count` > 0 for 'YARA scan result ingestion and match alerting'. Validate filter `match=\"true\" OR match_count>0`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.10.9 negative (match alerting): ingest benign `yara` / `yara:scan` events where `entity` stays below `match_count` > 0, or exclude the test entity via `soc_exception_register.csv`. Variant 5 confirms zero alert rows for 'YARA scan result ingestion and match alerting'."
+  },
+  "dataSources": "YARA scanner JSON/CEF forwarded to Splunk Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom TA / HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=yara sourcetype=yara:scan\n| search match=\"true\" OR match_count>0\n| table _time, host, rule_name, path, match_count, scanner_version\n| sort - _time",
-  "description": "Ingests YARA scanner output and alerts on any match or severity threshold.",
-  "value": "Ingests YARA scanner output and alerts on any match or severity threshold.",
+  "description": "Alerts on 'YARA scan result ingestion and match alerting' patterns (UC-10.10.9) sourced from `index=yara` sourcetype `yara:scan`. Threshold bundle: `match_count` > 0; aggregation grain: `entity`; metrics: `count`. Enrichment path: filter `match=\"true\" OR match_count>0`.",
+  "value": "UC-10.10.9 gives Security Infra teams earlier visibility into match alerting through `yara:scan` feeds, lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Normalize field names to your Splunk ES version and index names. Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.",
   "visualization": "Table, Time chart, Single value",
   "cimModels": [
@@ -22,12 +28,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "YARA hits from authorized security research samples (EICAR, malware lab files), incident response forensics, or detection rule testing.",
+  "knownFalsePositives": "1. **Maintenance window on `yara` (UC-10.10.9)** — Planned work for 'YARA scan result ingestion and match alerting' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `match=\"true\" OR match_count>0`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `yara:scan`** — Scheduled automation elevates `src` without crossing `match_count` > 0 for UC-10.10.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `yara` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `yara:scan`** — First 48h baseline for UC-10.10.9 on `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "detectionType": "Operational metrics",
   "securityDomain": "soc_operations",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom TA / HEC.\n• Ensure the following data sources are available: YARA scanner JSON/CEF forwarded to Splunk.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize field names to your Splunk ES version and index names. Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=yara sourcetype=yara:scan\n| search match=\"true\" OR match_count>0\n| table _time, host, rule_name, path, match_count, scanner_version\n| sort - _time\n```\n\nUnderstanding this SPL\n\n**YARA scan result ingestion and match alerting** — Ingests YARA scanner output and alerts on any match or severity threshold.\n\nDocumented **Data sources**: YARA scanner JSON/CEF forwarded to Splunk. **App/TA** (typical add-on context): Custom TA / HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: yara; **sourcetype**: yara:scan. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Detection type** for this use case: Operational metrics — interpret thresholds and fields in that context.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=yara, sourcetype=yara:scan. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Pipeline stage (see **YARA scan result ingestion and match alerting**): table _time, host, rule_name, path, match_count, scanner_version\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare sample matches in Splunk to the **YARA scan log** (or the scanner’s own report) for the same path, hash, and rule name.\n\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Time chart, Single value\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md\n",
-  "grandmaExplanation": "We wire YARA match lines into the SIEM and alert on real hits so file-level malware sweeps are not an offline spreadsheet."
+  "grandmaExplanation": "We wire YARA match lines into the SIEM and alert on real hits so file-level malware sweeps are not an offline spreadsheet.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

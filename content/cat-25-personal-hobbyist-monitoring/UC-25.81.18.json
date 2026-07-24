@@ -8,34 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Club attendance (`club:attendance`), running-club sessions (`runningclub:session`), maker-space visits (`makerspace:visit`), book-club meetings (`bookclub:meeting`), community events (`community:event`).",
-  "app": "Book-club attendance, running-club miles, maker-space visits, and general social-club participation logs streamed to Splunk HEC via forms, check-ins, and calendar exports.",
+  "exclusions": "Covers personal hobby monitoring for 'Maker Space Visits Shop Area Mix' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_maker_space_visits_shop_area_mix` (UC-25.81.18), SOC dashboard panel \"Personal — Maker Space Visits Shop Area Mix\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.81.18 positive (Maker, Space, Visits, Shop, Area): ingest synthetic events into `index=personal` sourcetype='makerspace:visit' where `total_metric` grouped by `shop_area` satisfies detection threshold for 'Maker Space Visits Shop Area Mix'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.81.18 negative (Area Mix): ingest benign `personal` / `makerspace:visit` events where `shop_area` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'Maker Space Visits Shop Area Mix'."
+  },
+  "dataSources": "Club attendance (`club:attendance`), running-club sessions (`runningclub:session`), maker-space visits (`makerspace:visit`), book-club meetings (`bookclub:meeting`), community events (`community:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Book-club attendance, running-club miles, maker-space visits, and general social-club participation logs streamed to Splunk HEC via forms, check-ins, and calendar exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=makerspace:visit\n| stats count as events sum(duration_hours) as total_metric by shop_area\n| sort - events",
-  "description": "Shows how maker space visits is split across different shop area buckets.",
-  "value": "Mix analysis makes it easy to see whether the activity is diverse and healthy or concentrated in one stale format.",
+  "description": "Detects UC-25.81.18 — Maker, Space, Visits, Shop, Area — using `index=personal` sourcetype `makerspace:visit`, grouped by `shop_area`. Outputs `total_metric` each `the scheduled window`; alert when configured threshold. Primary focus: Area Mix. Purpose-built for 'Maker Space Visits Shop Area Mix' in Personal workflows.",
+  "value": "UC-25.81.18 operationalises 'Maker Space Visits Shop Area Mix' against `makerspace:visit` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Use stable group labels like club type, route, venue, or meeting format to keep the trend comparable over time.",
   "visualization": "Bar chart of events and total visit hours by shop area.",
   "cimModels": [],
   "references": [
     {
       "title": "Meetup",
-      "url": "https://www.meetup.com/"
+      "url": "https://www.meetup.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "StoryGraph - book clubs",
-      "url": "https://thestorygraph.com/"
+      "url": "https://thestorygraph.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Makerspace.com",
-      "url": "https://makerspace.com/"
+      "url": "https://makerspace.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.81.18)** — Connector for 'Maker Space Visits Shop Area Mix' stops polling `makerspace:visit`; stale `total_metric` on `shop_area` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `total_metric` over `1w` is expected for UC-25.81.18, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `makerspace:visit`. Dedup with `stats latest(*) by shop_area`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Maker Space Visits Shop Area Mix'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "dell_emc"
   ],
-  "grandmaExplanation": "It monitors what kinds of maker space visits you do most often."
+  "equipmentModels": [
+    "dell_emc_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Social Clubs & Community Groups — typical feeds: Club attendance (`club:attendance`), running-club sessions (`runningclub:session`), maker-space visits (`makerspace:visit`), book-club meetings (`bookclub:meeting`), community events (`community:event.\n• **Sourcetypes in this search**: `makerspace:visit`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=makerspace:visit`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Book-club attendance, running-club miles, maker-space visits, and general social-club participation logs streamed to Splunk HEC via forms, check-ins, and calendar exports..\n\n**Author notes:** Use stable group labels like club type, route, venue, or meeting format to keep the trend comparable over time.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"makerspace:visit\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=makerspace:visit earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Maker Space Visits Shop Area Mix** over `personal` data (primarily `sourcetype=makerspace:visit`) across the full search range. The `sum` aggregation groups by `shop_area`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `shop_area`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=makerspace:visit\n| stats count as events sum(duration_hours) as total_metric by shop_area\n| sort - events\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=makerspace:visit earliest=-7d\n| head 50\n| table shop_area\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=makerspace:visit earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.81.18: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Events And Total Visit Hours By Shop Area (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `makerspace:visit` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=makerspace:visit | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It monitors what kinds of maker space visits you do most often.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

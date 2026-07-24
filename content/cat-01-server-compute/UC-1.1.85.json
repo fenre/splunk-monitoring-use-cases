@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=top` (per-process memory percent from Splunk_TA_nix)",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Covers the detection logic documented for 'Memory Hog Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_memory_hog_detection` (UC-1.1.85), SOC dashboard panel \"Linux — Memory Hog Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.85 positive (Memory, Hog, Detection): ingest synthetic events into `index=os` sourcetype='top' where `avg_mem` grouped by `host`, `process` satisfies `avg_mem` > 40 for 'Memory Hog Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.85 negative (Hog Detection): ingest benign `os` / `top` events where `host`, `process` stays below `avg_mem` > 40, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 12 confirms zero alert rows for 'Memory Hog Detection'."
+  },
+  "dataSources": "`sourcetype=top` (per-process memory percent from Splunk_TA_nix) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=top host=*\n| stats avg(mem_pct) as avg_mem by host, process\n| where avg_mem>40",
-  "description": "Averages **mem_pct** per **(host,process)** from `top` samples in the window and surfaces processes that sit above **40**% of host memory on average—tune per your headroom policy.",
-  "value": "Memory hogs push the kernel toward **OOM**; seeing the process name early steers you to **cgroup** limits, config, or leak triage faster than host-level **free** alone.",
+  "description": "Monitors UC-1.1.85 — Memory, Hog, Detection — using `index=os` sourcetype `top`, grouped by `host`, `process`. Outputs `avg_mem` each `the scheduled window`; alert when `avg_mem` > 40. Primary focus: Hog Detection. Purpose-built for 'Memory Hog Detection' in Linux workflows.",
+  "value": "Tracking `avg_mem` via UC-1.1.85 on `top` feeds improves response to 'Memory Hog Detection' and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "If your **top** feed uses **RSS** in **KB** instead of **mem_pct**, replace the `stats` with `avg(rss_kb)/mem_total_kb` after you join a **meminfo** snapshot for the same **host**+**_time**.",
   "visualization": "Table, Gauge",
   "cimModels": [
@@ -24,17 +30,38 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Endpoint",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Elasticsearch** / **JVM** heaps that are large by design; **k8s** pause containers; **40** may be too low on 1**TB** RAM hosts—scale with a **lookup** of `host_ram_gb`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Memory Hog Detection'. Correlate with apt/yum logs in the same `top` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `top`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `avg_mem` > 40.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• `top` interval fast enough to catch bursty **malloc** storms; pair with **vmstat** UC for reclaim context.\n\n\nStep 3 — Validate\n`top` / `ps aux --sort=-%mem` on the host; `pmap` or **language**-level profilers if a leak is suspected.\n\nStep 4 — Operationalize\nIf **OOM** already happened, pivot to **dmesg** for the **killer** line in the same minute as this search.\n\n",
-  "grandmaExplanation": "We help you find one program that is using a big share of the machine’s memory for a while, which is a common path to crashes when memory runs out."
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• `top` interval fast enough to catch bursty **malloc** storms; pair with **vmstat** UC for reclaim context.\n\n\nStep 3 — Validate\n`top` / `ps aux --sort=-%mem` on the host; `pmap` or **language**-level profilers if a leak is suspected.\n\nStep 4 — Operationalize\nIf **OOM** already happened, pivot to **dmesg** for the **killer** line in the same minute as this search.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=top into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`avg_mem, host, process`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you find one program that is using a big share of the machine’s memory for a while, which is a common path to crashes when memory runs out.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,50 +9,75 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Recovery and biometrics (`apple:health`, `oura:daily`, `whoop:cycle`, `dexcom:egv`, `levels:glucose`, `libre:glucose`, `eightsleep:sleep`, `withings:measure`, `garmin:bodybattery`).",
-  "app": "Apple Health / Apple Watch exports, Oura, WHOOP, Dexcom, Levels, LibreView, Eight Sleep, Withings, and Garmin Body Battery feeds via vendor APIs, exports, Home Assistant bridges, and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Apple Resting HR and Walking Pace Divergence' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_apple_resting_hr_and_walking_pace_divergence` (UC-25.2.31), SOC dashboard panel \"Personal — Apple Resting HR and Walking Pace Divergence\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.2.31 positive (Apple, Resting, and, Walking, Pace): ingest synthetic events into `index=personal` sourcetype='apple:health' where `resting_hr`, `walking_pace_sec_km`, `baseline_rhr` grouped by `person`, `_time` satisfies `baseline_rhr` > 0 for 'Apple Resting HR and Walking Pace Divergence'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.2.31 negative (Pace Divergence): ingest benign `personal` / `apple:health` events where `person`, `_time` stays below `baseline_rhr` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 4 confirms zero alert rows for 'Apple Resting HR and Walking Pace Divergence'."
+  },
+  "dataSources": "Recovery and biometrics (`apple:health`, `oura:daily`, `whoop:cycle`, `dexcom:egv`, `levels:glucose`, `libre:glucose`, `eightsleep:sleep`, `withings:measure`, `garmin:bodybattery`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Apple Health / Apple Watch exports, Oura, WHOOP, Dexcom, Levels, LibreView, Eight Sleep, Withings, and Garmin Body Battery feeds via vendor APIs, exports, Home Assistant bridges, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=apple:health\n| bin _time span=1w\n| stats avg(resting_hr) as resting_hr, avg(walking_pace_sec_km) as walking_pace_sec_km by person _time\n| streamstats window=4 current=f avg(resting_hr) as baseline_rhr, avg(walking_pace_sec_km) as baseline_pace by person\n| where baseline_rhr>0 AND resting_hr>baseline_rhr+5 AND walking_pace_sec_km>baseline_pace+30\n| sort - _time",
-  "description": "Uses Apple Health cardio metrics telemetry to monitor resting heart rate alongside easy walking pace in index=personal.",
-  "value": "Splunk turns the feed into an operational check for fatigue patterns where both recovery and everyday speed worsened together, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Identifies risk tied to Apple, Resting, and, Walking, Pace through UC-25.2.31 on `index=personal` sourcetype `apple:health`. Summarises `resting_hr`, `walking_pace_sec_km`, `baseline_rhr` grouped by `person`, `_time` across `1w` before applying `baseline_rhr` > 0. Operators tune 'Apple Resting HR and Walking Pace Divergence' using UC-25.2.31 runbook steps.",
+  "value": "Tracking `resting_hr`, `walking_pace_sec_km`, `baseline_rhr` via UC-25.2.31 on `apple:health` feeds improves response to 'Apple Resting HR and Walking Pace Divergence' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Apple Health cardio metrics data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Weekly trend of resting heart rate and walking pace.",
   "cimModels": [],
   "references": [
     {
       "title": "Apple HealthKit",
-      "url": "https://developer.apple.com/documentation/healthkit"
+      "url": "https://developer.apple.com/documentation/healthkit",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Oura API v2",
-      "url": "https://cloud.ouraring.com/v2/docs"
+      "url": "https://cloud.ouraring.com/v2/docs",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "WHOOP developer platform",
-      "url": "https://developer.whoop.com/"
+      "url": "https://developer.whoop.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Dexcom developer portal",
-      "url": "https://developer.dexcom.com/"
+      "url": "https://developer.dexcom.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Eight Sleep",
-      "url": "https://www.eightsleep.com/"
+      "url": "https://www.eightsleep.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "LibreView",
-      "url": "https://www.libreview.com/"
+      "url": "https://www.libreview.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Levels",
-      "url": "https://www.levelshealth.com/"
+      "url": "https://www.levelshealth.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.2.31)** — Connector for 'Apple Resting HR and Walking Pace Divergence' stops polling `apple:health`; stale `resting_hr`, `walking_pace_sec_km`, `baseline_rhr` on `person`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `resting_hr`, `walking_pace_sec_km`, `baseline_rhr` over `1w` is expected for UC-25.2.31, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `apple:health`. Dedup with `stats latest(*) by person`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `baseline_rhr` > 0 for 'Apple Resting HR and Walking Pace Divergence'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It nudges resting heart rate alongside easy walking pace so you can spot fatigue patterns where both recovery and everyday speed worsened together before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Apple Health — Health Auto Export app or Shortcuts automation → HEC.\n• **Subcategory context**: Health, Sleep & Wearables — typical feeds: Apple Health metrics (`apple:health`), Oura Ring daily readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings body/blood-pressure (`withings:measure`), Dexcom CGM glucose (`de.\n• **Sourcetypes in this search**: `apple:health`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Apple Health** events into `index=personal` with `sourcetype=apple:health`.\n\n**Collection method:** Health Auto Export app or Shortcuts automation → HEC.\n\n**Reference endpoint / path:** `iOS shortcut POST JSON batch nightly`.\n\n**Suggested poll interval:** 86400s.\n\n**Key fields to extract:** `metric, value, unit, sourceName, startDate`.\n\n**Typical connector stack:** Apple Health / Apple Watch exports (Health Auto Export, Shortcuts) via HEC; Oura, Whoop, Withings, Dexcom APIs via scripted REST inputs..\n\n**Author notes:** Ingest Apple Health cardio metrics data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"apple:health\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=apple:health earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Apple Resting HR and Walking Pace Divergence** over `personal` data (primarily `sourcetype=apple:health`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `_time`, `baseline_rhr`, `person`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=apple:health\n| bin _time span=1w\n| stats avg(resting_hr) as resting_hr, avg(walking_pace_sec_km) as walking_pace_sec_km by person _time\n| streamstats window=4 current=f avg(resting_hr) as baseline_rhr, avg(walking_pace_sec_km) as baseline_pace by person\n| where baseline_rhr>0 AND resting_hr>baseline_rhr+5 AND walking_pace_sec_km>baseline_pace+30\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Apple Health app → Browse → metric category. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=apple:health earliest=-7d\n| head 50\n| table _time, baseline_rhr, person\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=apple:health earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `baseline_rhr` before alerting:\n\n```spl\nindex=personal sourcetype=apple:health earliest=-30d\n| stats perc50(baseline_rhr) AS p50 perc90(baseline_rhr) AS p90 perc99(baseline_rhr) AS p99 max(baseline_rhr) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.2.31: Personal evidence` with the following panel layout:\n\n**Panel 1 — Weekly Trend Of Resting Heart Rate And Walking Pace (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Apple Health — no Apple Health events / missing fields:** If `apple:health` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Apple Health connector script is still running (`systemctl status` or cron log).\n\n**Apple Health — NULL values in extracted fields:** The Apple Health JSON export shape drifted — compare a raw event (`index=personal sourcetype=apple:health | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Apple Health — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Apple Health — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Apple Health APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It nudges resting heart rate alongside easy walking pace so you can spot fatigue patterns where both recovery and everyday speed worsened together before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=_internal` `sourcetype=splunkd` (ModularInputs, ExecProcessor)",
-  "app": "Monitoring Console",
+  "exclusions": "Covers the detection logic documented for 'Modular Input Errors (_internal)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_modular_input_errors_internal` (UC-13.1.20), SOC dashboard panel \"Operations — Modular Input Errors (_internal)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-13.1.20 positive (Modular, Input, Errors, internal)): ingest synthetic events into `index=_internal` sourcetype='splunkd' where `count` grouped by `host`, `stanza`, `message` satisfies detection threshold for 'Modular Input Errors (_internal)'. Validate filter `log_level=ERROR OR log_level=FATAL`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-13.1.20 negative (Errors (_internal)): ingest benign `_internal` / `splunkd` events where `host`, `stanza`, `message` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Modular Input Errors (_internal)'."
+  },
+  "dataSources": "`index=_internal` `sourcetype=splunkd` (ModularInputs, ExecProcessor) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Monitoring Console — Universal Forwarder (Splunkbase 617)",
   "spl": "index=_internal sourcetype=splunkd (component=ModularInputs OR component=ExecProcessor)\n| search log_level=ERROR OR log_level=FATAL\n| stats count by host, stanza, message\n| sort -count",
-  "description": "Scripted and modular inputs drive critical ingestion; errors stop or corrupt data collection without obvious UI failure.",
-  "value": "Scripted and modular inputs drive critical ingestion; errors stop or corrupt data collection without obvious UI failure.",
+  "description": "Detects UC-13.1.20 — Modular, Input, Errors, internal) — using `index=_internal` sourcetype `splunkd`, grouped by `host`, `stanza`, `message`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `log_level=ERROR OR log_level=FATAL`. Purpose-built for 'Modular Input Errors (_internal)' in Operations workflows.",
+  "value": "UC-13.1.20 helps teams contain Modular, Input, Errors, internal) scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Alert on ERROR/FATAL from modular inputs. Map `stanza` to `inputs.conf`. Verify script paths, credentials, and API rate limits.",
   "visualization": "Table (modular input errors), Timeline (error bursts).",
   "cimModels": [
@@ -22,10 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Signals move after deploys, config edits, and traffic shifts. We compare with the right product view and a short history before an outage page.",
+  "knownFalsePositives": "1. **Maintenance window on `_internal` (UC-13.1.20)** — Planned work for 'Modular Input Errors (_internal)' shifts `count` over `span=1h` while `host`, `stanza`, `message` remains in-scope. Applies filter `log_level=ERROR OR log_level=FATAL`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `splunkd`** — Scheduled automation elevates `stanza` without crossing configured threshold for UC-13.1.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `stanza`, `message`** — Health checks in `_internal` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `splunkd`** — First 48h baseline for UC-13.1.20 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Monitoring Console.\n• Ensure the following data sources are available: `index=_internal` `sourcetype=splunkd` (ModularInputs, ExecProcessor).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAlert on ERROR/FATAL from modular inputs. Map `stanza` to `inputs.conf`. Verify script paths, credentials, and API rate limits.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal sourcetype=splunkd (component=ModularInputs OR component=ExecProcessor)\n| search log_level=ERROR OR log_level=FATAL\n| stats count by host, stanza, message\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Modular Input Errors (_internal)** — Scripted and modular inputs drive critical ingestion; errors stop or corrupt data collection without obvious UI failure.\n\nDocumented **Data sources**: `index=_internal` `sourcetype=splunkd` (ModularInputs, ExecProcessor). **App/TA** (typical add-on context): Monitoring Console. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal; **sourcetype**: splunkd. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal, sourcetype=splunkd. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by host, stanza, message** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search over calm and busy windows. Compare with the Splunk monitoring console and relevant health and introspection views, and spot-check key fields in sample events.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (modular input errors), Timeline (error bursts).",
-  "grandmaExplanation": "We watch platform health and capacity for search, indexing, and data delivery so the system we use for answers does not go dark or slow first."
+  "grandmaExplanation": "We watch platform health and capacity for search, indexing, and data delivery so the system we use for answers does not go dark or slow first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

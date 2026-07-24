@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=aws:cloudwatch` (EC2 namespace)",
-  "app": "`Splunk_TA_aws`",
+  "exclusions": "Covers the detection logic documented for 'EC2 Performance Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ec2_performance_monitoring` (UC-4.1.10), SOC dashboard panel \"Operations — EC2 Performance Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-4.1.10 positive (EC2, Performance, Monitoring): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `avg_cpu` grouped by `metric_dimensions` satisfies `avg_cpu` > 80 for 'EC2 Performance Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.10 negative (Performance Monitoring): ingest benign `aws` / `aws:cloudwatch` events where `metric_dimensions` stays below `avg_cpu` > 80, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'EC2 Performance Monitoring'."
+  },
+  "dataSources": "`sourcetype=aws:cloudwatch` (EC2 namespace) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" metric_name=\"CPUUtilization\" namespace=\"AWS/EC2\"\n| timechart span=1h avg(Average) as avg_cpu by metric_dimensions\n| where avg_cpu > 80",
-  "description": "CloudWatch metrics provide host-level performance data without agents. Baseline trending for capacity planning and anomaly detection.",
-  "value": "CloudWatch metrics provide host-level performance data without agents. Baseline trending for capacity planning and anomaly detection.",
+  "description": "Monitors UC-4.1.10 — EC2, Performance, Monitoring — using `index=aws` sourcetype `aws:cloudwatch`, grouped by `metric_dimensions`. Outputs `avg_cpu` each `1h`; alert when `avg_cpu` > 80. Primary focus: Performance Monitoring. Purpose-built for 'EC2 Performance Monitoring' in Operations workflows.",
+  "value": "UC-4.1.10 helps teams contain EC2, Performance, Monitoring scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Configure CloudWatch metric collection in Splunk_TA_aws for EC2 namespace. Collect CPUUtilization, NetworkIn/Out, DiskReadOps, DiskWriteOps. Set polling interval (300s minimum).",
   "visualization": "Line chart per instance, Heatmap across fleet, Gauge.",
   "cimModels": [
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "Splunk_TA_aws",
-      "url": "https://splunkbase.splunk.com/app/1876"
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned deploys, game-day tests, and vendor maintenance that you expect to move CPU, error, or lag metrics; compare with the change window.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.10)** — Planned work for 'EC2 Performance Monitoring' shifts `avg_cpu` over `span=1h` while `metric_dimensions` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `aws:cloudwatch`** — Scheduled automation elevates `src` without crossing `avg_cpu` > 80 for UC-4.1.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `metric_dimensions`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-4.1.10 on `metric_dimensions` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `metric_dimensions`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudwatch` (EC2 namespace).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure CloudWatch metric collection in Splunk_TA_aws for EC2 namespace. Collect CPUUtilization, NetworkIn/Out, DiskReadOps, DiskWriteOps. Set polling interval (300s minimum).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" metric_name=\"CPUUtilization\" namespace=\"AWS/EC2\"\n| timechart span=1h avg(Average) as avg_cpu by metric_dimensions\n| where avg_cpu > 80\n```\n\nUnderstanding this SPL\n\n**EC2 CloudWatch metrics** — CloudWatch metrics provide host-level performance data without agents. Baseline trending for capacity planning and anomaly detection.\n\nDocumented **Data sources**: `sourcetype=aws:cloudwatch` (EC2 namespace). **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1h** buckets with a separate series **by metric_dimensions** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where avg_cpu > 80` — typically the threshold or rule expression for this monitoring goal.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart per instance, Heatmap across fleet, Gauge.\n",
-  "grandmaExplanation": "We keep an eye on ec2 performance monitoring. The key performance numbers the cloud already exposes so the team can plan capacity and notice problems before user-visible outages. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first."
+  "equipmentModels": [
+    "aws_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudwatch` (EC2 namespace).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure CloudWatch metric collection in Splunk_TA_aws for EC2 namespace. Collect CPUUtilization, NetworkIn/Out, DiskReadOps, DiskWriteOps. Set polling interval (300s minimum).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" metric_name=\"CPUUtilization\" namespace=\"AWS/EC2\"\n| timechart span=1h avg(Average) as avg_cpu by metric_dimensions\n| where avg_cpu > 80\n```\n\nUnderstanding this SPL\n\n**EC2 CloudWatch metrics** — CloudWatch metrics provide host-level performance data without agents. Baseline trending for capacity planning and anomaly detection.\n\nDocumented **Data sources**: `sourcetype=aws:cloudwatch` (EC2 namespace). **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1h** buckets with a separate series **by metric_dimensions** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where avg_cpu > 80` — typically the threshold or rule expression for this monitoring goal.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart per instance, Heatmap across fleet, Gauge.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:cloudwatch into aws. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`avg_cpu, metric_dimensions`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on ec2 performance monitoring. The key performance numbers the cloud already exposes so the team can plan capacity and notice problems before user-visible outages. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

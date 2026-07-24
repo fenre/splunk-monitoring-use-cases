@@ -8,11 +8,17 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=network` `sourcetype=\"snmp:trap\"` or `snmptrapd:syslog`",
-  "app": "SNMP trap receiver, `snmptrapd` → syslog",
+  "exclusions": "Covers the detection logic documented for 'SNMP Trap Storm Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_snmp_trap_storm_detection` (UC-14.1.10), SOC dashboard panel \"Operations — SNMP Trap Storm Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.1.10 positive (SNMP, Trap, Storm, Detection): ingest synthetic events into `index=network` sourcetype='target_sourcetype' where `count` grouped by `device_ip` satisfies `trap_rate` > 500 for 'SNMP Trap Storm Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.1.10 negative (Storm Detection): ingest benign `network` / `target_sourcetype` events where `device_ip` stays below `trap_rate` > 500, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'SNMP Trap Storm Detection'."
+  },
+  "dataSources": "`index=network` `sourcetype=\"snmp:trap\"` or `snmptrapd:syslog` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "SNMP trap receiver, `snmptrapd` → syslog — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=network sourcetype IN (\"snmp:trap\",\"snmptrapd:syslog\")\n| timechart span=1m count as trap_rate by device_ip\n| where trap_rate > 500",
-  "description": "Trap floods overwhelm collectors and obscure real faults; rapid detection enables rate limiting and upstream device triage.",
-  "value": "Trap floods overwhelm collectors and obscure real faults; rapid detection enables rate limiting and upstream device triage.",
+  "description": "Monitors UC-14.1.10 for SNMP, Trap, Storm, Detection over `index=network` sourcetype `configured sourcetype` with thresholds `trap_rate` > 500. Groups `count` by `device_ip` each `1m`. Centered on Storm Detection indicators. Supports repeatable operations triage for 'SNMP Trap Storm Detection'.",
+  "value": "For 'SNMP Trap Storm Detection', UC-14.1.10 converts `activity` on UC-14.1.10 search results into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Baseline traps/min per agent IP. Alert when rate exceeds 5× baseline or absolute threshold. Correlate with link flaps or misconfigured threshold on managed device.",
   "visualization": "Line chart (trap rate by device), Single value (peak traps/min), Table (top storm sources).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 833",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Battery alarms during scheduled load tests, planned battery replacements, or after a sustained brownout recovery.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-14.1.10)** — Planned work for 'SNMP Trap Storm Detection' shifts `count` over `span=1m` while `device_ip` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `src` without crossing `trap_rate` > 500 for UC-14.1.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `device_ip`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-14.1.10 on `device_ip` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `device_ip`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kubernetes",
     "snmp",
@@ -35,6 +57,12 @@
     "kubernetes_helm",
     "snmp_generic"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP trap receiver, `snmptrapd` → syslog.\n• Ensure the following data sources are available: `index=network` `sourcetype=\"snmp:trap\"` or `snmptrapd:syslog`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBaseline traps/min per agent IP. Alert when rate exceeds 5× baseline or absolute threshold. Correlate with link flaps or misconfigured threshold on managed device.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype IN (\"snmp:trap\",\"snmptrapd:syslog\")\n| timechart span=1m count as trap_rate by device_ip\n| where trap_rate > 500\n```\n\nUnderstanding this SPL\n\n**SNMP Trap Storm Detection** — Trap floods overwhelm collectors and obscure real faults; rapid detection enables rate limiting and upstream device triage.\n\nDocumented **Data sources**: `index=network` `sourcetype=\"snmp:trap\"` or `snmptrapd:syslog`. **App/TA** (typical add-on context): SNMP trap receiver, `snmptrapd` → syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1m** buckets with a separate series **by device_ip** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where trap_rate > 500` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nRun the search in a known window. Spot-check a few events against the BMS console (for example Niagara, Tridium, or Honeywell) and confirm zones, values, and alarms line up. Verify field names and that the right roles can search the index.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (trap rate by device), Single value (peak traps/min), Table (top storm sources).",
-  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with device health the way a network-style poll sees it before harm, damage, or wasted effort piles up."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP trap receiver, `snmptrapd` → syslog.\n• Ensure the following data sources are available: `index=network` `sourcetype=\"snmp:trap\"` or `snmptrapd:syslog`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBaseline traps/min per agent IP. Alert when rate exceeds 5× baseline or absolute threshold. Correlate with link flaps or misconfigured threshold on managed device.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype IN (\"snmp:trap\",\"snmptrapd:syslog\")\n| timechart span=1m count as trap_rate by device_ip\n| where trap_rate > 500\n```\n\nUnderstanding this SPL\n\n**SNMP Trap Storm Detection** — Trap floods overwhelm collectors and obscure real faults; rapid detection enables rate limiting and upstream device triage.\n\nDocumented **Data sources**: `index=network` `sourcetype=\"snmp:trap\"` or `snmptrapd:syslog`. **App/TA** (typical add-on context): SNMP trap receiver, `snmptrapd` → syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1m** buckets with a separate series **by device_ip** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where trap_rate > 500` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nRun the search in a known window. Spot-check a few events against the BMS console (for example Niagara, Tridium, or Honeywell) and confirm zones, values, and alarms line up. Verify field names and that the right roles can search the index.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (trap rate by device), Single value (peak traps/min), Table (top storm sources).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (SNMP trap receiver, `snmptrapd` → syslog — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=snmp:trap, snmptrapd:syslog into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`device_ip, trap_rate`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with device health the way a network-style poll sees it before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

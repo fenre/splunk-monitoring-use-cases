@@ -9,28 +9,43 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "MicroStrategy DSS logs (`microstrategy:dsserror`), Cognos audit (`cognos:audit`), BusinessObjects audit (`businessobjects:audit`), Oracle Analytics usage (`oracle:analytics:usage`), ThoughtSpot audit (`thoughtspot:audit`), QuickSight CloudTrail (`aws:cloudtrail`).",
-  "app": "Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS.",
+  "exclusions": "Covers the detection logic documented for 'ThoughtSpot Data Load (TQL/Falcon) Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_thoughtspot_data_load_tql_falcon_failures` (UC-24.6.10), SOC dashboard panel \"Operations — ThoughtSpot Data Load (TQL/Falcon) Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.6.10 positive (ThoughtSpot, Data, Load, (TQL, Falcon)): ingest synthetic events into `index=bi` sourcetype='thoughtspot:audit' where `count` grouped by `table_name`, `database` satisfies `failures` > 0 for 'ThoughtSpot Data Load (TQL/Falcon) Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.6.10 negative ((TQL/Falcon) Failures): ingest benign `bi` / `thoughtspot:audit` events where `table_name`, `database` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'ThoughtSpot Data Load (TQL/Falcon) Failures'."
+  },
+  "dataSources": "MicroStrategy DSS logs (`microstrategy:dsserror`), Cognos audit (`cognos:audit`), BusinessObjects audit (`businessobjects:audit`), Oracle Analytics usage (`oracle:analytics:usage`), ThoughtSpot audit (`thoughtspot:audit`), QuickSight CloudTrail (`aws:cloudtrail`). Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=bi sourcetype=thoughtspot:audit (event=\"data_load\" OR component=\"falcon\") (status=\"FAILED\" OR level=\"ERROR\")\n| stats count as failures by table_name, database\n| where failures>0\n| sort - failures",
-  "description": "Surfaces ThoughtSpot data-load and Falcon in-memory table failures so search-driven analytics does not run against stale or partially loaded tables.",
-  "value": "ThoughtSpot answers only reflect loaded data; load failures silently degrade every search on the affected table.",
+  "description": "Detects UC-24.6.10 — ThoughtSpot, Data, Load, (TQL, Falcon) — using `index=bi` sourcetype `thoughtspot:audit`, grouped by `table_name`, `database`. Outputs `count` each `the scheduled window`; alert when `failures` > 0. Primary focus: (TQL/Falcon) Failures. Purpose-built for 'ThoughtSpot Data Load (TQL/Falcon) Failures' in Operations workflows.",
+  "value": "UC-24.6.10 operationalises 'ThoughtSpot Data Load (TQL/Falcon) Failures' against `thoughtspot:audit` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest ThoughtSpot audit logs; schedule hourly and alert on load failures for governed tables.",
   "visualization": "Table of table/database by failures, timechart.",
   "cimModels": [],
   "references": [
     {
       "title": "MicroStrategy — Enterprise Manager / monitoring",
-      "url": "https://www2.microstrategy.com/producthelp/current/EnterpriseManager/en-us/Content/enterprise_manager.htm"
+      "url": "https://www2.microstrategy.com/producthelp/current/EnterpriseManager/en-us/Content/enterprise_manager.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IBM Cognos Analytics — Audit reporting",
-      "url": "https://www.ibm.com/docs/en/cognos-analytics"
+      "url": "https://www.ibm.com/docs/en/cognos-analytics",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.6.10)** — Planned work for 'ThoughtSpot Data Load (TQL/Falcon) Failures' shifts `count` over `span=1h` while `table_name`, `database` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `thoughtspot:audit`** — Scheduled automation elevates `database` without crossing `failures` > 0 for UC-24.6.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `table_name`, `database`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `thoughtspot:audit`** — First 48h baseline for UC-24.6.10 on `table_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `table_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "crowdstrike",
@@ -39,5 +54,12 @@
   "equipmentModels": [
     "oracle_oracle_db"
   ],
-  "grandmaExplanation": "We watch ThoughtSpot's data loads so search answers are based on complete, current data."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=thoughtspot:audit into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`database, failures, table_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch ThoughtSpot's data loads so search answers are based on complete, current data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

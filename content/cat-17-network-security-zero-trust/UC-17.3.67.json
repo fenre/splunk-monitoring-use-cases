@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Forcepoint Web Security On-Premises URL Blocks (`websense:cg:kv`)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_forcepoint_web_security_on_premises_url_blocks_w` (UC-17.3.67), SOC dashboard panel \"Network — Forcepoint Web Security On-Premises URL Blocks (`websense:cg:kv`)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.67 positive (Forcepoint, Web, Security, Premises, URL): ingest synthetic events into `index=proxy` sourcetype='websense:cg:kv' where `count` grouped by `user`, `url`, `category`, `policy` satisfies -7d for 'Forcepoint Web Security On-Premises URL Blocks (`websense:cg:kv`)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.67 negative (Blocks (`websense:cg:kv`)): ingest benign `proxy` / `websense:cg:kv` events where `user`, `url`, `category`, `policy` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 1 confirms zero alert rows for 'Forcepoint Web Security On-Premises URL Blocks (`websense:cg:kv`)'."
+  },
   "dataSources": "Forcepoint Web Security / Websense proxy syslog key-value logs, `sourcetype=websense:cg:kv`",
   "app": "Splunk Add-on for Forcepoint Web Security (Splunkbase 2966)",
   "spl": "index=proxy sourcetype=\"websense:cg:kv\" earliest=-7d\n| eval act=lower(coalesce(action, disposition, result))\n| where match(act,\"(?i)block|deny|drop\")\n| stats count by user, url, category, policy\n| sort -count\n| head 40",
-  "description": "Traditional Forcepoint Web Security appliances still enforce acceptable-use and threat categories for many enterprises. Blocked URL telemetry validates policy strictness, identifies compromised accounts generating unusual categories, and supports HR or insider investigations.",
-  "value": "Web security teams analyze Forcepoint on-premises proxy URL blocks by category and user, distinguishing security-category blocks indicating endpoint compromise from acceptable-use policy enforcement, with migration guidance for Forcepoint ONE SSE.",
+  "description": "Surfaces Blocks (`websense:cg:kv`) activity in UC-17.3.67 ('Forcepoint Web Security On-Premises URL Blocks (`websense:cg:kv`)') from `index=proxy` sourcetype `websense:cg:kv`. Rolls up `count` by `user`, `url`, `category`, `policy` across `the scheduled window` and pages when -7d. Covers Forcepoint, Web, Security, Premises, URL. Network operators treat UC-17.3.67 as the canonical signal.",
+  "value": "Operators running UC-17.3.67 on `websense:cg:kv` feeds shorten triage for Blocks (`websense:cg:kv`) tied to 'Forcepoint Web Security On-Premises URL Blocks (`websense:cg:kv`)', lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Forward appliance syslog to Splunk with the vendor-recommended KV format. Install Splunkbase 2966 for CIM Web mappings. Map `category` to internal risk tiers. Deprecation planning: migrate searches to Forcepoint ONE (`forcepoint:one`) as appliances are replaced.",
   "visualization": "Table (user, URL category), Bar chart (blocks by category), Timeline.",
   "cimModels": [
@@ -24,18 +30,34 @@
   "references": [
     {
       "title": "Splunk Documentation — Source types for Splunk Add-on for Forcepoint Web Security",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/WebsenseCG/Sourcetypes"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/WebsenseCG/Sourcetypes",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase — Splunk Add-on for Forcepoint Web Security",
-      "url": "https://splunkbase.splunk.com/app/2966"
+      "url": "https://splunkbase.splunk.com/app/2966",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Access denied for users in mid-onboarding, role changes pending propagation, or VDI sessions with new device IDs.",
+  "knownFalsePositives": "1. **Vulnerability scanner signature matches** — Qualys/Tenable traffic triggers IPS/threat signatures for 'Forcepoint Web Security On-Premises URL Blocks (`websense:cg:kv`)'. Compare `src` against `scanner_ips` lookup.\n\n2. **Policy push during change window** — New deny rule generates expected blocks. Match firewall commit timestamp in change calendar.\n\n3. **Encrypted traffic inspection gap** — TLS-heavy apps bypass deep inspection; volume drop is operational, not a sensor failure.\n\n4. **Red-team C2 simulation** — Approved exercise from `pen_test_hosts.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src`, `signature_id`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "forcepoint",
     "syslog"
+  ],
+  "equipmentModels": [
+    "forcepoint_generic",
+    "syslog_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -45,5 +67,7 @@
   ],
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• Forcepoint Web Security (formerly Websense) proxy logs in `index=proxy` with `sourcetype=websense:cg:kv`. Key fields: `user` (authenticated user), `url` (requested URL), `category` (URL category), `action` (permitted/blocked), `policy` (policy name), `src_ip`, `bytes`, `status_code`, `content_type`.\n• Forcepoint Web Security uses URL categorization (100+ categories), reputation, and threat intelligence to filter web traffic. The `websense:cg:kv` sourcetype is the SIEM key-value export format from the Content Gateway proxy.\n• Install Splunkbase 2966 (Splunk Add-on for Forcepoint Web Security) for CIM Web mappings.\n\nStep 1 — Configure data collection\nOn Forcepoint Content Gateway: Settings > Log Server > SIEM Integration > add Splunk syslog.\n\nVerify:\n```spl\nindex=proxy sourcetype=\"websense:cg:kv\" earliest=-24h\n| stats count by action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — URL block analysis:\n```spl\nindex=proxy sourcetype=\"websense:cg:kv\" action=blocked earliest=-7d\n| timechart span=1d count by category limit=10\n```\n\nUnderstanding this SPL: Trends blocked URL categories over time. Security categories (Malware, Phishing, Botnets) indicate active threats. Policy categories (Adult, Gambling, Streaming) indicate acceptable-use enforcement. A spike in security blocks from specific users may indicate endpoint compromise.\n\nUser investigation:\n```spl\nindex=proxy sourcetype=\"websense:cg:kv\" action=blocked earliest=-24h\n| where match(category, \"(?i)malware|phishing|botnet|command|spyware\")\n| stats count dc(url) as unique_urls by user, src_ip, category\n| sort - count\n```\n\nStep 3 — Validate\n(a) Visit a blocked-category URL. Verify block event.\n(b) In Forcepoint Security Manager: Reporting > Web Activity.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Block category trend. Row 2 — Security category users. Row 3 — Top blocked URLs.\nAlert: When user generates 10+ security-category blocks in 1 hour (possible compromise).\n\nRunbook:\n1. **Security category blocks** — Endpoint compromised? Check for malware.\n2. **Policy category spike** — Awareness training needed.\n3. **Uncategorized blocks** — Submit URLs for re-categorization.\n\nStep 5 — Troubleshooting\n• **No proxy events** — SIEM integration may not be enabled on Content Gateway.\n• **`category` shows numbers** — Install Splunkbase 2966 for category name lookups.\n\nMigration note: As Forcepoint Web Security appliances are replaced by Forcepoint ONE SSE, migrate these searches to `sourcetype=forcepoint:one:sse`.",
-  "grandmaExplanation": "Our on-premises web filter blocks dangerous and inappropriate websites. We watch what it blocks — when someone's computer keeps trying to visit malware sites, it probably means their computer is infected and we need to clean it up."
+  "grandmaExplanation": "Our on-premises web filter blocks dangerous and inappropriate websites. We watch what it blocks — when someone's computer keeps trying to visit malware sites, it probably means their computer is infected and we need to clean it up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

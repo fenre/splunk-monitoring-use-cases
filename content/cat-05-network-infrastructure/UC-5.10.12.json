@@ -10,25 +10,43 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Telecommunications",
-  "dataSources": "`index=network` syslog (`sourcetype=cisco:ios`, `sourcetype=juniper:junos`) for `%BGP-5-ADJCHANGE`, `LINK-3-UPDOWN`, `LINEPROTO-5-UPDOWN`, `SNMP_TRAP_LINK`; optional `index=telecom_sip` `stream:sip` 503/504 bursts toward carrier trunks. Lookup tables `carrier_maintenance_windows.csv` (fields: `carrier_id`, `utc_start`, `utc_end`, `circuit_hint`, `ticket_ref`, `suppress_alert`) and `carrier_circuits.csv` mapping `host`, `interface`, `carrier_id`.",
-  "app": "`Splunk Connect for Syslog` or Cisco Juniper TAs feeding unified network index.",
+  "exclusions": "Covers the detection logic documented for 'Carrier Maintenance Window Correlation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_carrier_maintenance_window_correlation` (UC-5.10.12), SOC dashboard panel \"Operations — Carrier Maintenance Window Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.10.12 positive (Carrier, Maintenance, Window, Correlation): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `values` grouped by `carrier_name`, `host`, `bgp_nbr`, `if_name` satisfies -24h for 'Carrier Maintenance Window Correlation'. Validate lookup `carrier_circuits.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.10.12 negative (Window Correlation): ingest benign `network` / `cisco:ios` events where `carrier_name`, `host`, `bgp_nbr`, `if_name` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Carrier Maintenance Window Correlation'."
+  },
+  "dataSources": "`index=network` syslog (`sourcetype=cisco:ios`, `sourcetype=juniper:junos`) for `%BGP-5-ADJCHANGE`, `LINK-3-UPDOWN`, `LINEPROTO-5-UPDOWN`, `SNMP_TRAP_LINK`; optional `index=telecom_sip` `stream:sip` 503/504 bursts toward carrier trunks. Lookup tables `carrier_maintenance_windows.csv` (fields: `carrier_id`, `utc_start`, `utc_end`, `circuit_hint`, `ticket_ref`, `suppress_alert`) and `carrier_circuits.csv` mapping `host`, `interface`, `carrier_id`. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Connect for Syslog` or Cisco Juniper TAs feeding unified network index. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network earliest=-24h (sourcetype=\"cisco:ios\" OR sourcetype=\"juniper:junos\")\n    (\"%BGP-5-ADJCHANGE\" OR \"BGP_NOTIFICATION\" OR \"LINK-3-UPDOWN\" OR \"LINEPROTO-5-UPDOWN\" OR \"SNMP_TRAP_LINK\")\n| rex field=_raw \"(?i)interface (?<if_name>[^,:]+)\"\n| rex field=_raw \"neighbor (?<bgp_nbr>[0-9a-fA-F:\\.:\\]]+)\"\n| eval circuit_key=host.\"|\".coalesce(if_name,\"na\")\n| lookup carrier_circuits.csv circuit_key OUTPUT carrier_id carrier_name\n| lookup carrier_maintenance_windows.csv carrier_id OUTPUT utc_start utc_end ticket_ref suppress_alert\n| eval in_maint=if(suppress_alert==\"true\" AND _time>=utc_start AND _time<=utc_end,1,0)\n| where in_maint==0 OR isnull(utc_start)\n| eval severity=case(match(_raw,\"(?i)down|idle\"),\"high\", match(_raw,\"(?i)UPDOWN.*down\"),\"high\", true(),\"medium\")\n| stats count values(ticket_ref) as tickets values(_raw) as samples by carrier_name host bgp_nbr if_name severity\n| sort -count",
-  "description": "Tags carrier-impacting interface and BGP churn events with synchronized carrier-published maintenance windows so only unexpected outages bubble into paging queues—while still retaining forensic copies of in-window noise.",
-  "value": "Operations stops burning bridge calls on planned fibre swaps or PE reloads, yet preserves timestamps proving whether incidents aligned with notifications—critical when negotiating SLA penalties versus coordinated maintenance carve-outs.",
+  "description": "Identifies when Window Correlation criteria fire for 'Carrier Maintenance Window Correlation' (UC-5.10.12) in `index=network` sourcetype `cisco:ios`. Pipeline aggregates `values` by `carrier_name`, `host`, `bgp_nbr`, `if_name` over `the scheduled window`. Alert logic enforces -24h. SPL signature: lookup `carrier_circuits.csv`. Eliminates manual hunting for UC-5.10.12 conditions.",
+  "value": "UC-5.10.12 helps teams contain Carrier, Maintenance, Window, Correlation scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ingest carrier CSV/RSS feeds into KV store or scheduled CSV refresh; normalize all timestamps to UTC; map interfaces via authoritative CMDB export; auto-close tickets when `in_maint=1` while logging correlation ratio KPIs monthly.",
   "visualization": "Stacked bar of events suppressed versus escalated per carrier; timeline annotated with maintenance shading; table listing outliers with samples column truncated.",
   "cimModels": [],
   "references": [
     {
       "title": "MEF — Maintenance Coordination Primer (carrier operational practices)",
-      "url": "https://www.mef.net/"
+      "url": "https://www.mef.net/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — correlation searches",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Emergency carrier patches absent from calendars page loudly—maintain phone-verified override rows; rolling brownouts spanning multi-day windows need segmented rows or alerts fatigue returns.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.10.12)** — Planned work for 'Carrier Maintenance Window Correlation' shifts `values` over `span=1h` while `carrier_name`, `host`, `bgp_nbr`, `if_name` remains in-scope. Applies lookup `carrier_circuits.csv`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `cisco:ios`** — Scheduled automation elevates `host` without crossing configured threshold for UC-5.10.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `carrier_name`, `host`, `bgp_nbr`, `if_name`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.10.12 on `carrier_name` is unstable; join `carrier_circuits.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `carrier_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "juniper",
@@ -47,8 +65,9 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Structured maintenance calendar per upstream including rollback buffers (often ±2h).\n• CMDB rows tying router interfaces and BGP neighbor IPs to `carrier_id`.\n• Governance defining whether partial overlaps suppress alerts entirely vs downgrade severity.\n• Splunk lookup replication schedule faster than maintenance updates.\n\nStep 1 — Build `carrier_maintenance_windows.csv` loader (REST or SharePoint) landing under `lookups/` with version metadata.\n\nStep 2 — Parse syslog extractions for interface/neighbor tokens even when formats differ between IOS-XR and Junos—maintain vendor-specific `rex` macros.\n\nStep 3 — Evaluate `_time` boundaries inclusively; guard against overlapping windows using `max` aggregation per carrier.\n\nStep 4 — Dashboard contrasts suppressed vs escalated counts; drilldown opens carrier portal hyperlinks stored in lookup.\n\nStep 5 — Troubleshooting: DST drift breaks correlations—force UTC; ambiguous neighbor strings behind dynamic peers require dedup via SNMP-index substitution; stale CSV causes false escalations—monitor lookup freshness via `inputlookup` diff alerts.",
+  "detailedImplementation": "Prerequisites\n• Structured maintenance calendar per upstream including rollback buffers (often ±2h).\n• CMDB rows tying router interfaces and BGP neighbor IPs to `carrier_id`.\n• Governance defining whether partial overlaps suppress alerts entirely vs downgrade severity.\n• Splunk lookup replication schedule faster than maintenance updates.\n\nStep 1 — Build `carrier_maintenance_windows.csv` loader (REST or SharePoint) landing under `lookups/` with version metadata.\n\nStep 2 — Parse syslog extractions for interface/neighbor tokens even when formats differ between IOS-XR and Junos—maintain vendor-specific `rex` macros.\n\nStep 3 — Evaluate `_time` boundaries inclusively; guard against overlapping windows using `max` aggregation per carrier.\n\nStep 4 — Dashboard contrasts suppressed vs escalated counts; drilldown opens carrier portal hyperlinks stored in lookup.\n\nStep 5 — Troubleshooting: DST drift breaks correlations—force UTC; ambiguous neighbor strings behind dynamic peers require dedup via SNMP-index substitution; stale CSV causes false escalations—monitor lookup freshness via `inputlookup` diff alerts.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Connect for Syslog` or Cisco Juniper TAs feeding unified network index. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ios, juniper:junos into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`bgp_nbr, carrier_id, carrier_id carrier_name, carrier_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We line up scary network alarms with the supplier’s published work windows so after-hours pages only happen for surprises, not for appointments we already knew about.",
+  "prerequisiteUseCases": [],
   "telcoUseCase": "Carrier change coordination",
   "wave": "walk"
 }

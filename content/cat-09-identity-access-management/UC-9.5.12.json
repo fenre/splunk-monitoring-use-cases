@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=OktaIM2:log` (`system.*rate*`), API response headers ingested via scripted input",
-  "app": "`Splunk_TA_okta`, custom HEC ingestion of API responses",
+  "exclusions": "Covers the detection logic documented for 'Okta API Rate Limit Monitoring' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `iam_okta_api_rate_limit_monitoring` (UC-9.5.12), SOC dashboard panel \"IAM — Okta API Rate Limit Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-9.5.12 positive (Okta, API, Rate, Limit, Monitoring): ingest synthetic events into `index=okta` sourcetype='okta:api' where `count` grouped by `client_id`, `endpoint`, `http_status` satisfies `count` > 0 for 'Okta API Rate Limit Monitoring'. Validate filter `http_status=429 OR like(lower(_raw),\"%rate limit%\")`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.5.12 negative (Limit Monitoring): ingest benign `okta` / `okta:api` events where `client_id`, `endpoint`, `http_status` stays below `count` > 0, or exclude the test entity via `iam_exception_register.csv`. Variant 8 confirms zero alert rows for 'Okta API Rate Limit Monitoring'."
+  },
+  "dataSources": "`sourcetype=OktaIM2:log` (`system.*rate*`), API response headers ingested via scripted input Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_okta`, custom HEC ingestion of API responses — Universal Forwarder (Splunkbase 617)",
   "spl": "index=okta (sourcetype=\"okta:api\" OR sourcetype=\"OktaIM2:log\")\n| search http_status=429 OR like(lower(_raw),\"%rate limit%\")\n| stats count by client_id, endpoint, http_status\n| where count > 0\n| sort -count",
-  "description": "Hitting rate limits breaks automation, integrations, and provisioning; trending usage prevents surprise throttling during peak loads.",
-  "value": "Hitting rate limits breaks automation, integrations, and provisioning; trending usage prevents surprise throttling during peak loads.",
+  "description": "Identifies UC-9.5.12 — Okta, API, Rate, Limit, Monitoring — using `index=okta` sourcetype `okta:api`, grouped by `client_id`, `endpoint`, `http_status`. Outputs `count` each `the scheduled window`; alert when `count` > 0. Filter chain includes filter `http_status=429 OR like(lower(_raw),\"%rate limit%\")`. Purpose-built for 'Okta API Rate Limit Monitoring' in IAM workflows.",
+  "value": "UC-9.5.12 accelerates insight into Limit Monitoring ('Okta API Rate Limit Monitoring') by tracking `activity` on `okta:api` feeds, reducing account takeover risk, help-desk load, and audit findings before spreadsheet checks hide regressions.",
   "implementation": "Log API calls from integrations with `X-Rate-Limit-*` headers or ingest Okta rate-limit system events. Alert on HTTP 429 or sustained high utilization. Work with app owners to add backoff and caching.",
   "visualization": "Line chart (429s over time), Table (client, endpoint), Gauge (rate limit remaining %).",
   "cimModels": [
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "Splunk_TA_okta",
-      "url": "https://splunkbase.splunk.com/app/6553"
+      "url": "https://splunkbase.splunk.com/app/6553",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned change windows, maintenance, approved automation, and known good service accounts; correlate with change tickets and identity team communication.",
+  "knownFalsePositives": "1. **Maintenance window on `okta` (UC-9.5.12)** — Planned work for 'Okta API Rate Limit Monitoring' shifts `count` over `span=1h` while `client_id`, `endpoint`, `http_status` remains in-scope. Applies filter `http_status=429 OR like(lower(_raw),\"%rate limit%\")`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `okta:api`** — Scheduled automation elevates `endpoint` without crossing `count` > 0 for UC-9.5.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `client_id`, `endpoint`, `http_status`** — Health checks in `okta` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `okta:api`** — First 48h baseline for UC-9.5.12 on `client_id` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `client_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "okta"
   ],
+  "equipmentModels": [
+    "okta_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_okta`, custom HEC ingestion of API responses.\n• Ensure the following data sources are available: `sourcetype=OktaIM2:log` (`system.*rate*`), API response headers ingested via scripted input.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nLog API calls from integrations with `X-Rate-Limit-*` headers or ingest Okta rate-limit system events. Alert on HTTP 429 or sustained high utilization. Work with app owners to add backoff and caching.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=okta (sourcetype=\"okta:api\" OR sourcetype=\"OktaIM2:log\")\n| search http_status=429 OR like(lower(_raw),\"%rate limit%\")\n| stats count by client_id, endpoint, http_status\n| where count > 0\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Okta API Rate Limit Monitoring** — Hitting rate limits breaks automation, integrations, and provisioning; trending usage prevents surprise throttling during peak loads.\n\nDocumented **Data sources**: `sourcetype=OktaIM2:log` (`system.*rate*`), API response headers ingested via scripted input. **App/TA** (typical add-on context): `Splunk_TA_okta`, custom HEC ingestion of API responses. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: okta; **sourcetype**: okta:api, OktaIM2:log. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=okta, sourcetype=\"okta:api\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by client_id, endpoint, http_status** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare Splunk results with the Okta admin console and System Log for the same users, outcomes, and time window, then adjust thresholds to normal org traffic.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (429s over time), Table (client, endpoint), Gauge (rate limit remaining %).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We use Okta sign-in records so we can see failed logins, risky sessions, and admin changes in one place."
+  "grandmaExplanation": "We use Okta sign-in records so we can see failed logins, risky sessions, and admin changes in one place.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

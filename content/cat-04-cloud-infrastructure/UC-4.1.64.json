@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "EKS control plane logs in `sourcetype=aws:cloudwatchlogs` (cluster audit), CloudTrail `eks.amazonaws.com` API",
-  "app": "`Splunk_TA_aws`",
+  "exclusions": "Covers the detection logic documented for 'EKS Control Plane Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_eks_control_plane_audit` (UC-4.1.64), SOC dashboard panel \"Operations — EKS Control Plane Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-4.1.64 positive (EKS, Control, Plane, Audit): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatchlogs' where `count` grouped by `user.username`, `objectRef.namespace`, `objectRef.name` satisfies detection threshold for 'EKS Control Plane Audit'. Validate filter `\"audit.k8s.io\" verb=\"create\" objectRef.resource=\"clusterrole`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.64 negative (Plane Audit): ingest benign `aws` / `aws:cloudwatchlogs` events where `user.username`, `objectRef.namespace`, `objectRef.name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'EKS Control Plane Audit'."
+  },
+  "dataSources": "EKS control plane logs in `sourcetype=aws:cloudwatchlogs` (cluster audit), CloudTrail `eks.amazonaws.com` API Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatchlogs\" log_group=\"/aws/eks/*/cluster\"\n| search \"audit.k8s.io\" verb=\"create\" objectRef.resource=\"clusterroles\" OR objectRef.resource=\"secrets\"\n| stats count by user.username, objectRef.namespace, objectRef.name\n| sort -count",
-  "description": "Kubernetes audit logs capture who changed roles, secrets, and workloads; essential for forensics and SOC2 evidence on EKS.",
-  "value": "Kubernetes audit logs capture who changed roles, secrets, and workloads; essential for forensics and SOC2 evidence on EKS.",
+  "description": "Monitors UC-4.1.64 — EKS, Control, Plane, Audit — using `index=aws` sourcetype `aws:cloudwatchlogs`, grouped by `user.username`, `objectRef.namespace`, `objectRef.name`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `\"audit.k8s.io\" verb=\"create\" objectRef.resource=\"clusterrole`. Purpose-built for 'EKS Control Plane Audit' in Operations workflows.",
+  "value": "UC-4.1.64 operationalises 'EKS Control Plane Audit' against `aws:cloudwatchlogs` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Enable EKS audit logging to CloudWatch Logs and subscribe to Splunk. Optionally include CloudTrail for `CreateCluster`, `AssociateIdentityProviderConfig`. Alert on cluster-admin bindings, anonymous access, or secret reads from unexpected service accounts.",
   "visualization": "Table (user, resource, count), Timeline (privileged API calls), Sankey (user→namespace).",
   "cimModels": [
@@ -24,14 +30,26 @@
   "references": [
     {
       "title": "Splunk_TA_aws",
-      "url": "https://splunkbase.splunk.com/app/1876"
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Platform or GitOps that edits `clusterroles` or `secrets` during a cluster upgrade; compare with the release runbook.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.64)** — Planned work for 'EKS Control Plane Audit' shifts `count` over `span=1h` while `user.username`, `objectRef.namespace`, `objectRef.name` remains in-scope. Applies filter `\"audit.k8s.io\" verb=\"create\" objectRef.resource=\"clusterrole`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatchlogs`** — Scheduled automation elevates `objectRef.namespace` without crossing configured threshold for UC-4.1.64. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user.username`, `objectRef.namespace`, `objectRef.name`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatchlogs`** — First 48h baseline for UC-4.1.64 on `user.username` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user.username`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1613",
     "T1609"
@@ -43,6 +61,12 @@
   "equipmentModels": [
     "kubernetes_k8s"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: EKS control plane logs in `sourcetype=aws:cloudwatchlogs` (cluster audit), CloudTrail `eks.amazonaws.com` API.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable EKS audit logging to CloudWatch Logs and subscribe to Splunk. Optionally include CloudTrail for `CreateCluster`, `AssociateIdentityProviderConfig`. Alert on cluster-admin bindings, anonymous access, or secret reads from unexpected service accounts.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatchlogs\" log_group=\"/aws/eks/*/cluster\"\n| search \"audit.k8s.io\" verb=\"create\" objectRef.resource=\"clusterroles\" OR objectRef.resource=\"secrets\"\n| stats count by user.username, objectRef.namespace, objectRef.name\n| sort -count\n```\n\nUnderstanding this SPL\n\n**EKS Control Plane Audit** — Kubernetes audit logs capture who changed roles, secrets, and workloads; essential for forensics and SOC2 evidence on EKS.\n\nDocumented **Data sources**: EKS control plane logs in `sourcetype=aws:cloudwatchlogs` (cluster audit), CloudTrail `eks.amazonaws.com` API. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatchlogs. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatchlogs\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by user.username, objectRef.namespace, objectRef.name** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.user | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**EKS Control Plane Audit** — Kubernetes audit logs capture who changed roles, secrets, and workloads; essential for forensics and SOC2 evidence on EKS.\n\nDocumented **Data sources**: EKS control plane logs in `sourcetype=aws:cloudwatchlogs` (cluster audit), CloudTrail `eks.amazonaws.com` API. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (user, resource, count), Timeline (privileged API calls), Sankey (user→namespace).",
-  "grandmaExplanation": "We keep an eye on eks control plane audit. Kubernetes audit logs capture who changed roles, secrets, and workloads; essential for forensics and SOC2 evidence on EK. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first."
+  "grandmaExplanation": "We keep an eye on eks control plane audit. Kubernetes audit logs capture who changed roles, secrets, and workloads; essential for forensics and SOC2 evidence on EK. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

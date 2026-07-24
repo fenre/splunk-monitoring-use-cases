@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Sysmon EventID 1, Windows Event Log Security 4688, CrowdStrike ProcessRollup2",
-  "app": "Splunk Security Essentials / ESCU",
+  "exclusions": "Covers the detection logic documented for 'Windows Identify Protocol Handlers' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_windows_identify_protocol_handlers` (UC-10.3.471), SOC dashboard panel \"Security Infra — Windows Identify Protocol Handlers\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.3.471 positive (Windows, Identify, Protocol, Handlers): ingest synthetic events into `index=endpoint` sourcetype='target_sourcetype' where `firstTime`, `lastTime` grouped by `Processes.action`, `Processes.dest`, `Processes.original_file_name`, `Processes.parent_process` satisfies detection threshold for 'Windows Identify Protocol Handlers'. Validate macro `windows_identify_protocol_handlers_filter`, lookup `windows_protocol_handlers`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.3.471 negative (Protocol Handlers): ingest benign `endpoint` / `target_sourcetype` events where `Processes.action`, `Processes.dest`, `Processes.original_file_name`, `Processes.parent_process` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 0 confirms zero alert rows for 'Windows Identify Protocol Handlers'."
+  },
+  "dataSources": "Sysmon EventID 1, Windows Event Log Security 4688, CrowdStrike ProcessRollup2 Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)",
   "spl": "| tstats `security_content_summariesonly` count min(_time) as firstTime max(_time) as lastTime values(Processes.process) as process values(Processes.parent_process) as parent_process FROM datamodel=Endpoint.Processes\n      BY Processes.action Processes.dest Processes.original_file_name\n         Processes.parent_process Processes.parent_process_exec Processes.parent_process_guid\n         Processes.parent_process_id Processes.parent_process_name Processes.parent_process_path\n         Processes.process Processes.process_exec Processes.process_guid\n         Processes.process_hash Processes.process_id Processes.process_integrity_level\n         Processes.process_name Processes.process_path Processes.user\n         Processes.user_id Processes.vendor_product\n    | `security_content_ctime(firstTime)`\n    | `security_content_ctime(lastTime)`\n    | `drop_dm_object_name(Processes)`\n    | lookup windows_protocol_handlers handler AS process OUTPUT handler ishandler\n    | where ishandler=\"TRUE\"\n    | `windows_identify_protocol_handlers_filter`",
-  "description": "The following analytic identifies the use of protocol handlers executed via the command line. It leverages data from Endpoint Detection and Response (EDR) agents, focusing on process and command-line telemetry. This activity is significant because protocol handlers can be exploited to execute arbitrary commands or launch applications, potentially leading to unauthorized actions. If confirmed malicious, an attacker could use this technique to gain code execution, escalate privileges, or maintain …",
-  "value": "The following analytic identifies the use of protocol handlers executed via the command line. It leverages data from Endpoint Detection and Response (EDR) agents, focusing on process and command-line telemetry. This activity is significant because protocol handlers can be exploited to execute arbitrary commands or launch applications, potentially leading to unauthorized actions. If confirmed malicious, an attacker could use this technique to gain code execution, escalate privileges, or maintain …",
+  "description": "Monitors 'Windows Identify Protocol Handlers' (UC-10.3.471) using datamodel `Endpoint.Processes` via macro `windows_identify_protocol_handlers_filter`, lookup `windows_protocol_handlers` by aggregating `firstTime`, `lastTime` grouped by `Processes.action`, `Processes.dest`, `Processes.original_file_name`, `Processes.parent_process` over `the scheduled window` and alerting when configured threshold. Keywords: Windows, Identify, Protocol, Handlers. Focuses on Protocol Handlers behaviour so security infra teams can triage UC-10.3.471 without ad-hoc log review.",
+  "value": "UC-10.3.471 accelerates insight into Protocol Handlers ('Windows Identify Protocol Handlers') by tracking `firstTime`, `lastTime` on `Endpoint.Processes` telemetry, reducing missed threat campaigns, control regressions, and SOC SLA breaches before spreadsheet checks hide regressions.",
   "implementation": "ESCU Hunting detection — not designed for automated alerting. Run ad-hoc or on a low-frequency schedule from Splunk Enterprise Security for analyst-driven investigation. Requires Sysmon EventID 1, Windows Event Log Security 4688, CrowdStrike ProcessRollup2 ingested and CIM-normalized.",
   "visualization": "Table, Timeline (from ESCU).",
   "cimModels": [
@@ -22,34 +28,52 @@
   "dataModelAcceleration": "Enable acceleration on Endpoint (Processes) before using this tstats search.",
   "references": [
     {
-      "url": "https://gist.github.com/MHaggis/a0d3edb57d36e0916c94c0a464b2722e"
+      "title": "https://gist.github.com/MHaggis/a0d3edb57d36e0916c94c0a464b2722e",
+      "url": "https://gist.github.com/MHaggis/a0d3edb57d36e0916c94c0a464b2722e",
+      "retrieved": "2026-04-25"
     },
     {
-      "url": "https://www.oreilly.com/library/view/learning-java/1565927184/apas02.html"
+      "title": "https://www.oreilly.com/library/view/learning-java/1565927184/apas02.html",
+      "url": "https://www.oreilly.com/library/view/learning-java/1565927184/apas02.html",
+      "retrieved": "2026-04-25"
     },
     {
-      "url": "https://blogs.windows.com/msedgedev/2022/01/20/getting-started-url-protocol-handlers-microsoft-edge/"
+      "title": "https://blogs.windows.com/msedgedev/2022/01/20/getting-started-url-protocol-handlers-microsoft-edge",
+      "url": "https://blogs.windows.com/msedgedev/2022/01/20/getting-started-url-protocol-handlers-microsoft-edge/",
+      "retrieved": "2026-04-25"
     },
     {
-      "url": "https://github.com/Mr-Un1k0d3r/PoisonHandler"
+      "title": "https://github.com/Mr-Un1k0d3r/PoisonHandler",
+      "url": "https://github.com/Mr-Un1k0d3r/PoisonHandler",
+      "retrieved": "2026-04-25"
     },
     {
-      "url": "https://www.mdsec.co.uk/2021/03/phishing-users-to-take-a-test/"
+      "title": "https://www.mdsec.co.uk/2021/03/phishing-users-to-take-a-test",
+      "url": "https://www.mdsec.co.uk/2021/03/phishing-users-to-take-a-test/",
+      "retrieved": "2026-04-25"
     },
     {
-      "url": "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1218/T1218.md#atomic-test-5---protocolhandlerexe-downloaded-a-suspicious-file"
+      "title": "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1218/T1218.md#atomic-test-5---protocolhandlerexe-downloaded-a-suspicious-file",
+      "url": "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1218/T1218.md#atomic-test-5---protocolhandlerexe-downloaded-a-suspicious-file",
+      "retrieved": "2026-04-25"
     },
     {
-      "url": "https://techcommunity.microsoft.com/t5/windows-it-pro-blog/disabling-the-msix-ms-appinstaller-protocol-handler/ba-p/3119479"
+      "title": "https://techcommunity.microsoft.com/t5/windows-it-pro-blog/disabling-the-msix-ms-appinstaller-protocol-handler/ba-p/3119479",
+      "url": "https://techcommunity.microsoft.com/t5/windows-it-pro-blog/disabling-the-msix-ms-appinstaller-protocol-handler/ba-p/3119479",
+      "retrieved": "2026-04-25"
     },
     {
-      "url": "https://www.huntress.com/blog/microsoft-office-remote-code-execution-follina-msdt-bug"
+      "title": "https://www.huntress.com/blog/microsoft-office-remote-code-execution-follina-msdt-bug",
+      "url": "https://www.huntress.com/blog/microsoft-office-remote-code-execution-follina-msdt-bug",
+      "retrieved": "2026-04-25"
     },
     {
-      "url": "https://parsiya.net/blog/2021-03-17-attack-surface-analysis-part-2-custom-protocol-handlers/"
+      "title": "https://parsiya.net/blog/2021-03-17-attack-surface-analysis-part-2-custom-protocol-handlers",
+      "url": "https://parsiya.net/blog/2021-03-17-attack-surface-analysis-part-2-custom-protocol-handlers/",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Legitimate dev tools, installers, and system maintenance binaries can match; validate parent process, path, and signer.",
+  "knownFalsePositives": "1. **ESCU content update for UC-10.3.471** — Vendor macro `windows_identify_protocol_handlers_filter` changes `firstTime`, `lastTime` on `Processes.action`, `Processes.dest`, `Processes.original_file_name`, `Processes.parent_process` for 'Windows Identify Protocol Handlers' without a real endpoint incident. Uses macro `windows_identify_protocol_handlers_filter`, lookup `windows_protocol_handlers`. Compare Content Management `lastModified`.\n\n2. **TA field alias drift on `Endpoint.Processes`** — Upgrade to the Endpoint datamodel TA renames ``Processes.action`, `Processes.dest`, `Processes.original_file_name`, `Processes.parent_process``; baseline ``firstTime`, `lastTime`` before re-enabling alerts.\n\n3. **Approved atomic test on `endpoint`** — Red-team replays 'Windows Identify Protocol Handlers' detections from exercise hosts in `datamodel=Endpoint.Processes` during scheduled pen-test window.\n\n4. **EDR bulk install on ``Processes.action`, `Processes.dest`, `Processes.original_file_name`, `Processes.parent_process``** — Mass ``firstTime`, `lastTime`` spike during agent rollout mimics 'Windows Identify Protocol Handlers'; suppress via `soc_exception_register.csv` keyed on deployment tag.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on ``Processes.action`, `Processes.dest`, `Processes.original_file_name`, `Processes.parent_process``, `search_name`, `valid_until`.",
   "mitreAttack": [
     "T1059"
   ],
@@ -58,9 +82,19 @@
     "crowdstrike",
     "security_essentials"
   ],
+  "equipmentModels": [
+    "crowdstrike_generic",
+    "security_essentials_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "Enterprise Security Detection Rule\n\n\"Windows Identify Protocol Handlers\" is a Hunting detection designed for analyst-driven threat hunting rather than automated alerting, sourced from the Splunk Enterprise Security Content Update (ESCU). Hunting detections are not intended for automated alerting. They are run on-demand or on a low-frequency schedule by security analysts investigating specific threat hypotheses.\n\nPrerequisites\n\n• Splunk Enterprise Security 7.x or later with the ES Content Update (ESCU) app installed and up to date.\n• Data sources: Sysmon EventID 1, Windows Event Log Security 4688, CrowdStrike ProcessRollup2. Must be ingested into Splunk and normalized to the Common Information Model (CIM) via the appropriate Technology Add-on.\n• MITRE ATT&CK: T1059. Review the ATT&CK matrix for adjacent techniques to identify detection coverage gaps in your environment.\n\nDeployment\n\n1. In Enterprise Security, navigate to Configure → Content → Content Management.\n2. Search for \"Windows Identify Protocol Handlers\" or filter by Analytic Story.\n3. Hunting detections are typically left disabled for automated scheduling. Instead, run them on-demand from the Search bar or schedule at low frequency (daily or weekly).\n4. Review results manually — hunting detections cast a wider net and expect analyst judgment to separate signal from noise.\n5. When results warrant further investigation, create a Notable Event manually or initiate your incident response workflow.\n\nTuning and False Positive Management\n\nKnown false positives for this detection: Legitimate dev tools, installers, and system maintenance binaries can match; validate parent process, path, and signer.\n\n• Hunting detections are expected to produce broader result sets that require analyst interpretation. Focus on refining the search scope (time range, specific hosts or users) rather than eliminating all noise.\n• Maintain a hunting journal documenting hypotheses tested, results found, and detection improvements identified.\n• Share high-fidelity findings with the detection engineering team to convert recurring hunting patterns into automated TTP or Anomaly detections.\n\nAnalyst Response Workflow\n\nWhen reviewing Hunting results:\n\n1. Run the search manually or review scheduled results. Evaluate each returned event against your threat hypothesis — not every result indicates compromise.\n2. Cross-reference findings with current threat intelligence, recent security advisories, and outputs from other detection sources.\n3. If suspicious activity is confirmed, create a Notable Event or escalate directly to your incident response process with the supporting evidence.\n4. Document the hunting exercise: hypothesis, data sources queried, time range, findings, and any detection engineering improvements identified.\n\nValidation\n\nAfter the search returns events, sample a few rows and compare the same host and time in your EDR console (CrowdStrike Falcon, Microsoft Defender for Endpoint portal, or Carbon Black) so usernames, process names, and dispositions line up. If Sysmon or Windows Security are listed in Data sources, open the Sysmon Operational log in Event Viewer and confirm the matching process, registry, or network line.",
-  "grandmaExplanation": "We use endpoint security telemetry to stay ahead of the behavior this rule calls “Windows Identify Protocol Handlers”, so we catch real tradecraft and not just noise from everyday work."
+  "detailedImplementation": "Enterprise Security Detection Rule\n\n\"Windows Identify Protocol Handlers\" is a Hunting detection designed for analyst-driven threat hunting rather than automated alerting, sourced from the Splunk Enterprise Security Content Update (ESCU). Hunting detections are not intended for automated alerting. They are run on-demand or on a low-frequency schedule by security analysts investigating specific threat hypotheses.\n\nPrerequisites\n\n• Splunk Enterprise Security 7.x or later with the ES Content Update (ESCU) app installed and up to date.\n• Data sources: Sysmon EventID 1, Windows Event Log Security 4688, CrowdStrike ProcessRollup2. Must be ingested into Splunk and normalized to the Common Information Model (CIM) via the appropriate Technology Add-on.\n• MITRE ATT&CK: T1059. Review the ATT&CK matrix for adjacent techniques to identify detection coverage gaps in your environment.\n\nDeployment\n\n1. In Enterprise Security, navigate to Configure → Content → Content Management.\n2. Search for \"Windows Identify Protocol Handlers\" or filter by Analytic Story.\n3. Hunting detections are typically left disabled for automated scheduling. Instead, run them on-demand from the Search bar or schedule at low frequency (daily or weekly).\n4. Review results manually — hunting detections cast a wider net and expect analyst judgment to separate signal from noise.\n5. When results warrant further investigation, create a Notable Event manually or initiate your incident response workflow.\n\nTuning and False Positive Management\n\nKnown false positives for this detection: Legitimate dev tools, installers, and system maintenance binaries can match; validate parent process, path, and signer.\n\n• Hunting detections are expected to produce broader result sets that require analyst interpretation. Focus on refining the search scope (time range, specific hosts or users) rather than eliminating all noise.\n• Maintain a hunting journal documenting hypotheses tested, results found, and detection improvements identified.\n• Share high-fidelity findings with the detection engineering team to convert recurring hunting patterns into automated TTP or Anomaly detections.\n\nAnalyst Response Workflow\n\nWhen reviewing Hunting results:\n\n1. Run the search manually or review scheduled results. Evaluate each returned event against your threat hypothesis — not every result indicates compromise.\n2. Cross-reference findings with current threat intelligence, recent security advisories, and outputs from other detection sources.\n3. If suspicious activity is confirmed, create a Notable Event or escalate directly to your incident response process with the supporting evidence.\n4. Document the hunting exercise: hypothesis, data sources queried, time range, findings, and any detection engineering improvements identified.\n\nValidation\n\nAfter the search returns events, sample a few rows and compare the same host and time in your EDR console (CrowdStrike Falcon, Microsoft Defender for Endpoint portal, or Carbon Black) so usernames, process names, and dispositions line up. If Sysmon or Windows Security are listed in Data sources, open the Sysmon Operational log in Event Viewer and confirm the matching process, registry, or network line.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`Processes.action, Processes.dest, Processes.original_file_name, Processes.parent_process`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use endpoint security telemetry to stay ahead of the behavior this rule calls “Windows Identify Protocol Handlers”, so we catch real tradecraft and not just noise from everyday work.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

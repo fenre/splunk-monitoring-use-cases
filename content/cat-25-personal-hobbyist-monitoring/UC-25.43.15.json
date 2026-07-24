@@ -9,27 +9,55 @@
     "Fault"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "NMEA/SignalK data (`nmea:reading`), bilge pump (`bilge:event`), mooring/anchor watch (`mooring:status`), marine weather (`marineweather:forecast`).",
-  "app": "Marine electronics — NMEA 2000 / SignalK boat networks, bilge, battery and shore-power sensors, anchor-watch GPS, and marine weather feeds — streamed to Splunk HEC via SignalK and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Engine Temperature Excursion Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_engine_temperature_excursion_watch` (UC-25.43.15), SOC dashboard panel \"Personal — Engine Temperature Excursion Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.43.15 positive (Engine, Temperature, Excursion, Watch): ingest synthetic events into `index=personal` sourcetype='nmea:reading' where `max_temp`, `avg_temp` grouped by `voyage_id` satisfies `max_temp` > 95 for 'Engine Temperature Excursion Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.43.15 negative (Excursion Watch): ingest benign `personal` / `nmea:reading` events where `voyage_id` stays below `max_temp` > 95, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 9 confirms zero alert rows for 'Engine Temperature Excursion Watch'."
+  },
+  "dataSources": "NMEA/SignalK data (`nmea:reading`), bilge pump (`bilge:event`), mooring/anchor watch (`mooring:status`), marine weather (`marineweather:forecast`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Marine electronics — NMEA 2000 / SignalK boat networks, bilge, battery and shore-power sensors, anchor-watch GPS, and marine weather feeds — streamed to Splunk HEC via SignalK and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=nmea:reading engine_temp_c=*\n| stats max(engine_temp_c) as max_temp, avg(engine_temp_c) as avg_temp by voyage_id\n| where max_temp>95\n| sort - max_temp",
-  "description": "Flags voyages where engine temperature crossed a caution threshold.",
-  "value": "A simple excursion watch catches cooling issues early, which is much cheaper than diagnosing them after a failure.",
+  "description": "Identifies UC-25.43.15 — Engine, Temperature, Excursion, Watch — using `index=personal` sourcetype `nmea:reading`, grouped by `voyage_id`. Outputs `max_temp`, `avg_temp` each `the scheduled window`; alert when `max_temp` > 95. Primary focus: Excursion Watch. Purpose-built for 'Engine Temperature Excursion Watch' in Personal workflows.",
+  "value": "Operators running UC-25.43.15 on `nmea:reading` feeds shorten triage for Excursion Watch tied to 'Engine Temperature Excursion Watch', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest NMEA engine-temperature readings into `index=personal`; alert when maximum voyage temperature exceeds your threshold.",
   "visualization": "Voyage table of average and maximum engine temperature.",
   "cimModels": [],
   "references": [
     {
       "title": "SignalK — open marine data",
-      "url": "https://signalk.org/"
+      "url": "https://signalk.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NOAA — marine forecasts",
-      "url": "https://marine.weather.gov/"
+      "url": "https://marine.weather.gov/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It surfaces which trips saw the engine run hotter than it should, so you catch cooling trouble early."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.43.15)** — Connector for 'Engine Temperature Excursion Watch' stops polling `nmea:reading`; stale `max_temp`, `avg_temp` on `voyage_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max_temp`, `avg_temp` over `1w` is expected for UC-25.43.15, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nmea:reading`. Dedup with `stats latest(*) by voyage_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `max_temp` > 95 for 'Engine Temperature Excursion Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Boating & Marine — typical feeds: NMEA/SignalK data (`nmea:reading`), bilge pump (`bilge:event`), mooring/anchor watch (`mooring:status`), marine weather (`marineweather:forecast`)..\n• **Sourcetypes in this search**: `nmea:reading`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=nmea:reading`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Marine electronics — NMEA 2000 / SignalK boat networks, bilge, battery and shore-power sensors, anchor-watch GPS, and marine weather feeds — streamed to Splunk HEC via SignalK and scripted inputs..\n\n**Author notes:** Ingest NMEA engine-temperature readings into `index=personal`; alert when maximum voyage temperature exceeds your threshold.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"nmea:reading\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=nmea:reading earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Engine Temperature Excursion Watch** over `personal` data (primarily `sourcetype=nmea:reading`) across the full search range. It applies numeric thresholds on `max_temp` (> 95) after max, avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `max_temp`, `voyage_id`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=nmea:reading engine_temp_c=*\n| stats max(engine_temp_c) as max_temp, avg(engine_temp_c) as avg_temp by voyage_id\n| where max_temp>95\n| sort - max_temp\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=nmea:reading earliest=-7d\n| head 50\n| table max_temp, voyage_id\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=nmea:reading earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `max_temp` before alerting:\n\n```spl\nindex=personal sourcetype=nmea:reading earliest=-30d\n| stats perc50(max_temp) AS p50 perc90(max_temp) AS p90 perc99(max_temp) AS p99 max(max_temp) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.43.15: Personal evidence` with the following panel layout:\n\n**Panel 1 — Voyage Table Of Average And Maximum Engine Temperature (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `nmea:reading` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=nmea:reading | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It surfaces which trips saw the engine run hotter than it should, so you catch cooling trouble early.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

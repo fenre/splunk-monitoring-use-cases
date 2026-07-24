@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=ms:iis`, `WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational` (if inputs use **XML** rendering, use `XmlWinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational` instead)",
-  "app": "Windows TA, IIS TA",
+  "exclusions": "Covers the detection logic documented for 'Remote Desktop Gateway Health' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_remote_desktop_gateway_health` (UC-17.2.16), SOC dashboard panel \"Network — Remote Desktop Gateway Health\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.2.16 positive (Remote, Desktop, Gateway, Health): ingest synthetic events into `index=windows` sourcetype='WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational' where `count` grouped by `outcome` satisfies -24h for 'Remote Desktop Gateway Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.2.16 negative (Gateway Health): ingest benign `windows` / `WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational` events where `outcome` stays below -24h, or exclude the test entity via `network_exception_register.csv`. Variant 15 confirms zero alert rows for 'Remote Desktop Gateway Health'."
+  },
+  "dataSources": "`sourcetype=ms:iis`, `WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational` (if inputs use **XML** rendering, use `XmlWinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational` instead) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "Windows TA, IIS TA — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=windows sourcetype=\"WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational\" earliest=-24h\n| where EventCode IN (200,201,300,302)\n| eval outcome=if(EventCode IN (200,201),\"success\",\"failure\")\n| timechart span=15m count by outcome",
-  "description": "Monitors RD Gateway (HTTP/UDP) auth success, connection failures, and capacity for hybrid workers.",
-  "value": "IT operations teams monitor RD Gateway connection health and authentication patterns, detecting brute-force attacks against HTTPS-tunneled RDP access and identifying gateway availability issues before they impact remote workers.",
+  "description": "Identifies UC-17.2.16 — Remote, Desktop, Gateway, Health — using `index=windows` sourcetype `WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational`, grouped by `outcome`. Outputs `count` each `15m`; alert when -24h. Primary focus: Gateway Health. Purpose-built for 'Remote Desktop Gateway Health' in Network workflows.",
+  "value": "UC-17.2.16 operationalises 'Remote Desktop Gateway Health' against `WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational` feeds so operators reduce unauthorized access, segmentation drift, and NAC policy failures without manual correlation.",
   "implementation": "Map Event IDs per OS version. Alert when failure ratio >10% over 1h. Add IIS logs for HTTP 503/502.",
   "visualization": "Line chart (success vs failure), Single value (failure %), Table (recent errors).",
   "cimModels": [
@@ -25,17 +31,42 @@
   "references": [
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 742",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Maintenance window on `windows` (UC-17.2.16)** — Planned work for 'Remote Desktop Gateway Health' shifts `count` over `span=15m` while `outcome` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational`** — Scheduled automation elevates `outcome` without crossing configured threshold for UC-17.2.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `outcome`** — Health checks in `windows` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational`** — First 48h baseline for UC-17.2.16 on `outcome` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `outcome`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1021.001"
   ],
   "equipment": [
     "iis"
   ],
+  "equipmentModels": [
+    "iis_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Windows Event Logs from RD Gateway servers forwarded to Splunk via Universal Forwarder. `sourcetype=WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational`. Optionally IIS logs from the RD Gateway web interface (`sourcetype=ms:iis`).\n• Data in `index=windows`. Key fields (from EventCode): 200 (connection authorized), 201 (connection completed), 300 (authorization failed), 302 (session disconnected), `user`, `src_ip`, `resource` (target server), `status`.\n• RD Gateway provides HTTPS-tunneled RDP access to internal servers — a common alternative to VPN for RDP-only access.\n\nStep 1 — Configure data collection\nOn each RD Gateway server, deploy the Splunk Universal Forwarder with `inputs.conf`:\n```\n[WinEventLog://Microsoft-Windows-TerminalServices-Gateway/Operational]\ndisabled = 0\nindex = windows\n```\n\nVerify:\n```spl\nindex=windows sourcetype=\"WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational\" earliest=-24h\n| stats count by EventCode\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — RD Gateway connection outcomes:\n```spl\nindex=windows sourcetype=\"WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational\" earliest=-24h\n| eval outcome=case(EventCode=200, \"Authorized\", EventCode=201, \"Completed\", EventCode=300, \"Auth Failed\", EventCode=302, \"Disconnected\", 1==1, \"Other\")\n| stats count by outcome, host\n| eval total=sum(count)\n```\n\nUnderstanding this SPL: Tracks connection lifecycle events. High auth failures (300) indicate brute-force or misconfigured client certificates. Frequent disconnects (302) without corresponding completions suggest network instability.\n\nAuth failure analysis:\n```spl\nindex=windows sourcetype=\"WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational\" EventCode=300 earliest=-24h\n| stats count by user, src_ip, host\n| sort - count\n```\n\nStep 3 — Validate\n(a) On the RD Gateway: Server Manager > Remote Desktop Services > RD Gateway Manager > Monitoring.\n(b) Connect through the RD Gateway and verify events appear in Splunk.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Connection success rate. Row 2 — Auth failures by user/IP. Row 3 — Active connections.\nAlert: Trigger when auth failures exceed 20 per hour from a single IP.\n\nRunbook:\n1. **Brute-force detected** — Block the source IP at the firewall or RD Gateway Connection Authorization Policy (CAP).\n2. **High disconnect rate** — Check network stability between the gateway and internal servers.\n\nStep 5 — Troubleshooting\n• **No events** — Event logging may be disabled. Check the Windows Event Viewer for the TerminalServices-Gateway channel.\n• **EventCode not matching** — Different Windows Server versions may use different codes. Check Microsoft documentation for your version.",
   "grandmaExplanation": "We watch our remote desktop gateway to make sure people can connect to their work computers from home, and we catch anyone trying to guess passwords to break in.",
-  "hardware": "Windows Server RD Gateway"
+  "hardware": "Windows Server RD Gateway",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`_internal` scheduler logs",
-  "app": "Splunk internal metrics",
+  "exclusions": "Covers the detection logic documented for 'Correlation Search Performance' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_correlation_search_performance` (UC-10.7.5), SOC dashboard panel \"Security Infra — Correlation Search Performance\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.7.5 positive (Correlation, Search, Performance): ingest synthetic events into `index=_internal` sourcetype='scheduler' where `avg_runtime`, `max_runtime` grouped by `savedsearch_name` satisfies `avg_runtime` > 60 for 'Correlation Search Performance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.7.5 negative (Search Performance): ingest benign `_internal` / `scheduler` events where `savedsearch_name` stays below `avg_runtime` > 60, or exclude the test entity via `soc_exception_register.csv`. Variant 9 confirms zero alert rows for 'Correlation Search Performance'."
+  },
+  "dataSources": "`_internal` scheduler logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk internal metrics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=_internal sourcetype=scheduler savedsearch_name=\"*Correlation*\"\n| stats avg(run_time) as avg_runtime, max(run_time) as max_runtime by savedsearch_name\n| where avg_runtime > 60\n| sort -avg_runtime",
-  "description": "Slow or resource-intensive correlation searches degrade ES performance and may miss detections if they timeout.",
-  "value": "Slow or resource-intensive correlation searches degrade ES performance and may miss detections if they timeout.",
+  "description": "Monitors UC-10.7.5 — Correlation, Search, Performance — using `index=_internal` sourcetype `scheduler`, grouped by `savedsearch_name`. Outputs `avg_runtime`, `max_runtime` each `the scheduled window`; alert when `avg_runtime` > 60. Primary focus: Search Performance. Purpose-built for 'Correlation Search Performance' in Security Infra workflows.",
+  "value": "Operators running UC-10.7.5 on `scheduler` feeds shorten triage for Search Performance tied to 'Correlation Search Performance', lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Monitor ES correlation search run times from `_internal`. Alert when searches exceed their schedule interval (running longer than they should). Identify skipped searches. Optimize SPL for slow searches.",
   "visualization": "Table (search performance), Bar chart (avg runtime by search), Line chart (runtime trend), Single value (skipped searches).",
   "cimModels": [
@@ -22,10 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "One-off long runs when enabling many rules, rebuilding summaries, or during data backfills; compare to search load and content pushes.",
+  "knownFalsePositives": "1. **Maintenance window on `_internal` (UC-10.7.5)** — Planned work for 'Correlation Search Performance' shifts `avg_runtime`, `max_runtime` over `span=1h` while `savedsearch_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `scheduler`** — Scheduled automation elevates `src` without crossing `avg_runtime` > 60 for UC-10.7.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `savedsearch_name`** — Health checks in `_internal` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `scheduler`** — First 48h baseline for UC-10.7.5 on `savedsearch_name` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `savedsearch_name`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk internal metrics.\n• Ensure the following data sources are available: `_internal` scheduler logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor ES correlation search run times from `_internal`. Alert when searches exceed their schedule interval (running longer than they should). Identify skipped searches. Optimize SPL for slow searches.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal sourcetype=scheduler savedsearch_name=\"*Correlation*\"\n| stats avg(run_time) as avg_runtime, max(run_time) as max_runtime by savedsearch_name\n| where avg_runtime > 60\n| sort -avg_runtime\n```\n\nUnderstanding this SPL\n\n**Correlation Search Performance** — Slow or resource-intensive correlation searches degrade ES performance and may miss detections if they timeout.\n\nDocumented **Data sources**: `_internal` scheduler logs. **App/TA** (typical add-on context): Splunk internal metrics. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal; **sourcetype**: scheduler. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal, sourcetype=scheduler. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by savedsearch_name** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where avg_runtime > 60` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with the source-of-truth console (cloud CSP, EDR, or IdP) when the data allows it. Check the Splunk Security Essentials catalog for the same detection name, and review the ES Incident Review queue for related notables. Verify key fields, time windows, and index access for your search role.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (search performance), Bar chart (avg runtime by search), Line chart (runtime trend), Single value (skipped searches).",
-  "grandmaExplanation": "We use this 'Correlation Search Performance' search to catch the exact behavior in the data we already collect, so the team can confirm or clear it in the right management console or identity store."
+  "grandmaExplanation": "We use this 'Correlation Search Performance' search to catch the exact behavior in the data we already collect, so the team can confirm or clear it in the right management console or identity store.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

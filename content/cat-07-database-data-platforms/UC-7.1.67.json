@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`nodetool compactionstats` JSON/CSV ingested as `cassandra:compaction`",
+  "exclusions": "Covers the detection logic documented for 'Cassandra Compaction Backlog and Pending Tasks' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cassandra_compaction_backlog_and_pending_tasks` (UC-7.1.67), SOC dashboard panel \"Operations — Cassandra Compaction Backlog and Pending Tasks\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.67 positive (Cassandra, Compaction, Backlog, and, Pending): ingest synthetic events into `index=database` sourcetype='cassandra:compaction' where `max_pending` grouped by `host`, `cluster_name`, `_time` satisfies `pending` > 100, or `max_pending` > 150 for 'Cassandra Compaction Backlog and Pending Tasks'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.67 negative (Pending Tasks): ingest benign `database` / `cassandra:compaction` events where `host`, `cluster_name`, `_time` stays below `pending` > 100, or `max_pending` > 150, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Cassandra Compaction Backlog and Pending Tasks'."
+  },
+  "dataSources": "`nodetool compactionstats` JSON/CSV ingested as `cassandra:compaction` Indexes: database. Sourcetypes: cassandra:compaction. Key fields: _time, cluster_name, host, max_pending, pending. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Add-on for JMX (Splunkbase 2647) for `org.apache.cassandra.metrics:type=Compaction` or scripted nodetool forwarder",
   "spl": "index=database sourcetype=\"cassandra:compaction\"\n| eval pending=tonumber(pending_tasks)\n| where pending > 100\n| bin _time span=15m\n| stats max(pending) as max_pending latest(bytes_total_in_progress) as bytes_in_progress by host, cluster_name, _time\n| where max_pending > 150",
-  "description": "A monotonically growing pending compaction count means the node cannot rewrite SSTables fast enough for the write load, which soon shows up as read latency and repair failures. Early detection avoids disk-full and timeout incidents during peak traffic.",
-  "value": "Keeps OLTP and analytics paths on Cassandra responsive by triggering throttling, compaction strategy reviews, or capacity adds before timeouts cascade.",
+  "description": "Surfaces UC-7.1.67 — Cassandra, Compaction, Backlog, and, Pending — using `index=database` sourcetype `cassandra:compaction`, grouped by `host`, `cluster_name`, `_time`. Outputs `max_pending` each `15m`; alert when `pending` > 100, or `max_pending` > 150. Primary focus: Pending Tasks. Purpose-built for 'Cassandra Compaction Backlog and Pending Tasks' in Operations workflows.",
+  "value": "Tracking `max_pending` via UC-7.1.67 on `cassandra:compaction` feeds improves response to 'Cassandra Compaction Backlog and Pending Tasks' and reduces operational risk and delayed incident response.",
   "implementation": "Run `nodetool compactionstats` every 60–120s via scripted input; parse `pending tasks`, `id`, `keyspace`, `table`, `progress`, `total`. Alternatively enable JMX `CompactionExecutor` pending metric via TA-JMX `inputs.conf` with `sourcetype=cassandra:compaction`. Baseline per cluster class; suppress during repairs via maintenance lookup.",
   "visualization": "Line chart (max_pending), Table (keyspace, table, bytes_in_progress).",
   "cimModels": [
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "Apache Cassandra — compaction",
-      "url": "https://cassandra.apache.org/doc/latest/cassandra/"
+      "url": "https://cassandra.apache.org/doc/latest/cassandra/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for JMX",
-      "url": "https://splunkbase.splunk.com/app/2647"
+      "url": "https://splunkbase.splunk.com/app/2647",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Repairs, streaming, and hinted handoff create bursty patterns during normal cluster operations; use change windows and `nodetool` state for context.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.67)** — Planned work for 'Cassandra Compaction Backlog and Pending Tasks' shifts `max_pending` over `span=15m` while `host`, `cluster_name`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `cassandra:compaction`** — Scheduled automation elevates `cluster_name` without crossing `pending` > 100 for UC-7.1.67. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `cluster_name`, `_time`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cassandra:compaction`** — First 48h baseline for UC-7.1.67 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "cassandra"
@@ -44,5 +62,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch Cassandra Compaction Backlog and Pending Tasks so we can keep this part of the data platform within the capacity and quality targets our teams expect."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for JMX (Splunkbase 2647) for `org.apache.cassandra.metrics:type=Compaction` or scripted nodetool forwarder). Enable the modular input or HEC token that writes sourcetype=cassandra:compaction into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, cluster_name, host, max_pending`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch Cassandra Compaction Backlog and Pending Tasks so we can keep this part of the data platform within the capacity and quality targets our teams expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

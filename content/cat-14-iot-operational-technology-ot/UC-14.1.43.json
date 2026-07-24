@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=bms:fire`",
-  "app": "Fire alarm panel integration (valve tamper switches connected to panel), syslog",
+  "exclusions": "Covers the detection logic documented for 'Sprinkler System Valve Tamper and Supervisory Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_sprinkler_system_valve_tamper_and_supervisory_mo` (UC-14.1.43), SOC dashboard panel \"Operations — Sprinkler System Valve Tamper and Supervisory Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.1.43 positive (Sprinkler, System, Valve, Tamper, and): ingest synthetic events into `index=building` sourcetype='bms:fire' where `count` grouped by `building`, `zone`, `device_type`, `device_id` satisfies detection threshold for 'Sprinkler System Valve Tamper and Supervisory Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.1.43 negative (Supervisory Monitoring): ingest benign `building` / `bms:fire` events where `building`, `zone`, `device_type`, `device_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Sprinkler System Valve Tamper and Supervisory Monitoring'."
+  },
+  "dataSources": "`sourcetype=bms:fire` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Fire alarm panel integration (valve tamper switches connected to panel), syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=building sourcetype=\"bms:fire\" event_type=\"supervisory\" device_type IN (\"valve_tamper\", \"waterflow\", \"low_pressure\")\n| eval urgency=case(\n    device_type=\"valve_tamper\" AND state=\"closed\", \"CRITICAL\",\n    device_type=\"waterflow\", \"ALARM\",\n    device_type=\"low_pressure\", \"HIGH\",\n    1=1, \"Medium\")\n| stats count as events, latest(state) as current_state, latest(_time) as last_event by building, zone, device_type, device_id\n| where current_state IN (\"closed\", \"active\", \"low\")\n| table building, zone, device_type, device_id, current_state, urgency, last_event, events\n| sort urgency",
-  "description": "Closed or partially closed sprinkler valves are the number one reason sprinkler systems fail to operate during a fire. Valve tamper switches provide immediate notification when a valve position changes — NFPA 25 requires monitoring.",
-  "value": "Closed or partially closed sprinkler valves are the number one reason sprinkler systems fail to operate during a fire. Valve tamper switches provide immediate notification when a valve position changes — NFPA 25 requires monitoring.",
+  "description": "Identifies UC-14.1.43 — Sprinkler, System, Valve, Tamper, and — using `index=building` sourcetype `bms:fire`, grouped by `building`, `zone`, `device_type`, `device_id`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Supervisory Monitoring. Purpose-built for 'Sprinkler System Valve Tamper and Supervisory Monitoring' in Operations workflows.",
+  "value": "Alerting on Sprinkler, System, Valve, Tamper, and through UC-14.1.43 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Ensure all valve tamper switches, waterflow switches, and pressure switches report to fire panel. Forward panel events to Splunk. Alert immediately on valve tamper events. Track restoration time for compliance.",
   "visualization": "Valve status map by building; tamper event timeline; open trouble list; NFPA 25 compliance dashboard.",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Test activations, inspector visits, and contractor work can look like new alarms until you check the fire panel and work orders.",
+  "knownFalsePositives": "1. **Maintenance window on `building` (UC-14.1.43)** — Planned work for 'Sprinkler System Valve Tamper and Supervisory Monitoring' shifts `count` over `span=1h` while `building`, `zone`, `device_type`, `device_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `bms:fire`** — Scheduled automation elevates `zone` without crossing configured threshold for UC-14.1.43. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `building`, `zone`, `device_type`, `device_id`** — Health checks in `building` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bms:fire`** — First 48h baseline for UC-14.1.43 on `building` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `building`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog"
   ],
+  "equipmentModels": [
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Fire alarm panel integration (valve tamper switches connected to panel), syslog.\n• Ensure the following data sources are available: `sourcetype=bms:fire`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnsure all valve tamper switches, waterflow switches, and pressure switches report to fire panel. Forward panel events to Splunk. Alert immediately on valve tamper events. Track restoration time for compliance.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=building sourcetype=\"bms:fire\" event_type=\"supervisory\" device_type IN (\"valve_tamper\", \"waterflow\", \"low_pressure\")\n| eval urgency=case(\n    device_type=\"valve_tamper\" AND state=\"closed\", \"CRITICAL\",\n    device_type=\"waterflow\", \"ALARM\",\n    device_type=\"low_pressure\", \"HIGH\",\n    1=1, \"Medium\")\n| stats count as events, latest(state) as current_state, latest(_time) as last_event by building, zone, device_type, device_id\n| where current_state IN (\"closed\", \"active\", \"low\")\n| table building, zone, device_type, device_id, current_state, urgency, last_event, events\n| sort urgency\n```\n\nUnderstanding this SPL\n\n**Sprinkler System Valve Tamper and Supervisory Monitoring** — Closed or partially closed sprinkler valves are the number one reason sprinkler systems fail to operate during a fire. Valve tamper switches provide immediate notification when a valve position changes — NFPA 25 requires monitoring.\n\nDocumented **Data sources**: `sourcetype=bms:fire`. **App/TA** (typical add-on context): Fire alarm panel integration (valve tamper switches connected to panel), syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: building; **sourcetype**: bms:fire. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=building, sourcetype=\"bms:fire\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **urgency** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by building, zone, device_type, device_id** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where current_state IN (\"closed\", \"active\", \"low\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Sprinkler System Valve Tamper and Supervisory Monitoring**): table building, zone, device_type, device_id, current_state, urgency, last_event, events\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search in a known window. Spot-check a few events against the BMS console (for example Niagara, Tridium, or Honeywell) and confirm zones, values, and alarms line up. Verify field names and that the right roles can search the index.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Valve status map by building; tamper event timeline; open trouble list; NFPA 25 compliance dashboard.",
-  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with life-safety water and fire equipment before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with life-safety water and fire equipment before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

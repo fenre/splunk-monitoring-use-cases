@@ -9,11 +9,17 @@
     "Physical"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "`index=vxrail` `sourcetype=\"vxrail:chassis\"` — `psu_id`, `serial`, `redundancy_state`, `input_voltage`, `health`",
-  "app": "iDRAC SNMP/syslog or VxRail hardware feed",
+  "exclusions": "Covers the detection logic documented for 'VxRail Power Supply Redundancy Loss Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_vxrail_power_supply_redundancy_loss_events` (UC-2.10.8), SOC dashboard panel \"Linux — VxRail Power Supply Redundancy Loss Events\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.10.8 positive (VxRail, Power, Supply, Redundancy, Loss): ingest synthetic events into `index=vxrail` sourcetype='vxrail:chassis' where `count` grouped by `serial`, `psu_id` satisfies -24h for 'VxRail Power Supply Redundancy Loss Events'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.10.8 negative (Loss Events): ingest benign `vxrail` / `vxrail:chassis` events where `serial`, `psu_id` stays below -24h, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'VxRail Power Supply Redundancy Loss Events'."
+  },
+  "dataSources": "`index=vxrail` `sourcetype=\"vxrail:chassis\"` — `psu_id`, `serial`, `redundancy_state`, `input_voltage`, `health` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "iDRAC SNMP/syslog or VxRail hardware feed — Universal Forwarder (Splunkbase 617)",
   "spl": "index=vxrail sourcetype=\"vxrail:chassis\" earliest=-24h\n| eval rs=lower(redundancy_state)\n| eval h=lower(health)\n| where match(rs, \"(?i)lost|degraded\") OR match(h, \"(?i)critical|warning\")\n| stats latest(redundancy_state) as rs_latest by serial, psu_id",
-  "description": "Running on a single PSU raises thermal and electrical risk; a second fault can hard-stop a node during peak load.",
-  "value": "Prevents unplanned node loss during maintenance windows and heat waves.",
+  "description": "Identifies UC-2.10.8 — VxRail, Power, Supply, Redundancy, Loss — using `index=vxrail` sourcetype `vxrail:chassis`, grouped by `serial`, `psu_id`. Outputs `count` each `the scheduled window`; alert when -24h. Primary focus: Loss Events. Purpose-built for 'VxRail Power Supply Redundancy Loss Events' in Linux workflows.",
+  "value": "Operators running UC-2.10.8 on `vxrail:chassis` feeds shorten triage for Loss Events tied to 'VxRail Power Supply Redundancy Loss Events', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Correlate PSU events with facility tickets. Page on redundancy loss. Track MTTR for PSU replacement.",
   "visualization": "Gauge redundancy; timeline; asset table.",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Dell PowerEdge power supply health",
-      "url": "https://www.dell.com/support/manuals/en-us/poweredge-products"
+      "url": "https://www.dell.com/support/manuals/en-us/poweredge-products",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "IGEL and endpoint UMS health can warn during bulk firmware, certificate rotation, or when a single site loses WAN; use device cohorts to separate local noise from UMS issues.",
+  "knownFalsePositives": "1. **Patch Tuesday on `vxrail`** — Package managers spike `serial` metrics for 'VxRail Power Supply Redundancy Loss Events'. Correlate with apt/yum logs in the same `vxrail:chassis` window.\n\n2. **Nightly backup I/O on `serial`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vxrail:chassis`** — Nagios/Zabbix polls `serial` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `serial` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `serial`, `valid_until`.",
   "equipment": [
     "hardware_bmc",
     "snmp",
@@ -43,5 +65,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We keep an eye on vxRail Power Supply Redundancy Loss Events and raise the alarm before it drags down real work or real outages start."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (iDRAC SNMP/syslog or VxRail hardware feed — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=vxrail:chassis into vxrail. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`psu_id, serial`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on vxRail Power Supply Redundancy Loss Events and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Microsoft IIS URL Rewrite Redirect Loop Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_microsoft_iis_url_rewrite_redirect_loop_detectio` (UC-8.2.44), SOC dashboard panel \"Operations — Microsoft IIS URL Rewrite Redirect Loop Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.2.44 positive (Microsoft, IIS, URL, Rewrite, Redirect): ingest synthetic events into `index=web` sourcetype='ms:iis:auto' where `distinct_uris` grouped by `c_ip`, `_time` satisfies `distinct_uris` > 5, or `count` > 20 for 'Microsoft IIS URL Rewrite Redirect Loop Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.2.44 negative (Loop Detection): ingest benign `web` / `ms:iis:auto` events where `c_ip`, `_time` stays below `distinct_uris` > 5, or `count` > 20, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Microsoft IIS URL Rewrite Redirect Loop Detection'."
+  },
   "dataSources": "`index=web` `sourcetype=ms:iis:auto` redirect status codes for rapid client loops",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`); Splunk Add-on for Microsoft IIS (Splunkbase 3185)",
   "spl": "index=web sourcetype=\"ms:iis:auto\"\n| where sc_status IN (301,302,307,308)\n| eval hop_key=c_ip.cs_uri_stem\n| bin _time span=1s\n| stats dc(cs_uri_stem) as distinct_uris count by c_ip, _time\n| where distinct_uris > 5 OR count > 20",
-  "description": "Misconfigured outbound rules can bounce clients between URLs many times per second. IIS access logs expose tight chains of 301/302 responses tied to the same client in a short window.",
-  "value": "Stops hard-to-reproduce mobile and crawler failures that harm SEO and conversion funnels.",
+  "description": "Alerts on Loop Detection activity in UC-8.2.44 ('Microsoft IIS URL Rewrite Redirect Loop Detection') from `index=web` sourcetype `ms:iis:auto`. Rolls up `distinct_uris` by `c_ip`, `_time` across `1s` and pages when `distinct_uris` > 5, or `count` > 20. Covers Microsoft, IIS, URL, Rewrite, Redirect. Operations operators treat UC-8.2.44 as the canonical signal.",
+  "value": "Operators running UC-8.2.44 on `ms:iis:auto` feeds shorten triage for Loop Detection tied to 'Microsoft IIS URL Rewrite Redirect Loop Detection', lowering operational risk and delayed incident response.",
   "implementation": "Install IIS URL Rewrite module; ingest logs with `time-taken` and referer. Tune thresholds for CDNs.",
   "visualization": "Stacked bars for status/substatus, Perfmon timecharts, top client tables.",
   "cimModels": [
@@ -24,17 +30,33 @@
   "references": [
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Microsoft IIS documentation",
-      "url": "https://www.iis.net/downloads/microsoft/url-rewrite"
+      "url": "https://www.iis.net/downloads/microsoft/url-rewrite",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Long 301/302 chains can come from CDNs, locale negotiation, or A/B tools. We tune on client and path.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.2.44)** — Planned work for 'Microsoft IIS URL Rewrite Redirect Loop Detection' shifts `distinct_uris` over `span=1s` while `c_ip`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `ms:iis:auto`** — Scheduled automation elevates `_time` without crossing `distinct_uris` > 5 for UC-8.2.44. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `c_ip`, `_time`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ms:iis:auto`** — First 48h baseline for UC-8.2.44 on `c_ip` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `c_ip`, `exception_reason`, `valid_until`.",
   "equipment": [
     "iis",
     "windows"
+  ],
+  "equipmentModels": [
+    "iis_generic",
+    "windows_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -43,6 +65,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to stops hard-to-reproduce mobile and crawler failures that harm SEO and conversion funnels."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`); Splunk Add-on for Microsoft IIS (Splunkbase 3185)). Enable the modular input or HEC token that writes sourcetype=ms:iis:auto into web. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, c_ip, distinct_uris`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to stops hard-to-reproduce mobile and crawler failures that harm SEO and conversion funnels.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

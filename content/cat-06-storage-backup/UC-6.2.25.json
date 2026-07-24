@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "CRUSH map dumps indexed as `ceph:status` or dedicated `ceph:crush` sourcetype",
-  "app": "Scripted input: `ceph osd crush rule dump` / `ceph osd tree` JSON",
+  "exclusions": "Covers the detection logic documented for 'Ceph CRUSH rule and failure domain consistency verification' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ceph_crush_rule_and_failure_domain_consistency_v` (UC-6.2.25), SOC dashboard panel \"Operations — Ceph CRUSH rule and failure domain consistency verification\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.25 positive (Ceph, CRUSH, rule, and, failure): ingest synthetic events into `index=storage` sourcetype='ceph:status' where `domain_count` grouped by `rule`, `cluster_name` satisfies `domain_count` < 2 for 'Ceph CRUSH rule and failure domain consistency verification'. Validate filter `crush OR rule`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.25 negative (consistency verification): ingest benign `storage` / `ceph:status` events where `rule`, `cluster_name` stays below `domain_count` < 2, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Ceph CRUSH rule and failure domain consistency verification'."
+  },
+  "dataSources": "CRUSH map dumps indexed as `ceph:status` or dedicated `ceph:crush` sourcetype Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Scripted input: `ceph osd crush rule dump` / `ceph osd tree` JSON — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"ceph:status\" earliest=-24h\n| search crush OR rule\n| eval rule=coalesce(crush_rule_name, rule_name)\n| eval domain=coalesce(failure_domain, device_class, host_bucket)\n| stats values(domain) as domains dc(domain) as domain_count by rule, cluster_name\n| where domain_count < 2 AND match(rule, \"replicated|erasure\")\n| table cluster_name, rule, domains",
-  "description": "Pools whose CRUSH rules do not enforce distinct failure domains risk simultaneous data loss when a rack or chassis fails. Automated diffing catches human error after hardware refreshes.",
-  "value": "Supports data durability commitments and audit evidence for regulated object stores.",
+  "description": "Detects UC-6.2.25 — Ceph, CRUSH, rule, and, failure — using `index=storage` sourcetype `ceph:status`, grouped by `rule`, `cluster_name`. Outputs `domain_count` each `the scheduled window`; alert when `domain_count` < 2. Filter chain includes filter `crush OR rule`. Purpose-built for 'Ceph CRUSH rule and failure domain consistency verification' in Operations workflows.",
+  "value": "UC-6.2.25 helps teams contain Ceph, CRUSH, rule, and, failure scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Nightly JSON snapshot; use `diff` saved to Splunk via scripted alert or store hash in KV for drift detection. Document allowed exceptions in a lookup.",
   "visualization": "Table (rule, domains), single value (violations).",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "Ceph Documentation — monitoring",
-      "url": "https://docs.ceph.com/en/latest/radosgw/"
+      "url": "https://docs.ceph.com/en/latest/radosgw/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Red Hat Ceph Storage — troubleshooting",
-      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/"
+      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.25)** — Planned work for 'Ceph CRUSH rule and failure domain consistency verification' shifts `domain_count` over `span=1h` while `rule`, `cluster_name` remains in-scope. Applies filter `crush OR rule`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `ceph:status`** — Scheduled automation elevates `cluster_name` without crossing `domain_count` < 2 for UC-6.2.25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `rule`, `cluster_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:status`** — First 48h baseline for UC-6.2.25 on `rule` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `rule`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ceph"
+  ],
+  "equipmentModels": [
+    "ceph_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We help you catch when data placement rules no longer match your rack or site layout, before a single failure takes more data than you planned."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Scripted input: `ceph osd crush rule dump` / `ceph osd tree` JSON — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ceph:status into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cluster_name, domain_count, rule`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you catch when data placement rules no longer match your rack or site layout, before a single failure takes more data than you planned.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

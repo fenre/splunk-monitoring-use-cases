@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Tape library logs, SNMP traps, drive error counters",
-  "app": "SNMP TA, vendor syslog",
+  "exclusions": "Covers the detection logic documented for 'Tape Library Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_tape_library_health` (UC-6.3.8), SOC dashboard panel \"Operations — Tape Library Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.3.8 positive (Tape, Library, Health): ingest synthetic events into `index=backup` sourcetype='tape_library' where `count` grouped by `library`, `drive_id`, `error_type` satisfies `count` > 0 for 'Tape Library Health'. Validate filter `media_error OR drive_error OR cleaning_required`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.3.8 negative (Library Health): ingest benign `backup` / `tape_library` events where `library`, `drive_id`, `error_type` stays below `count` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Tape Library Health'."
+  },
+  "dataSources": "Tape library logs, SNMP traps, drive error counters Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "SNMP TA, vendor syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=backup sourcetype=\"tape_library\"\n| search media_error OR drive_error OR cleaning_required\n| stats count by library, drive_id, error_type\n| where count > 0",
-  "description": "Tape media and drive failures can silently corrupt backups. Monitoring ensures long-term archival reliability.",
-  "value": "Tape media and drive failures can silently corrupt backups. Monitoring ensures long-term archival reliability.",
+  "description": "Alerts on 'Tape Library Health' patterns (UC-6.3.8) sourced from `index=backup` sourcetype `tape_library`. Threshold bundle: `count` > 0; aggregation grain: `library`, `drive_id`, `error_type`; metrics: `count`. Enrichment path: filter `media_error OR drive_error OR cleaning_required`.",
+  "value": "UC-6.3.8 gives Operations teams earlier visibility into Library Health through `tape_library` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Forward tape library syslog to Splunk. Poll SNMP for drive error counters and media faults. Alert on drive errors, media faults, or cleaning cartridge expiration. Track tape media lifecycle.",
   "visualization": "Table (drive/media errors), Single value (drives needing attention), Timeline (error events).",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `backup` (UC-6.3.8)** — Planned work for 'Tape Library Health' shifts `count` over `span=1h` while `library`, `drive_id`, `error_type` remains in-scope. Applies filter `media_error OR drive_error OR cleaning_required`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `tape_library`** — Scheduled automation elevates `drive_id` without crossing `count` > 0 for UC-6.3.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `library`, `drive_id`, `error_type`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tape_library`** — First 48h baseline for UC-6.3.8 on `library` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `library`, `exception_reason`, `valid_until`.",
   "equipment": [
     "snmp",
     "syslog"
@@ -32,6 +54,12 @@
   "equipmentModels": [
     "snmp_generic"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP TA, vendor syslog.\n• Ensure the following data sources are available: Tape library logs, SNMP traps, drive error counters.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward tape library syslog to Splunk. Poll SNMP for drive error counters and media faults. Alert on drive errors, media faults, or cleaning cartridge expiration. Track tape media lifecycle.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=backup sourcetype=\"tape_library\"\n| search media_error OR drive_error OR cleaning_required\n| stats count by library, drive_id, error_type\n| where count > 0\n```\n\nUnderstanding this SPL\n\n**Tape Library Health** — Tape media and drive failures can silently corrupt backups. Monitoring ensures long-term archival reliability.\n\nDocumented **Data sources**: Tape library logs, SNMP traps, drive error counters. **App/TA** (typical add-on context): SNMP TA, vendor syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: backup; **sourcetype**: tape_library. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=backup, sourcetype=\"tape_library\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by library, drive_id, error_type** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. List media server, proxy, and repository names in the runbook, and when to open a ticket with the application team versus the backup team. Consider visualizations: Table (drive/media errors), Single value (drives needing attention), Timeline (error events).",
-  "grandmaExplanation": "We help you see which backup runs finished cleanly and which did not, so you are not caught thinking data was protected when a job really failed or stopped early."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP TA, vendor syslog.\n• Ensure the following data sources are available: Tape library logs, SNMP traps, drive error counters.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward tape library syslog to Splunk. Poll SNMP for drive error counters and media faults. Alert on drive errors, media faults, or cleaning cartridge expiration. Track tape media lifecycle.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=backup sourcetype=\"tape_library\"\n| search media_error OR drive_error OR cleaning_required\n| stats count by library, drive_id, error_type\n| where count > 0\n```\n\nUnderstanding this SPL\n\n**Tape Library Health** — Tape media and drive failures can silently corrupt backups. Monitoring ensures long-term archival reliability.\n\nDocumented **Data sources**: Tape library logs, SNMP traps, drive error counters. **App/TA** (typical add-on context): SNMP TA, vendor syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: backup; **sourcetype**: tape_library. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=backup, sourcetype=\"tape_library\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by library, drive_id, error_type** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. List media server, proxy, and repository names in the runbook, and when to open a ticket with the application team versus the backup team. Consider visualizations: Table (drive/media errors), Single value (drives needing attention), Timeline (error events).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (SNMP TA, vendor syslog — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=tape_library into backup. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`drive_id, error_type, library`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see which backup runs finished cleanly and which did not, so you are not caught thinking data was protected when a job really failed or stopped early.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Healthcare",
-  "dataSources": "`index=healthcare` `sourcetype=\"dips:arena:applog\"` fields `document_type`, `generation_time_ms`, `template_id`, `page_count`, `archetype_count`",
-  "app": "DIPS Arena application logs via HEC or Universal Forwarder",
+  "exclusions": "Covers the detection logic documented for 'DIPS Arena Clinical Document Generation Latency' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_dips_arena_clinical_document_generation_latency` (UC-21.3.25), SOC dashboard panel \"Operations — DIPS Arena Clinical Document Generation Latency\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-21.3.25 positive (DIPS, Arena, Clinical, Document, Generation): ingest synthetic events into `index=healthcare` sourcetype='dips:arena:applog' where `avg_gen_ms` grouped by `document_type`, `_time` satisfies `p95_gen_ms` > 5000 for 'DIPS Arena Clinical Document Generation Latency'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-21.3.25 negative (Generation Latency): ingest benign `healthcare` / `dips:arena:applog` events where `document_type`, `_time` stays below `p95_gen_ms` > 5000, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'DIPS Arena Clinical Document Generation Latency'."
+  },
+  "dataSources": "`index=healthcare` `sourcetype=\"dips:arena:applog\"` fields `document_type`, `generation_time_ms`, `template_id`, `page_count`, `archetype_count` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "DIPS Arena application logs via HEC or Universal Forwarder — Universal Forwarder (Splunkbase 617)",
   "spl": "index=healthcare sourcetype=\"dips:arena:applog\" action=\"document_generated\"\n| bin _time span=1h\n| stats avg(generation_time_ms) as avg_gen_ms, perc95(generation_time_ms) as p95_gen_ms, count as doc_count by document_type, _time\n| where p95_gen_ms > 5000\n| table _time, document_type, avg_gen_ms, p95_gen_ms, doc_count",
-  "description": "DIPS Arena generates clinical documents — discharge summaries, referral letters, lab reports, surgical notes — that clinicians need promptly for patient handoff and continuity of care. Document generation involves openEHR archetype composition, template rendering, and PDF creation. Slow document generation delays discharges, referral processing, and inter-organizational communication via DIPS Communicator.",
-  "value": "Service and risk leaders use signals from DIPS Arena Clinical Document Generation Latency to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "description": "Monitors Generation Latency activity in UC-21.3.25 ('DIPS Arena Clinical Document Generation Latency') from `index=healthcare` sourcetype `dips:arena:applog`. Rolls up `avg_gen_ms` by `document_type`, `_time` across `1h` and pages when `p95_gen_ms` > 5000. Covers DIPS, Arena, Clinical, Document, Generation. Operations operators treat UC-21.3.25 as the canonical signal.",
+  "value": "Operators running UC-21.3.25 on `dips:arena:applog` feeds shorten triage for Generation Latency tied to 'DIPS Arena Clinical Document Generation Latency', lowering operational risk and delayed incident response.",
   "implementation": "Instrument DIPS Arena document generation events with timing information. Track generation latency by document type (discharge summary, referral, operative note, etc.), template complexity (archetype count), and output size (page count). Alert when p95 generation time exceeds 5 seconds for any document type. Correlate slow generation with database performance (complex AQL queries backing document composition) and server load. **Domain context:** Discharge summaries and referral letters are time-critical for patient flow — Norwegian hospitals are increasingly measured on discharge processing speed.",
   "visualization": "Line chart (generation latency by document type), Bar chart (document volumes), Table (slowest document types with details).",
   "cimModels": [
@@ -23,10 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Document latency during template merges, CDA assembly upgrades, e-sign or rendering library updates, or mass fax-to-chart replays the document team requeued.",
+  "knownFalsePositives": "1. **Maintenance window on `healthcare` (UC-21.3.25)** — Planned work for 'DIPS Arena Clinical Document Generation Latency' shifts `avg_gen_ms` over `span=1h` while `document_type`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `dips:arena:applog`** — Scheduled automation elevates `_time` without crossing `p95_gen_ms` > 5000 for UC-21.3.25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `document_type`, `_time`** — Health checks in `healthcare` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dips:arena:applog`** — First 48h baseline for UC-21.3.25 on `document_type` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `document_type`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: DIPS Arena application logs via HEC or Universal Forwarder.\n• Ensure the following data sources are available: `index=healthcare` `sourcetype=\"dips:arena:applog\"` fields `document_type`, `generation_time_ms`, `template_id`, `page_count`, `archetype_count`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nInstrument DIPS Arena document generation events with timing information. Track generation latency by document type (discharge summary, referral, operative note, etc.), template complexity (archetype count), and output size (page count). Alert when p95 generation time exceeds 5 seconds for any document type. Correlate slow generation with database performance (complex AQL queries backing document composition) and server load. **Domain context:** Discharge summaries and referral letters are time-…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=healthcare sourcetype=\"dips:arena:applog\" action=\"document_generated\"\n| bin _time span=1h\n| stats avg(generation_time_ms) as avg_gen_ms, perc95(generation_time_ms) as p95_gen_ms, count as doc_count by document_type, _time\n| where p95_gen_ms > 5000\n| table _time, document_type, avg_gen_ms, p95_gen_ms, doc_count\n```\n\nUnderstanding this SPL\n\n**DIPS Arena Clinical Document Generation Latency** — DIPS Arena generates clinical documents — discharge summaries, referral letters, lab reports, surgical notes — that clinicians need promptly for patient handoff and continuity of care. Document generation involves openEHR archetype composition, template rendering, and PDF creation. Slow document generation delays discharges, referral processing, and inter-organizational communication via DIPS Communicator.\n\nDocumented **Data sources**: `index=healthcare` `sourcetype=\"dips:arena:applog\"` fields `document_type`, `generation_time_ms`, `template_id`, `page_count`, `archetype_count`. **App/TA** (typical add-on context): DIPS Arena application logs via HEC or Universal Forwarder. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: healthcare; **sourcetype**: dips:arena:applog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=healthcare, sourcetype=\"dips:arena:applog\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by document_type, _time** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where p95_gen_ms > 5000` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **DIPS Arena Clinical Document Generation Latency**): table _time, document_type, avg_gen_ms, p95_gen_ms, doc_count\n\n\nStep 3 — Validate\nCompare volumes, status codes, and latency with the API gateway or reverse proxy logs and the vendor status page. Reconcile a sample window with the interface team’s own metrics for the same endpoints.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (generation latency by document type), Bar chart (document volumes), Table (slowest document types with details).",
-  "grandmaExplanation": "We watch how long clinical documents take to render. We help you catch slowness before handoffs wait on the chart."
+  "grandmaExplanation": "We watch how long clinical documents take to render. We help you catch slowness before handoffs wait on the chart.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

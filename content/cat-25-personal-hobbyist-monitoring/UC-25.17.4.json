@@ -8,26 +8,55 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Print jobs (`octoprint:job`), printer firmware telemetry (`printer:telemetry`), filament spools (`filament:spool`), CNC/laser jobs (`cnc:job`), workshop air (`workshop:air`), cordless tool batteries (`tool:battery`).",
-  "app": "OctoPrint / Klipper (Moonraker) print servers, printer firmware telemetry, filament spool tracking, CNC/laser job logs, and workshop air/tool sensors via HEC and MQTT.",
+  "exclusions": "Covers personal hobby monitoring for 'Hotend and Bed Temperature Stability' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_hotend_and_bed_temperature_stability` (UC-25.17.4), SOC dashboard panel \"Personal — Hotend and Bed Temperature Stability\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.17.4 positive (Hotend, and, Bed, Temperature, Stability): ingest synthetic events into `index=personal` sourcetype='printer:telemetry' where `worst_hotend`, `worst_bed` grouped by `printer` satisfies `worst_hotend` > 5, or `worst_bed` > 5 for 'Hotend and Bed Temperature Stability'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.17.4 negative (Temperature Stability): ingest benign `personal` / `printer:telemetry` events where `printer` stays below `worst_hotend` > 5, or `worst_bed` > 5, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 4 confirms zero alert rows for 'Hotend and Bed Temperature Stability'."
+  },
+  "dataSources": "Print jobs (`octoprint:job`), printer firmware telemetry (`printer:telemetry`), filament spools (`filament:spool`), CNC/laser jobs (`cnc:job`), workshop air (`workshop:air`), cordless tool batteries (`tool:battery`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "OctoPrint / Klipper (Moonraker) print servers, printer firmware telemetry, filament spool tracking, CNC/laser job logs, and workshop air/tool sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=printer:telemetry\n| eval hot_dev=abs(hotend_c-hotend_target), bed_dev=abs(bed_c-bed_target)\n| stats max(hot_dev) as worst_hotend, max(bed_dev) as worst_bed by printer\n| eval unstable=if(worst_hotend>5 OR worst_bed>5,1,0)",
-  "description": "Tracks how tightly each printer holds its hotend and bed temperatures, since drift here causes layer defects and failed prints.",
-  "value": "Temperature wobble is an early sign of a failing heater or thermistor; catching it prevents mid-print failures and bad layers.",
+  "description": "Detects risk tied to Hotend, and, Bed, Temperature, Stability through UC-25.17.4 on `index=personal` sourcetype `printer:telemetry`. Summarises `worst_hotend`, `worst_bed` grouped by `printer` across `the scheduled window` before applying `worst_hotend` > 5, or `worst_bed` > 5. Operators tune 'Hotend and Bed Temperature Stability' using UC-25.17.4 runbook steps.",
+  "value": "Tracking `worst_hotend`, `worst_bed` via UC-25.17.4 on `printer:telemetry` feeds improves response to 'Hotend and Bed Temperature Stability' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest firmware temperature telemetry; alert when the deviation from target exceeds a few degrees.",
   "visualization": "Time chart of temperature deviation from target per printer.",
   "cimModels": [],
   "references": [
     {
       "title": "Klipper — Moonraker API",
-      "url": "https://moonraker.readthedocs.io/en/latest/web_api/"
+      "url": "https://moonraker.readthedocs.io/en/latest/web_api/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.17.4)** — Connector for 'Hotend and Bed Temperature Stability' stops polling `printer:telemetry`; stale `worst_hotend`, `worst_bed` on `printer` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `worst_hotend`, `worst_bed` over `1w` is expected for UC-25.17.4, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `printer:telemetry`. Dedup with `stats latest(*) by printer`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `worst_hotend` > 5 for 'Hotend and Bed Temperature Stability'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It checks that the printer holds its heat steady, because temperature wobble causes bad prints."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Making, 3D Printing & Workshop — typical feeds: Print jobs (`octoprint:job`), printer firmware telemetry (`printer:telemetry`), filament spools (`filament:spool`), CNC/laser jobs (`cnc:job`), workshop air (`workshop:air`), cordless tool batteries (.\n• **Sourcetypes in this search**: `printer:telemetry`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=printer:telemetry`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** OctoPrint / Klipper (Moonraker) print servers, printer firmware telemetry, filament spool tracking, CNC/laser job logs, and workshop air/tool sensors via HEC and MQTT..\n\n**Author notes:** Ingest firmware temperature telemetry; alert when the deviation from target exceeds a few degrees.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"printer:telemetry\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=printer:telemetry earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Hotend and Bed Temperature Stability** over `personal` data (primarily `sourcetype=printer:telemetry`) across the full search range. It applies numeric thresholds on `worst_hotend` (> 5) after max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `printer`, `unstable`, `worst_bed`, `worst_hotend`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=printer:telemetry\n| eval hot_dev=abs(hotend_c-hotend_target), bed_dev=abs(bed_c-bed_target)\n| stats max(hot_dev) as worst_hotend, max(bed_dev) as worst_bed by printer\n| eval unstable=if(worst_hotend>5 OR worst_bed>5,1,0)\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=printer:telemetry earliest=-7d\n| head 50\n| table printer, unstable, worst_bed, worst_hotend\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=printer:telemetry earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `worst_hotend` before alerting:\n\n```spl\nindex=personal sourcetype=printer:telemetry earliest=-30d\n| stats perc50(worst_hotend) AS p50 perc90(worst_hotend) AS p90 perc99(worst_hotend) AS p99 max(worst_hotend) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.17.4: Personal evidence` with the following panel layout:\n\n**Panel 1 — Time Chart Of Temperature Deviation From Target Per Printer (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `printer:telemetry` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=printer:telemetry | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It checks that the printer holds its heat steady, because temperature wobble causes bad prints.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

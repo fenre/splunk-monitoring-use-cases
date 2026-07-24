@@ -8,38 +8,60 @@
     "Analytics"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Breach alerts (`hibp:alert`), password age snapshots (`passwordage:account`), backup restore tests (`backuprestore:test`), and DNS leak checks (`dnsleak:check`).",
-  "app": "Personal security telemetry from Have I Been Pwned, password-age exports, backup restore drills, and DNS leak checks sent to Splunk HEC via APIs and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Password Age Concentration by Category' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_password_age_concentration_by_category` (UC-25.38.29), SOC dashboard panel \"Personal — Password Age Concentration by Category\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.38.29 positive (Password, Age, Concentration, Category): ingest synthetic events into `index=personal` sourcetype='passwordage:account' where `avg_days_since_rotation`, `total_age_days` grouped by `account_category` satisfies detection threshold for 'Password Age Concentration by Category'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.38.29 negative (by Category): ingest benign `personal` / `passwordage:account` events where `account_category` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Password Age Concentration by Category'."
+  },
+  "dataSources": "Breach alerts (`hibp:alert`), password age snapshots (`passwordage:account`), backup restore tests (`backuprestore:test`), and DNS leak checks (`dnsleak:check`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Personal security telemetry from Have I Been Pwned, password-age exports, backup restore drills, and DNS leak checks sent to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=passwordage:account\n| stats avg(days_since_rotation) as avg_days_since_rotation sum(days_since_rotation) as total_age_days by account_category\n| sort 0 - avg_days_since_rotation",
-  "description": "Ranks account categoriess by password age concentration.",
-  "value": "Age concentration by category helps you choose one cleanup campaign that will actually retire a meaningful slice of risk.",
+  "description": "Detects by Category activity in UC-25.38.29 ('Password Age Concentration by Category') from `index=personal` sourcetype `passwordage:account`. Rolls up `avg_days_since_rotation`, `total_age_days` by `account_category` across `the scheduled window` and pages when configured threshold. Covers Password, Age, Concentration, Category. Personal operators treat UC-25.38.29 as the canonical signal.",
+  "value": "Operators running UC-25.38.29 on `passwordage:account` feeds shorten triage for by Category tied to 'Password Age Concentration by Category', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Send password age concentration events to `index=personal` and keep `account_category` populated so the leaderboard stays actionable.",
   "visualization": "Bar chart of password age concentration by account categories.",
   "cimModels": [],
   "references": [
     {
       "title": "Have I Been Pwned API",
-      "url": "https://haveibeenpwned.com/API/v3"
+      "url": "https://haveibeenpwned.com/API/v3",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Bitwarden",
-      "url": "https://bitwarden.com/"
+      "url": "https://bitwarden.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "restic",
-      "url": "https://restic.net/"
+      "url": "https://restic.net/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "DNS Leak Test",
-      "url": "https://www.dnsleaktest.com/"
+      "url": "https://www.dnsleaktest.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.38.29)** — Connector for 'Password Age Concentration by Category' stops polling `passwordage:account`; stale `avg_days_since_rotation`, `total_age_days` on `account_category` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_days_since_rotation`, `total_age_days` over `1w` is expected for UC-25.38.29, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `passwordage:account`. Dedup with `stats latest(*) by account_category`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Password Age Concentration by Category'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "m365"
   ],
-  "grandmaExplanation": "It turns which account categoriess stand out most for password age concentration."
+  "equipmentModels": [
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Personal Cyber & Digital Exhaust — typical feeds: Breach alerts (`breach:alert`), inbox stats (`inbox:stats`), cloud-drive usage (`clouddrive:usage`), certificate expiry (`certexpiry:check`)..\n• **Sourcetypes in this search**: `passwordage:account`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=passwordage:account`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Personal cybersecurity feeds — Have-I-Been-Pwned breach alerts, personal email/inbox stats, cloud-storage usage APIs, and personal TLS-certificate expiry checks — sent to Splunk HEC via scripted inputs..\n\n**Author notes:** Send password age concentration events to `index=personal` and keep `account_category` populated so the leaderboard stays actionable.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"passwordage:account\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=passwordage:account earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Password Age Concentration by Category** over `personal` data (primarily `sourcetype=passwordage:account`) across the full search range. The `avg, sum` aggregation groups by `account_category`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `account_category`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=passwordage:account\n| stats avg(days_since_rotation) as avg_days_since_rotation sum(days_since_rotation) as total_age_days by account_category\n| sort 0 - avg_days_since_rotation\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=passwordage:account earliest=-7d\n| head 50\n| table account_category\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=passwordage:account earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.38.29: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Password Age Concentration By Account Categories (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `passwordage:account` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=passwordage:account | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It turns which account categoriess stand out most for password age concentration.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

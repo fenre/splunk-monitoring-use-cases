@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set `last_exercise_date` to 400 days ago. UC-22.57.6 MUST flag.",
-    "negativeScenario": "Exercise within 365 days with after-action + corrective actions closed. UC-22.57.6 MUST NOT escalate."
+    "positiveScenario": "UC-22.57.6 positive (Cyber, Act, annual, cybersecurity, exercise): ingest synthetic events into `index=itsm` sourcetype='snow:ir_ca' where `count` grouped by `csa_cii_id` satisfies `days_since_exercise` > 365, `days_since_exercise` > 335, or `ca_overdue_count` > 0 for 'SG Cyber Act annual cybersecurity exercise + Exercise Cyber Star participation tracker'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.57.6 negative (participation tracker): ingest benign `itsm` / `snow:ir_ca` events where `csa_cii_id` stays below `days_since_exercise` > 365, `days_since_exercise` > 335, or `ca_overdue_count` > 0, or exclude the test entity via `compliance_exception_register.csv`. Variant 2 confirms zero alert rows for 'SG Cyber Act annual cybersecurity exercise + Exercise Cyber Star participation tracker'."
   },
   "dataSources": "KV Store `csa_exercise_lookup` (cii_id, last_exercise_date, exercise_type, exercise_lead, after_action_doc_url, ca_open_count, ca_overdue_count, csa_exercise_star_participation).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928).",
   "spl": "| inputlookup csa_exercise_lookup\n| eval days_since_exercise = round((now() - last_exercise_date) / 86400, 0)\n| join type=left cii_id [search index=itsm sourcetype=\"snow:ir_ca\" csa_cii_id=* | stats count as ca_open_count count(eval(ca_due_date < now() AND state=\"open\")) as ca_overdue_count by csa_cii_id | rename csa_cii_id as cii_id]\n| eval exercise_status = case(\n    days_since_exercise > 365, \"overdue\",\n    days_since_exercise > 335, \"due_soon\",\n    isnull(after_action_doc_url), \"after_action_missing\",\n    ca_overdue_count > 0, \"corrective_actions_overdue\",\n    1=1, \"current\")\n| table cii_id last_exercise_date days_since_exercise exercise_type csa_exercise_star_participation after_action_doc_url ca_open_count ca_overdue_count exercise_status",
-  "description": "Tracks annual exercise currency, after-action evidence, corrective-action closure, and CSA Exercise Cyber Star participation.",
-  "value": "CSA Commissioner expects annual exercise. Cyber Star participation is the gold standard.",
+  "description": "Monitors UC-22.57.6 for Cyber, Act, annual, cybersecurity, exercise over `index=itsm` sourcetype `snow:ir_ca` with thresholds `days_since_exercise` > 365, `days_since_exercise` > 335, or `ca_overdue_count` > 0. Groups `count` by `csa_cii_id` each `the scheduled window`. Centered on participation tracker indicators. Supports repeatable compliance triage for 'SG Cyber Act annual cybersecurity exercise + Exercise Cyber Star participation tracker'.",
+  "value": "For 'SG Cyber Act annual cybersecurity exercise + Exercise Cyber Star participation tracker', UC-22.57.6 converts `activity` on `snow:ir_ca` feeds into actionable rows and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Populate `csa_exercise_lookup` after each exercise. (2) Schedule UC-22.57.6 daily. (3) Build `CSA Cyber Exercise Ledger` dashboard.",
   "visualization": "(Panel 1) Exercise status by CII. (Panel 2) Days-since-exercise. (Panel 3) Cyber Star participation. (Panel 4) Open corrective actions.",
   "cimModels": [
@@ -48,14 +48,26 @@
   "references": [
     {
       "title": "Cybersecurity Act 2018 §16",
-      "url": "https://sso.agc.gov.sg/Act/CA2018?ProvIds=pr16-"
+      "url": "https://sso.agc.gov.sg/Act/CA2018?ProvIds=pr16-",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CSA Exercise Cyber Star",
-      "url": "https://www.csa.gov.sg/our-programmes/national-cybersecurity-strategy/exercise-cyber-star"
+      "url": "https://www.csa.gov.sg/our-programmes/national-cybersecurity-strategy/exercise-cyber-star",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Cross-sector exercise**: a CSA cross-sector exercise may count for all participating CIIs; pin in lookup.\n\n**Suppression mechanism**: KV Store `csa_22_57_6_exceptions`.",
+  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit exercises 'SG Cyber Act annual cybersecurity exercise + Exercise Cyber Star participation tracker' (UC-22.57.6) on `csa_cii_id` during scheduled clause SG-CA-s16 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=itsm` `snow:ir_ca` without crossing `days_since_exercise` > 365. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `itsm` for `csa_cii_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `csa_cii_id` during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `csa_cii_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (exercise governance)"
   ],
@@ -83,7 +95,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\nSimilar to UC-22.56.7.\n\n## Step 1 — Exercise register\n\n```ini\n[csa_exercise_lookup]\nfield.cii_id = string\nfield.last_exercise_date = number\nfield.exercise_type = string\nfield.exercise_lead = string\nfield.after_action_doc_url = string\nfield.csa_exercise_star_participation = string\nfield.csa_notified_at = number\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.57.6: CSA Cyber Exercise Ledger]\ncron_schedule = 53 12 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.6,reg=SG-Cyber-Act,clause=CSA-CII-s16\nalert.severity = 3\n```\n\n## Step 3 — Runbooks\n\n**`exercise_status=overdue`**: schedule exercise within 60 days; produce after-action within 90.\n\n**SG-specific failure modes**:\n- **CSA Exercise Cyber Star coordination**: typically every 2 years; participation should be prioritised when offered.\n- **Sector-specific exercises**: MAS BCP / IDA TT-CERT exercises may also count if scope covers CSA.",
+  "detailedImplementation": "## Prerequisites\n\nSimilar to UC-22.56.7.\n\n## Step 1 — Exercise register\n\n```ini\n[csa_exercise_lookup]\nfield.cii_id = string\nfield.last_exercise_date = number\nfield.exercise_type = string\nfield.exercise_lead = string\nfield.after_action_doc_url = string\nfield.csa_exercise_star_participation = string\nfield.csa_notified_at = number\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.57.6: CSA Cyber Exercise Ledger]\ncron_schedule = 53 12 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.6,reg=SG-Cyber-Act,clause=CSA-CII-s16\nalert.severity = 3\n```\n\n## Step 3 — Runbooks\n\n**`exercise_status=overdue`**: schedule exercise within 60 days; produce after-action within 90.\n\n**SG-specific failure modes**:\n- **CSA Exercise Cyber Star coordination**: typically every 2 years; participation should be prioritised when offered.\n- **Sector-specific exercises**: MAS BCP / IDA TT-CERT exercises may also count if scope covers CSA.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928).). Enable the modular input or HEC token that writes sourcetype=snow:ir_ca into itsm. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`ca_overdue_count, csa_cii_id, days_since_exercise, exercise_status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Once a year, every important Singapore system must practice handling a cyber crisis — preferably together with the national-level exercise. We track who did it and whether they've closed every follow-up task.",
   "prerequisiteUseCases": [
     "UC-22.57.5"

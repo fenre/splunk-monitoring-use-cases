@@ -8,28 +8,43 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Tableau logs (`tableau:httpd`, `tableau:vizportal`, `tableau:backgrounder`), REST API, and `workgroup` repository tables via DB Connect.",
-  "app": "Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC; `workgroup` repository via Splunk DB Connect.",
+  "exclusions": "Covers the detection logic documented for 'Tableau Workbook Load Time p95' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_tableau_workbook_load_time_p95` (UC-24.1.14), SOC dashboard panel \"Operations — Tableau Workbook Load Time p95\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.1.14 positive (Tableau, Workbook, Load, Time, p95): ingest synthetic events into `index=bi` sourcetype='tableau:httpd' where `avg_s` grouped by `workbook` satisfies `p95_s` > 8 for 'Tableau Workbook Load Time p95'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.1.14 negative (Time p95): ingest benign `bi` / `tableau:httpd` events where `workbook` stays below `p95_s` > 8, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Tableau Workbook Load Time p95'."
+  },
+  "dataSources": "Tableau logs (`tableau:httpd`, `tableau:vizportal`, `tableau:backgrounder`), REST API, and `workgroup` repository tables via DB Connect. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC; `workgroup` repository via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=tableau:httpd status=200\n| eval dur_s=round(time_taken/1000,2)\n| stats avg(dur_s) as avg_s, p95(dur_s) as p95_s, count as runs by workbook\n| where p95_s>8\n| sort - p95_s",
-  "description": "Computes the 95th-percentile load time for each workbook in Tableau and flags the slowest, pointing owners at the specific content or jobs that need optimisation.",
-  "value": "Tail latency, not the average, is what users feel; ranking Tableau workbooks by p95 focuses tuning effort where it removes the most pain.",
+  "description": "Identifies 'Tableau Workbook Load Time p95' patterns (UC-24.1.14) sourced from `index=bi` sourcetype `tableau:httpd`. Threshold bundle: `p95_s` > 8; aggregation grain: `workbook`; metrics: `avg_s`. Watch terms: Tableau, Workbook, Load, Time, p95.",
+  "value": "UC-24.1.14 gives Operations teams earlier visibility into Time p95 through `tableau:httpd` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest Tableau timing data; schedule daily over a trailing week and review the slowest workbooks with their owners.",
   "visualization": "Table of workbook by p95 load time, trend line.",
   "cimModels": [],
   "references": [
     {
       "title": "Tableau — View server logs",
-      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Tableau — REST API reference",
-      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm"
+      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.1.14)** — Planned work for 'Tableau Workbook Load Time p95' shifts `avg_s` over `span=1h` while `workbook` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `tableau:httpd`** — Scheduled automation elevates `dur_s` without crossing `p95_s` > 8 for UC-24.1.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `workbook`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tableau:httpd`** — First 48h baseline for UC-24.1.14 on `workbook` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `workbook`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "db_connect"
@@ -37,5 +52,12 @@
   "equipmentModels": [
     "apache_httpd"
   ],
-  "grandmaExplanation": "We measure how slow the worst cases are in Tableau so the sluggish ones get fixed before people give up on them."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC; `workgroup` repository via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=tableau:httpd into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`p95_s, workbook`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We measure how slow the worst cases are in Tableau so the sluggish ones get fixed before people give up on them.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

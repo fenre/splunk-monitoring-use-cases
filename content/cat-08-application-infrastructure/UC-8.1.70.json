@@ -9,11 +9,17 @@
     "Analytics"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`stats` `cmd_get`, `cmd_set`, `cmd_flush` on `memcached:stats`",
-  "app": "Metrics collector with 10–30s interval",
+  "exclusions": "Covers the detection logic documented for 'Memcached GET and SET Operations Throughput' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_memcached_get_and_set_operations_throughput` (UC-8.1.70), SOC dashboard panel \"Operations — Memcached GET and SET Operations Throughput\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.1.70 positive (Memcached, GET, and, SET, Operations): ingest synthetic events into `index=infrastructure` sourcetype='memcached:stats' where `count` grouped by `host`, `_time` satisfies `get_rps` > 50000, or `set_rps` > 20000 for 'Memcached GET and SET Operations Throughput'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.70 negative (Operations Throughput): ingest benign `infrastructure` / `memcached:stats` events where `host`, `_time` stays below `get_rps` > 50000, or `set_rps` > 20000, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Memcached GET and SET Operations Throughput'."
+  },
+  "dataSources": "`stats` `cmd_get`, `cmd_set`, `cmd_flush` on `memcached:stats` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Metrics collector with 10–30s interval — Universal Forwarder (Splunkbase 617)",
   "spl": "index=infrastructure sourcetype=\"memcached:stats\"\n| eval g=tonumber(cmd_get)\n| eval s=tonumber(cmd_set)\n| bin _time span=1m\n| stats latest(g) as gets latest(s) as sets by host, _time\n| streamstats window=2 global=f last(gets) as _prev_get_rps last(sets) as _prev_set_rps by host\n| eval get_rps = gets - _prev_get_rps, set_rps = sets - _prev_set_rps| eval get_rps=round(get_rps/60,0)\n| eval set_rps=round(set_rps/60,0)\n| where get_rps > 50000 OR set_rps > 20000",
-  "description": "Throughput anomalies—sudden 10× jumps or drops—often align with cache bypass bugs, DDoS, or failed upstream failovers. Normalized per-second rates make clusters comparable.",
-  "value": "Speeds incident correlation when databases spike alongside unusual cache traffic patterns.",
+  "description": "Identifies UC-8.1.70 — Memcached, GET, and, SET, Operations — using `index=infrastructure` sourcetype `memcached:stats`, grouped by `host`, `_time`. Outputs `count` each `1m`; alert when `get_rps` > 50000, or `set_rps` > 20000. Primary focus: Operations Throughput. Purpose-built for 'Memcached GET and SET Operations Throughput' in Operations workflows.",
+  "value": "Operators running UC-8.1.70 on `memcached:stats` feeds shorten triage for Operations Throughput tied to 'Memcached GET and SET Operations Throughput', lowering operational risk and delayed incident response.",
   "implementation": "If collector emits rates directly, drop `delta` logic. Tag `app` or `pool` in `_meta` from chef/ansible. Alert thresholds must match hardware (network and single-thread limits).",
   "visualization": "Line chart (get_rps, set_rps), Single value peak QPS.",
   "cimModels": [
@@ -23,13 +29,33 @@
   "references": [
     {
       "title": "Memcached protocol",
-      "url": "https://github.com/memcached/memcached/blob/master/doc/protocol.txt"
+      "url": "https://github.com/memcached/memcached/blob/master/doc/protocol.txt",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Cache misses spike after cache flush, deploys with new cache keys, or during warm-up after restart. Compare with those events before treating as a fault.",
+  "knownFalsePositives": "1. **Maintenance window on `infrastructure` (UC-8.1.70)** — Planned work for 'Memcached GET and SET Operations Throughput' shifts `count` over `span=1m` while `host`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `memcached:stats`** — Scheduled automation elevates `_time` without crossing `get_rps` > 50000 for UC-8.1.70. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `_time`** — Health checks in `infrastructure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `memcached:stats`** — First 48h baseline for UC-8.1.70 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ansible",
     "memcached"
+  ],
+  "equipmentModels": [
+    "ansible_generic",
+    "memcached_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -38,6 +64,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to speed incident correlation when databases spike alongside unusual cache traffic patterns."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Metrics collector with 10–30s interval — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=memcached:stats into infrastructure. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, get_rps, host, set_rps`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to speed incident correlation when databases spike alongside unusual cache traffic patterns.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

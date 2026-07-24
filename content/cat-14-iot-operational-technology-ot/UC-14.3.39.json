@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=edge-hub-health` sourcetype=edge_hub firmware_version, `index=edge-hub-logs` firmware_update_event",
-  "app": "Splunk Edge Hub (multiple devices), Splunk OT Intelligence",
+  "exclusions": "Covers the detection logic documented for 'Multi-Device Fleet Firmware Version Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_multi_device_fleet_firmware_version_compliance` (UC-14.3.39), SOC dashboard panel \"Operations — Multi-Device Fleet Firmware Version Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.3.39 positive (Multi, Device, Fleet, Firmware, Version): ingest synthetic events into `index=edge-hub-health` sourcetype='edge_hub' where `unique_versions` grouped by `host`, `device_id`, `location` satisfies `unique_versions` > 1 for 'Multi-Device Fleet Firmware Version Compliance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.3.39 negative (Version Compliance): ingest benign `edge-hub-health` / `edge_hub` events where `host`, `device_id`, `location` stays below `unique_versions` > 1, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Multi-Device Fleet Firmware Version Compliance'."
+  },
+  "dataSources": "`index=edge-hub-health` sourcetype=edge_hub firmware_version, `index=edge-hub-logs` firmware_update_event Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub (multiple devices), Splunk OT Intelligence — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-health sourcetype=edge_hub\n| stats latest(firmware_version) as fw_version, latest(os_build_number) as build by host, device_id\n| stats dc(fw_version) as unique_versions, count as total_devices by location\n| where unique_versions > 1\n| eval compliance=\"DRIFTED\"\n| join max=1 location [| rest /services/data-model/indexes/edge_hub_fleet_baseline | fields location, target_firmware_version]\n| where fw_version != target_firmware_version",
-  "description": "Ensures all Edge Hubs in a fleet run current firmware versions to maintain security and feature parity.",
-  "value": "Ensures all Edge Hubs in a fleet run current firmware versions to maintain security and feature parity.",
+  "description": "Monitors risk tied to Multi, Device, Fleet, Firmware, Version through UC-14.3.39 on `index=edge-hub-health` sourcetype `edge_hub`. Summarises `unique_versions` grouped by `host`, `device_id`, `location` across `the scheduled window` before applying `unique_versions` > 1. Operators tune 'Multi-Device Fleet Firmware Version Compliance' using UC-14.3.39 runbook steps.",
+  "value": "Tracking `unique_versions` via UC-14.3.39 on `edge_hub` feeds improves response to 'Multi-Device Fleet Firmware Version Compliance' and reduces operational risk and delayed incident response.",
   "implementation": "Central Splunk instance receives health data from all Edge Hubs via HEC (HTTP Event Collector). Health heartbeat includes firmware_version + build_number every 5 minutes (stored in edge-hub-health index). Create baseline search for target firmware per location/site. Alert when devices drift from baseline (old firmware detected). Implement scheduled search that flags out-of-compliance devices for manual firmware update. Store update history in edge-hub-logs for audit trail. For multi-region deployments, allow per-region firmware versions.",
   "visualization": "Firmware version distribution pie, device compliance status list, update history timeline.",
   "cimModels": [
@@ -22,18 +28,44 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Compliance breaches during planned excursions for cleaning, filter changes, or controlled commissioning.",
+  "knownFalsePositives": "1. **Maintenance window on `edge-hub-health` (UC-14.3.39)** — Planned work for 'Multi-Device Fleet Firmware Version Compliance' shifts `unique_versions` over `span=1h` while `host`, `device_id`, `location` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `edge_hub`** — Scheduled automation elevates `device_id` without crossing `unique_versions` > 1 for UC-14.3.39. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `device_id`, `location`** — Health checks in `edge-hub-health` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `edge_hub`** — First 48h baseline for UC-14.3.39 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub",
     "m365"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic",
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Edge Hub",
     "Splunk OT Intelligence"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (multiple devices), Splunk OT Intelligence.\n• Ensure the following data sources are available: `index=edge-hub-health` sourcetype=edge_hub firmware_version, `index=edge-hub-logs` firmware_update_event.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCentral Splunk instance receives health data from all Edge Hubs via HEC (HTTP Event Collector). Health heartbeat includes firmware_version + build_number every 5 minutes (stored in edge-hub-health index). Create baseline search for target firmware per location/site. Alert when devices drift from baseline (old firmware detected). Implement scheduled search that flags out-of-compliance devices for manual firmware update. Store update history in edge-hub-logs for audit trail. For multi-region deplo…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-health sourcetype=edge_hub\n| stats latest(firmware_version) as fw_version, latest(os_build_number) as build by host, device_id\n| stats dc(fw_version) as unique_versions, count as total_devices by location\n| where unique_versions > 1\n| eval compliance=\"DRIFTED\"\n| join max=1 location [| rest /services/data-model/indexes/edge_hub_fleet_baseline | fields location, target_firmware_version]\n| where fw_version != target_firmware_version\n```\n\nUnderstanding this SPL\n\n**Multi-Device Fleet Firmware Version Compliance** — Ensures all Edge Hubs in a fleet run current firmware versions to maintain security and feature parity.\n\nDocumented **Data sources**: `index=edge-hub-health` sourcetype=edge_hub firmware_version, `index=edge-hub-logs` firmware_update_event. **App/TA** (typical add-on context): Splunk Edge Hub (multiple devices), Splunk OT Intelligence. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-health; **sourcetype**: edge_hub. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-health, sourcetype=edge_hub. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, device_id** so each row reflects one combination of those dimensions.\n• `stats` rolls up events into metrics; results are split **by location** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where unique_versions > 1` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **compliance** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where fw_version != target_firmware_version` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Firmware version distribution pie, device compliance status list, update history timeline.",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with this area: multi-device fleet firmware version compliance before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with this area: multi-device fleet firmware version compliance before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

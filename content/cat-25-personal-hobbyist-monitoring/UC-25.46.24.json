@@ -8,31 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Character sheets (`rpg:character`), VTT sessions (`rpg:session`), initiative rounds (`rpg:initiative`), encounters (`rpg:combat`), campaign ops (`rpg:ops`).",
-  "app": "Tabletop campaign telemetry — D&D Beyond character exports, Roll20 session logs, initiative trackers, and campaign asset checklists — streamed to Splunk HEC via APIs, exports, and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Initiative Tracker Boss Encounter Pace' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_initiative_tracker_boss_encounter_pace` (UC-25.46.24), SOC dashboard panel \"Personal — Initiative Tracker Boss Encounter Pace\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.46.24 positive (Initiative, Tracker, Boss, Encounter, Pace): ingest synthetic events into `index=personal` sourcetype='rpg:initiative' where `avg_round_duration_sec` grouped by `boss_name` satisfies detection threshold for 'Initiative Tracker Boss Encounter Pace'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.46.24 negative (Encounter Pace): ingest benign `personal` / `rpg:initiative` events where `boss_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 7 confirms zero alert rows for 'Initiative Tracker Boss Encounter Pace'."
+  },
+  "dataSources": "Character sheets (`rpg:character`), VTT sessions (`rpg:session`), initiative rounds (`rpg:initiative`), encounters (`rpg:combat`), campaign ops (`rpg:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Tabletop campaign telemetry — D&D Beyond character exports, Roll20 session logs, initiative trackers, and campaign asset checklists — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=rpg:initiative boss_name=* round_duration_sec=*\n| stats avg(round_duration_sec) as avg_round_duration_sec, count as events by boss_name\n| sort - avg_round_duration_sec",
-  "description": "Shows average round duration seconds by boss encounter for boss fights.",
-  "value": "Average round duration seconds by boss encounter helps compare boss fights across the factors that matter most.",
+  "description": "Detects UC-25.46.24 — Initiative, Tracker, Boss, Encounter, Pace — using `index=personal` sourcetype `rpg:initiative`, grouped by `boss_name`. Outputs `avg_round_duration_sec` each `the scheduled window`; alert when configured threshold. Primary focus: Encounter Pace. Purpose-built for 'Initiative Tracker Boss Encounter Pace' in Personal workflows.",
+  "value": "UC-25.46.24 operationalises 'Initiative Tracker Boss Encounter Pace' against `rpg:initiative` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Capture `round_duration_sec` on `rpg:initiative` events and normalize `boss_name` so Splunk can summarize performance by boss encounter.",
   "visualization": "Bar chart of average round duration seconds by boss encounter.",
   "cimModels": [],
   "references": [
     {
       "title": "D&D Beyond — digital tools",
-      "url": "https://www.dndbeyond.com/"
+      "url": "https://www.dndbeyond.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Roll20 — virtual tabletop",
-      "url": "https://roll20.net/"
+      "url": "https://roll20.net/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Improved Initiative — encounter tracker",
-      "url": "https://www.improved-initiative.com/"
+      "url": "https://www.improved-initiative.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It reveals the average round duration seconds for each boss encounter so you can see what works best for boss fights."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.46.24)** — Connector for 'Initiative Tracker Boss Encounter Pace' stops polling `rpg:initiative`; stale `avg_round_duration_sec` on `boss_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_round_duration_sec` over `1w` is expected for UC-25.46.24, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rpg:initiative`. Dedup with `stats latest(*) by boss_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Initiative Tracker Boss Encounter Pace'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Tabletop RPG Campaigns — typical feeds: Campaign sessions (`campaign:session`), NPC ledger (`npc:ledger`), loot drops (`loot:drop`), XP awards (`xp:award`)..\n• **Sourcetypes in this search**: `rpg:initiative`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=rpg:initiative`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Tabletop RPG telemetry — virtual-tabletop session logs (Roll20, Foundry VTT), campaign trackers (World Anvil), and XP / loot / NPC ledgers — streamed to Splunk HEC via scripted inputs..\n\n**Author notes:** Capture `round_duration_sec` on `rpg:initiative` events and normalize `boss_name` so Splunk can summarize performance by boss encounter.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"rpg:initiative\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=rpg:initiative earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Initiative Tracker Boss Encounter Pace** over `personal` data (primarily `sourcetype=rpg:initiative`) across the full search range. The `avg` aggregation groups by `boss_name`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `boss_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=rpg:initiative boss_name=* round_duration_sec=*\n| stats avg(round_duration_sec) as avg_round_duration_sec, count as events by boss_name\n| sort - avg_round_duration_sec\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=rpg:initiative earliest=-7d\n| head 50\n| table boss_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=rpg:initiative earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.46.24: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Average Round Duration Seconds By Boss Encounter (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `rpg:initiative` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=rpg:initiative | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It reveals the average round duration seconds for each boss encounter so you can see what works best for boss fights.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'PostgreSQL Replication Slot Lag and WAL Retention' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_postgresql_replication_slot_lag_and_wal_retentio` (UC-7.2.29), SOC dashboard panel \"Operations — PostgreSQL Replication Slot Lag and WAL Retention\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.2.29 positive (PostgreSQL, Replication, Slot, Lag, and): ingest synthetic events into `index=database` sourcetype='postgresql:replication_slots' where `max_lag_bytes` grouped by `slot_name`, `database`, `host` satisfies `lag_bytes` > 1073741824 for 'PostgreSQL Replication Slot Lag and WAL Retention'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.2.29 negative (WAL Retention): ingest benign `database` / `postgresql:replication_slots` events where `slot_name`, `database`, `host` stays below `lag_bytes` > 1073741824, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'PostgreSQL Replication Slot Lag and WAL Retention'."
+  },
   "dataSources": "`pg_replication_slots` (`slot_name`, `slot_type`, `active`, `restart_lsn`, `confirmed_flush_lsn`, `retained_bytes` / lag derived in SQL)",
   "app": "Splunk DB Connect (Splunkbase 2686), JDBC Driver for Postgres (Splunkbase 6152)",
   "spl": "index=database sourcetype=\"postgresql:replication_slots\"\n| eval lag_bytes=tonumber(lag_bytes)\n| where lag_bytes > 1073741824\n| stats max(lag_bytes) as max_lag_bytes latest(active) as active by slot_name, database, host\n| eval lag_gb=round(max_lag_bytes/1073741824,2)\n| sort -lag_gb",
-  "description": "Inactive or lagging logical replication slots retain WAL and can fill the primary disk; this is a well-known PostgreSQL production failure mode for CDC and standby consumers.",
-  "value": "Prevents primary outages from WAL bloat and protects logical decoding consumers before they exceed RPO.",
+  "description": "Surfaces UC-7.2.29 — PostgreSQL, Replication, Slot, Lag, and — using `index=database` sourcetype `postgresql:replication_slots`, grouped by `slot_name`, `database`, `host`. Outputs `max_lag_bytes` each `the scheduled window`; alert when `lag_bytes` > 1073741824. Primary focus: WAL Retention. Purpose-built for 'PostgreSQL Replication Slot Lag and WAL Retention' in Operations workflows.",
+  "value": "UC-7.2.29 gives Operations teams earlier visibility into WAL Retention through `postgresql:replication_slots` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Poll pg_replication_slots with pg_wal_lsn_diff or retained_bytes if available on your version. Alert on lag_bytes crossing capacity thresholds or when critical slots are inactive unexpectedly. Map slot_name to owning teams and Debezium/ETL pipelines.",
   "visualization": "Table (slot, lag GB, active), Line chart (lag trend), Single value (max lag).",
   "cimModels": [
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "PostgreSQL — Replication Slots",
-      "url": "https://www.postgresql.org/docs/current/warm-standby.html#STREAMING-REPLICATION-SLOTS"
+      "url": "https://www.postgresql.org/docs/current/warm-standby.html#STREAMING-REPLICATION-SLOTS",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk DB Connect",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Lag spikes during large transactions, schema changes, or network maintenance to standby; align with RPO and change windows.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.2.29)** — Planned work for 'PostgreSQL Replication Slot Lag and WAL Retention' shifts `max_lag_bytes` over `span=1h` while `slot_name`, `database`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `postgresql:replication_slots`** — Scheduled automation elevates `database` without crossing `lag_bytes` > 1073741824 for UC-7.2.29. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `slot_name`, `database`, `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `postgresql:replication_slots`** — First 48h baseline for UC-7.2.29 on `slot_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `slot_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "postgresql"
@@ -44,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We track replication and apply lag so we can meet recovery and read-your-writes expectations when a region or network path is under stress."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk DB Connect (Splunkbase 2686), JDBC Driver for Postgres (Splunkbase 6152)). Enable the modular input or HEC token that writes sourcetype=postgresql:replication_slots into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`database, host, lag_bytes, slot_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We track replication and apply lag so we can meet recovery and read-your-writes expectations when a region or network path is under stress.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

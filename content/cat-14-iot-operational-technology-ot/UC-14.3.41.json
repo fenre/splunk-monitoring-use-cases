@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=edge-hub-health` sourcetype=edge_hub cellular_signal, `index=edge-hub-logs` cellular_connect_event",
-  "app": "Splunk Edge Hub (cellular module), Splunk OT Intelligence",
+  "exclusions": "Covers the detection logic documented for 'Cellular Connectivity Quality & Signal Strength Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cellular_connectivity_quality_signal_strength_mo` (UC-14.3.41), SOC dashboard panel \"Operations — Cellular Connectivity Quality & Signal Strength Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.3.41 positive (Cellular, Connectivity, Quality, Signal, Strength): ingest synthetic events into `index=edge-hub-health` sourcetype='edge_hub' where `avg_latency` grouped by `host`, `cell_id`, `signal_quality` satisfies `signal_dbm` > -80, `sinr` > 15, `signal_dbm` > -90, or `sinr` > 5 for 'Cellular Connectivity Quality & Signal Strength Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.3.41 negative (Strength Monitoring): ingest benign `edge-hub-health` / `edge_hub` events where `host`, `cell_id`, `signal_quality` stays below `signal_dbm` > -80, `sinr` > 15, `signal_dbm` > -90, or `sinr` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Cellular Connectivity Quality & Signal Strength Monitoring'."
+  },
+  "dataSources": "`index=edge-hub-health` sourcetype=edge_hub cellular_signal, `index=edge-hub-logs` cellular_connect_event Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub (cellular module), Splunk OT Intelligence — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-health sourcetype=edge_hub\n| stats latest(rssi_dbm) as signal_dbm, latest(sinr_db) as sinr, latest(latency_ms) as latency,\n        latest(network_type) as net_type by host, cell_id\n| eval signal_quality=case(\n    signal_dbm > -80 AND sinr > 15, \"EXCELLENT\",\n    signal_dbm > -90 AND sinr > 5, \"GOOD\",\n    signal_dbm > -100, \"FAIR\",\n    1=1, \"POOR\")\n| stats avg(latency) as avg_latency by signal_quality, host",
-  "description": "Tracks LTE/4G signal strength and network latency to predict connectivity issues and plan network upgrades.",
-  "value": "Tracks LTE/4G signal strength and network latency to predict connectivity issues and plan network upgrades.",
+  "description": "Surfaces UC-14.3.41 for Cellular, Connectivity, Quality, Signal, Strength over `index=edge-hub-health` sourcetype `edge_hub` with thresholds `signal_dbm` > -80, `sinr` > 15, `signal_dbm` > -90, or `sinr` > 5. Groups `avg_latency` by `host`, `cell_id`, `signal_quality` each `the scheduled window`. Centered on Strength Monitoring indicators. Supports repeatable operations triage for 'Cellular Connectivity Quality & Signal Strength Monitoring'.",
+  "value": "For 'Cellular Connectivity Quality & Signal Strength Monitoring', UC-14.3.41 converts `avg_latency` on `edge_hub` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Edge Hub cellular module reports RSSI (signal strength -140 to 0 dBm), SINR (signal-to-interference noise ratio dB), network latency (ms), and network type (LTE Band, 4G, etc.) to edge-hub-health index every 5 minutes. Strong signal: RSSI > -80 dBm. Acceptable signal: RSSI -80 to -100 dBm. Poor signal: RSSI < -100 dBm. Track carrier (AT&T, Verizon, etc.) and band for capacity planning. Alert if signal drops below -100 dBm or latency exceeds 500ms (indicates backhaul congestion or dead zone).",
   "visualization": "Signal strength heatmap, latency trend, network type distribution.",
   "cimModels": [
@@ -22,17 +28,42 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "AQI spikes during cooking, cleaning, paint or solvent use, or HVAC maintenance.",
+  "knownFalsePositives": "1. **Maintenance window on `edge-hub-health` (UC-14.3.41)** — Planned work for 'Cellular Connectivity Quality & Signal Strength Monitoring' shifts `avg_latency` over `span=1h` while `host`, `cell_id`, `signal_quality` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `edge_hub`** — Scheduled automation elevates `cell_id` without crossing `signal_dbm` > -80 for UC-14.3.41. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `cell_id`, `signal_quality`** — Health checks in `edge-hub-health` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `edge_hub`** — First 48h baseline for UC-14.3.41 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Edge Hub",
     "Splunk OT Intelligence"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (cellular module), Splunk OT Intelligence.\n• Ensure the following data sources are available: `index=edge-hub-health` sourcetype=edge_hub cellular_signal, `index=edge-hub-logs` cellular_connect_event.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEdge Hub cellular module reports RSSI (signal strength -140 to 0 dBm), SINR (signal-to-interference noise ratio dB), network latency (ms), and network type (LTE Band, 4G, etc.) to edge-hub-health index every 5 minutes. Strong signal: RSSI > -80 dBm. Acceptable signal: RSSI -80 to -100 dBm. Poor signal: RSSI < -100 dBm. Track carrier (AT&T, Verizon, etc.) and band for capacity planning. Alert if signal drops below -100 dBm or latency exceeds 500ms (indicates backhaul congestion or dead zone).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-health sourcetype=edge_hub\n| stats latest(rssi_dbm) as signal_dbm, latest(sinr_db) as sinr, latest(latency_ms) as latency,\n        latest(network_type) as net_type by host, cell_id\n| eval signal_quality=case(\n    signal_dbm > -80 AND sinr > 15, \"EXCELLENT\",\n    signal_dbm > -90 AND sinr > 5, \"GOOD\",\n    signal_dbm > -100, \"FAIR\",\n    1=1, \"POOR\")\n| stats avg(latency) as avg_latency by signal_quality, host\n```\n\nUnderstanding this SPL\n\n**Cellular Connectivity Quality & Signal Strength Monitoring** — Tracks LTE/4G signal strength and network latency to predict connectivity issues and plan network upgrades.\n\nDocumented **Data sources**: `index=edge-hub-health` sourcetype=edge_hub cellular_signal, `index=edge-hub-logs` cellular_connect_event. **App/TA** (typical add-on context): Splunk Edge Hub (cellular module), Splunk OT Intelligence. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-health; **sourcetype**: edge_hub. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-health, sourcetype=edge_hub. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, cell_id** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **signal_quality** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by signal_quality, host** so each row reflects one combination of those dimensions.\n\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Signal strength heatmap, latency trend, network type distribution.",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with this area: cellular connectivity quality & signal strength before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with this area: cellular connectivity quality & signal strength before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

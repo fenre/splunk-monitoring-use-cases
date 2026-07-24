@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`system.parts` bytes on disk ingested as `clickhouse:parts`",
-  "app": "Scheduled SQL aggregations to Splunk HEC",
+  "exclusions": "Covers the detection logic documented for 'ClickHouse Disk Usage by Table and Partition' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_clickhouse_disk_usage_by_table_and_partition` (UC-7.1.61), SOC dashboard panel \"Operations — ClickHouse Disk Usage by Table and Partition\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.61 positive (ClickHouse, Disk, Usage, Table, and): ingest synthetic events into `index=database` sourcetype='clickhouse:parts' where `table_gb`, `host_total` grouped by `database`, `table`, `partition`, `host` satisfies `pct_of_host` > 25, or `table_gb` > 0.5 for 'ClickHouse Disk Usage by Table and Partition'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.61 negative (and Partition): ingest benign `database` / `clickhouse:parts` events where `database`, `table`, `partition`, `host` stays below `pct_of_host` > 25, or `table_gb` > 0.5, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'ClickHouse Disk Usage by Table and Partition'."
+  },
+  "dataSources": "`system.parts` bytes on disk ingested as `clickhouse:parts` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Scheduled SQL aggregations to Splunk HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"clickhouse:parts\"\n| eval gb=round(tonumber(bytes_on_disk)/1073741824,3)\n| stats sum(gb) as table_gb by database, table, partition, host\n| eventstats sum(table_gb) as host_total by host\n| eval pct_of_host=round(100*table_gb/host_total,2)\n| where pct_of_host > 25 AND table_gb > 0.5\n| sort -table_gb",
-  "description": "A single partition or table consuming a disproportionate share of a host’s disk predicts `No space left` events and forces emergency TTL changes. Percent-of-host views highlight outliers even when absolute gigabytes look normal cluster-wide.",
-  "value": "Supports proactive storage purchasing and TTL/archival decisions before ingest stops.",
+  "description": "Identifies UC-7.1.61 — ClickHouse, Disk, Usage, Table, and — using `index=database` sourcetype `clickhouse:parts`, grouped by `database`, `table`, `partition`, `host`. Outputs `table_gb`, `host_total` each `the scheduled window`; alert when `pct_of_host` > 25, or `table_gb` > 0.5. Primary focus: and Partition. Purpose-built for 'ClickHouse Disk Usage by Table and Partition' in Operations workflows.",
+  "value": "UC-7.1.61 operationalises 'ClickHouse Disk Usage by Table and Partition' against `clickhouse:parts` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Export `SELECT database, table, partition, sum(bytes_on_disk) bytes_on_disk FROM system.parts WHERE active GROUP BY database, table, partition` daily or hourly. Normalize `partition` as string. Maintain capacity lookup for expected growth; alert when any table exceeds 25% of host disk for two consecutive runs.",
   "visualization": "Treemap (database.table), Table (partition, table_gb, pct_of_host).",
   "cimModels": [
@@ -21,12 +27,31 @@
   "references": [
     {
       "title": "ClickHouse — system.parts",
-      "url": "https://clickhouse.com/docs/en/operations/system-tables/parts"
+      "url": "https://clickhouse.com/docs/en/operations/system-tables/parts",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Merge, part count, and disk signals spike during bulk loads and after schema or partition changes; compare with ETL and migration windows before paging.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.61)** — Planned work for 'ClickHouse Disk Usage by Table and Partition' shifts `table_gb`, `host_total` over `span=1h` while `database`, `table`, `partition`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `clickhouse:parts`** — Scheduled automation elevates `table` without crossing `pct_of_host` > 25 for UC-7.1.61. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `database`, `table`, `partition`, `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `clickhouse:parts`** — First 48h baseline for UC-7.1.61 on `database` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `database`, `exception_reason`, `valid_until`.",
   "equipment": [
     "clickhouse"
+  ],
+  "equipmentModels": [
+    "clickhouse_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -35,5 +60,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We trend space use on our data files and tablespaces so we can add capacity or archive data before a database runs out of room during peak load."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Scheduled SQL aggregations to Splunk HEC — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=clickhouse:parts into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`database, host, partition, pct_of_host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We trend space use on our data files and tablespaces so we can add capacity or archive data before a database runs out of room during peak load.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

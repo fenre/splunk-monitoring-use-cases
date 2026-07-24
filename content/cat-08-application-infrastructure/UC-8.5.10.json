@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "varnishstat JSON output",
-  "app": "Custom scripted input (varnishstat, varnishlog)",
+  "exclusions": "Covers the detection logic documented for 'Varnish Cache Hit Rate and Backend Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_varnish_cache_hit_rate_and_backend_health` (UC-8.5.10), SOC dashboard panel \"Operations — Varnish Cache Hit Rate and Backend Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.5.10 positive (Varnish, Cache, Hit, Rate, and): ingest synthetic events into `index=cache` sourcetype='varnish:stats' where `hit_pct`, `backend_failures` grouped by `host` satisfies `hit_ratio` < 80, `backend_fail` > 0, or `backend_busy` > 0 for 'Varnish Cache Hit Rate and Backend Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.5.10 negative (Backend Health): ingest benign `cache` / `varnish:stats` events where `host` stays below `hit_ratio` < 80, `backend_fail` > 0, or `backend_busy` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Varnish Cache Hit Rate and Backend Health'."
+  },
+  "dataSources": "varnishstat JSON output Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (varnishstat, varnishlog) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cache sourcetype=\"varnish:stats\"\n| eval hit_ratio=round(cache_hit/(cache_hit+cache_miss)*100,2)\n| where hit_ratio < 80 OR backend_fail > 0 OR backend_busy > 0\n| timechart span=5m avg(hit_ratio) as hit_pct, sum(backend_fail) as backend_failures by host",
-  "description": "Cache efficiency and backend connection failures indicate Varnish health. Backend failures cause cache misses and user-facing errors.",
-  "value": "Cache efficiency and backend connection failures indicate Varnish health. Backend failures cause cache misses and user-facing errors.",
+  "description": "Surfaces risk tied to Varnish, Cache, Hit, Rate, and through UC-8.5.10 on `index=cache` sourcetype `varnish:stats`. Summarises `hit_pct`, `backend_failures` grouped by `host` across `5m` before applying `hit_ratio` < 80, `backend_fail` > 0, or `backend_busy` > 0. Operators tune 'Varnish Cache Hit Rate and Backend Health' using UC-8.5.10 runbook steps.",
+  "value": "Tracking `hit_pct`, `backend_failures` via UC-8.5.10 on `varnish:stats` feeds improves response to 'Varnish Cache Hit Rate and Backend Health' and reduces operational risk and delayed incident response.",
   "implementation": "Run `varnishstat -j` via scripted input every minute. Parse MAIN.cache_hit, MAIN.cache_miss, MAIN.backend_fail, MAIN.backend_busy, MAIN.backend_unhealthy. Forward to Splunk via HEC. Alert when hit ratio drops below 80% or backend failures occur. Correlate backend_fail with backend health probes.",
   "visualization": "Gauge (hit ratio %), Line chart (hit ratio and backend failures), Table (backend health status), Single value (backend failures).",
   "cimModels": [
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Cache misses spike after cache flush, deploys with new cache keys, or during warm-up after restart. Compare with those events before treating as a fault.",
+  "knownFalsePositives": "1. **Maintenance window on `cache` (UC-8.5.10)** — Planned work for 'Varnish Cache Hit Rate and Backend Health' shifts `hit_pct`, `backend_failures` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `varnish:stats`** — Scheduled automation elevates `hit_ratio` without crossing `hit_ratio` < 80 for UC-8.5.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cache` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `varnish:stats`** — First 48h baseline for UC-8.5.10 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "varnish"
   ],
+  "equipmentModels": [
+    "varnish_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (varnishstat, varnishlog).\n• Ensure the following data sources are available: varnishstat JSON output.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRun `varnishstat -j` via scripted input every minute. Parse MAIN.cache_hit, MAIN.cache_miss, MAIN.backend_fail, MAIN.backend_busy, MAIN.backend_unhealthy. Forward to Splunk via HEC. Alert when hit ratio drops below 80% or backend failures occur. Correlate backend_fail with backend health probes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cache sourcetype=\"varnish:stats\"\n| eval hit_ratio=round(cache_hit/(cache_hit+cache_miss)*100,2)\n| where hit_ratio < 80 OR backend_fail > 0 OR backend_busy > 0\n| timechart span=5m avg(hit_ratio) as hit_pct, sum(backend_fail) as backend_failures by host\n```\n\nUnderstanding this SPL\n\n**Varnish Cache Hit Rate and Backend Health** — Cache efficiency and backend connection failures indicate Varnish health. Backend failures cause cache misses and user-facing errors.\n\nDocumented **Data sources**: varnishstat JSON output. **App/TA** (typical add-on context): Custom scripted input (varnishstat, varnishlog). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cache; **sourcetype**: varnish:stats. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cache, sourcetype=\"varnish:stats\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **hit_ratio** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where hit_ratio < 80 OR backend_fail > 0 OR backend_busy > 0` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by host** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nCompare with `varnishstat` or `varnishlog` on the Varnish host for the same period.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (hit ratio %), Line chart (hit ratio and backend failures), Table (backend health status), Single value (backend failures).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch for signs that cache efficiency and backend connection failures indicate Varnish health."
+  "grandmaExplanation": "We watch for signs that cache efficiency and backend connection failures indicate Varnish health.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

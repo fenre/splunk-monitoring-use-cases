@@ -8,31 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Mortgage-rate snapshots (`mortgage:rate`), property-listing and Zestimate data (`property:listing`), HOA fees (`hoa:fee`), property-tax installments (`propertytax:installment`), home-buying milestones (`homebuying:milestone`).",
-  "app": "Mortgage-rate watchers, Zestimate exports, HOA-fee logs, and property-tax installment trackers streamed to Splunk HEC via APIs, CSV exports, and personal checklists.",
+  "exclusions": "Covers personal hobby monitoring for 'Property Tax Installment County Comparison' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_property_tax_installment_county_comparison` (UC-25.84.26), SOC dashboard panel \"Personal — Property Tax Installment County Comparison\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.84.26 positive (Property, Tax, Installment, County, Comparison): ingest synthetic events into `index=personal` sourcetype='propertytax:installment' where `avg_metric` grouped by `county` satisfies detection threshold for 'Property Tax Installment County Comparison'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.84.26 negative (County Comparison): ingest benign `personal` / `propertytax:installment` events where `county` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Property Tax Installment County Comparison'."
+  },
+  "dataSources": "Mortgage-rate snapshots (`mortgage:rate`), property-listing and Zestimate data (`property:listing`), HOA fees (`hoa:fee`), property-tax installments (`propertytax:installment`), home-buying milestones (`homebuying:milestone`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Mortgage-rate watchers, Zestimate exports, HOA-fee logs, and property-tax installment trackers streamed to Splunk HEC via APIs, CSV exports, and personal checklists. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=propertytax:installment\n| stats avg(installment_amount_usd) as avg_metric count as records by county\n| sort - avg_metric",
-  "description": "Compares property tax installment across county buckets in one place.",
-  "value": "Side-by-side comparisons help you see whether one lender, area, fee type, or jurisdiction looks meaningfully different from the rest.",
+  "description": "Monitors UC-25.84.26 — Property, Tax, Installment, County, Comparison — using `index=personal` sourcetype `propertytax:installment`, grouped by `county`. Outputs `avg_metric` each `the scheduled window`; alert when configured threshold. Primary focus: County Comparison. Purpose-built for 'Property Tax Installment County Comparison' in Personal workflows.",
+  "value": "Alerting on Property, Tax, Installment, County, Comparison through UC-25.84.26 reduces missed training goals, stale hobby data, and connector failures by surfacing `avg_metric` early.",
   "implementation": "Use stable grouping values and clean them during ingest so the comparison stays trustworthy.",
   "visualization": "Comparison table of average installment amount in dollars by county.",
   "cimModels": [],
   "references": [
     {
       "title": "CFPB - Mortgages",
-      "url": "https://www.consumerfinance.gov/owning-a-home/"
+      "url": "https://www.consumerfinance.gov/owning-a-home/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Zillow",
-      "url": "https://www.zillow.com/"
+      "url": "https://www.zillow.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NAR - Home Buyers and Sellers",
-      "url": "https://www.nar.realtor/"
+      "url": "https://www.nar.realtor/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It frames which county buckets look best or worst for property tax installment."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.84.26)** — Connector for 'Property Tax Installment County Comparison' stops polling `propertytax:installment`; stale `avg_metric` on `county` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_metric` over `1w` is expected for UC-25.84.26, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `propertytax:installment`. Dedup with `stats latest(*) by county`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Property Tax Installment County Comparison'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Buying & Property — typical feeds: Mortgage-rate snapshots (`mortgage:rate`), property-listing and Zestimate data (`property:listing`), HOA fees (`hoa:fee`), property-tax installments (`propertytax:installment`), home-buying milestones.\n• **Sourcetypes in this search**: `propertytax:installment`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=propertytax:installment`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Mortgage-rate watchers, Zestimate exports, HOA-fee logs, and property-tax installment trackers streamed to Splunk HEC via APIs, CSV exports, and personal checklists..\n\n**Author notes:** Use stable grouping values and clean them during ingest so the comparison stays trustworthy.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"propertytax:installment\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=propertytax:installment earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Property Tax Installment County Comparison** over `personal` data (primarily `sourcetype=propertytax:installment`) across the full search range. The `avg` aggregation groups by `county`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `county`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=propertytax:installment\n| stats avg(installment_amount_usd) as avg_metric count as records by county\n| sort - avg_metric\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=propertytax:installment earliest=-7d\n| head 50\n| table county\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=propertytax:installment earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.84.26: Personal evidence` with the following panel layout:\n\n**Panel 1 — Comparison Table Of Average Installment Amount In Dollars By County (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `propertytax:installment` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=propertytax:installment | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It frames which county buckets look best or worst for property tax installment.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

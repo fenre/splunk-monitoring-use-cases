@@ -9,6 +9,8 @@
   ],
   "splunkPillar": "Security",
   "industry": "Financial Services",
+  "exclusions": "Covers the detection logic documented for 'PCI Scope Validation' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_pci_scope_validation` (UC-10.12.15), SOC dashboard panel \"Security Infra — PCI Scope Validation\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -24,11 +26,15 @@
       "provenance": "maintainer"
     }
   ],
-  "dataSources": "`sourcetype=\"pan:traffic\"`, `sourcetype=\"flow:netflow\"`",
-  "app": "NetFlow, firewall, CMDB",
+  "controlTest": {
+    "positiveScenario": "UC-10.12.15 positive (PCI, Scope, Validation): ingest synthetic events into `index=network` sourcetype='pan:traffic' where `count` grouped by `src`, `dest`, `dest_port`, `app` satisfies detection threshold for 'PCI Scope Validation'. Validate lookup `pci_in_scope_subnets`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.12.15 negative (Scope Validation): ingest benign `network` / `pan:traffic` events where `src`, `dest`, `dest_port`, `app` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 13 confirms zero alert rows for 'PCI Scope Validation'."
+  },
+  "dataSources": "`sourcetype=\"pan:traffic\"`, `sourcetype=\"flow:netflow\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "NetFlow, firewall, CMDB — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network (sourcetype=\"pan:traffic\" OR sourcetype=\"flow:netflow\")\n| lookup pci_in_scope_subnets subnet OUTPUT scope_zone as in_pci\n| where isnull(in_pci) AND (dest_port=443 OR dest_port=8080) AND match(dest,\"^10\\.\")\n| stats count by src, dest, dest_port, app\n| sort -count",
-  "description": "Confirms only in-scope networks and flows touch CHD; catches scope creep from misrouted traffic.",
-  "value": "Confirms only in-scope networks and flows touch CHD; catches scope creep from misrouted traffic.",
+  "description": "Alerts on UC-10.12.15 — PCI, Scope, Validation — using `index=network` sourcetype `pan:traffic`, grouped by `src`, `dest`, `dest_port`, `app`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `pci_in_scope_subnets`. Purpose-built for 'PCI Scope Validation' in Security Infra workflows.",
+  "value": "UC-10.12.15 gives Security Infra teams earlier visibility into Scope Validation through `pan:traffic` feeds, lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Maintain authoritative CDE subnet lookup; alert on new flows into CHD from non-scoped zones; quarterly firewall rule review.",
   "visualization": "Sankey (zone flows), Table (out-of-scope hits), Map (external sources).",
   "cimModels": [
@@ -38,16 +44,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "PCI DSS Document Library",
+      "url": "https://www.pcisecuritystandards.org/document_library/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Palo Alto Networks (Splunkbase 4919)",
+      "url": "https://splunkbase.splunk.com/app/4919",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "PCI scoping from legacy Netflow or duplicate assets can distort counts; re-baseline when network segments and tags are updated.",
+  "knownFalsePositives": "1. **Approved vulnerability scanner** — Scanner `src` triggers high-severity signatures for 'PCI Scope Validation'. Join `scanner_ips` before threshold.\n\n2. **Signature definition update** — Vendor content push reclassifies benign traffic. Compare threat_id first_seen with content release date.\n\n3. **Red-team emulation** — Atomic test traffic from approved exercise hosts.\n\n4. **Backup replication traffic** — Off-hours bulk transfer matches lateral-movement heuristics.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `threat_id`, `valid_until`.",
   "equipment": [
     "netflow"
   ],
   "equipmentModels": [
     "netflow_netflow"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: NetFlow, firewall, CMDB.\n• Ensure the following data sources are available: `sourcetype=\"pan:traffic\"`, `sourcetype=\"flow:netflow\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain authoritative CDE subnet lookup; alert on new flows into CHD from non-scoped zones; quarterly firewall rule review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network (sourcetype=\"pan:traffic\" OR sourcetype=\"flow:netflow\")\n| lookup pci_in_scope_subnets subnet OUTPUT scope_zone as in_pci\n| where isnull(in_pci) AND (dest_port=443 OR dest_port=8080) AND match(dest,\"^10\\.\")\n| stats count by src, dest, dest_port, app\n| sort -count\n```\n\nUnderstanding this SPL\n\n**PCI Scope Validation** — Confirms only in-scope networks and flows touch CHD; catches scope creep from misrouted traffic.\n\nDocumented **Data sources**: `sourcetype=\"pan:traffic\"`, `sourcetype=\"flow:netflow\"`. **App/TA** (typical add-on context): NetFlow, firewall, CMDB. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: pan:traffic, flow:netflow. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"pan:traffic\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(in_pci) AND (dest_port=443 OR dest_port=8080) AND match(dest,\"^10\\.\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src, dest, dest_port, app** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sankey (zone flows), Table (out-of-scope hits), Map (external sources).",
-  "grandmaExplanation": "In Financial Services, we pay close attention to \"PCI Scope Validation\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: NetFlow, firewall, CMDB.\n• Ensure the following data sources are available: `sourcetype=\"pan:traffic\"`, `sourcetype=\"flow:netflow\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain authoritative CDE subnet lookup; alert on new flows into CHD from non-scoped zones; quarterly firewall rule review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network (sourcetype=\"pan:traffic\" OR sourcetype=\"flow:netflow\")\n| lookup pci_in_scope_subnets subnet OUTPUT scope_zone as in_pci\n| where isnull(in_pci) AND (dest_port=443 OR dest_port=8080) AND match(dest,\"^10\\.\")\n| stats count by src, dest, dest_port, app\n| sort -count\n```\n\nUnderstanding this SPL\n\n**PCI Scope Validation** — Confirms only in-scope networks and flows touch CHD; catches scope creep from misrouted traffic.\n\nDocumented **Data sources**: `sourcetype=\"pan:traffic\"`, `sourcetype=\"flow:netflow\"`. **App/TA** (typical add-on context): NetFlow, firewall, CMDB. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: pan:traffic, flow:netflow. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"pan:traffic\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(in_pci) AND (dest_port=443 OR dest_port=8080) AND match(dest,\"^10\\.\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src, dest, dest_port, app** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sankey (zone flows), Table (out-of-scope hits), Map (external sources).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (NetFlow, firewall, CMDB — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=pan:traffic, flow:netflow into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`app, dest, dest_port, scope_zone as in_pci`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "In Financial Services, we pay close attention to \"PCI Scope Validation\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

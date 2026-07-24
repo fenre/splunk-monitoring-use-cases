@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "F5 request logging profile",
-  "app": "`Splunk_TA_f5-bigip`, request logging",
+  "exclusions": "Covers the detection logic documented for 'HTTP Error Rate by VIP (F5 BIG-IP)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_http_error_rate_by_vip_f5_big_ip` (UC-5.3.5), SOC dashboard panel \"Operations — HTTP Error Rate by VIP (F5 BIG-IP)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.3.5 positive (HTTP, Error, Rate, VIP, (F5): ingest synthetic events into `index=network` sourcetype='f5:bigip:ltm:http' where `errors` grouped by `virtual_server` satisfies `response_code` >= 500, or `error_rate` > 5 for 'HTTP Error Rate by VIP (F5 BIG-IP)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.3.5 negative (BIG IP)): ingest benign `network` / `f5:bigip:ltm:http` events where `virtual_server` stays below `response_code` >= 500, or `error_rate` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'HTTP Error Rate by VIP (F5 BIG-IP)'."
+  },
+  "dataSources": "F5 request logging profile Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_f5-bigip`, request logging — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"f5:bigip:ltm:http\"\n| eval is_error=if(response_code>=500,1,0)\n| timechart span=5m sum(is_error) as errors, count as total by virtual_server\n| eval error_rate=round(errors/total*100,2) | where error_rate>5",
-  "description": "Backend 5xx errors indicate application issues. Per-VIP tracking isolates degraded services.",
-  "value": "Application delivery teams monitor F5 BIG-IP HTTP error rates per virtual server, separating server-side (5xx) from client-side (4xx) errors to distinguish backend failures from invalid client requests.",
+  "description": "Alerts on UC-5.3.5 — HTTP, Error, Rate, VIP, (F5 — using `index=network` sourcetype `f5:bigip:ltm:http`, grouped by `virtual_server`. Outputs `errors` each `5m`; alert when `response_code` >= 500, or `error_rate` > 5. Primary focus: BIG IP). Purpose-built for 'HTTP Error Rate by VIP (F5 BIG-IP)' in Operations workflows.",
+  "value": "Alerting on HTTP, Error, Rate, VIP, (F5 through UC-5.3.5 reduces operational risk and delayed incident response by surfacing `errors` early.",
   "implementation": "Enable F5 request logging profile on VIPs. Alert when 5xx rate >5% over 5 minutes.",
   "visualization": "Line chart (error rate), Table (VIP, error rate), Single value.",
   "cimModels": [],
@@ -21,20 +27,38 @@
   "references": [
     {
       "title": "Splunk_TA_f5-bigip",
-      "url": "https://splunkbase.splunk.com/app/2680"
+      "url": "https://splunkbase.splunk.com/app/2680",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Bad releases, client retries, and upstream blips can raise error rates; compare to the app team before the load-balancer runbook.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.3.5)** — Planned work for 'HTTP Error Rate by VIP (F5 BIG-IP)' shifts `errors` over `span=5m` while `virtual_server` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `f5:bigip:ltm:http`** — Scheduled automation elevates `is_error` without crossing `response_code` >= 500 for UC-5.3.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `virtual_server`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `f5:bigip:ltm:http`** — First 48h baseline for UC-5.3.5 on `virtual_server` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `virtual_server`, `exception_reason`, `valid_until`.",
   "equipment": [
     "f5"
   ],
   "equipmentModels": [
     "f5_bigip"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Splunk Add-on for F5 BIG-IP (`Splunk_TA_f5-bigip`, Splunkbase 2680). F5 BIG-IP request logging profile or LTM policy logging enabled, sending HTTP request/response data to Splunk. Data in `index=network` with `sourcetype=f5:bigip:ltm:http:request` or `sourcetype=f5:bigip:syslog`. Key fields: `virtual_server`, `response_code`, `client_ip`, `uri`, `method`, `pool_member`.\n* F5 Request Logging: Create a request logging profile that captures response codes. Attach it to virtual servers you want to monitor.\n\nStep 1 -- Configure data collection\nCreate an HTTP analytics profile on F5:\n```\ntmsh create ltm profile request-log splunk_logging defaults-from request-log request-logging enabled request-log-pool <syslog_pool> request-log-template \"$DATE_NCSA $VIRTUAL_NAME $CLIENT_IP $SERVER_IP:$SERVER_PORT $HTTP_METHOD $HTTP_URI $HTTP_STATCODE $RESPONSE_SIZE $RESPONSE_MSECS\"\n```\nAttach to virtual server:\n```\ntmsh modify ltm virtual <vs> profiles add { splunk_logging }\n```\n\nVerify:\n```spl\nindex=network (sourcetype=\"f5:bigip:ltm:http:request\" OR sourcetype=\"f5:bigip:syslog\") earliest=-4h\n| where isnotnull(response_code) OR isnotnull(http_status)\n| stats count by response_code\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- HTTP error rate by VIP:**\n```spl\nindex=network (sourcetype=\"f5:bigip:ltm:http:request\" OR sourcetype=\"f5:bigip:syslog\") earliest=-1h\n| eval status=coalesce(response_code, http_status, status_code)\n| eval status_class=case(status >= 500, \"5xx_server\", status >= 400, \"4xx_client\", status >= 300, \"3xx_redirect\", status >= 200, \"2xx_success\", 1==1, \"other\")\n| eval vs=coalesce(virtual_server, virtual_name, vip_name)\n| stats count as total count(eval(status_class=\"5xx_server\")) as errors_5xx count(eval(status_class=\"4xx_client\")) as errors_4xx by vs\n| eval error_rate_5xx=round(100*errors_5xx/total, 2)\n| eval error_rate_4xx=round(100*errors_4xx/total, 2)\n| lookup f5_vip_inventory.csv virtual_server as vs OUTPUT application, tier\n| eval severity=case(error_rate_5xx > 10, \"CRITICAL\", error_rate_5xx > 5, \"HIGH\", error_rate_5xx > 1, \"WARNING\", error_rate_4xx > 30, \"WARNING -- high client errors\", 1==1, \"OK\")\n| where severity != \"OK\"\n| sort severity, -error_rate_5xx\n```\n\n**Error trending by VIP:**\n```spl\nindex=network (sourcetype=\"f5:bigip:ltm:http:request\" OR sourcetype=\"f5:bigip:syslog\") earliest=-24h\n| eval status=coalesce(response_code, http_status)\n| eval is_5xx=if(status >= 500, 1, 0)\n| eval vs=coalesce(virtual_server, virtual_name)\n| bin _time span=5m\n| stats sum(is_5xx) as errors count as total by _time, vs\n| eval error_pct=round(100*errors/total, 2)\n| timechart span=5m avg(error_pct) by vs\n```\n\nStep 3 -- Validate\n(a) Generate a 503 by stopping a backend server and verify the error appears in Splunk.\n(b) Compare error rates with F5 Dashboard: Statistics > Module Statistics > HTTP.\n(c) Verify that 4xx errors (client-side) are separated from 5xx errors (server-side).\n\nStep 4 -- Operationalize\nDashboard (\"F5 -- HTTP Error Rates\"):\n* Row 1 -- Single-value: \"5xx error rate\", \"4xx error rate\", \"Total requests/hour\", \"Worst VIP\".\n* Row 2 -- Per-VIP error rate table with application context.\n* Row 3 -- Error rate trending timechart.\n\nAlerting:\n* Critical (5xx > 10% for any prod VIP over 5 min): backend failures impacting users.\n* Warning (5xx > 1% sustained for 15 min): elevated error rate.\n\nStep 5 -- Troubleshooting\n\n* **High 5xx errors on one VIP** -- Check pool member health (UC-5.3.1). If all members are up, the backend application is returning errors. Check backend logs.\n\n* **High 4xx errors** -- Usually client-side (bad URLs, authentication failures). Check if it's a bot or scanner generating bad requests. Look at the URI pattern.\n\n* **No HTTP status data in Splunk** -- F5 request logging must be explicitly enabled per virtual server via the request logging profile. Without it, F5 syslog only contains connection-level events.",
-  "grandmaExplanation": "We group server-side error rates by service so a bad release or a sick back end shows up on the same chart your users already feel."
+  "grandmaExplanation": "We group server-side error rates by service so a bad release or a sick back end shows up on the same chart your users already feel.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

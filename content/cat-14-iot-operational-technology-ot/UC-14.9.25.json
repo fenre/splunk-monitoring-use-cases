@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert`",
+  "exclusions": "Covers the detection logic documented for 'Decode Failure and Malformed Packet Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_decode_failure_and_malformed_packet_detection` (UC-14.9.25), SOC dashboard panel \"Operations — Decode Failure and Malformed Packet Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.9.25 positive (Decode, Failure, and, Malformed, Packet): ingest synthetic events into `index=nozomi` sourcetype='nozomi:alert' where `count` grouped by `zone`, `_time` satisfies `failures` > 10 for 'Decode Failure and Malformed Packet Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.9.25 negative (Packet Detection): ingest benign `nozomi` / `nozomi:alert` events where `zone`, `_time` stays below `failures` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Decode Failure and Malformed Packet Detection'."
+  },
+  "dataSources": "`sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` Indexes: nozomi. Sourcetypes: nozomi:alert. Key fields: _time, failures, zone. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)",
   "spl": "index=nozomi sourcetype=\"nozomi:alert\" type_id=\"PROTOCOL-DECODE*\"\n| bin _time span=1h\n| stats count as failures by zone, _time\n| where failures > 10\n| table _time, zone, failures\n| sort -failures",
-  "description": "OT security platforms generate decode failure events when their DPI engine encounters packets it cannot properly parse — potentially indicating protocol fuzzing attacks, corrupted communications, or deliberately malformed exploit payloads targeting OT devices. Sustained decode failures from a single source may indicate active exploitation attempts.",
-  "value": "OT security platforms generate decode failure events when their DPI engine encounters packets it cannot properly parse — potentially indicating protocol fuzzing attacks, corrupted communications, or deliberately malformed exploit payloads targeting OT devices. Sustained decode failures from a single source may indicate active exploitation attempts.",
+  "description": "Monitors UC-14.9.25 — Decode, Failure, and, Malformed, Packet — using `index=nozomi` sourcetype `nozomi:alert`, grouped by `zone`, `_time`. Outputs `count` each `1h`; alert when `failures` > 10. Primary focus: Packet Detection. Purpose-built for 'Decode Failure and Malformed Packet Detection' in Operations workflows.",
+  "value": "UC-14.9.25 accelerates insight into Packet Detection ('Decode Failure and Malformed Packet Detection') by tracking `activity` on `nozomi:alert` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Both platforms generate events when DPI encounters unparseable packets. Baseline normal decode failure rates per sensor/zone. Alert on sudden spikes exceeding 3x baseline, which may indicate a fuzzing or exploitation attempt. Correlate with IDS alerts from the same time window.",
   "visualization": "Decode failure timeline per sensor; spike detection; correlation with IDS events; sensor health overlay.",
   "cimModels": [
@@ -22,18 +28,40 @@
   "references": [
     {
       "title": "Splunkbase app 5748",
-      "url": "https://splunkbase.splunk.com/app/5748"
+      "url": "https://splunkbase.splunk.com/app/5748",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 6905",
-      "url": "https://splunkbase.splunk.com/app/6905"
+      "url": "https://splunkbase.splunk.com/app/6905",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Decode failures during malformed captures, jumbo or fragmented frames, or sensor version skew on parsers.",
+  "knownFalsePositives": "1. **Maintenance window on `nozomi` (UC-14.9.25)** — Planned work for 'Decode Failure and Malformed Packet Detection' shifts `count` over `span=1h` while `zone`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `nozomi:alert`** — Scheduled automation elevates `_time` without crossing `failures` > 10 for UC-14.9.25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `zone`, `_time`** — Health checks in `nozomi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nozomi:alert`** — First 48h baseline for UC-14.9.25 on `zone` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `zone`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
   ],
+  "equipmentModels": [
+    "cisco_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905).\n• Ensure the following data sources are available: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBoth platforms generate events when DPI encounters unparseable packets. Baseline normal decode failure rates per sensor/zone. Alert on sudden spikes exceeding 3x baseline, which may indicate a fuzzing or exploitation attempt. Correlate with IDS alerts from the same time window.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nozomi sourcetype=\"nozomi:alert\" type_id=\"PROTOCOL-DECODE*\"\n| bin _time span=1h\n| stats count as failures by zone, _time\n| where failures > 10\n| table _time, zone, failures\n| sort -failures\n```\n\nUnderstanding this SPL\n\n**Decode Failure and Malformed Packet Detection** — OT security platforms generate decode failure events when their DPI engine encounters packets it cannot properly parse — potentially indicating protocol fuzzing attacks, corrupted communications, or deliberately malformed exploit payloads targeting OT devices. Sustained decode failures from a single source may indicate active exploitation attempts.\n\nDocumented **Data sources**: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert`. **App/TA** (typical add-on context): `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nozomi; **sourcetype**: nozomi:alert. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nozomi, sourcetype=\"nozomi:alert\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by zone, _time** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where failures > 10` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Decode Failure and Malformed Packet Detection**): table _time, zone, failures\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nRun the search for a time range that should include both routine and change activity, then compare the same assets, flows, and alerts in the Cisco Cyber Vision UI and in Nozomi Guardian or CMC, matching whichever source the event came from. Reconcile severities, counts, and key fields in both tools.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Decode failure timeline per sensor; spike detection; correlation with IDS events; sensor health overlay.",
-  "grandmaExplanation": "We log decode and malformed-packet events so a parser gap or a deliberate fuzz is visible next to the same flow metadata."
+  "grandmaExplanation": "We log decode and malformed-packet events so a parser gap or a deliberate fuzz is visible next to the same flow metadata.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

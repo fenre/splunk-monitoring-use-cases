@@ -26,14 +26,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Grant a new admin super-admin. Evidence captured.",
-    "negativeScenario": "No role changes. Empty result."
+    "positiveScenario": "UC-22.10.57 positive (HIPAA, 164.308(a)(4)(ii)(B), Cisco, ISE, Privileged): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `count` grouped by `entity` satisfies -1d for 'HIPAA 164.308(a)(4)(ii)(B) — Cisco ISE Privileged Access Modification Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.10.57 negative (Modification Audit): ingest benign `nac` / `cisco:ise:syslog` events where `entity` stays below -1d, or exclude the test entity via `compliance_exception_register.csv`. Variant 12 confirms zero alert rows for 'HIPAA 164.308(a)(4)(ii)(B) — Cisco ISE Privileged Access Modification Audit'."
   },
-  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` admin events. Cross-reference UC-17.1.71.",
-  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915).",
+  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` admin events. Cross-reference UC-17.1.71. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). (Splunkbase) — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (60050, 60051, 60052, 60100) earliest=-1d\n| eval hipaa_clause=\"164.308(a)(4)(ii)(B)\", control=\"Access_Establishment_Modification\"\n| table _time, admin_user, admin_role, admin_action, source_ip, hipaa_clause\n| collect index=audit_evidence",
-  "description": "We continuously evidence HIPAA admin privilege modification on PHI-impacting NAC infrastructure.",
-  "value": "HIPAA auditors require evidence of access modification. ISE admin role changes directly affect who can authorize access to PHI-bearing networks; this UC produces continuous evidence with attribution.",
+  "description": "Identifies UC-22.10.57 — HIPAA, 164.308(a)(4)(ii)(B), Cisco, ISE, Privileged — using `index=nac` sourcetype `cisco:ise:syslog`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when -1d. Primary focus: Modification Audit. Purpose-built for 'HIPAA 164.308(a)(4)(ii)(B) — Cisco ISE Privileged Access Modification Audit' in Compliance workflows.",
+  "value": "Tracking `activity` via UC-22.10.57 on `cisco:ise:syslog` feeds improves response to 'HIPAA 164.308(a)(4)(ii)(B) — Cisco ISE Privileged Access Modification Audit' and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "Daily. 6y retention (HIPAA standard).",
   "visualization": "HIPAA dashboard: ISE admin role timeline.",
   "cimModels": [
@@ -42,14 +42,26 @@
   "references": [
     {
       "title": "HIPAA Security Rule",
-      "url": "https://www.hhs.gov/hipaa/for-professionals/security/index.html"
+      "url": "https://www.hhs.gov/hipaa/for-professionals/security/index.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "UC-17.1.71 — Cisco ISE Admin Role Audit",
-      "url": "../cat-17-network-security-zero-trust/UC-17.1.71.json"
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.71.json",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "NIST Cybersecurity Framework",
+      "url": "https://www.nist.gov/cyberframework",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "ISO/IEC 27001 Information Security",
+      "url": "https://www.iso.org/standard/27001",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. Bulk role updates during planned admin reorg.",
+  "knownFalsePositives": "1. **Authorised HIPAA SECURITY control testing** — Internal audit exercises 'HIPAA 164.308(a)(4)(ii)(B) — Cisco ISE Privileged Access Modification Audit' (UC-22.10.57) on `entity` during scheduled clause §164.308(a)(4)(ii)(B) sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=nac` `cisco:ise:syslog` without crossing evidence threshold. Cross-check engagement letter in `hipaa_security_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `nac` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `hipaa_security_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "requiredFields": [
     "_time",
     "admin_user",
@@ -72,6 +84,8 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.71 operational.\n- `audit_evidence` with 6y retention.\n\n## Step 1-5\n\n```ini\n[UC-22.10.57: HIPAA — ISE Admin Role Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.10.57,reg=HIPAA,clause=164.308(a)(4)(ii)(B)\n```",
-  "grandmaExplanation": "We continuously evidence HIPAA admin privilege modification on PHI-impacting NAC infrastructure. That is important for the audit, where proof needs to line up with what the rules expect."
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.71 operational.\n- `audit_evidence` with 6y retention.\n\n## Step 1-5\n\n```ini\n[UC-22.10.57: HIPAA — ISE Admin Role Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.10.57,reg=HIPAA,clause=164.308(a)(4)(ii)(B)\n```\n\n**Ecosystem integration:** Forward compliance detections to Splunk SOAR for automated incident triage and escalation playbooks. Enrich events with asset context from ServiceNow CMDB. Cross-reference with CrowdStrike Falcon or Microsoft Defender for Endpoint for host forensics and threat detection context. Integrate Okta or Azure AD identity context to determine if the acting user had appropriate authorisation. Feed validated findings into the GRC platform (e.g., RSA Archer, ServiceNow GRC, or AuditBoard) for regulatory compliance tracking and audit evidence management.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). (Splunkbase) — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac, audit_evidence. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We continuously evidence HIPAA admin privilege modification on PHI-impacting NAC infrastructure. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

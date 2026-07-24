@@ -9,31 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Wardrobe items (`wardrobe:item`), outfit wears (`outfit:wear`), skincare routines (`skincare:routine`), laundry cycles (`laundry:cycle`).",
-  "app": "Wardrobe and grooming logs — closet apps (Whering, Stylebook), cost-per-wear trackers, skincare-routine logs, and smart-laundry cycles — streamed to Splunk HEC via APIs and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Outfit Gap for Upcoming Weather' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_outfit_gap_for_upcoming_weather` (UC-25.49.11), SOC dashboard panel \"Personal — Outfit Gap for Upcoming Weather\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.49.11 positive (Outfit, Gap, for, Upcoming, Weather): ingest synthetic events into `index=personal` sourcetype='outfit:wear' where `outfit_options` grouped by `weather_band` satisfies `outfit_options` < 5 for 'Outfit Gap for Upcoming Weather'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.49.11 negative (Upcoming Weather): ingest benign `personal` / `outfit:wear` events where `weather_band` stays below `outfit_options` < 5, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'Outfit Gap for Upcoming Weather'."
+  },
+  "dataSources": "Wardrobe items (`wardrobe:item`), outfit wears (`outfit:wear`), skincare routines (`skincare:routine`), laundry cycles (`laundry:cycle`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Wardrobe and grooming logs — closet apps (Whering, Stylebook), cost-per-wear trackers, skincare-routine logs, and smart-laundry cycles — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=outfit:wear weather_band=*\n| stats dc(outfit_id) as outfit_options by weather_band\n| where outfit_options<5\n| sort outfit_options",
-  "description": "Shows weather bands where you have too few proven outfits for the conditions you actually face.",
-  "value": "Wardrobe gaps are clearest when tied to real weather needs rather than abstract style aspirations.",
+  "description": "Detects when Upcoming Weather criteria fire for 'Outfit Gap for Upcoming Weather' (UC-25.49.11) in `index=personal` sourcetype `outfit:wear`. Pipeline aggregates `outfit_options` by `weather_band` over `the scheduled window`. Alert logic enforces `outfit_options` < 5. Title terms: Outfit, Gap, for, Upcoming, Weather. Eliminates manual hunting for UC-25.49.11 conditions.",
+  "value": "UC-25.49.11 helps teams contain Outfit, Gap, for, Upcoming, Weather scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Tag outfit wears with weather bands and count distinct outfit options per band.",
   "visualization": "Table of weather bands with distinct outfit options.",
   "cimModels": [],
   "references": [
     {
       "title": "Whering — digital wardrobe",
-      "url": "https://whering.co.uk/"
+      "url": "https://whering.co.uk/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Stylebook — closet app",
-      "url": "https://stylebookapp.com/"
+      "url": "https://stylebookapp.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Home Assistant — sensors",
-      "url": "https://www.home-assistant.io/integrations/sensor/"
+      "url": "https://www.home-assistant.io/integrations/sensor/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It watches which kinds of weather leave you short on outfits that already work."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.49.11)** — Connector for 'Outfit Gap for Upcoming Weather' stops polling `outfit:wear`; stale `outfit_options` on `weather_band` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `outfit_options` over `1w` is expected for UC-25.49.11, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `outfit:wear`. Dedup with `stats latest(*) by weather_band`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `outfit_options` < 5 for 'Outfit Gap for Upcoming Weather'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Wardrobe, Fashion & Beauty — typical feeds: Wardrobe items (`wardrobe:item`), outfit wears (`outfit:wear`), skincare routines (`skincare:routine`), laundry cycles (`laundry:cycle`)..\n• **Sourcetypes in this search**: `outfit:wear`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=outfit:wear`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Wardrobe and grooming logs — closet apps (Whering, Stylebook), cost-per-wear trackers, skincare-routine logs, and smart-laundry cycles — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Tag outfit wears with weather bands and count distinct outfit options per band.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"outfit:wear\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=outfit:wear earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Outfit Gap for Upcoming Weather** over `personal` data (primarily `sourcetype=outfit:wear`) across the full search range. It applies numeric thresholds on `outfit_options` (< 5) after dc — tune these constants to your household baseline.\n\n**Fields this search depends on:** `outfit_options`, `weather_band`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=outfit:wear weather_band=*\n| stats dc(outfit_id) as outfit_options by weather_band\n| where outfit_options<5\n| sort outfit_options\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=outfit:wear earliest=-7d\n| head 50\n| table outfit_options, weather_band\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=outfit:wear earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `outfit_options` before alerting:\n\n```spl\nindex=personal sourcetype=outfit:wear earliest=-30d\n| stats perc50(outfit_options) AS p50 perc90(outfit_options) AS p90 perc99(outfit_options) AS p99 max(outfit_options) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.49.11: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Weather Bands With Distinct Outfit Options (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `outfit:wear` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=outfit:wear | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It watches which kinds of weather leave you short on outfits that already work.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

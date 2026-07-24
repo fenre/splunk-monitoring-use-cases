@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=ot_security` ES UBA or custom risk rollup",
+  "exclusions": "Covers the detection logic documented for 'OT User Risk Score Accumulation' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_ot_user_risk_score_accumulation` (UC-10.14.14), SOC dashboard panel \"Security Infra — OT User Risk Score Accumulation\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.14.14 positive (User, Risk, Score, Accumulation): ingest synthetic events into `index=ot_security` sourcetype='ot:security:risk' where `daily_peak`, `peak_risk`, `rolling_sum` grouped by `user`, `limit=20` satisfies `peak_risk` > 70, or `rolling_sum` > 200 for 'OT User Risk Score Accumulation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.14.14 negative (Score Accumulation): ingest benign `ot_security` / `ot:security:risk` events where `user`, `limit=20` stays below `peak_risk` > 70, or `rolling_sum` > 200, or exclude the test entity via `soc_exception_register.csv`. Variant 14 confirms zero alert rows for 'OT User Risk Score Accumulation'."
+  },
+  "dataSources": "`index=ot_security` ES UBA or custom risk rollup Indexes: ot_security. Sourcetypes: ot:security:risk. Key fields: limit=20, peak_risk, rolling_sum, user. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "OT Security Add-on for Splunk (Splunkbase 5151)",
   "spl": "index=ot_security sourcetype=\"ot:security:risk\"\n| where isnotnull(user)\n| timechart span=1d max(risk_score) as daily_peak by user limit=20\n| untable _time user daily_peak\n| stats max(daily_peak) as peak_risk sum(daily_peak) as rolling_sum by user\n| where peak_risk>70 OR rolling_sum>200",
-  "description": "Aggregates user-level risk across OT logins, engineering actions, and policy violations to catch compromised or insider accounts before process impact.",
-  "value": "Aggregates user-level risk across OT logins, engineering actions, and policy violations to catch compromised or insider accounts before process impact.",
+  "description": "Detects UC-10.14.14 — User, Risk, Score, Accumulation — using `index=ot_security` sourcetype `ot:security:risk`, grouped by `user`, `limit=20`. Outputs `daily_peak`, `peak_risk`, `rolling_sum` each `1d`; alert when `peak_risk` > 70, or `rolling_sum` > 200. Primary focus: Score Accumulation. Purpose-built for 'OT User Risk Score Accumulation' in Security Infra workflows.",
+  "value": "Alerting on User, Risk, Score, Accumulation through UC-10.14.14 reduces missed threat campaigns, control regressions, and SOC SLA breaches by surfacing `daily_peak`, `peak_risk`, `rolling_sum` early.",
   "implementation": "Use Splunk ES identity and OT Security Add-on correlation outputs. Tune for shared service accounts separately. Trigger step-up authentication when user risk crosses tiers.",
   "visualization": "User risk trend lines, Heatmap by user and day, Leaderboard table.",
   "cimModels": [
@@ -22,13 +28,41 @@
   "references": [
     {
       "title": "OT Security Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/5151"
+      "url": "https://splunkbase.splunk.com/app/5151",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "User risk can jump when people pick up new duties, work holidays in unfamiliar roles, or share accounts in a pinch — pair with identity and shift records.",
+  "knownFalsePositives": "1. **Maintenance window on `ot_security` (UC-10.14.14)** — Planned work for 'OT User Risk Score Accumulation' shifts `daily_peak`, `peak_risk`, `rolling_sum` over `span=1d` while `user`, `limit=20` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `ot:security:risk`** — Scheduled automation elevates `limit=20` without crossing `peak_risk` > 70 for UC-10.14.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`, `limit=20`** — Health checks in `ot_security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ot:security:risk`** — First 48h baseline for UC-10.14.14 on `user` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     "Splunk OT Security Add-on"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: OT Security Add-on for Splunk (Splunkbase 5151).\n• Ensure the following data sources are available: `index=ot_security` ES UBA or custom risk rollup.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse Splunk ES identity and OT Security Add-on correlation outputs. Tune for shared service accounts separately. Trigger step-up authentication when user risk crosses tiers.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot_security sourcetype=\"ot:security:risk\"\n| where isnotnull(user)\n| timechart span=1d max(risk_score) as daily_peak by user limit=20\n| untable _time user daily_peak\n| stats max(daily_peak) as peak_risk sum(daily_peak) as rolling_sum by user\n| where peak_risk>70 OR rolling_sum>200\n```\n\nUnderstanding this SPL\n\n**OT User Risk Score Accumulation** — Aggregates user-level risk across OT logins, engineering actions, and policy violations to catch compromised or insider accounts before process impact.\n\nDocumented **Data sources**: `index=ot_security` ES UBA or custom risk rollup. **App/TA** (typical add-on context): OT Security Add-on for Splunk (Splunkbase 5151). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot_security; **sourcetype**: ot:security:risk. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot_security, sourcetype=\"ot:security:risk\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where isnotnull(user)` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by user limit=20** — ideal for trending and alerting on this use case.\n• Pipeline stage (see **OT User Risk Score Accumulation**): untable _time user daily_peak\n• `stats` rolls up events into metrics; results are split **by user** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where peak_risk>70 OR rolling_sum>200` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare failed or disabled searches in Splunk to the **OT Security Add-on** configuration UI and the **Saved Searches** list so names and schedules line up. Spot-check one failure against `scheduler.log` around the run time.\n\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: User risk trend lines, Heatmap by user and day, Leaderboard table.\n",
-  "grandmaExplanation": "We build a picture of risky user actions around OT so shared or abused accounts in sensitive roles stand out early."
+  "grandmaExplanation": "We build a picture of risky user actions around OT so shared or abused accounts in sensitive roles stand out early.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

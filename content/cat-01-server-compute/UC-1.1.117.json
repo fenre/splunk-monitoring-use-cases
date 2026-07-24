@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=linux_audit`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
+  "exclusions": "Covers the detection logic documented for 'Configuration File Change Tracking (/etc)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_configuration_file_change_tracking_etc` (UC-1.1.117), SOC dashboard panel \"Linux — Configuration File Change Tracking (/etc)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.117 positive (Configuration, File, Change, Tracking, etc)): ingest synthetic events into `index=os` sourcetype='linux_audit' where `count` grouped by `host`, `path`, `auid` satisfies `count` > 0 for 'Configuration File Change Tracking (/etc)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.117 negative (Tracking (/etc)): ingest benign `os` / `linux_audit` events where `host`, `path`, `auid` stays below `count` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 6 confirms zero alert rows for 'Configuration File Change Tracking (/etc)'."
+  },
+  "dataSources": "`sourcetype=linux_audit` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix, custom scripted input` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=linux_audit path=\"/etc/*\" action=modified\n| stats count by host, path, auid\n| where count > 0",
-  "description": "Configuration file changes can indicate system compromise or unauthorized configuration modifications.",
-  "value": "Configuration file changes can indicate system compromise or unauthorized configuration modifications.",
+  "description": "Identifies Tracking (/etc) anomalies for UC-1.1.117 with window `the scheduled window` on `index=os` sourcetype `linux_audit`. Combines `count` by `host`, `path`, `auid` and compares against `count` > 0. Mapped to keywords Configuration, File, Change, Tracking, etc) for dashboard routing.",
+  "value": "Alerting on Configuration, File, Change, Tracking, etc) through UC-1.1.117 reduces capacity incidents, patch regressions, and service outages by surfacing `activity` early.",
   "implementation": "Configure auditctl rules to monitor all /etc/ modifications. Create alerts on unexpected config changes. Include before/after comparison using file integrity tools.",
   "visualization": "Alert, Table",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Puppet, Ansible, or `dnf` can rewrite `/etc` during approved changes—join to change records. The glob `path=\"/etc/*\"` may not match every auditd `path` field format; use `path=/etc/...` with `match` in `where` if needed.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Configuration File Change Tracking (/etc)'. Correlate with apt/yum logs in the same `linux_audit` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_audit`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=linux_audit`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure auditctl rules to monitor all /etc/ modifications. Create alerts on unexpected config changes. Include before/after comparison using file integrity tools.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=linux_audit path=\"/etc/*\" action=modified\n| stats count by host, path, auid\n| where count > 0\n```\n\nUnderstanding this SPL\n\n**Configuration File Change Tracking (/etc)** — Configuration file changes can indicate system compromise or unauthorized configuration modifications.\n\nDocumented **Data sources**: `sourcetype=linux_audit`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: linux_audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=linux_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, path, auid** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table",
-  "grandmaExplanation": "We get alerts when key files under `/etc` change from Linux audit so surprise edits do not go unnoticed."
+  "grandmaExplanation": "We get alerts when key files under `/etc` change from Linux audit so surprise edits do not go unnoticed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

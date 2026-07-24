@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Cluster recovery flags in `ceph:status` (`recovering`, `recovering_bytes_per_sec`, `rebalancing`)",
-  "app": "`ceph status -f json` scripted input",
+  "exclusions": "Covers the detection logic documented for 'Ceph OSD recovery and rebalance throughput versus cluster limits' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ceph_osd_recovery_and_rebalance_throughput_versu` (UC-6.2.30), SOC dashboard panel \"Operations — Ceph OSD recovery and rebalance throughput versus cluster limits\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.30 positive (Ceph, OSD, recovery, and, rebalance): ingest synthetic events into `index=storage` sourcetype='ceph:status' where `recovery_bps`, `recovery_ops` grouped by `cluster_name` satisfies -4h for 'Ceph OSD recovery and rebalance throughput versus cluster limits'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.30 negative (cluster limits): ingest benign `storage` / `ceph:status` events where `cluster_name` stays below -4h, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Ceph OSD recovery and rebalance throughput versus cluster limits'."
+  },
+  "dataSources": "Cluster recovery flags in `ceph:status` (`recovering`, `recovering_bytes_per_sec`, `rebalancing`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`ceph status -f json` scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"ceph:status\" earliest=-4h\n| eval rbps=coalesce(recovering_bytes_per_sec, recovery_bytes_per_sec, recover_bps)\n| eval objs=coalesce(recovering_objects_per_sec, recovery_ops)\n| where match(_raw, \"recover\") OR match(_raw, \"rebalanc\") OR isnotnull(rbps)\n| timechart span=15m max(rbps) as recovery_bps max(objs) as recovery_ops by cluster_name",
-  "description": "Recovery traffic competes with client IOPS. Monitoring rebalance throughput against configured limits validates throttling and explains user-visible latency during failures.",
-  "value": "Lets operators choose between faster rebuild and application QoS during partial failures.",
+  "description": "Monitors cluster limits activity in UC-6.2.30 ('Ceph OSD recovery and rebalance throughput versus cluster limits') from `index=storage` sourcetype `ceph:status`. Rolls up `recovery_bps`, `recovery_ops` by `cluster_name` across `15m` and pages when -4h. Covers Ceph, OSD, recovery, and, rebalance. Operations operators treat UC-6.2.30 as the canonical signal.",
+  "value": "Operators running UC-6.2.30 on `ceph:status` feeds shorten triage for cluster limits tied to 'Ceph OSD recovery and rebalance throughput versus cluster limits', lowering operational risk and delayed incident response.",
   "implementation": "Parse `progress_events` if available in newer Ceph releases. Join with business-hours lookup to tighten limits interactively.",
   "visualization": "Area chart (recovery Bps), reference line for max osd recovery cap.",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "Ceph Documentation — monitoring",
-      "url": "https://docs.ceph.com/en/latest/radosgw/"
+      "url": "https://docs.ceph.com/en/latest/radosgw/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Red Hat Ceph Storage — troubleshooting",
-      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/"
+      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.30)** — Planned work for 'Ceph OSD recovery and rebalance throughput versus cluster limits' shifts `recovery_bps`, `recovery_ops` over `span=15m` while `cluster_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `ceph:status`** — Scheduled automation elevates `rbps` without crossing configured threshold for UC-6.2.30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cluster_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:status`** — First 48h baseline for UC-6.2.30 on `cluster_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cluster_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ceph"
+  ],
+  "equipmentModels": [
+    "ceph_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch when disks or arrays slow down for your important workloads, so you can act before people notice a frozen app or missed deadlines."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`ceph status -f json` scripted input — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ceph:status into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cluster_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch when disks or arrays slow down for your important workloads, so you can act before people notice a frozen app or missed deadlines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

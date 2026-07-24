@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=syslog` (or `linux_audit`) carrying SELinux **denied** lines",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Covers the detection logic documented for 'SELinux Denial Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_selinux_denial_monitoring` (UC-1.1.66), SOC dashboard panel \"Linux — SELinux Denial Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.66 positive (SELinux, Denial, Monitoring): ingest synthetic events into `index=os` sourcetype='syslog' where `count` grouped by `host`, `source_context`, `target_context`, `object` satisfies `count` > 5 for 'SELinux Denial Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.66 negative (Denial Monitoring): ingest benign `os` / `syslog` events where `host`, `source_context`, `target_context`, `object` stays below `count` > 5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 4 confirms zero alert rows for 'SELinux Denial Monitoring'."
+  },
+  "dataSources": "`sourcetype=syslog` (or `linux_audit`) carrying SELinux **denied** lines Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=syslog (SELinux OR setroubleshoot) denied\n| stats count by host, source_context, target_context, object\n| where count>5",
-  "description": "Groups SELinux **denied** log lines by subject/object context so you can see where policy blocks cluster and whether a single tuple suddenly spikes.",
-  "value": "Policy mistakes and real attacks both show up as **deny** first; a grouped view is faster for app owners to tune booleans and for security to see lateral movement in **context** space.",
+  "description": "Surfaces risk tied to SELinux, Denial, Monitoring through UC-1.1.66 on `index=os` sourcetype `syslog`. Summarises `count` grouped by `host`, `source_context`, `target_context`, `object` across `the scheduled window` before applying `count` > 5. Operators tune 'SELinux Denial Monitoring' using UC-1.1.66 runbook steps.",
+  "value": "Tracking `activity` via UC-1.1.66 on `syslog` feeds improves response to 'SELinux Denial Monitoring' and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "If you already ingest **linux_audit** with structured fields, switch the first line to that sourcetype; syslog-only shops should ensure **setroubleshootd** or **auditd** lines actually reach the **os** index. Parse **object** if your build leaves it in `_raw` only.",
   "visualization": "Table, Timechart",
   "cimModels": [
@@ -21,18 +27,40 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Deploy Fridays where new paths are first touched; `count>5` may be one noisy minute after a `restorecon`—pair with a **per-hour** `stats` for slower environments or raise the floor.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'SELinux Denial Monitoring'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 5.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "syslog"
   ],
-  "detailedImplementation": "Prerequisites\n• Kernel **audit** and SELinux in **enforcing** mode with logging you can read from `/var/log/audit/audit.log` and/or `journalctl` with **SELinux** tags.\n\nStep 1 — Configure data collection\n**Props** for **source_context** / **target_context** (or the AVC string equivalents) are critical; use the TA’s add-on for Linux props where possible.\n\nStep 2 — Create the search and alert\n`action` in `stats` is removed because many builds never extracted it—re-add when your parser supplies it. Start as a **report**; alert after two consecutive windows `>5` for the same tuple.\n\n**CIM** — There is no clean **All_Traffic**-style field for an AVC; keep this on raw unless you also model it into a custom data model.\n\n\nStep 3 — Validate\n`ausearch -m avc` on the host for the same second as Splunk; `sealert` (setroubleshoot) for human-readable text if you use the GUI helper.\n\nStep 4 — Operationalize\nSend **deny** spikes to the app that owns the **target** context, not only SOC, when the pattern matches a release.\n\n",
-  "grandmaExplanation": "We help you see when the “extra safety wrapper” on the system keeps saying no, often for the same file or the same app role, so people can fix policy or look for mischief."
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Kernel **audit** and SELinux in **enforcing** mode with logging you can read from `/var/log/audit/audit.log` and/or `journalctl` with **SELinux** tags.\n\nStep 1 — Configure data collection\n**Props** for **source_context** / **target_context** (or the AVC string equivalents) are critical; use the TA’s add-on for Linux props where possible.\n\nStep 2 — Create the search and alert\n`action` in `stats` is removed because many builds never extracted it—re-add when your parser supplies it. Start as a **report**; alert after two consecutive windows `>5` for the same tuple.\n\n**CIM** — There is no clean **All_Traffic**-style field for an AVC; keep this on raw unless you also model it into a custom data model.\n\n\nStep 3 — Validate\n`ausearch -m avc` on the host for the same second as Splunk; `sealert` (setroubleshoot) for human-readable text if you use the GUI helper.\n\nStep 4 — Operationalize\nSend **deny** spikes to the app that owns the **target** context, not only SOC, when the pattern matches a release.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=syslog into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, object, source_context, target_context`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see when the “extra safety wrapper” on the system keeps saying no, often for the same file or the same app role, so people can fix policy or look for mischief.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

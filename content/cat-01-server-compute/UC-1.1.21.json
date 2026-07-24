@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=linux_audit, auditctl syscall logs`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
+  "exclusions": "Covers the detection logic documented for 'Kernel Module Loading Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_kernel_module_loading_tracking` (UC-1.1.21), SOC dashboard panel \"Linux — Kernel Module Loading Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.21 positive (Kernel, Module, Loading, Tracking): ingest synthetic events into `index=os` sourcetype='linux_audit' where `count` grouped by `host`, `name`, `exe` satisfies `count` > 0 for 'Kernel Module Loading Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.21 negative (Loading Tracking): ingest benign `os` / `linux_audit` events where `host`, `name`, `exe` stays below `count` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 1 confirms zero alert rows for 'Kernel Module Loading Tracking'."
+  },
+  "dataSources": "`sourcetype=linux_audit, auditctl syscall logs` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix, custom scripted input` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=linux_audit action=* syscall=init_module OR syscall=finit_module\n| stats count by host, name, exe\n| where count > 0",
-  "description": "Detects unauthorized kernel module insertions which can indicate rootkits or malware persistence.",
-  "value": "Detects unauthorized kernel module insertions which can indicate rootkits or malware persistence.",
+  "description": "Detects Loading Tracking activity in UC-1.1.21 ('Kernel Module Loading Tracking') from `index=os` sourcetype `linux_audit`. Rolls up `count` by `host`, `name`, `exe` across `the scheduled window` and pages when `count` > 0. Covers Kernel, Module, Loading, Tracking. Linux operators treat UC-1.1.21 as the canonical signal.",
+  "value": "Operators running UC-1.1.21 on `linux_audit` feeds shorten triage for Loading Tracking tied to 'Kernel Module Loading Tracking', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Configure auditctl rules to monitor syscalls for module loading (init_module, finit_module). Create a search that alerts on any unexpected module loads outside maintenance windows. Correlate against a whitelist of approved modules per host.",
   "visualization": "Table of module name, executable path, and loading user sorted by time; timechart of module load counts per host to spot anomalous spikes; single-value panel showing new (first-seen) modules in the last 24 hours for SOC triage.",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Valid `modprobe` and out-of-tree drivers load new modules. Use an allowlist and change history before treating a load as malicious.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Kernel Module Loading Tracking'. Correlate with apt/yum logs in the same `linux_audit` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_audit`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=linux_audit, auditctl syscall logs`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure auditctl rules to monitor syscalls for module loading (init_module, finit_module). Create a search that alerts on any unexpected module loads outside maintenance windows. Correlate against a whitelist of approved modules per host.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=linux_audit action=* syscall=init_module OR syscall=finit_module\n| stats count by host, name, exe\n| where count > 0\n```\n\nUnderstanding this SPL\n\n**Kernel Module Loading Tracking** — Detects unauthorized kernel module insertions which can indicate rootkits or malware persistence.\n\nDocumented **Data sources**: `sourcetype=linux_audit, auditctl syscall logs`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: linux_audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=linux_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, name, exe** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of module name, executable path, and loading user sorted by time; timechart of module load counts per host to spot anomalous spikes; single-value panel showing new (first-seen) modules in the last 24 hours for SOC triage.",
-  "grandmaExplanation": "We catch unauthorized kernel module insertions which can indicate rootkits or malware persistence — so you find out before users do when something is slowing down or breaking."
+  "grandmaExplanation": "We catch unauthorized kernel module insertions which can indicate rootkits or malware persistence — so you find out before users do when something is slowing down or breaking.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

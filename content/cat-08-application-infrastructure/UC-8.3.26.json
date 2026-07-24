@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "`index=web` `sourcetype=ms:iis:auto` (`sc-status`, `cs-uri-stem`)",
-  "app": "Splunk Add-on for Microsoft IIS (Splunkbase app 3185)",
+  "exclusions": "Covers the detection logic documented for 'IIS 401 and 403 Error Rates by Site' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_iis_401_and_403_error_rates_by_site` (UC-8.3.26), SOC dashboard panel \"Operations — IIS 401 and 403 Error Rates by Site\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.3.26 positive (IIS, 401, and, 403, Error): ingest synthetic events into `index=web` sourcetype='ms:iis:auto' where `site_total` grouped by `s_sitename`, `sc_status`, `cs-uri-stem` satisfies `pct` > 5 for 'IIS 401 and 403 Error Rates by Site'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.3.26 negative (by Site): ingest benign `web` / `ms:iis:auto` events where `s_sitename`, `sc_status`, `cs-uri-stem` stays below `pct` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'IIS 401 and 403 Error Rates by Site'."
+  },
+  "dataSources": "`index=web` `sourcetype=ms:iis:auto` (`sc-status`, `cs-uri-stem`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Microsoft IIS (Splunkbase app 3185) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"ms:iis:auto\"\n| where sc_status=401 OR sc_status=403\n| bin _time span=15m\n| stats count by s_sitename, sc_status, cs-uri-stem\n| eventstats sum(count) as site_total by s_sitename\n| eval pct=round(100*count/site_total,2)\n| where pct > 5",
-  "description": "Authentication and authorization failures often precede account lockouts, scanner activity, or misconfigured Windows Auth.",
-  "value": "Improves SecOps visibility on IIS without relying solely on domain controller events.",
+  "description": "Alerts on 'IIS 401 and 403 Error Rates by Site' patterns (UC-8.3.26) sourced from `index=web` sourcetype `ms:iis:auto`. Threshold bundle: `pct` > 5; aggregation grain: `s_sitename`, `sc_status`, `cs-uri-stem`; metrics: `site_total`. Watch terms: IIS, 401, and, 403, Error.",
+  "value": "UC-8.3.26 gives Operations teams earlier visibility into by Site through `ms:iis:auto` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Exclude static challenge paths; correlate with `cs-username` when populated.",
   "visualization": "Heatmap (site × status), table (URIs), timeline.",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Microsoft IIS (Splunkbase)",
-      "url": "https://splunkbase.splunk.com/app/3185"
+      "url": "https://splunkbase.splunk.com/app/3185",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "4xx spikes from web crawlers, scanners, or after URL routing and auth policy changes. We correlate with change records and intent.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.3.26)** — Planned work for 'IIS 401 and 403 Error Rates by Site' shifts `site_total` over `span=15m` while `s_sitename`, `sc_status`, `cs-uri-stem` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `ms:iis:auto`** — Scheduled automation elevates `sc_status` without crossing `pct` > 5 for UC-8.3.26. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `s_sitename`, `sc_status`, `cs-uri-stem`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ms:iis:auto`** — First 48h baseline for UC-8.3.26 on `s_sitename` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `s_sitename`, `exception_reason`, `valid_until`.",
   "equipment": [
     "iis"
+  ],
+  "equipmentModels": [
+    "iis_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,6 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft IIS (Splunkbase app 3185).\n• Ensure the following data sources are available: `index=web` `sourcetype=ms:iis:auto` (`sc-status`, `cs-uri-stem`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nField names follow W3C; confirm `sc-status` extraction with `ms:iis:auto`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"ms:iis:auto\"\n| where sc_status=401 OR sc_status=403\n| bin _time span=15m\n| stats count by s_sitename, sc_status, cs-uri-stem\n| eventstats sum(count) as site_total by s_sitename\n| eval pct=round(100*count/site_total,2)\n| where pct > 5\n```\n\nUnderstanding this SPL\n\n**IIS 401 and 403 Error Rates by Site** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=web` `sourcetype=ms:iis:auto` (`sc-status`, `cs-uri-stem`). **App/TA**: Splunk Add-on for Microsoft IIS (Splunkbase app 3185). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\n\nStep 3 — Validate\nCompare with the broker or gateway’s own UI or CLI (`kafka-consumer-groups`, RabbitMQ management, ActiveMQ console, or Traefik/Envoy access log on the node) for the same period.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Heatmap (site × status), table (URIs), timeline..",
-  "grandmaExplanation": "We watch for signs that improves SecOps visibility on IIS without relying solely on domain controller events."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft IIS (Splunkbase app 3185).\n• Ensure the following data sources are available: `index=web` `sourcetype=ms:iis:auto` (`sc-status`, `cs-uri-stem`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nField names follow W3C; confirm `sc-status` extraction with `ms:iis:auto`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"ms:iis:auto\"\n| where sc_status=401 OR sc_status=403\n| bin _time span=15m\n| stats count by s_sitename, sc_status, cs-uri-stem\n| eventstats sum(count) as site_total by s_sitename\n| eval pct=round(100*count/site_total,2)\n| where pct > 5\n```\n\nUnderstanding this SPL\n\n**IIS 401 and 403 Error Rates by Site** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=web` `sourcetype=ms:iis:auto` (`sc-status`, `cs-uri-stem`). **App/TA**: Splunk Add-on for Microsoft IIS (Splunkbase app 3185). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\n\nStep 3 — Validate\nCompare with the broker or gateway’s own UI or CLI (`kafka-consumer-groups`, RabbitMQ management, ActiveMQ console, or Traefik/Envoy access log on the node) for the same period.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Heatmap (site × status), table (URIs), timeline..\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Microsoft IIS (Splunkbase app 3185) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ms:iis:auto into web. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cs-uri-stem, pct, s_sitename, sc_status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for signs that improves SecOps visibility on IIS without relying solely on domain controller events.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

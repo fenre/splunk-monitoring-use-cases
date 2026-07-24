@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=main sourcetype=WinEventLog:Security` (EventCode=4624), `identity_lookup` (from SA-IdentityCenter)",
-  "app": "Splunk Machine Learning Toolkit (MLTK), Splunk Enterprise Security (ES), SA-IdentityCenter",
+  "exclusions": "Covers the detection logic documented for 'User Peer-Group Logon Volume Anomaly (MLTK)' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_user_peer_group_logon_volume_anomaly_mltk` (UC-10.15.1), SOC dashboard panel \"Security Infra — User Peer-Group Logon Volume Anomaly (MLTK)\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.15.1 positive (User, Peer, Group, Logon, Volume): ingest synthetic events into `index=authentication` sourcetype='target_sourcetype' where `peer_avg`, `peer_std` grouped by `_time`, `Authentication.user`, `bunit` satisfies `z_score` > 3, or `isOutlier` > 0 for 'User Peer-Group Logon Volume Anomaly (MLTK)'. Validate lookup `identity_lookup`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.15.1 negative (Anomaly (MLTK)): ingest benign `authentication` / `target_sourcetype` events where `_time`, `Authentication.user`, `bunit` stays below `z_score` > 3, or `isOutlier` > 0, or exclude the test entity via `soc_exception_register.csv`. Variant 5 confirms zero alert rows for 'User Peer-Group Logon Volume Anomaly (MLTK)'."
+  },
+  "dataSources": "`index=main sourcetype=WinEventLog:Security` (EventCode=4624), `identity_lookup` (from SA-IdentityCenter) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Machine Learning Toolkit (MLTK), Splunk Enterprise Security (ES), SA-IdentityCenter — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "| tstats `security_content_summariesonly` count FROM datamodel=Authentication\n    WHERE Authentication.action=\"success\"\n    BY _time span=1d, Authentication.user\n| `drop_dm_object_name(Authentication)`\n| lookup identity_lookup identity AS user OUTPUT bunit\n| eventstats avg(count) as peer_avg stdev(count) as peer_std by bunit, _time\n| eval z_score=round((count - peer_avg) / nullif(peer_std, 0), 2)\n| where z_score > 3\n| fit DensityFunction count by bunit into peer_logon_model\n| where isOutlier > 0\n| table _time, user, bunit, count, peer_avg, z_score\n| sort -z_score",
-  "description": "Comparing each user's authentication volume to their peer group (same department, role, or location) surfaces compromised accounts and insider threats that per-user baselines alone cannot catch — a user whose logon count is normal for themselves but triple the peer average is a strong anomaly signal.",
-  "value": "Comparing each user's authentication volume to their peer group (same department, role, or location) surfaces compromised accounts and insider threats that per-user baselines alone cannot catch — a user whose logon count is normal for themselves but triple the peer average is a strong anomaly signal.",
+  "description": "Detects 'User Peer-Group Logon Volume Anomaly (MLTK)' patterns (UC-10.15.1) sourced from datamodel `Authentication`. Threshold bundle: `z_score` > 3, or `isOutlier` > 0; aggregation grain: `_time`, `Authentication.user`, `bunit`; metrics: `peer_avg`, `peer_std`. Enrichment path: lookup `identity_lookup`.",
+  "value": "UC-10.15.1 gives Security Infra teams earlier visibility into Anomaly (MLTK) through `Authentication` telemetry, lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Build peer groups from the ES identity framework using `bunit` (business unit) or custom identity attributes such as role and location. Train the DensityFunction model on 30 days of authentication data, then schedule the search hourly. Z-scores above 3 feed Risk-Based Alerting (RBA) as risk events on the user entity. Retrain the model weekly via a scheduled search using `fit` to adapt to seasonal patterns such as quarter-end. Exclude service accounts by filtering on `category!=service` in the identity lookup.",
   "visualization": "Table (anomalous users with z-score), Line chart (user count vs peer average over time), Heatmap (users × days).",
   "cimModels": [
@@ -22,22 +28,46 @@
   "references": [
     {
       "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
+      "url": "https://splunkbase.splunk.com/app/263",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Peer-group “odd” logon counts can be legitimate during quarter-end, sales pushes, or after org reshuffles when many people temporarily behave alike — we compare to HR and shift calendars.",
+  "knownFalsePositives": "1. **ESCU content update for UC-10.15.1** — Vendor macro `security_content_summariesonly` changes `peer_avg`, `peer_std` on `_time`, `Authentication.user`, `bunit` for 'User Peer-Group Logon Volume Anomaly (MLTK)' without a real endpoint incident. Uses lookup `identity_lookup`. Compare Content Management `lastModified`.\n\n2. **TA field alias drift on `Authentication`** — Upgrade to the Endpoint datamodel TA renames ``_time`, `Authentication.user`, `bunit``; baseline ``peer_avg`, `peer_std`` before re-enabling alerts.\n\n3. **Approved atomic test on `authentication`** — Red-team replays 'User Peer-Group Logon Volume Anomaly (MLTK)' detections from exercise hosts in `datamodel=Authentication` during scheduled pen-test window.\n\n4. **EDR bulk install on ``_time`, `Authentication.user`, `bunit``** — Mass ``peer_avg`, `peer_std`` spike during agent rollout mimics 'User Peer-Group Logon Volume Anomaly (MLTK)'; suppress via `soc_exception_register.csv` keyed on deployment tag.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on ``_time`, `Authentication.user`, `bunit``, `search_name`, `valid_until`.",
   "mitreAttack": [
     "T1078",
     "T1021"
   ],
   "detectionType": "user",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Machine Learning Toolkit (MLTK), Splunk Enterprise Security (ES), SA-IdentityCenter.\n• Ensure the following data sources are available: `index=main sourcetype=WinEventLog:Security` (EventCode=4624), `identity_lookup` (from SA-IdentityCenter).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBuild peer groups from the ES identity framework using `bunit` (business unit) or custom identity attributes such as role and location. Train the DensityFunction model on 30 days of authentication data, then schedule the search hourly. Z-scores above 3 feed Risk-Based Alerting (RBA) as risk events on the user entity. Retrain the model weekly via a scheduled search using `fit` to adapt to seasonal patterns such as quarter-end. Exclude service accounts by filtering on `category!=service` in the id…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| tstats `security_content_summariesonly` count FROM datamodel=Authentication\n    WHERE Authentication.action=\"success\"\n    BY _time span=1d, Authentication.user\n| `drop_dm_object_name(Authentication)`\n| lookup identity_lookup identity AS user OUTPUT bunit\n| eventstats avg(count) as peer_avg stdev(count) as peer_std by bunit, _time\n| eval z_score=round((count - peer_avg) / nullif(peer_std, 0), 2)\n| where z_score > 3\n| fit DensityFunction count by bunit into peer_logon_model\n| where isOutlier > 0\n| table _time, user, bunit, count, peer_avg, z_score\n| sort -z_score\n```\n\nUnderstanding this SPL\n\n**User Peer-Group Logon Volume Anomaly (MLTK)** — Comparing each user's authentication volume to their peer group (same department, role, or location) surfaces compromised accounts and insider threats that per-user baselines alone cannot catch — a user whose logon count is normal for themselves but triple the peer average is a strong anomaly signal.\n\nDocumented **Data sources**: `index=main sourcetype=WinEventLog:Security` (EventCode=4624), `identity_lookup` (from SA-IdentityCenter). **App/TA** (typical add-on context): Splunk Machine Learning Toolkit (MLTK), Splunk Enterprise Security (ES), SA-IdentityCenter. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Detection type** for this use case: user — interpret thresholds and fields in that context.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication` — enable acceleration for that model.\n• Invokes macro `drop_dm_object_name(Authentication)` — in Search, use the UI or expand to inspect the underlying SPL.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eventstats` rolls up events into metrics; results are split **by bunit, _time** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **z_score** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where z_score > 3` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **User Peer-Group Logon Volume Anomaly (MLTK)**): fit DensityFunction count by bunit into peer_logon_model\n• Filters the current rows with `where isOutlier > 0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **User Peer-Group Logon Volume Anomaly (MLTK)**): table _time, user, bunit, count, peer_avg, z_score\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nCompare a handful of scored rows to **the MLTK experiment** that produced the model, or to a manual replay of the same SPL on a short window, and confirm `fit` / `apply` output matches. For side-by-side, compare notable or entity context to **the ES Incident Review** queue if you feed risk or tickets.\n\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (anomalous users with z-score), Line chart (user count vs peer average over time), Heatmap (users × days).\n",
-  "grandmaExplanation": "We use learning models to see whose sign-on pattern suddenly breaks from their workmates’ so stolen or misused accounts stand out earlier than a flat rule allows."
+  "grandmaExplanation": "We use learning models to see whose sign-on pattern suddenly breaks from their workmates’ so stolen or misused accounts stand out earlier than a flat rule allows.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

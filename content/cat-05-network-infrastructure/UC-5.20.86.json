@@ -9,28 +9,42 @@
     "Availability"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=network sourcetype=cisco:wlc:syslog` or `sourcetype=cisco:ios` — Router Advertisement rate monitoring on wireless networks. RFC 7772 (BCP 202) establishes strict RA rate limits specifically for wireless networks because:\n\n1. **Battery drain.** Each RA forces all WiFi clients to wake their radio, process the RA, and potentially reconfigure addresses. At the default RA interval of 200 seconds, with multiple RAs per VLAN, clients may wake dozens of times per hour.\n2. **BCP 202 recommendation.** RFC 7772 recommends no more than 7 RAs per hour to keep mobile device power consumption under 2% of battery capacity.\n3. **Cisco RA Throttler.** Cisco WLC/Catalyst 9800 implements `ipv6 nd ra-throttler` which limits RA forwarding to wireless clients. Default: 10 RAs per VLAN per 10 minutes. RAs exceeding the threshold are silently dropped.\n4. **VLAN consolidation.** Large WiFi deployments with many VLANs on the same SSID can generate multiplicative RA traffic. 5 VLANs × 1 RA/200s = 1 RA/40s = 90 RAs/hour.\n5. **RA storms.** Rogue devices, misconfigured routers, or VPN concentrators can generate RA storms that overwhelm wireless clients.\n\nRA rate limiting is essential for any dual-stack WiFi deployment.",
-  "app": "Cisco WLC Add-on / Cisco Catalyst Add-on",
+  "exclusions": "Covers the detection logic documented for 'RA Rate Limiting on Wireless Networks (RFC 7772 / BCP 202)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ra_rate_limiting_on_wireless_networks_rfc_7772_b` (UC-5.20.86), SOC dashboard panel \"Operations — RA Rate Limiting on Wireless Networks (RFC 7772 / BCP 202)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.86 positive (Rate, Limiting, Wireless, Networks, (RFC): ingest synthetic events into `index=network` sourcetype='cisco:wlc:syslog' where `count` grouped by `host`, `vlan`, `status` satisfies `ra_rate` > 20, or `ra_rate` > 7 for 'RA Rate Limiting on Wireless Networks (RFC 7772 / BCP 202)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.86 negative (BCP 202)): ingest benign `network` / `cisco:wlc:syslog` events where `host`, `vlan`, `status` stays below `ra_rate` > 20, or `ra_rate` > 7, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'RA Rate Limiting on Wireless Networks (RFC 7772 / BCP 202)'."
+  },
+  "dataSources": "`index=network sourcetype=cisco:wlc:syslog` or `sourcetype=cisco:ios` — Router Advertisement rate monitoring on wireless networks. RFC 7772 (BCP 202) establishes strict RA rate limits specifically for wireless networks because:\n\n1. **Battery drain.** Each RA forces all WiFi clients to wake their radio, process the RA, and potentially reconfigure addresses. At the default RA interval of 200 seconds, with multiple RAs per VLAN, clients may wake dozens of times per hour.\n2. **BCP 202 recommendation.** RFC 7772 recommends no more than 7 RAs per hour to keep mobile device power consumption under 2% of battery capacity.\n3. **Cisco RA Throttler.** Cisco WLC/Catalyst 9800 implements `ipv6 nd ra-throttler` which limits RA forwarding to wireless clients. Default: 10 RAs per VLAN per 10 minutes. RAs exceeding the threshold are silently dropped.\n4. **VLAN consolidation.** Large WiFi deployments with many VLANs on the same SSID can generate multiplicative RA traffic. 5 VLANs × 1 RA/200s = 1 RA/40s = 90 RAs/hour.\n5. **RA storms.** Rogue devices, misconfigured routers, or VPN concentrators can generate RA storms that overwhelm wireless clients.\n\nRA rate limiting is essential for any dual-stack WiFi deployment. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cisco WLC Add-on / Cisco Catalyst Add-on — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"cisco:wlc:syslog\" OR sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-24h\n  (\"RA\" AND (\"throttl\" OR \"drop\" OR \"rate\" OR \"suppress\") OR \"%IPV6_ND-6-RA_THROTTLE\")\n| rex field=_raw \"VLAN\\s*(?<vlan>\\d+)\"\n| rex field=_raw \"(?:rate|count)\\s*=?\\s*(?<ra_rate>\\d+)\"\n| eval ra_rate=tonumber(ra_rate)\n| eval status=case(\n    match(_raw, \"(?i)throttl|suppress|drop\"), \"THROTTLED — excess RAs dropped by RA Throttler\",\n    ra_rate > 20, \"WARNING — RA rate exceeds BCP 202 recommendation (\" . ra_rate . \" RAs/hour vs 7 max)\",\n    ra_rate > 7, \"ELEVATED — RA rate above BCP 202 limit\",\n    1=1, \"OK\")\n| stats count as events latest(ra_rate) as current_rate by host, vlan, status\n| sort -current_rate",
-  "description": "Monitors Router Advertisement rates on wireless networks against RFC 7772 (BCP 202) recommendations and Cisco RA Throttler enforcement. Excessive RA rates on WiFi networks drain mobile device batteries, waste airtime, and can indicate rogue RA sources or misconfigured routers. BCP 202 recommends a maximum of 7 RAs per hour per VLAN to keep mobile power consumption below 2% of battery capacity.",
-  "value": "In large enterprise WiFi deployments, IPv6 RA storms are a common cause of mysterious battery drain and poor WiFi performance. A single misconfigured router advertising RAs every 4 seconds on a wireless VLAN will cause every connected device to wake its radio 900 times per hour. This use case ensures RA rates are within BCP 202 limits, RA Throttler is functioning, and rogue RA sources are identified before they impact the user experience.",
+  "description": "Identifies BCP 202) anomalies for UC-5.20.86 with window `the scheduled window` on `index=network` sourcetype `cisco:wlc:syslog`. Combines `count` by `host`, `vlan`, `status` and compares against `ra_rate` > 20, or `ra_rate` > 7. Mapped to keywords Rate, Limiting, Wireless, Networks, (RFC for dashboard routing.",
+  "value": "Alerting on Rate, Limiting, Wireless, Networks, (RFC through UC-5.20.86 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Monitor RA Throttler events on WLCs and Catalyst 9800 controllers. Track per-VLAN RA rates. Alert when rates exceed BCP 202 limits. Identify RA sources for remediation.",
   "visualization": "(1) Single-value: VLANs exceeding BCP 202 RA rate limit. (2) Table: per-VLAN RA rates with throttling status. (3) Timechart: RA rate by VLAN over 24 hours. (4) Alert panel: RA Throttler drop events.",
   "references": [
     {
       "title": "RFC 7772 — Reducing Energy Consumption of Router Advertisements (BCP 202)",
-      "url": "https://www.rfc-editor.org/rfc/rfc7772"
+      "url": "https://www.rfc-editor.org/rfc/rfc7772",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco Catalyst 9800 RA Throttler Configuration Guide",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.5 — wireless RA considerations)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Multiple router sources.** If multiple routers advertise the same prefix on the same VLAN, the aggregate RA rate may exceed BCP 202 limits even though each individual router complies. Tune RA intervals per-router to keep aggregate rate within limits.\n\n**RA Throttler legitimate drops.** RA Throttler silently drops excess RAs as designed. These are not errors — they are the control working correctly. Alert only if the SOURCE rate is excessive, indicating a misconfigured router that should be fixed at the source.\n\n**VRRP/HSRP failover.** Gateway failover events generate a burst of RAs to announce the new active router. Brief RA spikes during failover are expected.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.86)** — Planned work for 'RA Rate Limiting on Wireless Networks (RFC 7772 / BCP 202)' shifts `count` over `span=1h` while `host`, `vlan`, `status` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:wlc:syslog`** — Scheduled automation elevates `vlan` without crossing `ra_rate` > 20 for UC-5.20.86. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `vlan`, `status`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:wlc:syslog`** — First 48h baseline for UC-5.20.86 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "kubernetes",

@@ -8,21 +8,43 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "dot1qTpFdbTable count, show mac address-table count",
-  "app": "SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
+  "exclusions": "Covers the detection logic documented for 'MAC Address Table Capacity' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_mac_address_table_capacity` (UC-5.1.30), SOC dashboard panel \"Operations — MAC Address Table Capacity\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.30 positive (MAC, Address, Table, Capacity): ingest synthetic events into `index=network` sourcetype='snmp:bridge' where `count` grouped by `host` satisfies `util_pct` > 75 for 'MAC Address Table Capacity'. Validate lookup `mac_limit`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.30 negative (Table Capacity): ingest benign `network` / `snmp:bridge` events where `host` stays below `util_pct` > 75, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'MAC Address Table Capacity'."
+  },
+  "dataSources": "dot1qTpFdbTable count, show mac address-table count Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=snmp:bridge OR sourcetype=cisco:ios:mac\n| eval mac_count=coalesce(fdb_entries, mac_count, 0)\n| stats latest(mac_count) as current_mac by host\n| lookup mac_limit host OUTPUT max_mac\n| eval util_pct=round(current_mac/max_mac*100,1)\n| where util_pct > 75\n| table host current_mac max_mac util_pct",
-  "description": "CAM table utilization on switches approaching hardware limits.",
-  "value": "Operations teams monitor MAC address table capacity across switches, detecting CAM table exhaustion that causes unicast flooding, performance degradation, and security exposure.",
+  "description": "Detects UC-5.1.30 — MAC, Address, Table, Capacity — using `index=network` sourcetype `snmp:bridge`, grouped by `host`. Outputs `count` each `the scheduled window`; alert when `util_pct` > 75. Filter chain includes lookup `mac_limit`. Purpose-built for 'MAC Address Table Capacity' in Operations workflows.",
+  "value": "UC-5.1.30 operationalises 'MAC Address Table Capacity' against `snmp:bridge` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Poll dot1qTpFdbTable (count) or parse `show mac address-table count`. Create lookup with switch model→max_mac. Alert when CAM utilization exceeds 75%.",
   "visualization": "Line chart (MAC count over time), Gauge, Table.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "VMware vMotion, imaging carts, and conference room churn move MACs often. Baseline by VLAN before calling an attack.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.30)** — Planned work for 'MAC Address Table Capacity' shifts `count` over `span=1h` while `host` remains in-scope. Applies lookup `mac_limit`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:bridge`** — Scheduled automation elevates `mac_count` without crossing `util_pct` > 75 for UC-5.1.30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:bridge`** — First 48h baseline for UC-5.1.30 on `host` is unstable; join `mac_limit` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp",
@@ -32,6 +54,10 @@
     "cisco_ios",
     "snmp_generic"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     {
       "name": "Splunk User Behavior Analytics",
@@ -39,7 +65,9 @@
       "note": "UBA"
     }
   ],
-  "detailedImplementation": "Prerequisites\n* MAC address table capacity data from SNMP or CLI. SNMP OID: dot1dTpFdbEntry count. CLI: `show mac address-table count`. Data in `index=network`.\n* MAC table exhaustion: when the CAM table fills, the switch begins flooding unicast frames to all ports (like a hub), causing performance degradation and security risks (traffic visible to unintended recipients).\n\nStep 1 -- Configure data collection\n```\n[script:///opt/splunk/etc/apps/network_mon/bin/mac_table_stats.sh]\ninterval = 300\nsourcetype = network:mac:stats\nindex = network\n```\nVerify:\n```spl\nindex=network sourcetype=\"network:mac:stats\" earliest=-4h | stats latest(mac_count) latest(mac_limit) by device\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- MAC table capacity monitoring:**\n```spl\nindex=network earliest=-4h\n| eval mac_count=tonumber(coalesce(mac_count, mac_entries, dot1dTpFdbTableSize))\n| eval mac_limit=tonumber(coalesce(mac_limit, mac_table_size, cam_table_size))\n| eval device=coalesce(device, host, device_name)\n| where isnotnull(mac_count)\n| eval mac_pct=if(isnotnull(mac_limit) AND mac_limit > 0, round(100*mac_count/mac_limit, 1), null())\n| bin _time span=5m\n| stats latest(mac_count) as count latest(mac_limit) as limit latest(mac_pct) as util_pct by _time, device\n| eval severity=case(\n    util_pct > 90, \"CRITICAL -- MAC table near capacity (\".util_pct.\"%)\",\n    util_pct > 75, \"WARNING -- MAC table at \".util_pct.\"%\",\n    count > 8000, \"INFO -- large MAC table\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| table _time, device, count, limit, util_pct, severity\n| sort severity, -util_pct\n```\n\nStep 3 -- Validate\n(a) CLI: `show mac address-table count` -- current count and limit per VLAN.\n(b) CLI: `show platform resource utilization` (Cisco) -- check TCAM usage.\n(c) Identify top VLANs: `show mac address-table count vlan <id>`.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- MAC Table Capacity\"):\n* Row 1 -- Single-value: \"Switches > 75% MAC\", \"Maximum utilization (%)\".\n* Row 2 -- MAC table utilization timechart.\n\nAlert: Critical (>90% MAC table utilization): flooding risk.\n\nStep 5 -- Troubleshooting\n\n* **MAC table filling up** -- Check for MAC flooding attack. Enable port security: `switchport port-security maximum <n>`. Investigate unknown MAC addresses.\n\n* **Large VLAN spanning many switches** -- Reduce broadcast domain size. Consider VLAN segmentation or routed access design.\n\n* **MAC flapping consuming table** -- Same MAC on multiple ports uses multiple entries. Fix the root cause (UC-5.1.12).",
+  "detailedImplementation": "Prerequisites\n* MAC address table capacity data from SNMP or CLI. SNMP OID: dot1dTpFdbEntry count. CLI: `show mac address-table count`. Data in `index=network`.\n* MAC table exhaustion: when the CAM table fills, the switch begins flooding unicast frames to all ports (like a hub), causing performance degradation and security risks (traffic visible to unintended recipients).\n\nStep 1 -- Configure data collection\n```\n[script:///opt/splunk/etc/apps/network_mon/bin/mac_table_stats.sh]\ninterval = 300\nsourcetype = network:mac:stats\nindex = network\n```\nVerify:\n```spl\nindex=network sourcetype=\"network:mac:stats\" earliest=-4h | stats latest(mac_count) latest(mac_limit) by device\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- MAC table capacity monitoring:**\n```spl\nindex=network earliest=-4h\n| eval mac_count=tonumber(coalesce(mac_count, mac_entries, dot1dTpFdbTableSize))\n| eval mac_limit=tonumber(coalesce(mac_limit, mac_table_size, cam_table_size))\n| eval device=coalesce(device, host, device_name)\n| where isnotnull(mac_count)\n| eval mac_pct=if(isnotnull(mac_limit) AND mac_limit > 0, round(100*mac_count/mac_limit, 1), null())\n| bin _time span=5m\n| stats latest(mac_count) as count latest(mac_limit) as limit latest(mac_pct) as util_pct by _time, device\n| eval severity=case(\n    util_pct > 90, \"CRITICAL -- MAC table near capacity (\".util_pct.\"%)\",\n    util_pct > 75, \"WARNING -- MAC table at \".util_pct.\"%\",\n    count > 8000, \"INFO -- large MAC table\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| table _time, device, count, limit, util_pct, severity\n| sort severity, -util_pct\n```\n\nStep 3 -- Validate\n(a) CLI: `show mac address-table count` -- current count and limit per VLAN.\n(b) CLI: `show platform resource utilization` (Cisco) -- check TCAM usage.\n(c) Identify top VLANs: `show mac address-table count vlan <id>`.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- MAC Table Capacity\"):\n* Row 1 -- Single-value: \"Switches > 75% MAC\", \"Maximum utilization (%)\".\n* Row 2 -- MAC table utilization timechart.\n\nAlert: Critical (>90% MAC table utilization): flooding risk.\n\nStep 5 -- Troubleshooting\n\n* **MAC table filling up** -- Check for MAC flooding attack. Enable port security: `switchport port-security maximum <n>`. Investigate unknown MAC addresses.\n\n* **Large VLAN spanning many switches** -- Reduce broadcast domain size. Consider VLAN segmentation or routed access design.\n\n* **MAC flapping consuming table** -- Same MAC on multiple ports uses multiple entries. Fix the root cause (UC-5.1.12).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=snmp:bridge, cisco:ios:mac into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, max_mac, util_pct`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We help you know early when something looks wrong with mac address table capacity so the team can act before it grows into a bigger outage.",
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

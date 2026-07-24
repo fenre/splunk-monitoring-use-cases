@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=physical` `sourcetype=nvr:recording_health` JSON or CSV from Milestone, Genetec, or Hikvision SDK exports with `segment_start_epoch`, `segment_end_epoch`, `camera_id`",
-  "app": "Custom scripted export via NVR REST API + HEC, or VMS SIEM connector",
+  "exclusions": "Covers the detection logic documented for 'NVR Recording Segment Gap Detection vs Expected FPS' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_nvr_recording_segment_gap_detection_vs_expected_` (UC-15.3.42), SOC dashboard panel \"Operations — NVR Recording Segment Gap Detection vs Expected FPS\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-15.3.42 positive (NVR, Recording, Segment, Gap, Detection): ingest synthetic events into `index=physical` sourcetype='nvr:recording_health' where `count` grouped by `camera_id` satisfies `gap_sec` > 15 for 'NVR Recording Segment Gap Detection vs Expected FPS'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.3.42 negative (Expected FPS): ingest benign `physical` / `nvr:recording_health` events where `camera_id` stays below `gap_sec` > 15, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'NVR Recording Segment Gap Detection vs Expected FPS'."
+  },
+  "dataSources": "`index=physical` `sourcetype=nvr:recording_health` JSON or CSV from Milestone, Genetec, or Hikvision SDK exports with `segment_start_epoch`, `segment_end_epoch`, `camera_id` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted export via NVR REST API + HEC, or VMS SIEM connector — Universal Forwarder (Splunkbase 617)",
   "spl": "index=physical sourcetype=nvr:recording_health camera_id=*\n| sort 0 camera_id segment_start_epoch\n| streamstats window=1 global=f last(segment_end_epoch) as prev_end by camera_id\n| eval gap_sec=segment_start_epoch-prev_end\n| where isnotnull(prev_end) AND gap_sec > 15\n| table camera_id, prev_end, segment_start_epoch, gap_sec\n| sort - gap_sec",
-  "description": "Regulators and prosecutors ask whether video exists for a full timeline. Comparing contiguous recording segments per camera surfaces silent gaps longer than motion-mask explanations—often disk stalls, RAID degradation, or timezone skew after DST.",
-  "value": "Produces defensible proof that continuous recording obligations are met, or flags gaps while footage might still be recovered from buffer.",
+  "description": "Surfaces 'NVR Recording Segment Gap Detection vs Expected FPS' (UC-15.3.42) using `index=physical` sourcetype `nvr:recording_health` by aggregating `count` grouped by `camera_id` over `the scheduled window` and alerting when `gap_sec` > 15. Keywords: NVR, Recording, Segment, Gap, Detection. Focuses on Expected FPS behaviour so operations teams can triage UC-15.3.42 without ad-hoc log review.",
+  "value": "UC-15.3.42 accelerates insight into Expected FPS ('NVR Recording Segment Gap Detection vs Expected FPS') by tracking `activity` on `nvr:recording_health` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Export segment metadata every 5 minutes; do not index full video in Splunk. Ensure epoch times are UTC. `gap_sec > 15` matches many jurisdictions' tolerance—tighten for high-security sites. Handle multiplexed streams by `camera_id`+`stream` key. Join with storage latency metrics.",
   "visualization": "Gantt-style (custom viz) or Table (gaps), Line chart (gap count per site).",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "Milestone XProtect — logging and auditing",
-      "url": "https://www.milestonesys.com/"
+      "url": "https://www.milestonesys.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Docs: HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensor anomalies during cleaning, calibration, or planned environmental changes.",
+  "knownFalsePositives": "1. **Maintenance window on `physical` (UC-15.3.42)** — Planned work for 'NVR Recording Segment Gap Detection vs Expected FPS' shifts `count` over `span=1h` while `camera_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `nvr:recording_health`** — Scheduled automation elevates `gap_sec` without crossing `gap_sec` > 15 for UC-15.3.42. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `camera_id`** — Health checks in `physical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nvr:recording_health`** — First 48h baseline for UC-15.3.42 on `camera_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `camera_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cctv"
+  ],
+  "equipmentModels": [
+    "cctv_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,6 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• API rate limits respected on NVR.\n• Legal team sets acceptable gap threshold.\n\nStep 1 — Validate against VMS built-in gap report.\n\nStep 2 — DST simulation in lab.\n\nStep 3 — Chain of custody SOP for exports.\n\nStep 4 — Optional `fillnull` for missing export windows.",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "detailedImplementation": "Prerequisites\n• API rate limits respected on NVR.\n• Legal team sets acceptable gap threshold.\n\nStep 1 — Validate against VMS built-in gap report.\n\nStep 2 — DST simulation in lab.\n\nStep 3 — Chain of custody SOP for exports.\n\nStep 4 — Optional `fillnull` for missing export windows.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted export via NVR REST API + HEC, or VMS SIEM connector — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=nvr:recording_health into physical. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`camera_id, gap_sec`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

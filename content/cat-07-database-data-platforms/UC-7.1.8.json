@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sys.dm_exec_requests` (SQL Server), `pg_stat_activity` (PostgreSQL), Oracle `v$transaction`",
-  "app": "DB Connect",
+  "exclusions": "Covers the detection logic documented for 'Long-Running Transaction Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_long_running_transaction_detection` (UC-7.1.8), SOC dashboard panel \"Operations — Long-Running Transaction Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.8 positive (Long, Running, Transaction, Detection): ingest synthetic events into `index=database` sourcetype='dbconnect:active_transactions' where `count` grouped by `entity` satisfies `transaction_duration_sec` > 300 for 'Long-Running Transaction Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.8 negative (Transaction Detection): ingest benign `database` / `dbconnect:active_transactions` events where `entity` stays below `transaction_duration_sec` > 300, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Long-Running Transaction Detection'."
+  },
+  "dataSources": "`sys.dm_exec_requests` (SQL Server), `pg_stat_activity` (PostgreSQL), Oracle `v$transaction` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "DB Connect — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"dbconnect:active_transactions\"\n| where transaction_duration_sec > 300\n| table _time, server, database_name, user, transaction_duration_sec, sql_text\n| sort -transaction_duration_sec",
-  "description": "Long transactions hold locks, causing blocking chains that degrade application performance for many users.",
-  "value": "Long transactions hold locks, causing blocking chains that degrade application performance for many users.",
+  "description": "Identifies UC-7.1.8 for Long, Running, Transaction, Detection over `index=database` sourcetype `dbconnect:active_transactions` with thresholds `transaction_duration_sec` > 300. Groups `count` by `entity` each `the scheduled window`. Centered on Transaction Detection indicators. Supports repeatable operations triage for 'Long-Running Transaction Detection'.",
+  "value": "For 'Long-Running Transaction Detection', UC-7.1.8 converts `activity` on `dbconnect:active_transactions` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Poll active transactions via DB Connect every 5 minutes. Alert when any transaction exceeds 5 minutes. Include SQL text and blocking information. Escalate transactions blocking other sessions.",
   "visualization": "Table (active long transactions), Single value (longest active transaction), Timeline (long transaction events).",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "Splunk — DB Connect",
-      "url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/WhatisDBX"
+      "url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/WhatisDBX",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Maintenance work (ANALYZE, VACUUM, REINDEX, index builds) and ETL or large report jobs may show up as long-running or blocking — compare with the maintenance and batch schedule.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.8)** — Planned work for 'Long-Running Transaction Detection' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbconnect:active_transactions`** — Scheduled automation elevates `src` without crossing `transaction_duration_sec` > 300 for UC-7.1.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:active_transactions`** — First 48h baseline for UC-7.1.8 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mssql",
@@ -35,6 +57,12 @@
     "oracle_oracle_db",
     "postgresql_pg"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we cross-check the same window in SQL Server Management Studio, Azure Data Studio, or the Azure SQL portal with `sys.dm_*` views; Oracle Enterprise Manager, SQLcl, or SQL Developer with `V$` views; psql, pgAdmin, or the managed-PostgreSQL console with `pg_stat_*` and replication views so live metrics match what Splunk shows.\n• Install and configure the required add-on or app: DB Connect.\n• Ensure the following data sources are available: `sys.dm_exec_requests` (SQL Server), `pg_stat_activity` (PostgreSQL), Oracle `v$transaction`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll active transactions via DB Connect every 5 minutes. Alert when any transaction exceeds 5 minutes. Include SQL text and blocking information. Escalate transactions blocking other sessions.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"dbconnect:active_transactions\"\n| where transaction_duration_sec > 300\n| table _time, server, database_name, user, transaction_duration_sec, sql_text\n| sort -transaction_duration_sec\n```\n\nUnderstanding this SPL\n\n**Long-Running Transaction Detection** — Long transactions hold locks, causing blocking chains that degrade application performance for many users.\n\nDocumented **Data sources**: `sys.dm_exec_requests` (SQL Server), `pg_stat_activity` (PostgreSQL), Oracle `v$transaction`. **App/TA** (typical add-on context): DB Connect. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: dbconnect:active_transactions. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"dbconnect:active_transactions\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where transaction_duration_sec > 300` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Long-Running Transaction Detection**): table _time, server, database_name, user, transaction_duration_sec, sql_text\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (active long transactions), Single value (longest active transaction), Timeline (long transaction events).",
-  "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise."
+  "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

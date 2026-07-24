@@ -10,24 +10,42 @@
     "Governance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'DNS-over-HTTPS / DNS-over-TLS Flow Identification' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_dns_over_https_dns_over_tls_flow_identification` (UC-5.7.18), SOC dashboard panel \"Operations — DNS-over-HTTPS / DNS-over-TLS Flow Identification\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.7.18 positive (DNS, over, HTTPS, DNS, over): ingest synthetic events into `index=netflow` sourcetype='target_sourcetype' where `bytes`, `hosts`, `resolvers` grouped by `tunnel_label`, `svc` satisfies `packets` > 10, `bytes` > 20480, or `packets` < 900 for 'DNS-over-HTTPS / DNS-over-TLS Flow Identification'. Validate lookup `doh_providers.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.7.18 negative (Flow Identification): ingest benign `netflow` / `target_sourcetype` events where `tunnel_label`, `svc` stays below `packets` > 10, `bytes` > 20480, or `packets` < 900, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'DNS-over-HTTPS / DNS-over-TLS Flow Identification'."
+  },
   "dataSources": "`index=netflow` `sourcetype=netflow` or `stream:ipfix` with transport ports (`dest_port`, `src_port`, `protocol`), `bytes`, `packets`, `src`, `dest`; optional lookup `doh_providers.csv` listing resolver prefixes and well-known shared hosting autonomous-system notes for refinement.",
   "app": "Splunk Add-on for NetFlow (Splunkbase 1838)",
   "spl": "index=netflow earliest=-24h (protocol=6 OR upper(protocol)=\"TCP\")\n| eval svc=case(dest_port==853 OR src_port==853, \"PRIVATE_NAME_TLS\",\n              dest_port==443 AND packets>10 AND bytes>20480 AND bytes/packets<900, \"LIKELY_WEB_TUNNEL_HINT\",\n              dest_port==443, \"GENERIC_WEB\",\n              true(), \"OTHER\")\n| lookup doh_providers.csv dest OUTPUT provider_label\n| eval tunnel_label=case(isnotnull(provider_label), provider_label, svc==\"PRIVATE_NAME_TLS\", \"PORT853_UNLABELED\", svc==\"LIKELY_WEB_TUNNEL_HINT\", \"SMALL_PKT_WEB_HEURISTIC\", 1==1, null())\n| where isnotnull(tunnel_label)\n| stats sum(bytes) as bytes dc(src) as hosts dc(dest) as resolvers avg(bytes/packets) as avg_payload\n  by tunnel_label svc\n| eval mb=round(bytes/1048576,2)\n| sort -bytes\n| head 40",
-  "description": "Segments flows likely carrying encrypted name lookups using resolver-side transport hints—standard ports for private-name-over-transport-security plus conservative World Wide Web port heuristics enriched by resolver catalogs.",
-  "value": "Policy teams enforce approved resolver programs, incident responders differentiate covert channels from ordinary browsing volume, and privacy councils document proportionality when regulating encrypted resolution paths.",
+  "description": "Detects UC-5.7.18 — DNS, over, HTTPS, DNS, over — using `index=netflow` sourcetype `configured sourcetype`, grouped by `tunnel_label`, `svc`. Outputs `bytes`, `hosts`, `resolvers` each `the scheduled window`; alert when `packets` > 10, `bytes` > 20480, or `packets` < 900. Filter chain includes lookup `doh_providers.csv`. Purpose-built for 'DNS-over-HTTPS / DNS-over-TLS Flow Identification' in Operations workflows.",
+  "value": "For 'DNS-over-HTTPS / DNS-over-TLS Flow Identification', UC-5.7.18 converts `bytes`, `hosts`, `resolvers` on lookup `doh_providers.csv` into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Curate resolver lookups quarterly; combine alerts with full packet capture teams for confirmation; tune byte-per-packet ratios per campus; educate employees on approved providers.",
   "visualization": "Stacked bar of mb by tunnel_label; table with hosts, resolvers, avg_payload; trendline of distinct hosts using port eight-five-three.",
   "references": [
     {
       "title": "RFC 8484 — DNS Queries over HTTPS",
-      "url": "https://www.rfc-editor.org/rfc/rfc8484"
+      "url": "https://www.rfc-editor.org/rfc/rfc8484",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 7858 — Specification for DNS over Transport Layer Security",
-      "url": "https://www.rfc-editor.org/rfc/rfc7858"
+      "url": "https://www.rfc-editor.org/rfc/rfc7858",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Legitimate developer containers pull artifacts over small-message HTTPS sessions. Managed Chrome updates contact multiple resolvers briefly. Shared carrier-grade Network Address Translation concentrates hosts artificially.",
+  "knownFalsePositives": "1. **Maintenance window on `netflow` (UC-5.7.18)** — Planned work for 'DNS-over-HTTPS / DNS-over-TLS Flow Identification' shifts `bytes`, `hosts`, `resolvers` over `span=1h` while `tunnel_label`, `svc` remains in-scope. Applies lookup `doh_providers.csv`. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `svc` without crossing `packets` > 10 for UC-5.7.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `tunnel_label`, `svc`** — Health checks in `netflow` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.7.18 on `tunnel_label` is unstable; join `doh_providers.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `tunnel_label`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netflow"
   ],
@@ -43,7 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Signed acceptable-use policy referencing encrypted resolution.\n• Collaboration with desktop engineering on browser defaults.\n• Splunk role separation so human-resources subnets receive aggregated counts only.\n\nStep 1 — Configure data collection\nEnsure exporters emit Layer-four ports reliably; validate Network Address Translation does not collapse distinct internal hosts beyond acceptable cardinality targets.\n\nStep 2 — Create the search\nPromote high-fidelity hits into a summary index with `(dest_port==853)` certainty tier before heuristic bucket results. Cross-launch Secure Gateway logs when available.\n\nStep 3 — Validate\nCompare hourly Splunk counts to resolver aggregate dashboards from your recursive infrastructure for campuses still using corporate resolvers.\n\nStep 4 — Operationalize\nDashboard blends educational messaging with quantitative tiles; automated emails attach remediation links rather than raw endpoints where regulations require minimization.\n\nStep 5 — Troubleshooting\nVideo-over-port-443 gaming platforms mimic heuristic ratios—maintain entertainment subnet filters. Split-tunnel virtual private networks inflate resolver diversity benignly.",
+  "detailedImplementation": "Prerequisites\n• Signed acceptable-use policy referencing encrypted resolution.\n• Collaboration with desktop engineering on browser defaults.\n• Splunk role separation so human-resources subnets receive aggregated counts only.\n\nStep 1 — Configure data collection\nEnsure exporters emit Layer-four ports reliably; validate Network Address Translation does not collapse distinct internal hosts beyond acceptable cardinality targets.\n\nStep 2 — Create the search\nPromote high-fidelity hits into a summary index with `(dest_port==853)` certainty tier before heuristic bucket results. Cross-launch Secure Gateway logs when available.\n\nStep 3 — Validate\nCompare hourly Splunk counts to resolver aggregate dashboards from your recursive infrastructure for campuses still using corporate resolvers.\n\nStep 4 — Operationalize\nDashboard blends educational messaging with quantitative tiles; automated emails attach remediation links rather than raw endpoints where regulations require minimization.\n\nStep 5 — Troubleshooting\nVideo-over-port-443 gaming platforms mimic heuristic ratios—maintain entertainment subnet filters. Split-tunnel virtual private networks inflate resolver diversity benignly.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for NetFlow (Splunkbase 1838)). Enable the modular input or HEC token that writes sourcetype=see SPL into netflow. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`bytes, dest, packets, provider_label`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We look for patterns where computers ask for names using sealed tunnels instead of the old-style phone book queries. That helps policy folks guide people toward approved helpers and spot sneaky hideouts.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

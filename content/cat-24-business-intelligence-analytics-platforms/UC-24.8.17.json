@@ -9,30 +9,55 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "AWS Glue job runs (`aws:glue:jobrun`), crawler events (`aws:cloudwatch`), and CloudTrail Glue API calls (`aws:cloudtrail`).",
-  "app": "AWS Glue job run and crawler events via CloudWatch/CloudTrail to the Splunk Add-on for AWS; Glue API `GetJobRuns` via HEC scripted inputs.",
+  "exclusions": "Covers the detection logic documented for 'AWS Glue Job DPU-Hour Cost Anomaly' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_aws_glue_job_dpu_hour_cost_anomaly` (UC-24.8.17), SOC dashboard panel \"Operations — AWS Glue Job DPU-Hour Cost Anomaly\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.8.17 positive (AWS, Glue, Job, DPU, Hour): ingest synthetic events into `index=bi` sourcetype='aws:glue:jobrun' where `dpu_hours`, `avg_dpu`, `sd_dpu` grouped by `job_name` satisfies detection threshold for 'AWS Glue Job DPU-Hour Cost Anomaly'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.8.17 negative (Cost Anomaly): ingest benign `bi` / `aws:glue:jobrun` events where `job_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'AWS Glue Job DPU-Hour Cost Anomaly'."
+  },
+  "dataSources": "AWS Glue job runs (`aws:glue:jobrun`), crawler events (`aws:cloudwatch`), and CloudTrail Glue API calls (`aws:cloudtrail`). Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "AWS Glue job run and crawler events via CloudWatch/CloudTrail to the Splunk Add-on for AWS; Glue API `GetJobRuns` via HEC scripted inputs. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=bi sourcetype=aws:glue:jobrun\n| eval dpu_hours=(max_capacity*execution_time)/3600\n| timechart span=1d sum(dpu_hours) as dpu_hours by job_name\n| untable _time job_name dpu_hours\n| eventstats avg(dpu_hours) as avg_dpu, stdev(dpu_hours) as sd_dpu by job_name\n| where dpu_hours>avg_dpu+3*sd_dpu",
-  "description": "Estimates DPU-hour consumption per Glue job from capacity and execution time and flags days that spike above baseline, the main driver of Glue spend.",
-  "value": "Runaway Glue jobs (data skew, bad joins) inflate DPU-hours; per-job anomaly detection catches cost overruns before the monthly bill lands.",
+  "description": "Detects UC-24.8.17 — AWS, Glue, Job, DPU, Hour — using `index=bi` sourcetype `aws:glue:jobrun`, grouped by `job_name`. Outputs `dpu_hours`, `avg_dpu`, `sd_dpu` each `1d`; alert when configured threshold. Primary focus: Cost Anomaly. Purpose-built for 'AWS Glue Job DPU-Hour Cost Anomaly' in Operations workflows.",
+  "value": "UC-24.8.17 helps teams contain AWS, Glue, Job, DPU, Hour scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ingest Glue job runs with max_capacity and execution_time; schedule daily and alert on 3-sigma DPU-hour spikes.",
   "visualization": "Timechart of DPU-hours per job, anomaly table, cost estimate.",
   "cimModels": [],
   "references": [
     {
       "title": "AWS Glue — Monitoring with CloudWatch",
-      "url": "https://docs.aws.amazon.com/glue/latest/dg/monitor-cloudwatch.html"
+      "url": "https://docs.aws.amazon.com/glue/latest/dg/monitor-cloudwatch.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for AWS",
-      "url": "https://splunkbase.splunk.com/app/1876"
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.8.17)** — Planned work for 'AWS Glue Job DPU-Hour Cost Anomaly' shifts `dpu_hours`, `avg_dpu`, `sd_dpu` over `span=1d` while `job_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:glue:jobrun`** — Scheduled automation elevates `dpu_hours` without crossing configured threshold for UC-24.8.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:glue:jobrun`** — First 48h baseline for UC-24.8.17 on `job_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],
-  "grandmaExplanation": "We estimate what each cloud data job costs to run and flag surprise spikes so the bill holds no surprises."
+  "equipmentModels": [
+    "aws_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (AWS Glue job run and crawler events via CloudWatch/CloudTrail to the Splunk Add-on for AWS; Glue API `GetJobRuns` via HEC scripted inputs. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:glue:jobrun into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`job_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We estimate what each cloud data job costs to run and flag surprise spikes so the bill holds no surprises.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

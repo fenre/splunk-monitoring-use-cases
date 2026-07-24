@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Prometheus remote write failure counters (`prometheus_remote_storage_*`)",
-  "app": "Prometheus remote_write queue to Splunk/O11y backend",
+  "exclusions": "Covers the detection logic documented for 'Prometheus Remote Write Samples Dropped or Send Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_prometheus_remote_write_samples_dropped_or_send_` (UC-13.1.57), SOC dashboard panel \"Operations — Prometheus Remote Write Samples Dropped or Send Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-13.1.57 positive (Prometheus, Remote, Write, Samples, Dropped): ingest synthetic events into `index=prometheus` sourcetype='target_sourcetype' where `dropped` grouped by `remote_name` satisfies `dropped` > 0 for 'Prometheus Remote Write Samples Dropped or Send Errors'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-13.1.57 negative (Send Errors): ingest benign `prometheus` / `target_sourcetype` events where `remote_name` stays below `dropped` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Prometheus Remote Write Samples Dropped or Send Errors'."
+  },
+  "dataSources": "Prometheus remote write failure counters (`prometheus_remote_storage_*`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Prometheus remote_write queue to Splunk/O11y backend — Universal Forwarder (Splunkbase 617)",
   "spl": "| mstats sum(_value) AS dropped WHERE index=prometheus metric_name=\"prometheus_remote_storage_samples_dropped_total\" span=15m BY remote_name\n| where dropped > 0\n| sort - dropped",
-  "description": "Dropped samples create blind spots in long-term metrics stores.",
-  "value": "Ensures remote write paths stay healthy for compliance and SLO evidence.",
+  "description": "Alerts on risk tied to Prometheus, Remote, Write, Samples, Dropped through UC-13.1.57 on `index=prometheus` sourcetype `configured sourcetype`. Summarises `dropped` grouped by `remote_name` across `15m` before applying `dropped` > 0. Operators tune 'Prometheus Remote Write Samples Dropped or Send Errors' using UC-13.1.57 runbook steps.",
+  "value": "Tracking `dropped` via UC-13.1.57 on UC-13.1.57 search results improves response to 'Prometheus Remote Write Samples Dropped or Send Errors' and reduces operational risk and delayed incident response.",
   "implementation": "Map `url` label to tenant; alert before queue persistence fills disk.",
   "visualization": "Line chart (dropped rate), Table (remote endpoint).",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "Prometheus documentation — monitoring Prometheus",
-      "url": "https://prometheus.io/docs/prometheus/"
+      "url": "https://prometheus.io/docs/prometheus/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk OpenTelemetry Collector",
-      "url": "https://docs.splunk.com/observability/en/gdi/opentelemetry/opentelemetry.html"
+      "url": "https://docs.splunk.com/observability/en/gdi/opentelemetry/opentelemetry.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Noisy periods after retention, target, or scrape changes. We compare with the Grafana or Prometheus view for the same minutes.",
+  "knownFalsePositives": "1. **Maintenance window on `prometheus` (UC-13.1.57)** — Planned work for 'Prometheus Remote Write Samples Dropped or Send Errors' shifts `dropped` over `span=15m` while `remote_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `src` without crossing `dropped` > 0 for UC-13.1.57. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `remote_name`** — Health checks in `prometheus` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-13.1.57 on `remote_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `remote_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "prometheus"
+  ],
+  "equipmentModels": [
+    "prometheus_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch the metric stack and its limits so we notice scrape, storage, and query pressure before charts lie or go empty."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Prometheus remote_write queue to Splunk/O11y backend — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into prometheus. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dropped, remote_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the metric stack and its limits so we notice scrape, storage, and query pressure before charts lie or go empty.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

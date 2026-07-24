@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Generate synthetic privileged Entra ID sign-in to AOC system with `authentication_methods_used=Password`. UC-22.56.13 MUST flag.",
-    "negativeScenario": "Same sign-in with MFA token. UC-22.56.13 MUST NOT escalate."
+    "positiveScenario": "UC-22.56.13 positive (TSA, Aviation, CIP, Control, Family): ingest synthetic events into `index=target_index` sourcetype='azure:eventhub:aad' where `values` grouped by `upn` satisfies `nonmfa_signins` > 0 for 'TSA-SD Aviation CIP Control Family 2 — airport / airline access-control + MFA enforcement on operationally-critical systems'. Validate lookup `aviation_iam_lookup`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.56.13 negative (critical systems): ingest benign `target_index` / `azure:eventhub:aad` events where `upn` stays below `nonmfa_signins` > 0, or exclude the test entity via `compliance_exception_register.csv`. Variant 14 confirms zero alert rows for 'TSA-SD Aviation CIP Control Family 2 — airport / airline access-control + MFA enforcement on operationally-critical systems'."
   },
   "dataSources": "Microsoft Entra ID sign-in logs (`azure:eventhub:aad`). Okta sign-in logs (`OktaIM2:log`). CyberArk PAM (`cyberark:epv:audit`). Aviation IAM register (KV Store `aviation_iam_lookup`). Quarterly access-review (KV Store `aviation_iam_review_lookup`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for Okta Identity Cloud (Splunkbase 5577), Splunk Add-on for CyberArk (Splunkbase 4242).",
   "spl": "(sourcetype=\"azure:eventhub:aad\" OR sourcetype=\"OktaIM2:log\")\n| eval upn = coalesce(userPrincipalName, actor.alternateId)\n| lookup aviation_iam_lookup upn AS upn OUTPUT account_type aviation_in_scope target_system\n| where aviation_in_scope=true AND account_type IN (\"privileged\",\"service\",\"break_glass\")\n| eval mfa_satisfied = case(\n    match(coalesce(authenticationDetails, \"\"), \"(?i)(token|fido|certificate|phoneapp|push|sms|webauth)\"), \"true\",\n    1=1, \"false\")\n| eval acceptable_break_glass = if(account_type=\"break_glass\" AND match(coalesce(authenticationDetails, \"\"), \"(?i)(token|certificate)\"), \"true\", \"false\")\n| where mfa_satisfied=\"false\" AND acceptable_break_glass=\"false\"\n| stats count as nonmfa_signins values(account_type) as account_type values(target_system) as target_system by upn\n| where nonmfa_signins > 0\n| table upn account_type target_system nonmfa_signins",
-  "description": "Enforces MFA on aviation privileged + service accounts attached to AOC / DCS / BHS / NOTAM-relevant systems.",
-  "value": "Aviation-privileged-account compromise is the leading predicate to a NOTAM-affecting incident.",
+  "description": "Alerts on UC-22.56.13 — TSA, Aviation, CIP, Control, Family — using `index=target_index` sourcetype `azure:eventhub:aad`, grouped by `upn`. Outputs `values` each `the scheduled window`; alert when `nonmfa_signins` > 0. Filter chain includes lookup `aviation_iam_lookup`. Purpose-built for 'TSA-SD Aviation CIP Control Family 2 — airport / airline access-control + MFA enforcement on operationally-critical systems' in Compliance workflows.",
+  "value": "Alerting on TSA, Aviation, CIP, Control, Family through UC-22.56.13 reduces audit findings, regulatory gaps, and attestation delays by surfacing `activity` early.",
   "implementation": "(1) Populate `aviation_iam_lookup`. (2) Maintain quarterly review `aviation_iam_review_lookup`. (3) Schedule UC-22.56.13 every 6 hours. (4) Build the `TSA Aviation Access Control Health` dashboard.",
   "visualization": "(Panel 1) Non-MFA sign-in count by target system. (Panel 2) Top-10 violating accounts. (Panel 3) Review cycle status. (Panel 4) Break-glass usage trend.",
   "cimModels": [
@@ -46,14 +46,26 @@
   "references": [
     {
       "title": "TSA SD-1542-21-02 §3.2 (access control + MFA)",
-      "url": "https://www.tsa.gov/sites/default/files/sd-1542-21-02.pdf"
+      "url": "https://www.tsa.gov/sites/default/files/sd-1542-21-02.pdf",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "FAA AC 119-1",
-      "url": "https://www.faa.gov/regulations_policies/advisory_circulars"
+      "url": "https://www.faa.gov/regulations_policies/advisory_circulars",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **DCS kiosks**: airline DCS kiosks may use device-cert + worker-PIN; classify in IAM register.\n2. **AOC service accounts**: 24×7 service accounts may use cert-based; classify and exempt.\n3. **Vendor remote access**: covered by UC-22.56.16; treat differently.\n\n**Suppression mechanism**: KV Store `aviation_iam_lookup`.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD Aviation CIP Control Family 2 — airport / airline access-control + MFA enforcement on operationally-critical systems' (UC-22.56.13) on `upn` during scheduled clause TSA-SD-1582-21-01-s3.2 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `azure:eventhub:aad` without crossing `nonmfa_signins` > 0. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `upn`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `upn` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `upn`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1078",
     "T1556"
@@ -88,7 +100,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\nMirror UC-22.56.4 with aviation scoping.\n\n## Step 1 — Define aviation IAM register\n\n```ini\n[aviation_iam_lookup]\nfield.upn = string\nfield.account_type = string\nfield.aviation_in_scope = string\nfield.target_system = string\nfield.owner = string\nfield.last_review_date = number\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.13: TSA Aviation MFA Enforcement]\ncron_schedule = 39 */6 * * *\ndispatch.earliest_time = -6h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.13,reg=TSA-Surface,clause=TSA-SD-1542-21-02-s3.2\nalert.severity = 5\n```\n\n## Step 3 — Runbooks\n\n**Non-MFA sign-in on aviation-privileged account** (owner: IAM Lead, severity P1):\n1. Within 1 hour: disable account, force MFA enrolment.\n2. Within 4 hours: investigate session activity for compromise.\n3. Within 24 hours: certify remediation to CC.\n\n## Step 4 — Troubleshooting\n\n- **DCS kiosk model**: ensure device-cert + PIN combo is properly classified as MFA-equivalent in the register.\n- **Federation gaps**: airlines using SAML to airport infrastructure may have IdP-bypass paths.\n\n**TSA-specific failure modes**:\n- **TSA / FAA crew access**: TSA badging systems use specific patterns; do not confuse with operationally-critical aviation systems.\n- **Code-share access**: code-share partners may have privileged access to host airline DCS; ensure those are covered.",
+  "detailedImplementation": "## Prerequisites\n\nMirror UC-22.56.4 with aviation scoping.\n\n## Step 1 — Define aviation IAM register\n\n```ini\n[aviation_iam_lookup]\nfield.upn = string\nfield.account_type = string\nfield.aviation_in_scope = string\nfield.target_system = string\nfield.owner = string\nfield.last_review_date = number\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.13: TSA Aviation MFA Enforcement]\ncron_schedule = 39 */6 * * *\ndispatch.earliest_time = -6h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.13,reg=TSA-Surface,clause=TSA-SD-1542-21-02-s3.2\nalert.severity = 5\n```\n\n## Step 3 — Runbooks\n\n**Non-MFA sign-in on aviation-privileged account** (owner: IAM Lead, severity P1):\n1. Within 1 hour: disable account, force MFA enrolment.\n2. Within 4 hours: investigate session activity for compromise.\n3. Within 24 hours: certify remediation to CC.\n\n## Step 4 — Troubleshooting\n\n- **DCS kiosk model**: ensure device-cert + PIN combo is properly classified as MFA-equivalent in the register.\n- **Federation gaps**: airlines using SAML to airport infrastructure may have IdP-bypass paths.\n\n**TSA-specific failure modes**:\n- **TSA / FAA crew access**: TSA badging systems use specific patterns; do not confuse with operationally-critical aviation systems.\n- **Code-share access**: code-share partners may have privileged access to host airline DCS; ensure those are covered.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for Okta Identity Cloud (Splunkbase 5577), Splunk Add-on for CyberArk (Splunkbase 4242).). Enable the modular input or HEC token that writes sourcetype=azure:eventhub:aad, OktaIM2:log into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`acceptable_break_glass, account_type aviation_in_scope target_system, mfa_satisfied, nonmfa_signins`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "If someone has the power to make changes to airport or airline computers, they must always use two-factor login — and we check this all the time.",
   "prerequisiteUseCases": [
     "UC-22.56.4"

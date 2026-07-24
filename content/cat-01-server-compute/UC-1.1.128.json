@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`df -i` output",
-  "app": "`Splunk_TA_nix` (scripted input)",
+  "exclusions": "Covers the detection logic documented for 'Filesystem Inode Exhaustion' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_filesystem_inode_exhaustion` (UC-1.1.128), SOC dashboard panel \"Linux — Filesystem Inode Exhaustion\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.128 positive (Filesystem, Inode, Exhaustion): ingest synthetic events into `index=os` sourcetype='df_inode' where `count` grouped by `host`, `MountedOn` satisfies `inode_pct` > 80 for 'Filesystem Inode Exhaustion'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.128 negative (Inode Exhaustion): ingest benign `os` / `df_inode` events where `host`, `MountedOn` stays below `inode_pct` > 80, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 2 confirms zero alert rows for 'Filesystem Inode Exhaustion'."
+  },
+  "dataSources": "`df -i` output Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` (scripted input) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=df_inode host=*\n| stats latest(IUsePct) as inode_pct by host, MountedOn\n| where inode_pct > 80",
-  "description": "Inode usage approaching 100% blocks file creation even with free disk space. Applications fail with \"No space left on device\" despite available blocks — a common misdiagnosis.",
-  "value": "Inode usage approaching 100% blocks file creation even with free disk space. Applications fail with \"No space left on device\" despite available blocks — a common misdiagnosis.",
+  "description": "Surfaces UC-1.1.128 for Filesystem, Inode, Exhaustion over `index=os` sourcetype `df_inode` with thresholds `inode_pct` > 80. Groups `count` by `host`, `MountedOn` each `the scheduled window`. Centered on Inode Exhaustion indicators. Supports repeatable linux triage for 'Filesystem Inode Exhaustion'.",
+  "value": "For 'Filesystem Inode Exhaustion', UC-1.1.128 converts `activity` on `df_inode` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Create a scripted input that runs `df -i` and parses output. Extract Filesystem, Inodes, IUsed, IFree, IUse%, MountedOn. Run every 300 seconds. Set tiered alerts: 80% (warning), 90% (high), 95% (critical). Include `find` or `du --inodes` to identify directories consuming inodes for remediation.",
   "visualization": "Table (filesystem, host, inode %), Gauge per critical mount, Line chart (inode % over time).",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Tiny `tmpfs` or `squashfs` images can have low inode totals that sit high in percent without production risk. Field names vary (`IUsePct` vs `IUse%`)—align extractions. Snapshot-heavy backup volumes can have inode pressure that is still in a change window.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Filesystem Inode Exhaustion'. Correlate with apt/yum logs in the same `df_inode` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `df_inode`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `inode_pct` > 80.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix` (scripted input).\n• Ensure the following data sources are available: `df -i` output.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate a scripted input that runs `df -i` and parses output. Extract Filesystem, Inodes, IUsed, IFree, IUse%, MountedOn. Run every 300 seconds. Set tiered alerts: 80% (warning), 90% (high), 95% (critical). Include `find` or `du --inodes` to identify directories consuming inodes for remediation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=df_inode host=*\n| stats latest(IUsePct) as inode_pct by host, MountedOn\n| where inode_pct > 80\n```\n\nUnderstanding this SPL\n\n**Filesystem Inode Exhaustion** — Inode usage approaching 100% blocks file creation even with free disk space. Applications fail with \"No space left on device\" despite available blocks — a common misdiagnosis.\n\nDocumented **Data sources**: `df -i` output. **App/TA** (typical add-on context): `Splunk_TA_nix` (scripted input). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: df_inode. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=df_inode. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, MountedOn** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where inode_pct > 80` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (filesystem, host, inode %), Gauge per critical mount, Line chart (inode % over time).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch inode use, not just gigabytes free, so the server cannot run out of file slots when space still looks okay."
+  "grandmaExplanation": "We watch inode use, not just gigabytes free, so the server cannot run out of file slots when space still looks okay.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

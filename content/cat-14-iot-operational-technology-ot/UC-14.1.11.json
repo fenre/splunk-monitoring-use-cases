@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=\"snmp:poll_status\"` or `sourcetype=\"snmp:ta:log\"`",
-  "app": "SNMP TA (modular input), polling audit logs",
+  "exclusions": "Covers the detection logic documented for 'Device MIB Polling Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_device_mib_polling_failures` (UC-14.1.11), SOC dashboard panel \"Operations — Device MIB Polling Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.1.11 positive (Device, MIB, Polling, Failures): ingest synthetic events into `index=network` sourcetype='snmp:poll_status' where `count` grouped by `host`, `device_ip`, `oid_tree`, `error_code` satisfies `timeout_ms` > 3000 for 'Device MIB Polling Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.1.11 negative (Polling Failures): ingest benign `network` / `snmp:poll_status` events where `host`, `device_ip`, `oid_tree`, `error_code` stays below `timeout_ms` > 3000, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Device MIB Polling Failures'."
+  },
+  "dataSources": "`sourcetype=\"snmp:poll_status\"` or `sourcetype=\"snmp:ta:log\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "SNMP TA (modular input), polling audit logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"snmp:poll_status\"\n| where status!=\"success\" OR timeout_ms > 3000\n| stats count by host, device_ip, oid_tree, error_code\n| sort -count",
-  "description": "Failed GET/GETNEXT/WALK cycles mean stale metrics and blind spots in capacity management.",
-  "value": "Failed GET/GETNEXT/WALK cycles mean stale metrics and blind spots in capacity management.",
+  "description": "Surfaces UC-14.1.11 — Device, MIB, Polling, Failures — using `index=network` sourcetype `snmp:poll_status`, grouped by `host`, `device_ip`, `oid_tree`, `error_code`. Outputs `count` each `the scheduled window`; alert when `timeout_ms` > 3000. Primary focus: Polling Failures. Purpose-built for 'Device MIB Polling Failures' in Operations workflows.",
+  "value": "Tracking `activity` via UC-14.1.11 on `snmp:poll_status` feeds improves response to 'Device MIB Polling Failures' and reduces operational risk and delayed incident response.",
   "implementation": "Emit structured poll result per target (success, timeout, auth error). Alert on sustained failure rate >5% or SNMP timeout storms. Verify SNMP community/v3 creds and ACLs on device.",
   "visualization": "Table (devices with poll failures), Line chart (failure % trend), Status grid (device × OID family).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Modbus failures from PLC scan time changes, network jitter, or scheduled downtime windows.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-14.1.11)** — Planned work for 'Device MIB Polling Failures' shifts `count` over `span=1h` while `host`, `device_ip`, `oid_tree`, `error_code` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:poll_status`** — Scheduled automation elevates `device_ip` without crossing `timeout_ms` > 3000 for UC-14.1.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `device_ip`, `oid_tree`, `error_code`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:poll_status`** — First 48h baseline for UC-14.1.11 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "dell_emc",
     "snmp"
@@ -33,6 +55,12 @@
   "equipmentModels": [
     "snmp_generic"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP TA (modular input), polling audit logs.\n• Ensure the following data sources are available: `sourcetype=\"snmp:poll_status\"` or `sourcetype=\"snmp:ta:log\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEmit structured poll result per target (success, timeout, auth error). Alert on sustained failure rate >5% or SNMP timeout storms. Verify SNMP community/v3 creds and ACLs on device.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"snmp:poll_status\"\n| where status!=\"success\" OR timeout_ms > 3000\n| stats count by host, device_ip, oid_tree, error_code\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Device MIB Polling Failures** — Failed GET/GETNEXT/WALK cycles mean stale metrics and blind spots in capacity management.\n\nDocumented **Data sources**: `sourcetype=\"snmp:poll_status\"` or `sourcetype=\"snmp:ta:log\"`. **App/TA** (typical add-on context): SNMP TA (modular input), polling audit logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:poll_status. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"snmp:poll_status\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where status!=\"success\" OR timeout_ms > 3000` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by host, device_ip, oid_tree, error_code** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search in a known window. Spot-check a few events against the BMS console (for example Niagara, Tridium, or Honeywell) and confirm zones, values, and alarms line up. Verify field names and that the right roles can search the index.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (devices with poll failures), Line chart (failure % trend), Status grid (device × OID family).",
-  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with this area: device mib polling failures before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with this area: device mib polling failures before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

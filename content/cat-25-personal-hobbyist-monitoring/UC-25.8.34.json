@@ -9,24 +9,43 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`).",
-  "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC.",
-  "spl": "index=personal sourcetype=grafana:alert\nbin _time span=1d\nstats count as alerts by alertname _time\nsort - alerts",
-  "description": "Ranks Grafana alert rules firing most often per day.",
-  "value": "Surfacing grafana alert fatigue by dashboard helps you act before small issues become habits.",
+  "exclusions": "Covers personal hobby monitoring for 'Grafana Alert Fatigue by Dashboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_grafana_alert_fatigue_by_dashboard` (UC-25.8.34), SOC dashboard panel \"Personal — Grafana Alert Fatigue by Dashboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.8.34 positive (Grafana, Alert, Fatigue, Dashboard): ingest synthetic events into `index=personal` sourcetype='grafana:alert' where `count` grouped by `alertname`, `_time` satisfies detection threshold for 'Grafana Alert Fatigue by Dashboard'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.8.34 negative (by Dashboard): ingest benign `personal` / `grafana:alert` events where `alertname`, `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 8 confirms zero alert rows for 'Grafana Alert Fatigue by Dashboard'."
+  },
+  "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=grafana:alert\n| bin _time span=1d\n| stats count as alerts by alertname _time\n| sort - alerts",
+  "description": "Surfaces UC-25.8.34 — Grafana, Alert, Fatigue, Dashboard — using `index=personal` sourcetype `grafana:alert`, grouped by `alertname`, `_time`. Outputs `count` each `1d`; alert when configured threshold. Primary focus: by Dashboard. Purpose-built for 'Grafana Alert Fatigue by Dashboard' in Personal workflows.",
+  "value": "UC-25.8.34 accelerates insight into by Dashboard ('Grafana Alert Fatigue by Dashboard') by tracking `activity` on `grafana:alert` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Ingest the relevant home lab & self-hosting export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.8.34)** — Connector for 'Grafana Alert Fatigue by Dashboard' stops polling `grafana:alert`; stale `count` on `alertname`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1d` is expected for UC-25.8.34, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `grafana:alert`. Dedup with `stats latest(*) by alertname`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold for 'Grafana Alert Fatigue by Dashboard'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "grafana",
@@ -37,5 +56,12 @@
   "equipmentModels": [
     "snmp_ups"
   ],
-  "grandmaExplanation": "It works out when grafana alert fatigue by dashboard matters for your routine."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Lab & Self-Hosting — typical feeds: Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`)..\n• **Sourcetypes in this search**: `grafana:alert`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=grafana:alert`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC..\n\n**Author notes:** Ingest the relevant home lab & self-hosting export into `index=personal` and schedule this search weekly.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"grafana:alert\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=grafana:alert earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Grafana Alert Fatigue by Dashboard** over `personal` data (primarily `sourcetype=grafana:alert`) across the full search range. The `aggregation` aggregation groups by `alertname`, `_time`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`, `alertname`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=grafana:alert\n| bin _time span=1d\n| stats count as alerts by alertname _time\n| sort - alerts\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=grafana:alert earliest=-7d\n| head 50\n| table _time, alertname\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=grafana:alert earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.8.34: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Or Chart Of Key Fields (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `grafana:alert` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=grafana:alert | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It works out when grafana alert fatigue by dashboard matters for your routine.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

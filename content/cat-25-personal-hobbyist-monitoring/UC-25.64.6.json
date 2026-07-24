@@ -9,39 +9,65 @@
     "Data Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Garmin Zumo ride data (`garmin:zumo`), motorcycle OBD-II telemetry (`obd:bike`), RaceChrono laps (`racechrono:lap`), REVER rides (`rever:ride`), and RevZilla orders (`revzilla:order`).",
-  "app": "Garmin Zumo ride exports, motorcycle OBD-II telemetry, RaceChrono track sessions, REVER ride logs, and RevZilla order history forwarded into Splunk.",
+  "exclusions": "Covers personal hobby monitoring for 'Garmin Zumo Ride Event Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_garmin_zumo_ride_event_sync_gap_watch` (UC-25.64.6), SOC dashboard panel \"Personal — Garmin Zumo Ride Event Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.64.6 positive (Garmin, Zumo, Ride, Event, Sync): ingest synthetic events into `index=personal` sourcetype='garmin:zumo' where `last_seen` grouped by `route_name` satisfies `hours_since` > 72 for 'Garmin Zumo Ride Event Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.64.6 negative (Gap Watch): ingest benign `personal` / `garmin:zumo` events where `route_name` stays below `hours_since` > 72, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'Garmin Zumo Ride Event Sync Gap Watch'."
+  },
+  "dataSources": "Garmin Zumo ride data (`garmin:zumo`), motorcycle OBD-II telemetry (`obd:bike`), RaceChrono laps (`racechrono:lap`), REVER rides (`rever:ride`), and RevZilla orders (`revzilla:order`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Garmin Zumo ride exports, motorcycle OBD-II telemetry, RaceChrono track sessions, REVER ride logs, and RevZilla order history forwarded into Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=garmin:zumo\n| stats max(_time) as last_seen by route_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>72\n| sort - hours_since",
-  "description": "Detects when Garmin Zumo ride event data has stopped arriving for a given route name.",
-  "value": "Personal telemetry is only useful when it is current; sync-gap alerts catch failed exports and broken credentials early.",
+  "description": "Detects 'Garmin Zumo Ride Event Sync Gap Watch' (UC-25.64.6) using `index=personal` sourcetype `garmin:zumo` by aggregating `last_seen` grouped by `route_name` over `the scheduled window` and alerting when `hours_since` > 72. Keywords: Garmin, Zumo, Ride, Event, Sync. Focuses on Gap Watch behaviour so personal teams can triage UC-25.64.6 without ad-hoc log review.",
+  "value": "UC-25.64.6 accelerates insight into Gap Watch ('Garmin Zumo Ride Event Sync Gap Watch') by tracking `last_seen` on `garmin:zumo` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Track the latest event time per route name and alert when the feed is older than 72 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
   "references": [
     {
       "title": "Garmin Developer Program",
-      "url": "https://developer.garmin.com/"
+      "url": "https://developer.garmin.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "OBD-II PIDs Reference",
-      "url": "https://en.wikipedia.org/wiki/OBD-II_PIDs"
+      "url": "https://en.wikipedia.org/wiki/OBD-II_PIDs",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RaceChrono",
-      "url": "https://racechrono.com/"
+      "url": "https://racechrono.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "REVER",
-      "url": "https://www.rever.co/"
+      "url": "https://www.rever.co/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RevZilla",
-      "url": "https://www.revzilla.com/"
+      "url": "https://www.revzilla.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It logs when one part of your Garmin Zumo ride event feed has stopped checking in and probably needs fixing."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.64.6)** — Connector for 'Garmin Zumo Ride Event Sync Gap Watch' stops polling `garmin:zumo`; stale `last_seen` on `route_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.64.6, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `garmin:zumo`. Dedup with `stats latest(*) by route_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 72 for 'Garmin Zumo Ride Event Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Garmin Connect — Garmin Health API or third-party export → HEC.\n• **Subcategory context**: Motorcycles & Powersports — typical feeds: Garmin Zumo ride data (`garmin:zumo`), motorcycle OBD-II telemetry (`obd:bike`), RaceChrono laps (`racechrono:lap`), REVER rides (`rever:ride`), and RevZilla orders (`revzilla:order`)..\n• **Sourcetypes in this search**: `garmin:zumo`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Garmin Connect** events into `index=personal` with `sourcetype=garmin:zumo`.\n\n**Collection method:** Garmin Health API or third-party export → HEC.\n\n**Reference endpoint / path:** `Garmin Connect IQ / Health API activity summaries`.\n\n**Suggested poll interval:** 3600s.\n\n**Key fields to extract:** `activityType, distance, duration, startTimeGMT`.\n\n**Typical connector stack:** Garmin Zumo ride exports, motorcycle OBD-II telemetry, RaceChrono track sessions, REVER ride logs, and RevZilla order history forwarded into Splunk..\n\n**Author notes:** Track the latest event time per route name and alert when the feed is older than 72 hours.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"garmin:zumo\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=garmin:zumo earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Garmin Zumo Ride Event Sync Gap Watch** over `personal` data (primarily `sourcetype=garmin:zumo`) across the full search range. It applies numeric thresholds on `hours_since` (> 72) after max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `hours_since`, `route_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=garmin:zumo\n| stats max(_time) as last_seen by route_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>72\n| sort - hours_since\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Garmin Connect → Activities calendar. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=garmin:zumo earliest=-7d\n| head 50\n| table hours_since, route_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=garmin:zumo earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hours_since` before alerting:\n\n```spl\nindex=personal sourcetype=garmin:zumo earliest=-30d\n| stats perc50(hours_since) AS p50 perc90(hours_since) AS p90 perc99(hours_since) AS p99 max(hours_since) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.64.6: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Entities By Hours Since Last Event (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Garmin Connect — no Garmin Connect events / missing fields:** If `garmin:zumo` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Garmin Connect connector script is still running (`systemctl status` or cron log).\n\n**Garmin Connect — NULL values in extracted fields:** The Garmin Connect JSON export shape drifted — compare a raw event (`index=personal sourcetype=garmin:zumo | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Garmin Connect — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Garmin Connect — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Garmin Connect APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It logs when one part of your Garmin Zumo ride event feed has stopped checking in and probably needs fixing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

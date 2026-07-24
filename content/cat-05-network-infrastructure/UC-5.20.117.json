@@ -8,20 +8,42 @@
     "Availability"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Monitors NDP Neighbour Unreachability Detection (NUD, RFC 4861 §7.3) failures. NUD ensures that neighbours remain reachable by transitioning entries through REACHABLE→STALE→DELAY→PROBE→FAILED states. Excessive FAILED transitions indicate link or host failures that need investigation.",
-  "app": "Splunk Enterprise",
+  "exclusions": "Covers the detection logic documented for 'IPv6 NDP Neighbour Unreachability Detection (NUD) Failure Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_ndp_neighbour_unreachability_detection_nud_` (UC-5.20.117), SOC dashboard panel \"Operations — IPv6 NDP Neighbour Unreachability Detection (NUD) Failure Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.117 positive (IPv6, NDP, Neighbour, Unreachability, Detection): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `unique_neighbors` grouped by `host`, `interface`, `nud_event` satisfies `events` > 5, `unique_neighbors` > 20, or `unique_neighbors` > 5 for 'IPv6 NDP Neighbour Unreachability Detection (NUD) Failure Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.117 negative (Failure Monitoring): ingest benign `network` / `cisco:ios` events where `host`, `interface`, `nud_event` stays below `events` > 5, `unique_neighbors` > 20, or `unique_neighbors` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'IPv6 NDP Neighbour Unreachability Detection (NUD) Failure Monitoring'."
+  },
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Monitors NDP Neighbour Unreachability Detection (NUD, RFC 4861 §7.3) failures. NUD ensures that neighbours remain reachable by transitioning entries through REACHABLE→STALE→DELAY→PROBE→FAILED states. Excessive FAILED transitions indicate link or host failures that need investigation. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-4h\n  (\"%IPV6_ND\" OR \"NUD\" OR \"PROBE\" OR \"FAILED\" OR \"neighbor.*unreachable\")\n| eval nud_event=case(\n    match(_raw, \"(?i)FAILED|unreachable|no.*response\"), \"NUD_FAILED\",\n    match(_raw, \"(?i)STALE\"), \"NUD_STALE\",\n    match(_raw, \"(?i)PROBE\"), \"NUD_PROBE\",\n    1=1, \"OTHER\")\n| rex field=_raw \"neighbor\\s*(?<neighbor_ip>[0-9a-fA-F:]+)\"\n| rex field=_raw \"interface\\s*(?<interface>\\S+)\"\n| stats count as events dc(neighbor_ip) as unique_neighbors by host, interface, nud_event\n| where nud_event=\"NUD_FAILED\" AND events > 5\n| eval severity=case(\n    unique_neighbors > 20, \"HIGH — \" . unique_neighbors . \" neighbours unreachable on \" . host . \" \" . interface . \" — link or switch failure\",\n    unique_neighbors > 5, \"MEDIUM — multiple neighbours unreachable\",\n    1=1, \"LOW — isolated neighbour unreachability\")\n| sort -unique_neighbors",
-  "description": "Monitors NDP Neighbour Unreachability Detection (NUD) state transitions, specifically PROBE→FAILED transitions that indicate a previously reachable neighbour is now unreachable. High NUD failure rates on an interface indicate link failures, switch issues, or host outages that affect IPv6 connectivity.",
-  "value": "NUD is the IPv6 mechanism for confirming neighbours remain reachable — equivalent to ARP keepalives in IPv4 but more sophisticated. When NUD reports a neighbour as FAILED, IPv6 traffic to that neighbour is dropped. Monitoring NUD failures provides early detection of link problems, host failures, and switch issues before they are reported by users.",
+  "description": "Monitors UC-5.20.117 — IPv6, NDP, Neighbour, Unreachability, Detection — using `index=network` sourcetype `cisco:ios`, grouped by `host`, `interface`, `nud_event`. Outputs `unique_neighbors` each `the scheduled window`; alert when `events` > 5, `unique_neighbors` > 20, or `unique_neighbors` > 5. Primary focus: Failure Monitoring. Purpose-built for 'IPv6 NDP Neighbour Unreachability Detection (NUD) Failure Monitoring' in Operations workflows.",
+  "value": "For 'IPv6 NDP Neighbour Unreachability Detection (NUD) Failure Monitoring', UC-5.20.117 converts `unique_neighbors` on `cisco:ios` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Monitor NDP state transition logs for FAILED entries. Correlate with interface up/down events and host availability.",
   "visualization": "(1) Timechart: NUD failure rate by interface. (2) Table: unreachable neighbours. (3) Single-value: total NUD failures. (4) Correlation: NUD failures vs interface flaps.",
   "references": [
     {
       "title": "RFC 4861 — Neighbor Discovery for IP version 6 (IPv6) (§7.3 — NUD)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4861#section-7.3"
+      "url": "https://www.rfc-editor.org/rfc/rfc4861#section-7.3",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Mobile devices.** Phones and laptops that leave the network naturally cause NUD failures for their addresses. High mobility environments will have higher NUD failure rates.\n\n**Sleep/hibernate.** Devices that sleep or hibernate become NUD-unreachable until they wake. This is normal for endpoint environments.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.117)** — Planned work for 'IPv6 NDP Neighbour Unreachability Detection (NUD) Failure Monitoring' shifts `unique_neighbors` over `span=1h` while `host`, `interface`, `nud_event` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `cisco:ios`** — Scheduled automation elevates `interface` without crossing `events` > 5 for UC-5.20.117. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `interface`, `nud_event`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.117 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "arista",
     "cisco",

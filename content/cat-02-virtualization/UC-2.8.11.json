@@ -9,11 +9,17 @@
     "Configuration"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:engine\"` — provider sync: `provider` (neutron), `operation`, `http_status`, `detail`",
-  "app": "Engine logs with provider integration enabled",
+  "exclusions": "Covers the detection logic documented for 'oVirt External Network Provider (OpenStack Neutron) Sync Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_ovirt_external_network_provider_openstack_neutro` (UC-2.8.11), SOC dashboard panel \"Linux — oVirt External Network Provider (OpenStack Neutron) Sync Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.8.11 positive (oVirt, External, Network, Provider, (OpenStack): ingest synthetic events into `index=ovirt` sourcetype='ovirt:engine' where `values` grouped by `provider`, `operation` satisfies `hs` >= 400 for 'oVirt External Network Provider (OpenStack Neutron) Sync Errors'. Validate filter `match(lower(_raw), \"(?i)openstack`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.8.11 negative (Sync Errors): ingest benign `ovirt` / `ovirt:engine` events where `provider`, `operation` stays below `hs` >= 400, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 8 confirms zero alert rows for 'oVirt External Network Provider (OpenStack Neutron) Sync Errors'."
+  },
+  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:engine\"` — provider sync: `provider` (neutron), `operation`, `http_status`, `detail` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Engine logs with provider integration enabled — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ovirt sourcetype=\"ovirt:engine\" earliest=-24h\n| search match(lower(_raw), \"(?i)openstack|neutron|external.?network|provider\")\n| eval hs=tonumber(http_status)\n| where hs>=400 OR match(lower(coalesce(detail, _raw)), \"(?i)error|fail|timeout\")\n| stats count as errs, values(detail) as msgs by provider, operation\n| sort - errs",
-  "description": "External network providers couple oVirt to Neutron. Sync failures strand port bindings and break tenant networking changes.",
-  "value": "Maintains hybrid cloud networking automation and avoids manual port fixes.",
+  "description": "Identifies UC-2.8.11 — oVirt, External, Network, Provider, (OpenStack — using `index=ovirt` sourcetype `ovirt:engine`, grouped by `provider`, `operation`. Outputs `values` each `the scheduled window`; alert when `hs` >= 400. Filter chain includes filter `match(lower(_raw), \"(?i)openstack`. Purpose-built for 'oVirt External Network Provider (OpenStack Neutron) Sync Errors' in Linux workflows.",
+  "value": "UC-2.8.11 accelerates insight into Sync Errors ('oVirt External Network Provider (OpenStack Neutron) Sync Errors') by tracking `activity` on `ovirt:engine` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Tag provider name on events. Correlate with Neutron server logs if co-ingested. Page on sustained HTTP 5xx from provider APIs.",
   "visualization": "Timechart error rate; table operations; link to Neutron UC dashboards.",
   "cimModels": [
@@ -22,13 +28,33 @@
   "references": [
     {
       "title": "oVirt External Network Providers",
-      "url": "https://www.ovirt.org/develop/release-management/features/network/"
+      "url": "https://www.ovirt.org/develop/release-management/features/network/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "AOS storage metrics can look worse during background heal, curator, or disk removal work; match alerts to Nutanix task progress and maintenance windows.",
+  "knownFalsePositives": "1. **Patch Tuesday on `ovirt`** — Package managers spike `provider` metrics for 'oVirt External Network Provider (OpenStack Neutron) Sync Errors'. Correlate with apt/yum logs in the same `ovirt:engine` window.\n\n2. **Nightly backup I/O on `provider`** — Predictable `values` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ovirt:engine`** — Nagios/Zabbix polls `provider` and mimics sustained load without crossing `hs` >= 400.\n\n4. **New host onboarding** — `provider` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `provider`, `valid_until`.",
   "equipment": [
     "openstack",
     "ovirt"
+  ],
+  "equipmentModels": [
+    "openstack_generic",
+    "ovirt_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -37,5 +63,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Engine logs with provider integration enabled — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ovirt:engine into ovirt. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`hs, operation, provider`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Add a synthetic SBOM with a CISA-KEV-listed library. UC-22.56.22 MUST flag within 24h.",
-    "negativeScenario": "Pin compensating control or upgrade library; re-ingest SBOM. UC-22.56.22 MUST NOT escalate."
+    "positiveScenario": "UC-22.56.22 positive (TSA, multi, modal, supply, chain): ingest synthetic events into `index=target_index` sourcetype='sbom:cyclonedx' where `cpe_count` grouped by `vendor`, `product` satisfies detection threshold for 'TSA-SD multi-modal supply-chain SBOM ingest + risk-score continuous monitoring'. Validate lookup `ta_cisa_kev`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.56.22 negative (continuous monitoring): ingest benign `target_index` / `sbom:cyclonedx` events where `vendor`, `product` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv`. Variant 1 confirms zero alert rows for 'TSA-SD multi-modal supply-chain SBOM ingest + risk-score continuous monitoring'."
   },
   "dataSources": "CycloneDX / SPDX SBOMs ingested via HEC (`hec:sbom:cyclonedx`, `hec:sbom:spdx`). CISA KEV catalog (`ta_cisa_kev:kev`). Vendor SSA feeds. TSA vendor register (KV Store `tsa_vendor_lookup`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "(sourcetype=\"sbom:cyclonedx\" OR sourcetype=\"sbom:spdx\")\n| eval cpe = mvfilter(match(cpe, \"^cpe:\"))\n| mvexpand cpe\n| eval cve_id = lower(cve_id)\n| lookup ta_cisa_kev kev_cpe AS cpe OUTPUT kev_listed kev_cve\n| lookup tsa_vendor_lookup vendor AS vendor OUTPUT tsa_in_scope deployment_modality\n| where tsa_in_scope=true AND kev_listed=\"true\"\n| lookup tsa_sbom_exception_lookup vendor AS vendor cpe AS cpe OUTPUT exception_until\n| where isnull(exception_until) OR exception_until < now()\n| stats values(kev_cve) as kev_cves values(deployment_modality) as deployment_modality dc(cpe) as cpe_count by vendor product\n| table vendor product deployment_modality cpe_count kev_cves",
-  "description": "Joins vendor SBOMs with CISA KEV; surfaces KEV-listed components present in vendor-supplied artifacts deployed on TSA-regulated assets.",
-  "value": "Vendor-supply-chain risk is the single highest TSA SD evolution direction. This UC builds the SBOM evidence early.",
+  "description": "Detects continuous monitoring activity in UC-22.56.22 ('TSA-SD multi-modal supply-chain SBOM ingest + risk-score continuous monitoring') from `index=target_index` sourcetype `sbom:cyclonedx`. Rolls up `cpe_count` by `vendor`, `product` across `the scheduled window` and pages when configured threshold. Uses lookup `ta_cisa_kev`. Compliance operators treat UC-22.56.22 as the canonical signal.",
+  "value": "Operators running UC-22.56.22 on `sbom:cyclonedx` feeds shorten triage for continuous monitoring tied to 'TSA-SD multi-modal supply-chain SBOM ingest + risk-score continuous monitoring', lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Ingest SBOMs via HEC. (2) Populate `tsa_vendor_lookup`. (3) Schedule UC-22.56.22 daily. (4) Build the `TSA Supply-Chain SBOM` dashboard.",
   "visualization": "(Panel 1) KEV-listed components by vendor. (Panel 2) New SBOM ingest trend. (Panel 3) Vendor scoring. (Panel 4) Compensating-control coverage.",
   "cimModels": [
@@ -47,18 +47,26 @@
   "references": [
     {
       "title": "CISA Secure-by-Design / Software Supply Chain",
-      "url": "https://www.cisa.gov/secure-software"
+      "url": "https://www.cisa.gov/secure-software",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NTIA SBOM minimum elements",
-      "url": "https://www.ntia.gov/files/ntia/publications/sbom_minimum_elements_report.pdf"
+      "url": "https://www.ntia.gov/files/ntia/publications/sbom_minimum_elements_report.pdf",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TSA Surface NPRM (89 FR 88488)",
-      "url": "https://www.federalregister.gov/documents/2024/11/07/2024-25712/enhancing-surface-cyber-risk-management"
+      "url": "https://www.federalregister.gov/documents/2024/11/07/2024-25712/enhancing-surface-cyber-risk-management",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **CPE collision**: same CPE may refer to different deployment contexts; tag with `cpe_context` in vendor register.\n2. **Vendor SBOM hygiene**: some vendors ship low-quality SBOMs; tag with `sbom_quality_score`.\n\n**Suppression mechanism**: KV Store `tsa_sbom_exception_lookup`.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD multi-modal supply-chain SBOM ingest + risk-score continuous monitoring' (UC-22.56.22) on `vendor` during scheduled clause TSA-SCAS-supply-chain-sbom sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `sbom:cyclonedx` without crossing evidence threshold. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `vendor`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `vendor` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `vendor`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1195"
   ],
@@ -85,7 +93,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- HEC tokens for SBOM ingest.\n- CISA KEV TA refreshed daily.\n\n## Step 1 — Define vendor register\n\n```ini\n[tsa_vendor_lookup]\nfield.vendor = string\nfield.product = string\nfield.tsa_in_scope = string\nfield.deployment_modality = string\nfield.sbom_quality_score = number\nfield.contract_id = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.22: TSA Supply-Chain SBOM]\ncron_schedule = 13 11 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.22,reg=TSA-Surface,clause=TSA-SD-multi-supply-chain-SBOM\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**KEV-listed SBOM hit on TSA-deployed asset** (owner: Supply-Chain Risk Lead, severity P2):\n1. Within 7 days: engage vendor for patched version.\n2. Within 30 days: deploy patch or compensating control.\n3. Within 60 days: certify resolution to CC.\n\n## Step 4 — Troubleshooting\n\n- **SBOM format drift**: vendors may submit non-conformant SBOMs; tighten ingestion validation.\n- **Vendor-supplied vs build-time SBOM**: distinguish in metadata.\n\n**TSA-specific failure modes**:\n- **Open-source dependency on aviation/rail control-software**: tighter scrutiny; engage vendor + vendor's upstream.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- HEC tokens for SBOM ingest.\n- CISA KEV TA refreshed daily.\n\n## Step 1 — Define vendor register\n\n```ini\n[tsa_vendor_lookup]\nfield.vendor = string\nfield.product = string\nfield.tsa_in_scope = string\nfield.deployment_modality = string\nfield.sbom_quality_score = number\nfield.contract_id = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.22: TSA Supply-Chain SBOM]\ncron_schedule = 13 11 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.22,reg=TSA-Surface,clause=TSA-SD-multi-supply-chain-SBOM\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**KEV-listed SBOM hit on TSA-deployed asset** (owner: Supply-Chain Risk Lead, severity P2):\n1. Within 7 days: engage vendor for patched version.\n2. Within 30 days: deploy patch or compensating control.\n3. Within 60 days: certify resolution to CC.\n\n## Step 4 — Troubleshooting\n\n- **SBOM format drift**: vendors may submit non-conformant SBOMs; tighten ingestion validation.\n- **Vendor-supplied vs build-time SBOM**: distinguish in metadata.\n\n**TSA-specific failure modes**:\n- **Open-source dependency on aviation/rail control-software**: tighter scrutiny; engage vendor + vendor's upstream.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=sbom:cyclonedx, sbom:spdx into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`kev_cpe, kev_listed kev_cve, product, tsa_in_scope deployment_modality`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Every important piece of software we use comes with an 'ingredient list'. We compare that list against the world's known cyber-weakness list — if anything matches, we fix it before an attacker uses it.",
   "prerequisiteUseCases": [
     "UC-22.56.6"

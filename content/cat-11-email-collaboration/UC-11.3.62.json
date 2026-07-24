@@ -8,27 +8,48 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=proofpoint_tap_siem` TAP message events with `classification`",
+  "exclusions": "Covers the detection logic documented for 'Proofpoint TAP Phishing Classification Volume by Sender Domain' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_proofpoint_tap_phishing_classification_volume_by` (UC-11.3.62), SOC dashboard panel \"Operations — Proofpoint TAP Phishing Classification Volume by Sender Domain\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.3.62 positive (Proofpoint, TAP, Phishing, Classification, Volume): ingest synthetic events into `index=email` sourcetype='proofpoint_tap_siem' where `count` grouped by `dom` satisfies -7d for 'Proofpoint TAP Phishing Classification Volume by Sender Domain'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.3.62 negative (Sender Domain): ingest benign `email` / `proofpoint_tap_siem` events where `dom` stays below -7d, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Proofpoint TAP Phishing Classification Volume by Sender Domain'."
+  },
+  "dataSources": "`sourcetype=proofpoint_tap_siem` TAP message events with `classification` Indexes: email. Sourcetypes: proofpoint_tap_siem. Key fields: dom. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Proofpoint TAP Modular Input for Splunk (Splunkbase 3681)",
   "spl": "index=email sourcetype=\"proofpoint_tap_siem\" earliest=-7d\n| eval cls=coalesce(classification, Classification, \"\")\n| where cls=\"Phish\"\n| eval from_addr=coalesce(sender, Sender, fromAddress, FromAddress, \"\")\n| eval dom=replace(from_addr, \"^[^@]+@\", \"\")\n| stats count by dom\n| sort -count",
-  "description": "Aggregating Proofpoint TAP events classified as Phish by sending domain highlights persistent phishing infrastructure, compromised senders, and bulk campaigns targeting the tenant.",
-  "value": "Turns TAP’s condemnation metadata into domain-level situational awareness for threat intel feeds, firewall blocks, and executive reporting without exporting CSVs from Proofpoint.",
+  "description": "Alerts on UC-11.3.62 — Proofpoint, TAP, Phishing, Classification, Volume — using `index=email` sourcetype `proofpoint_tap_siem`, grouped by `dom`. Outputs `count` each `the scheduled window`; alert when -7d. Primary focus: Sender Domain. Purpose-built for 'Proofpoint TAP Phishing Classification Volume by Sender Domain' in Operations workflows.",
+  "value": "UC-11.3.62 accelerates insight into Sender Domain ('Proofpoint TAP Phishing Classification Volume by Sender Domain') by tracking `activity` on `proofpoint_tap_siem` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Ensure `classification` is extracted; multi-threat messages may list multiple classes—use `mvexpand` on `threatsInfoMap` if counts look low. Normalize `sender` formats (envelope vs header). Join top domains to WHOIS or intel lookups. Schedule daily with adaptive thresholds for seasonal spikes.",
   "visualization": "Bar chart (top domains), pie (internal vs external domains), timechart of phish events.",
   "dataModelAcceleration": "Not applicable; primary SPL uses raw or vendor-normalized event fields.",
   "references": [
     {
       "title": "Proofpoint TAP Modular Input for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3681"
+      "url": "https://splunkbase.splunk.com/app/3681",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Proofpoint TAP SIEM API",
-      "url": "https://help.proofpoint.com/Threat_Insight_Dashboard/API_Documentation/SIEM_API"
+      "url": "https://help.proofpoint.com/Threat_Insight_Dashboard/API_Documentation/SIEM_API",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Campaigns from legitimate senders in risky verticals; pair with allow lists where appropriate.",
+  "knownFalsePositives": "1. **Maintenance window on `email` (UC-11.3.62)** — Planned work for 'Proofpoint TAP Phishing Classification Volume by Sender Domain' shifts `count` over `span=1h` while `dom` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `proofpoint_tap_siem`** — Scheduled automation elevates `cls` without crossing configured threshold for UC-11.3.62. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dom`** — Health checks in `email` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `proofpoint_tap_siem`** — First 48h baseline for UC-11.3.62 on `dom` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dom`, `exception_reason`, `valid_until`.",
   "equipment": [
     "proofpoint"
+  ],
+  "equipmentModels": [
+    "proofpoint_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -37,5 +58,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch how Proofpoint treats and rewrites mail, so threats and DLP events line up with what the security team already sees in their console."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Proofpoint TAP Modular Input for Splunk (Splunkbase 3681)). Enable the modular input or HEC token that writes sourcetype=proofpoint_tap_siem into email. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dom`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how Proofpoint treats and rewrites mail, so threats and DLP events line up with what the security team already sees in their console.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

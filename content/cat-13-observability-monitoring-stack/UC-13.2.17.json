@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=itsi_notable:audit` / notable audit logs",
-  "app": "Splunk ITSI, ES correlation (if linked)",
+  "exclusions": "Covers the detection logic documented for 'Notable Event Suppression Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_notable_event_suppression_audit` (UC-13.2.17), SOC dashboard panel \"Operations — Notable Event Suppression Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-13.2.17 positive (Notable, Event, Suppression, Audit): ingest synthetic events into `index=itsi_notable` sourcetype='itsi:notable_audit' where `count` grouped by `user`, `rule_id`, `reason` satisfies detection threshold for 'Notable Event Suppression Audit'. Validate filter `action IN (\"suppress\",\"close\",\"suppress_episode\")`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-13.2.17 negative (Suppression Audit): ingest benign `itsi_notable` / `itsi:notable_audit` events where `user`, `rule_id`, `reason` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Notable Event Suppression Audit'."
+  },
+  "dataSources": "`index=itsi_notable:audit` / notable audit logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk ITSI, ES correlation (if linked) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsi_notable:audit OR index=notable sourcetype=\"itsi:notable_audit\"\n| search action IN (\"suppress\",\"close\",\"suppress_episode\")\n| stats count by user, rule_id, reason\n| sort -count",
-  "description": "Over-suppression hides incidents; audit ensures suppress rules and analyst actions are justified.",
-  "value": "Over-suppression hides incidents; audit ensures suppress rules and analyst actions are justified.",
+  "description": "Monitors 'Notable Event Suppression Audit' (UC-13.2.17) using `index=itsi_notable` sourcetype `itsi:notable_audit` via filter `action IN (\"suppress\",\"close\",\"suppress_episode\")` by aggregating `count` grouped by `user`, `rule_id`, `reason` over `the scheduled window` and alerting when configured threshold. Keywords: Notable, Event, Suppression, Audit. Focuses on Suppression Audit behaviour so operations teams can triage UC-13.2.17 without ad-hoc log review.",
+  "value": "UC-13.2.17 accelerates insight into Suppression Audit ('Notable Event Suppression Audit') by tracking `activity` on `itsi:notable_audit` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Ingest notable audit events with user, rule, and reason. Alert on high-volume suppression by single user or new rule. Review monthly for policy compliance.",
   "visualization": "Table (top suppressors), Bar chart (suppressions by rule), Timeline (suppression events).",
   "cimModels": [
@@ -22,12 +28,35 @@
   "references": [
     {
       "title": "Splunk ITSI",
-      "url": "https://splunkbase.splunk.com/app/1841"
+      "url": "https://splunkbase.splunk.com/app/1841",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Security (Splunkbase 263)",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Episode and score noise from content changes, seasonality, and who is in scope. We check maintenance and drill paths before we escalate.",
+  "knownFalsePositives": "1. **Maintenance window on `itsi_notable` (UC-13.2.17)** — Planned work for 'Notable Event Suppression Audit' shifts `count` over `span=1h` while `user`, `rule_id`, `reason` remains in-scope. Applies filter `action IN (\"suppress\",\"close\",\"suppress_episode\")`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `itsi:notable_audit`** — Scheduled automation elevates `rule_id` without crossing configured threshold for UC-13.2.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`, `rule_id`, `reason`** — Health checks in `itsi_notable` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `itsi:notable_audit`** — First 48h baseline for UC-13.2.17 on `user` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "equipment": [
     "itsi"
+  ],
+  "equipmentModels": [
+    "itsi_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Enterprise Security",
@@ -37,6 +66,8 @@
       "note": "ITSI"
     }
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI, ES correlation (if linked).\n• Ensure the following data sources are available: `index=itsi_notable:audit` / notable audit logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest notable audit events with user, rule, and reason. Alert on high-volume suppression by single user or new rule. Review monthly for policy compliance.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsi_notable:audit OR index=notable sourcetype=\"itsi:notable_audit\"\n| search action IN (\"suppress\",\"close\",\"suppress_episode\")\n| stats count by user, rule_id, reason\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Notable Event Suppression Audit** — Over-suppression hides incidents; audit ensures suppress rules and analyst actions are justified.\n\nDocumented **Data sources**: `index=itsi_notable:audit` / notable audit logs. **App/TA** (typical add-on context): Splunk ITSI, ES correlation (if linked). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsi_notable:audit, notable; **sourcetype**: itsi:notable_audit. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsi_notable:audit, index=notable, sourcetype=\"itsi:notable_audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by user, rule_id, reason** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search when you know the service or episode context. Compare with the ITSI Service Analyzer, episode or notable views, and Glass Tables or drill-downs for the same time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (top suppressors), Bar chart (suppressions by rule), Timeline (suppression events).",
-  "grandmaExplanation": "We review when alerts are hushed on purpose so we can balance a quieter channel with not hiding a real problem."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI, ES correlation (if linked).\n• Ensure the following data sources are available: `index=itsi_notable:audit` / notable audit logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest notable audit events with user, rule, and reason. Alert on high-volume suppression by single user or new rule. Review monthly for policy compliance.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsi_notable:audit OR index=notable sourcetype=\"itsi:notable_audit\"\n| search action IN (\"suppress\",\"close\",\"suppress_episode\")\n| stats count by user, rule_id, reason\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Notable Event Suppression Audit** — Over-suppression hides incidents; audit ensures suppress rules and analyst actions are justified.\n\nDocumented **Data sources**: `index=itsi_notable:audit` / notable audit logs. **App/TA** (typical add-on context): Splunk ITSI, ES correlation (if linked). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsi_notable:audit, notable; **sourcetype**: itsi:notable_audit. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsi_notable:audit, index=notable, sourcetype=\"itsi:notable_audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by user, rule_id, reason** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search when you know the service or episode context. Compare with the ITSI Service Analyzer, episode or notable views, and Glass Tables or drill-downs for the same time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (top suppressors), Bar chart (suppressions by rule), Timeline (suppression events).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk ITSI, ES correlation (if linked) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=itsi:notable_audit into itsi_notable, notable. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`reason, rule_id, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We review when alerts are hushed on purpose so we can balance a quieter channel with not hiding a real problem.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=devops` `sourcetype=argocd:applicationset` (controller reconcile events, status.conditions), optional `sourcetype=argocd:application` for join",
-  "app": "Splunk Add-on for Argo CD, Argo CD ApplicationSet controller logs to HEC",
+  "exclusions": "Covers the detection logic documented for 'Argo CD ApplicationSet Controller Drift — Generated Applications vs Cluster Reality' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_argo_cd_applicationset_controller_drift_generate` (UC-12.7.1), SOC dashboard panel \"Operations — Argo CD ApplicationSet Controller Drift — Generated Applications vs Cluster Reality\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.7.1 positive (Argo, ApplicationSet, Controller, Drift, Generated): ingest synthetic events into `index=devops` sourcetype='argocd:applicationset' where `apps_claimed` grouped by `applicationset_name`, `namespace`, `cluster` satisfies detection threshold for 'Argo CD ApplicationSet Controller Drift — Generated Applications vs Cluster Reality'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.7.1 negative (Cluster Reality): ingest benign `devops` / `argocd:applicationset` events where `applicationset_name`, `namespace`, `cluster` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Argo CD ApplicationSet Controller Drift — Generated Applications vs Cluster Reality'."
+  },
+  "dataSources": "`index=devops` `sourcetype=argocd:applicationset` (controller reconcile events, status.conditions), optional `sourcetype=argocd:application` for join Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Argo CD, Argo CD ApplicationSet controller logs to HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"argocd:applicationset\"\n| eval gen_count=mvcount(mvdedup(split(mvjoin(generated_apps, \",\"), \",\")))\n| eval ready=if(match(lower(status_phase),\"(?i)healthy|synced|successful\"),1,0)\n| where ready=0 OR match(lower(message),\"(?i)error|failed|unable to generate\")\n| stats latest(_time) as last_event, values(status_phase) as phases, latest(message) as msg, max(gen_count) as apps_claimed by applicationset_name, namespace, cluster\n| sort -last_event",
-  "description": "ApplicationSet is the factory for Argo CD Applications; when the controller cannot materialize expected apps or reports degraded conditions, new environments and tenants silently stop receiving GitOps coverage. Tracking reconcile errors and generated-app cardinality catches template mistakes, generator misconfigurations, and permission regressions before clusters run understaffed.",
-  "value": "Prevents missing Application resources that would leave namespaces without sync policies, which otherwise surface only as unexplained deployment stalls or manual hotfixes.",
+  "description": "Identifies UC-12.7.1 — Argo, ApplicationSet, Controller, Drift, Generated — using `index=devops` sourcetype `argocd:applicationset`, grouped by `applicationset_name`, `namespace`, `cluster`. Outputs `apps_claimed` each `the scheduled window`; alert when configured threshold. Primary focus: Cluster Reality. Purpose-built for 'Argo CD ApplicationSet Controller Drift — Generated Applications vs Cluster Reality' in Operations workflows.",
+  "value": "Operators running UC-12.7.1 on `argocd:applicationset` feeds shorten triage for Cluster Reality tied to 'Argo CD ApplicationSet Controller Drift — Generated Applications vs Cluster Reality', lowering operational risk and delayed incident response.",
   "implementation": "Enable structured logging or HEC events from the ApplicationSet controller with fields such as applicationset_name, generated_apps, status_phase, and message. Normalize multi-value app lists. Schedule hourly; join to argocd:application for orphan detection if an ApplicationSet claims N apps but fewer exist with matching labels.",
   "visualization": "Single-value (open ApplicationSet faults), timechart of error rate by cluster, table (ApplicationSet × phase × message).",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "Argo CD — ApplicationSet",
-      "url": "https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/"
+      "url": "https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Drift from manual console fixes during incidents, automated tool changes, or planned config updates outside IaC.",
+  "knownFalsePositives": "1. **Maintenance window on `devops` (UC-12.7.1)** — Planned work for 'Argo CD ApplicationSet Controller Drift — Generated Applications vs Cluster Reality' shifts `apps_claimed` over `span=1h` while `applicationset_name`, `namespace`, `cluster` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `argocd:applicationset`** — Scheduled automation elevates `namespace` without crossing configured threshold for UC-12.7.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `applicationset_name`, `namespace`, `cluster`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `argocd:applicationset`** — First 48h baseline for UC-12.7.1 on `applicationset_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `applicationset_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "argocd"
+  ],
+  "equipmentModels": [
+    "argocd_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-01",
@@ -42,5 +63,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch GitOps sync and Argo signals so clusters stay aligned with the desired configuration in Git."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Argo CD, Argo CD ApplicationSet controller logs to HEC — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=argocd:applicationset into devops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`applicationset_name, cluster, namespace, ready`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch GitOps sync and Argo signals so clusters stay aligned with the desired configuration in Git.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

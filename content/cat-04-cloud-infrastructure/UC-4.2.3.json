@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=mscs:azure:auditlog`, Entra ID audit logs",
-  "app": "`Splunk_TA_microsoft-cloudservices`",
+  "exclusions": "Covers the detection logic documented for 'Entra ID Privilege Escalation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_entra_id_privilege_escalation` (UC-4.2.3), SOC dashboard panel \"Operations — Entra ID Privilege Escalation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-4.2.3 positive (Entra, Privilege, Escalation): ingest synthetic events into `index=azure` sourcetype='mscs:azure:auditlog' where `count` grouped by `entity` satisfies detection threshold for 'Entra ID Privilege Escalation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.2.3 negative (Privilege Escalation): ingest benign `azure` / `mscs:azure:auditlog` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Entra ID Privilege Escalation'."
+  },
+  "dataSources": "`sourcetype=mscs:azure:auditlog`, Entra ID audit logs Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=azure sourcetype=\"mscs:azure:auditlog\" activityDisplayName=\"Add member to role\"\n| spath output=role path=targetResources{}.modifiedProperties{}.newValue\n| table _time initiatedBy.user.userPrincipalName targetResources{}.userPrincipalName role\n| sort -_time",
-  "description": "Privileged role assignments (Global Admin, Privileged Role Admin) grant extreme power. Unauthorized assignments mean full tenant compromise.",
-  "value": "Privileged role assignments (Global Admin, Privileged Role Admin) grant extreme power. Unauthorized assignments mean full tenant compromise.",
+  "description": "Identifies risk tied to Entra, Privilege, Escalation through UC-4.2.3 on `index=azure` sourcetype `mscs:azure:auditlog`. Summarises `count` grouped by `entity` across `the scheduled window` before applying configured threshold. Operators tune 'Entra ID Privilege Escalation' using UC-4.2.3 runbook steps.",
+  "value": "Tracking `activity` via UC-4.2.3 on `mscs:azure:auditlog` feeds improves response to 'Entra ID Privilege Escalation' and reduces operational risk and delayed incident response.",
   "implementation": "Forward Entra ID audit logs. Create critical alerts on role assignments for Global Administrator, Privileged Role Administrator, and Exchange Administrator. Correlate with PIM activation events.",
   "visualization": "Events list (critical), Table (who assigned what to whom), Timeline.",
   "cimModels": [
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110"
+      "url": "https://splunkbase.splunk.com/app/3110",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Some risky scores come from new devices, working from home, or a partner logging in the same way we do. We do not want every medium flag to page us; we pair higher scores with new locations, odd hours, or multiple clouds before we act.",
+  "knownFalsePositives": "1. **Maintenance window on `azure` (UC-4.2.3)** — Planned work for 'Entra ID Privilege Escalation' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mscs:azure:auditlog`** — Scheduled automation elevates `src` without crossing configured threshold for UC-4.2.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:auditlog`** — First 48h baseline for UC-4.2.3 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1098.003",
     "T1078.004"
@@ -40,6 +58,17 @@
     "exchange",
     "m365"
   ],
+  "equipmentModels": [
+    "azure_generic",
+    "exchange_generic",
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices`.\n• Ensure the following data sources are available: `sourcetype=mscs:azure:auditlog`, Entra ID audit logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward Entra ID audit logs. Create critical alerts on role assignments for Global Administrator, Privileged Role Administrator, and Exchange Administrator. Correlate with PIM activation events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=azure sourcetype=\"mscs:azure:auditlog\" activityDisplayName=\"Add member to role\"\n| spath output=role path=targetResources{}.modifiedProperties{}.newValue\n| table _time initiatedBy.user.userPrincipalName targetResources{}.userPrincipalName role\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Entra ID Privilege Escalation** — Privileged role assignments (Global Admin, Privileged Role Admin) grant extreme power. Unauthorized assignments mean full tenant compromise.\n\nDocumented **Data sources**: `sourcetype=mscs:azure:auditlog`, Entra ID audit logs. **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: azure; **sourcetype**: mscs:azure:auditlog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=azure, sourcetype=\"mscs:azure:auditlog\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts structured paths (JSON/XML) with `spath`.\n• Pipeline stage (see **Entra ID Privilege Escalation**): table _time initiatedBy.user.userPrincipalName targetResources{}.userPrincipalName role\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  by All_Changes.user All_Changes.object_category All_Changes.action span=1h\n| sort -count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Entra ID Privilege Escalation** — Privileged role assignments (Global Admin, Privileged Role Admin) grant extreme power.\n\nIf you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` on the `Change` data model (`All_Changes` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.\n\n• Uses `sort` to rank results; add `head` to limit the table.\n\nEnable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Events list (critical), Table (who assigned what to whom), Timeline.",
-  "grandmaExplanation": "Privileged role assignments (Global Admin, Privileged Role Admin) grant extreme power."
+  "grandmaExplanation": "Privileged role assignments (Global Admin, Privileged Role Admin) grant extreme power.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

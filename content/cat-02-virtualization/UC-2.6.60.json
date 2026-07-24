@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Identity Provider (SAML/AAD) Integration Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_identity_provider_saml_aad_integration_failures` (UC-2.6.60), SOC dashboard panel \"Linux — Identity Provider (SAML/AAD) Integration Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.60 positive (Identity, Provider, (SAML, AAD), Integration): ingest synthetic events into `index=xd` sourcetype='citrix:workspace:saml:diag' where `count` grouped by `userPrincipalName`, `result`, `errorCode`, `src` satisfies detection threshold for 'Identity Provider (SAML/AAD) Integration Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.60 negative (Integration Failures): ingest benign `xd` / `citrix:workspace:saml:diag` events where `userPrincipalName`, `result`, `errorCode`, `src` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 7 confirms zero alert rows for 'Identity Provider (SAML/AAD) Integration Failures'."
+  },
   "dataSources": "`index=xd` `sourcetype=\"citrix:cloud:connector:saml\"` or `sourcetype=\"citrix:workspace:saml:diag\"` with `error_code`, `idp_name`, `cert_subject`, `assertion_user`; `index=azure` `sourcetype=\"azure:aad:signin\"` for conditional access failures, certificate-based auth issues, and UPN mismatch; `index=citrix` `sourcetype=\"citrix:analytics:security\"` optional risk layer Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
   "app": "Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated analytics data. For raw Cloud service data, use the Citrix Cloud System Log Add-on (open-source, see citrix/cc-system-log-addon-for-splunk repository) or poll the Monitor Service OData API (https://api.cloud.com/monitorodata) with a custom scripted input.",
   "spl": "index=xd (sourcetype=\"citrix:workspace:saml:diag\" OR sourcetype=\"citrix:cloud:connector:saml\")\n| eval err=lower(coalesce(error_code, error, message, \"\")), src=\"citrix_saml\", user=coalesce(user_principal, saml_nameid, subject)\n| where like(err, \"%cert%\") OR like(err, \"%signature%\") OR like(err, \"%nameid%\") OR like(err, \"%audience%\") OR like(err, \"%mismatch%\") OR match(err, \"(AADSTS|MSIS)\")\n| eval userPrincipalName=user, errorCode=err\n| append [\n  search index=azure sourcetype=\"azure:aad:signin\" result!=\"Success\"\n  (resourceDisplayName=\"*citrix*\" OR resourceDisplayName=\"*Citrix*\" OR appDisplayName=\"Citrix Workspace\")\n  | eval src=\"entra_signin\"\n  | fields _time, userPrincipalName, result, conditionalAccessStatus, errorCode, src\n  ]\n| stats count by userPrincipalName, result, errorCode, src\n| sort - count",
-  "description": "Workspace and StoreFront sign-ins that rely on SAML or Microsoft Entra ID can fail when federation certificates roll without coordination, when conditional access policies block legacy protocols, or when NameID/UPN mapping between directories drifts. Users experience intermittent or total login failure while infrastructure monitors still show green VDAs. Correlating Citrix-side assertion errors with Entra sign-in results isolates the owning team (identity vs Citrix) quickly and prevents prolonged outages during certificate and trust changes.",
-  "value": "Workspace and StoreFront sign-ins that rely on SAML or Microsoft Entra ID can fail when federation certificates roll without coordination, when conditional access policies block legacy protocols, or when NameID/UPN mapping between directories drifts. Users experience intermittent or total login failure while infrastructure monitors still show green VDAs. Correlating Citrix-side assertion errors with Entra sign-in results isolates the owning team (identity vs Citrix) quickly and prevents prolonged outages during certificate and trust changes.",
+  "description": "Detects UC-2.6.60 — Identity, Provider, (SAML, AAD), Integration — using `index=xd` sourcetype `citrix:workspace:saml:diag`, grouped by `userPrincipalName`, `result`, `errorCode`, `src`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Integration Failures. Purpose-built for 'Identity Provider (SAML/AAD) Integration Failures' in Linux workflows.",
+  "value": "UC-2.6.60 operationalises 'Identity Provider (SAML/AAD) Integration Failures' against `citrix:workspace:saml:diag` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
   "implementation": "Ingest Citrix Workspace or connector SAML diagnostic logs to a dedicated sourcetype and map certificate expiry fields. Ingest Microsoft Entra sign-in logs for applications matching Citrix. Build a time-synced join on user and a five-minute window, not a naive transaction. Alert when SAML signature or certificate errors exceed a small baseline, or when Entra returns conditional access block codes for the Citrix app only. Add change tickets for cert rotations with automatic suppression. Document IdP cert fingerprints in a lookup for drift detection. Review privacy before storing full assertion bodies.",
   "visualization": "Side-by-side timeline: Citrix SAML errors versus Entra failure codes; table of UPNs with both streams; single value of unique users blocked in one hour.",
   "cimModels": [
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "Citrix Cloud identity providers and authentication",
-      "url": "https://docs.citrix.com/en-us/citrix-cloud/"
+      "url": "https://docs.citrix.com/en-us/citrix-cloud/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk add-on: Microsoft Cloud Services (Entra / Azure data)",
-      "url": "https://splunkbase.splunk.com/app/3110"
+      "url": "https://splunkbase.splunk.com/app/3110",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `xd`** — Package managers spike `userPrincipalName` metrics for 'Identity Provider (SAML/AAD) Integration Failures'. Correlate with apt/yum logs in the same `citrix:workspace:saml:diag` window.\n\n2. **Nightly backup I/O on `userPrincipalName`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `citrix:workspace:saml:diag`** — Nagios/Zabbix polls `userPrincipalName` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `userPrincipalName` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `userPrincipalName`, `valid_until`.",
   "mitreAttack": [
     "T1556"
   ],
@@ -38,7 +56,18 @@
     "citrix",
     "m365"
   ],
+  "equipmentModels": [
+    "azure_generic",
+    "citrix_generic",
+    "m365_generic"
+  ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites\n• Entra app registrations for Citrix with sign-in logging to Splunk; Citrix identity provider configuration documented; time synchronized across data centers.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOnboard both feeds before enabling loud alerts. Normalize user keys: prefer `userPrincipalName` on both sides when possible.\n\nStep 2 — Create the search and alert\nStart with a daily top-errors report, then add correlation. Tune out pentest and known break-glass accounts with a lookup.\n\nStep 3 — Validate\nIn a test tenant, run a lab certificate swap and assert both index families record related failures. Restore the trust and confirm return to normal.\n\nStep 4 — Operationalize\nAdd this flow to the identity change calendar; require Citrix and identity joint ownership for cert updates.",
-  "grandmaExplanation": "We line up the sign-in story from the identity side with the one from the virtual-workspace side, so when folks cannot log in you see whether a trust certificate, a policy block, or a name mismatch is the real villain."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Entra app registrations for Citrix with sign-in logging to Splunk; Citrix identity provider configuration documented; time synchronized across data centers.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOnboard both feeds before enabling loud alerts. Normalize user keys: prefer `userPrincipalName` on both sides when possible.\n\nStep 2 — Create the search and alert\nStart with a daily top-errors report, then add correlation. Tune out pentest and known break-glass accounts with a lookup.\n\nStep 3 — Validate\nIn a test tenant, run a lab certificate swap and assert both index families record related failures. Restore the trust and confirm return to normal.\n\nStep 4 — Operationalize\nAdd this flow to the identity change calendar; require Citrix and identity joint ownership for cert updates.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated analytics data. For raw Cloud service data, use the Citrix Cloud System Log Add-on (open-source, see citrix/cc-system-log-addon-for-splunk repository) or poll the Monitor Service OData API (https://api.cloud.com/monitorodata) with a custom scripted input.). Enable the modular input or HEC token that writes sourcetype=citrix:workspace:saml:diag, citrix:cloud:connector:saml, azure:aad:signin into xd, azure. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`errorCode, result, src, userPrincipalName`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We line up the sign-in story from the identity side with the one from the virtual-workspace side, so when folks cannot log in you see whether a trust certificate, a policy block, or a name mismatch is the real villain.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

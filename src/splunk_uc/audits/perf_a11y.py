@@ -159,13 +159,13 @@ _PERF_BUDGETS: list[PerfBudget] = [
     },
     {
         "file": "dist/catalog.json",
-        "budget_bytes": 125_829_120,  # 120 MiB
+        "budget_bytes": 167_772_160,  # 160 MiB
         "tier": "generated-data",
         "note": (
             "Full JSON catalogue for AI agents / scripted consumers. "
-            "Budget bumped to 120 MiB in v8.19.0 after cat-25 variable-depth "
-            "expansion grew the catalogue past 14,800 UCs (~117 MiB). "
-            "Previously 110 MiB in v8.17.0 (~11,600 UCs)."
+            "Budget bumped to 160 MiB in v8.23.0 after hand-craft quality-pass "
+            "enrichment grew the catalogue past 148 MiB (~14,876 UCs). "
+            "Previously 120 MiB in v8.19.0 (~117 MiB)."
         ),
     },
     {

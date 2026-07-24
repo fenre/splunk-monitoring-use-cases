@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=linux_audit` (`sched_setaffinity` / `SCHED_SETAFFINITY` syscall rules)",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Covers the detection logic documented for 'Process CPU Affinity Changes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_process_cpu_affinity_changes` (UC-1.1.83), SOC dashboard panel \"Linux — Process CPU Affinity Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.83 positive (Process, CPU, Affinity, Changes): ingest synthetic events into `index=os` sourcetype='linux_audit' where `count` grouped by `host`, `pid`, `comm` satisfies `count` > 0 for 'Process CPU Affinity Changes'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.83 negative (Affinity Changes): ingest benign `os` / `linux_audit` events where `host`, `pid`, `comm` stays below `count` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 13 confirms zero alert rows for 'Process CPU Affinity Changes'."
+  },
+  "dataSources": "`sourcetype=linux_audit` (`sched_setaffinity` / `SCHED_SETAFFINITY` syscall rules) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=linux_audit (syscall=204 OR syscall=sched_setaffinity OR \"SCHED_SETAFFINITY\")\n| stats count by host, pid, comm\n| where count>0",
-  "description": "Aggregates **auditd** events for **sched_setaffinity**-class syscalls so you can review who pins threads to CPUs—common for **HFT** tuning, rare for random shells.",
-  "value": "Unexpected affinity changes after a compromise can hide **crypto** miners on a subset of cores; for **HPC** estates, this is also how you prove apps respect your **NUMA** policy.",
+  "description": "Detects UC-1.1.83 — Process, CPU, Affinity, Changes — using `index=os` sourcetype `linux_audit`, grouped by `host`, `pid`, `comm`. Outputs `count` each `the scheduled window`; alert when `count` > 0. Primary focus: Affinity Changes. Purpose-built for 'Process CPU Affinity Changes' in Linux workflows.",
+  "value": "UC-1.1.83 gives Linux teams earlier visibility into Affinity Changes through `linux_audit` feeds, lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Syscall numbers vary by arch—replace `204` with your **ausyscall** output for **x86_64** vs **aarch64**. Prefer a stable `key=cpu_affinity` in **auditd** and search on `key` once you add it.",
   "visualization": "Table, Alert",
   "cimModels": [
@@ -21,17 +27,38 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Legit **numactl** orchestration; **Java** runtimes that set affinity on start; **kubernetes** device plugins—add allow **lookup** on **exe**.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Process CPU Affinity Changes'. Correlate with apt/yum logs in the same `linux_audit` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_audit`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• **auditd** syscall rules; be mindful of **performance** load on syscall=all systems—use **filters**.\n\n**CIM** — **N/A**; map to a custom **Change** or **Endpoint** story only if your team standardizes it.\n\n\nStep 3 — Validate\n`ausearch -sc sched_setaffinity` (or your key) on the host; **taskset -p** on the **pid** when it is still alive.\n\nStep 4 — Operationalize\nPair with the **NUMA imbalance** use case when both fire for the same host.\n\n",
-  "grandmaExplanation": "We help you know when something tries to pin programs to specific processor cores, which is normal for some big number crunching, and odd for everyday small programs."
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• **auditd** syscall rules; be mindful of **performance** load on syscall=all systems—use **filters**.\n\n**CIM** — **N/A**; map to a custom **Change** or **Endpoint** story only if your team standardizes it.\n\n\nStep 3 — Validate\n`ausearch -sc sched_setaffinity` (or your key) on the host; **taskset -p** on the **pid** when it is still alive.\n\nStep 4 — Operationalize\nPair with the **NUMA imbalance** use case when both fire for the same host.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=linux_audit into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`comm, host, pid`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you know when something tries to pin programs to specific processor cores, which is normal for some big number crunching, and odd for everyday small programs.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

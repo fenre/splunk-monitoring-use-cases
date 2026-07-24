@@ -9,11 +9,17 @@
     "Configuration"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Grafana server log `grafana:log` with provisioning component tags",
-  "app": "Universal Forwarder on Grafana nodes; `grafana.ini` log filters",
+  "exclusions": "Covers the detection logic documented for 'Grafana Dashboard Provisioning Reload and Schema Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_grafana_dashboard_provisioning_reload_and_schema` (UC-13.4.16), SOC dashboard panel \"Operations — Grafana Dashboard Provisioning Reload and Schema Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-13.4.16 positive (Grafana, Dashboard, Provisioning, Reload, and): ingest synthetic events into `index=observability` sourcetype='grafana:log' where `values` grouped by `provisioner`, `path` satisfies detection threshold for 'Grafana Dashboard Provisioning Reload and Schema Errors'. Validate filter `\"failed\" OR \"error\" OR \"invalid\" OR \"cannot parse\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-13.4.16 negative (Schema Errors): ingest benign `observability` / `grafana:log` events where `provisioner`, `path` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Grafana Dashboard Provisioning Reload and Schema Errors'."
+  },
+  "dataSources": "Grafana server log `grafana:log` with provisioning component tags Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Universal Forwarder on Grafana nodes; `grafana.ini` log filters — Universal Forwarder (Splunkbase 617)",
   "spl": "index=observability sourcetype=\"grafana:log\" component=provisioning OR logger=provisioning\n| search \"failed\" OR \"error\" OR \"invalid\" OR \"cannot parse\"\n| stats count, values(name) as dashboards by provisioner, path\n| sort -count",
-  "description": "Bad provisioning YAML stops dashboard delivery after Git sync or restart.",
-  "value": "Prevents silent loss of operational dashboards during GitOps rotations.",
+  "description": "Monitors UC-13.4.16 — Grafana, Dashboard, Provisioning, Reload, and — using `index=observability` sourcetype `grafana:log`, grouped by `provisioner`, `path`. Outputs `values` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `\"failed\" OR \"error\" OR \"invalid\" OR \"cannot parse\"`. Purpose-built for 'Grafana Dashboard Provisioning Reload and Schema Errors' in Operations workflows.",
+  "value": "Operators running UC-13.4.16 on `grafana:log` feeds shorten triage for Schema Errors tied to 'Grafana Dashboard Provisioning Reload and Schema Errors', lowering operational risk and delayed incident response.",
   "implementation": "Enable `filters = provisioning:debug` only when troubleshooting; default info suffices for errors.",
   "visualization": "Table (provisioner × path), Timeline.",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "Grafana configuration — log",
-      "url": "https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana/#log"
+      "url": "https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana/#log",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Grafana provisioning",
-      "url": "https://grafana.com/docs/grafana/latest/administration/provisioning/"
+      "url": "https://grafana.com/docs/grafana/latest/administration/provisioning/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Noisy periods after retention, target, or scrape changes. We compare with the Grafana or Prometheus view for the same minutes.",
+  "knownFalsePositives": "1. **Maintenance window on `observability` (UC-13.4.16)** — Planned work for 'Grafana Dashboard Provisioning Reload and Schema Errors' shifts `values` over `span=1h` while `provisioner`, `path` remains in-scope. Applies filter `\"failed\" OR \"error\" OR \"invalid\" OR \"cannot parse\"`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `grafana:log`** — Scheduled automation elevates `path` without crossing configured threshold for UC-13.4.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `provisioner`, `path`** — Health checks in `observability` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `grafana:log`** — First 48h baseline for UC-13.4.16 on `provisioner` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `provisioner`, `exception_reason`, `valid_until`.",
   "equipment": [
     "grafana"
+  ],
+  "equipmentModels": [
+    "grafana_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch how we use and protect smart assistant and model calls so cost, quality, and misuse stay in a range we are willing to own."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Universal Forwarder on Grafana nodes; `grafana.ini` log filters — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=grafana:log into observability. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`path, provisioner`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how we use and protect smart assistant and model calls so cost, quality, and misuse stay in a range we are willing to own.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Snowflake Query Queuing Time from Query History' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_snowflake_query_queuing_time_from_query_history` (UC-7.1.76), SOC dashboard panel \"Operations — Snowflake Query Queuing Time from Query History\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.76 positive (Snowflake, Query, Queuing, Time, from): ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:query_history' where `p50_queue_ms` grouped by `WAREHOUSE_NAME`, `USER_NAME` satisfies `queue_ms` > 60000, or `p95_queue_ms` > 120000 for 'Snowflake Query Queuing Time from Query History'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.76 negative (Query History): ingest benign `datawarehouse` / `snowflake:query_history` events where `WAREHOUSE_NAME`, `USER_NAME` stays below `queue_ms` > 60000, or `p95_queue_ms` > 120000, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Snowflake Query Queuing Time from Query History'."
+  },
   "dataSources": "`SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY` queue timing columns on `snowflake:query_history`",
   "app": "Splunk Add-on for Snowflake (Splunkbase 5390) QUERY_HISTORY input",
   "spl": "index=datawarehouse sourcetype=\"snowflake:query_history\"\n| eval q_overload=tonumber(QUEUED_OVERLOAD_TIME)\n| eval q_prov=tonumber(QUEUED_PROVISIONING_TIME)\n| eval queue_ms=coalesce(q_overload,0)+coalesce(q_prov,0)\n| where queue_ms > 60000 AND EXECUTION_STATUS=\"SUCCESS\"\n| stats median(queue_ms) as p50_queue_ms perc95(queue_ms) as p95_queue_ms count by WAREHOUSE_NAME, USER_NAME\n| where p95_queue_ms > 120000",
-  "description": "Long queue times before execution mean the warehouse is undersized or overloaded relative to concurrent demand; users experience sluggish dashboards even when executed queries are fast. Separating queue time from execution time targets the right fix (scale-out vs SQL tuning).",
-  "value": "Improves analyst productivity and SLA attainment by resizing warehouses or spreading schedules before executives notice stale data.",
+  "description": "Surfaces UC-7.1.76 — Snowflake, Query, Queuing, Time, from — using `index=datawarehouse` sourcetype `snowflake:query_history`, grouped by `WAREHOUSE_NAME`, `USER_NAME`. Outputs `p50_queue_ms` each `the scheduled window`; alert when `queue_ms` > 60000, or `p95_queue_ms` > 120000. Primary focus: Query History. Purpose-built for 'Snowflake Query Queuing Time from Query History' in Operations workflows.",
+  "value": "UC-7.1.76 operationalises 'Snowflake Query Queuing Time from Query History' against `snowflake:query_history` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ensure milliseconds fields are ingested as numbers (`QUEUED_OVERLOAD_TIME`, `QUEUED_PROVISIONING_TIME`—names can vary slightly by export; alias in `props.conf`). Filter aborted queries separately. Correlate with `snowflake:warehouse_load` if enabled. Alert per business unit warehouse.",
   "visualization": "Box plot or percentile chart (queue_ms), Table (warehouse, user, p95_queue_ms).",
   "cimModels": [
@@ -21,13 +27,33 @@
   "references": [
     {
       "title": "Snowflake QUERY_HISTORY",
-      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/query_history"
+      "url": "https://docs.snowflake.com/en/sql-reference/account-usage/query_history",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 5390",
+      "url": "https://splunkbase.splunk.com/app/5390",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Larger ETL or analyst workloads and seasonal reporting can raise warehouse credits or queueing without a fault; tune to business hours and team-specific baselines.",
+  "knownFalsePositives": "1. **Maintenance window on `datawarehouse` (UC-7.1.76)** — Planned work for 'Snowflake Query Queuing Time from Query History' shifts `p50_queue_ms` over `span=1h` while `WAREHOUSE_NAME`, `USER_NAME` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `median` on `snowflake:query_history`** — Scheduled automation elevates `USER_NAME` without crossing `queue_ms` > 60000 for UC-7.1.76. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `WAREHOUSE_NAME`, `USER_NAME`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snowflake:query_history`** — First 48h baseline for UC-7.1.76 on `WAREHOUSE_NAME` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `WAREHOUSE_NAME`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow",
     "snowflake"
+  ],
+  "equipmentModels": [
+    "servicenow_generic",
+    "snowflake_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -36,5 +62,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch Snowflake Query Queuing Time from Query History so we can keep this part of the data platform within the capacity and quality targets our teams expect."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Snowflake (Splunkbase 5390) QUERY_HISTORY input). Enable the modular input or HEC token that writes sourcetype=snowflake:query_history into datawarehouse. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`USER_NAME, WAREHOUSE_NAME, p95_queue_ms, queue_ms`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch Snowflake Query Queuing Time from Query History so we can keep this part of the data platform within the capacity and quality targets our teams expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

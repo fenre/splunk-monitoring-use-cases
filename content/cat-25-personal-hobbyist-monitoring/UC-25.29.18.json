@@ -8,30 +8,55 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Game sessions (`game:session`), ranked matches (`ranked:match`), co-op invites (`coop:session`), speedrun attempts (`speedrun:attempt`), server events (`server:event`), board-game plays (`boardgame:play`), raid attempts (`raid:attempt`), and daily quest logs (`quest:completion`).",
-  "app": "Gaming telemetry from platform session APIs, ranked-match exports, co-op schedulers, speedrun splits, server logs, raid trackers, and board-game play records streamed to Splunk HEC via APIs and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Daily-Quest Completion Streak Risk' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_daily_quest_completion_streak_risk` (UC-25.29.18), SOC dashboard panel \"Personal — Daily-Quest Completion Streak Risk\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.29.18 positive (Daily, Quest, Completion, Streak, Risk): ingest synthetic events into `index=personal` sourcetype='quest:completion' where `count` grouped by `player`, `game` satisfies detection threshold for 'Daily-Quest Completion Streak Risk'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.29.18 negative (Streak Risk): ingest benign `personal` / `quest:completion` events where `player`, `game` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'Daily-Quest Completion Streak Risk'."
+  },
+  "dataSources": "Game sessions (`game:session`), ranked matches (`ranked:match`), co-op invites (`coop:session`), speedrun attempts (`speedrun:attempt`), server events (`server:event`), board-game plays (`boardgame:play`), raid attempts (`raid:attempt`), and daily quest logs (`quest:completion`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Gaming telemetry from platform session APIs, ranked-match exports, co-op schedulers, speedrun splits, server logs, raid trackers, and board-game play records streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=quest:completion\n| stats latest(streak_days) as streak_days latest(hours_to_reset) as hours_to_reset by player game\n| sort hours_to_reset",
-  "description": "Highlights players whose daily quest streak is close to reset with little time remaining.",
-  "value": "This keeps streak mechanics in perspective while still making it easy to see when an almost-finished routine is at risk.",
+  "description": "Surfaces 'Daily-Quest Completion Streak Risk' patterns (UC-25.29.18) sourced from `index=personal` sourcetype `quest:completion`. Threshold bundle: configured threshold; aggregation grain: `player`, `game`; metrics: `count`. Watch terms: Daily, Quest, Completion, Streak, Risk.",
+  "value": "UC-25.29.18 gives Personal teams earlier visibility into Streak Risk through `quest:completion` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Log quest completion progress and the remaining hours to the next reset from the game's companion app or API.",
   "visualization": "Table of streak length and hours to reset by player and game.",
   "cimModels": [],
   "references": [
     {
       "title": "Steam - Web API",
-      "url": "https://developer.valvesoftware.com/wiki/Steam_Web_API"
+      "url": "https://developer.valvesoftware.com/wiki/Steam_Web_API",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "BoardGameGeek - XML API2",
-      "url": "https://boardgamegeek.com/wiki/page/BGG_XML_API2"
+      "url": "https://boardgamegeek.com/wiki/page/BGG_XML_API2",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.29.18)** — Connector for 'Daily-Quest Completion Streak Risk' stops polling `quest:completion`; stale `count` on `player`, `game` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.29.18, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `quest:completion`. Dedup with `stats latest(*) by player`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Daily-Quest Completion Streak Risk'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],
-  "grandmaExplanation": "It checks whose daily quest streak is in danger of expiring soon."
+  "equipmentModels": [
+    "asterisk_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Games & Tabletop — typical feeds: Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`)..\n• **Sourcetypes in this search**: `quest:completion`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=quest:completion`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs..\n\n**Author notes:** Log quest completion progress and the remaining hours to the next reset from the game's companion app or API.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"quest:completion\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=quest:completion earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Daily-Quest Completion Streak Risk** over `personal` data (primarily `sourcetype=quest:completion`) across the full search range. The `latest` aggregation groups by `player`, `game`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `game`, `player`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=quest:completion\n| stats latest(streak_days) as streak_days latest(hours_to_reset) as hours_to_reset by player game\n| sort hours_to_reset\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=quest:completion earliest=-7d\n| head 50\n| table game, player\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=quest:completion earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.29.18: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Streak Length And Hours To Reset By Player And Game (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `quest:completion` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=quest:completion | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It checks whose daily quest streak is in danger of expiring soon.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

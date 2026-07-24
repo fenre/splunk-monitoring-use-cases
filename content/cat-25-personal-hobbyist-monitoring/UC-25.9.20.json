@@ -9,52 +9,79 @@
     "Security"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Personal network telemetry (`openwrt:syslog`, `unifi:event`, `pihole:query`, `adguard:query`, `tailscale:netmap`, `cloudflared:connector`, `doh:query`, `speedtest:result`, `uptime:probe`).",
-  "app": "OpenWrt, UniFi, Pi-hole, AdGuard Home, Tailscale, Cloudflare Tunnel, DNS over HTTPS resolvers, and scheduled probes via syslog, APIs, and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'OpenWrt SQM Latency Under Load' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_openwrt_sqm_latency_under_load` (UC-25.9.20), SOC dashboard panel \"Personal — OpenWrt SQM Latency Under Load\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.9.20 positive (OpenWrt, SQM, Latency, Under, Load): ingest synthetic events into `index=personal` sourcetype='openwrt:syslog' where `avg_latency_ms`, `max_latency_ms` grouped by `router` satisfies `avg_latency_ms` > 50, or `max_latency_ms` > 100 for 'OpenWrt SQM Latency Under Load'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.9.20 negative (Under Load): ingest benign `personal` / `openwrt:syslog` events where `router` stays below `avg_latency_ms` > 50, or `max_latency_ms` > 100, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'OpenWrt SQM Latency Under Load'."
+  },
+  "dataSources": "Personal network telemetry (`openwrt:syslog`, `unifi:event`, `pihole:query`, `adguard:query`, `tailscale:netmap`, `cloudflared:connector`, `doh:query`, `speedtest:result`, `uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "OpenWrt, UniFi, Pi-hole, AdGuard Home, Tailscale, Cloudflare Tunnel, DNS over HTTPS resolvers, and scheduled probes via syslog, APIs, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=openwrt:syslog event=sqm_test\n| stats avg(latency_under_load_ms) as avg_latency_ms, max(latency_under_load_ms) as max_latency_ms by router\n| where avg_latency_ms>50 OR max_latency_ms>100\n| sort - avg_latency_ms",
-  "description": "Uses OpenWrt SQM measurements telemetry to monitor latency while the link is under load in index=personal.",
-  "value": "Splunk turns the feed into an operational check for bufferbloat returning despite shaping, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Surfaces UC-25.9.20 — OpenWrt, SQM, Latency, Under, Load — using `index=personal` sourcetype `openwrt:syslog`, grouped by `router`. Outputs `avg_latency_ms`, `max_latency_ms` each `the scheduled window`; alert when `avg_latency_ms` > 50, or `max_latency_ms` > 100. Primary focus: Under Load. Purpose-built for 'OpenWrt SQM Latency Under Load' in Personal workflows.",
+  "value": "Tracking `avg_latency_ms`, `max_latency_ms` via UC-25.9.20 on `openwrt:syslog` feeds improves response to 'OpenWrt SQM Latency Under Load' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest OpenWrt SQM measurements data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Router table of average and max under-load latency.",
   "cimModels": [],
   "references": [
     {
       "title": "OpenWrt docs",
-      "url": "https://openwrt.org/docs/start"
+      "url": "https://openwrt.org/docs/start",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Tailscale docs",
-      "url": "https://tailscale.com/kb"
+      "url": "https://tailscale.com/kb",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cloudflare Tunnel docs",
-      "url": "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/"
+      "url": "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Pi-hole docs",
-      "url": "https://docs.pi-hole.net/"
+      "url": "https://docs.pi-hole.net/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "AdGuard Home overview",
-      "url": "https://adguard.com/kb/adguard-home/overview/"
+      "url": "https://adguard.com/kb/adguard-home/overview/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Ookla Speedtest CLI",
-      "url": "https://www.speedtest.net/apps/cli"
+      "url": "https://www.speedtest.net/apps/cli",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "UniFi Network docs",
-      "url": "https://help.ui.com/hc/en-us/categories/6583256751383"
+      "url": "https://help.ui.com/hc/en-us/categories/6583256751383",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.9.20)** — Connector for 'OpenWrt SQM Latency Under Load' stops polling `openwrt:syslog`; stale `avg_latency_ms`, `max_latency_ms` on `router` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_latency_ms`, `max_latency_ms` over `1w` is expected for UC-25.9.20, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `openwrt:syslog`. Dedup with `stats latest(*) by router`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_latency_ms` > 50 for 'OpenWrt SQM Latency Under Load'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "cloudflare",
     "mqtt",
     "syslog"
   ],
-  "grandmaExplanation": "It highlights latency while the link is under load so you can spot bufferbloat returning despite shaping before it becomes annoying."
+  "equipmentModels": [
+    "cloudflare_generic",
+    "mqtt_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Network & Connectivity — typical feeds: UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog, ISP uptime probes..\n• **Sourcetypes in this search**: `openwrt:syslog`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=openwrt:syslog`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder..\n\n**Author notes:** Ingest OpenWrt SQM measurements data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"openwrt:syslog\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=openwrt:syslog earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **OpenWrt SQM Latency Under Load** over `personal` data (primarily `sourcetype=openwrt:syslog`) across the full search range. It applies numeric thresholds on `avg_latency_ms` (> 50) after avg, max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `avg_latency_ms`, `max_latency_ms`, `router`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=openwrt:syslog event=sqm_test\n| stats avg(latency_under_load_ms) as avg_latency_ms, max(latency_under_load_ms) as max_latency_ms by router\n| where avg_latency_ms>50 OR max_latency_ms>100\n| sort - avg_latency_ms\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=openwrt:syslog earliest=-7d\n| head 50\n| table avg_latency_ms, max_latency_ms, router\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=openwrt:syslog earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `avg_latency_ms` before alerting:\n\n```spl\nindex=personal sourcetype=openwrt:syslog earliest=-30d\n| stats perc50(avg_latency_ms) AS p50 perc90(avg_latency_ms) AS p90 perc99(avg_latency_ms) AS p99 max(avg_latency_ms) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.9.20: Personal evidence` with the following panel layout:\n\n**Panel 1 — Router Table Of Average And Max Under-Load Latency (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `openwrt:syslog` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=openwrt:syslog | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It highlights latency while the link is under load so you can spot bufferbloat returning despite shaping before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,26 +8,55 @@
     "Compliance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Posture readings (`posture:reading`), symptom logs (`symptom:log`), bathroom visits (`bathroom:visit`), sneeze events (`sneeze:event`).",
-  "app": "Everyday body-signal logs — posture sensors, symptom and allergy journals, hydration-linked bathroom logs, and quirky personal counters — sent to Splunk HEC via wearables, MQTT, and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Desk-Break Adherence' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_desk_break_adherence` (UC-25.35.8), SOC dashboard panel \"Personal — Desk-Break Adherence\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.35.8 positive (Desk, Break, Adherence): ingest synthetic events into `index=personal` sourcetype='posture:reading' where `breaks` grouped by `_time`, `day` satisfies `hour` >= 9, or `hour` <= 17 for 'Desk-Break Adherence'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.35.8 negative (Break Adherence): ingest benign `personal` / `posture:reading` events where `_time`, `day` stays below `hour` >= 9, or `hour` <= 17, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'Desk-Break Adherence'."
+  },
+  "dataSources": "Posture readings (`posture:reading`), symptom logs (`symptom:log`), bathroom visits (`bathroom:visit`), sneeze events (`sneeze:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Everyday body-signal logs — posture sensors, symptom and allergy journals, hydration-linked bathroom logs, and quirky personal counters — sent to Splunk HEC via wearables, MQTT, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=posture:reading\n| eval hour=strftime(_time,\"%H\"), day=strftime(_time,\"%F\")\n| where hour>=9 AND hour<=17\n| bin _time span=1h\n| stats max(eval(if(state=\"break\",1,0))) as took_break by _time day\n| stats sum(took_break) as breaks, count as work_hours by day\n| eval adherence=round(100*breaks/work_hours,1)",
-  "description": "Measures how many working hours included a proper movement break, keeping the pomodoro promise honest.",
-  "value": "Regular breaks protect eyes, back, and focus; measuring adherence turns good intentions into a tracked habit.",
+  "description": "Detects UC-25.35.8 — Desk, Break, Adherence — using `index=personal` sourcetype `posture:reading`, grouped by `_time`, `day`. Outputs `breaks` each `1h`; alert when `hour` >= 9, or `hour` <= 17. Primary focus: Break Adherence. Purpose-built for 'Desk-Break Adherence' in Personal workflows.",
+  "value": "UC-25.35.8 operationalises 'Desk-Break Adherence' against `posture:reading` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Ingest break events into `index=personal`; review the share of work hours with a break.",
   "visualization": "Column chart of daily desk-break adherence.",
   "cimModels": [],
   "references": [
     {
       "title": "Upright — posture training",
-      "url": "https://www.uprightpose.com/"
+      "url": "https://www.uprightpose.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.35.8)** — Connector for 'Desk-Break Adherence' stops polling `posture:reading`; stale `breaks` on `_time`, `day` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `breaks` over `1h` is expected for UC-25.35.8, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `posture:reading`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `hour` >= 9 for 'Desk-Break Adherence'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It checks how many work hours you took a proper break in, keeping you moving through the day."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Body Signals & Personal Oddities — typical feeds: Posture readings (`posture:reading`), symptom logs (`symptom:log`), bathroom visits (`bathroom:visit`), sneeze events (`sneeze:event`)..\n• **Sourcetypes in this search**: `posture:reading`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=posture:reading`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Everyday body-signal logs — posture sensors, symptom and allergy journals, hydration-linked bathroom logs, and quirky personal counters — sent to Splunk HEC via wearables, MQTT, and scripted inputs..\n\n**Author notes:** Ingest break events into `index=personal`; review the share of work hours with a break.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"posture:reading\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=posture:reading earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Desk-Break Adherence** over `personal` data (primarily `sourcetype=posture:reading`) across the full search range. It applies numeric thresholds on `hour` (>= 9) after max, sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `day`, `hour`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=posture:reading\n| eval hour=strftime(_time,\"%H\"), day=strftime(_time,\"%F\")\n| where hour>=9 AND hour<=17\n| bin _time span=1h\n| stats max(eval(if(state=\"break\",1,0))) as took_break by _time day\n| stats sum(took_break) as breaks, count as work_hours by day\n| eval adherence=round(100*breaks/work_hours,1)\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=posture:reading earliest=-7d\n| head 50\n| table _time, day, hour\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=posture:reading earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hour` before alerting:\n\n```spl\nindex=personal sourcetype=posture:reading earliest=-30d\n| stats perc50(hour) AS p50 perc90(hour) AS p90 perc99(hour) AS p99 max(hour) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.35.8: Personal evidence` with the following panel layout:\n\n**Panel 1 — Column Chart Of Daily Desk-Break Adherence (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `posture:reading` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=posture:reading | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1h` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1h` buckets.",
+  "grandmaExplanation": "It checks how many work hours you took a proper break in, keeping you moving through the day.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

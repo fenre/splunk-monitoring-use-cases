@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`StackDriftStatus`, `StackResourceDriftStatus`",
-  "app": "AWS CloudFormation API, CloudTrail",
+  "exclusions": "Covers the detection logic documented for 'CloudFormation Stack Drift' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cloudformation_stack_drift` (UC-12.4.13), SOC dashboard panel \"Operations — CloudFormation Stack Drift\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.4.13 positive (CloudFormation, Stack, Drift): ingest synthetic events into `index=aws` sourcetype='aws:cloudformation:drift' where `values` grouped by `StackName`, `region` satisfies detection threshold for 'CloudFormation Stack Drift'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.4.13 negative (Stack Drift): ingest benign `aws` / `aws:cloudformation:drift` events where `StackName`, `region` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'CloudFormation Stack Drift'."
+  },
+  "dataSources": "`StackDriftStatus`, `StackResourceDriftStatus` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "AWS CloudFormation API, CloudTrail — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudformation:drift\"\n| where StackDriftStatus=\"DRIFTED\" OR DetectionStatus=\"DETECTION_FAILED\"\n| stats latest(_time) as last_check, values(LogicalResourceId) as drifted_resources by StackName, region\n| sort -last_check",
-  "description": "AWS `DetectStackDrift` results show live resources diverging from template—essential for CloudFormation-centric teams.",
-  "value": "AWS `DetectStackDrift` results show live resources diverging from template—essential for CloudFormation-centric teams.",
+  "description": "Identifies Stack Drift activity in UC-12.4.13 ('CloudFormation Stack Drift') from `index=aws` sourcetype `aws:cloudformation:drift`. Rolls up `values` by `StackName`, `region` across `the scheduled window` and pages when configured threshold. Covers CloudFormation, Stack, Drift. Operations operators treat UC-12.4.13 as the canonical signal.",
+  "value": "Operators running UC-12.4.13 on `aws:cloudformation:drift` feeds shorten triage for Stack Drift tied to 'CloudFormation Stack Drift', lowering operational risk and delayed incident response.",
   "implementation": "Schedule drift detection after stack updates. Alert on DRIFTED. Optionally ingest full drift detail JSON.",
   "visualization": "Table (drifted stacks), Bar chart (by account), Timeline.",
   "cimModels": [
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1876",
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Drift from manual console fixes during incidents, automated tool changes, or planned config updates outside IaC.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-12.4.13)** — Planned work for 'CloudFormation Stack Drift' shifts `values` over `span=1h` while `StackName`, `region` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `aws:cloudformation:drift`** — Scheduled automation elevates `region` without crossing configured threshold for UC-12.4.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `StackName`, `region`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudformation:drift`** — First 48h baseline for UC-12.4.13 on `StackName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `StackName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: AWS CloudFormation API, CloudTrail.\n• Ensure the following data sources are available: `StackDriftStatus`, `StackResourceDriftStatus`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSchedule drift detection after stack updates. Alert on DRIFTED. Optionally ingest full drift detail JSON.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudformation:drift\"\n| where StackDriftStatus=\"DRIFTED\" OR DetectionStatus=\"DETECTION_FAILED\"\n| stats latest(_time) as last_check, values(LogicalResourceId) as drifted_resources by StackName, region\n| sort -last_check\n```\n\nUnderstanding this SPL\n\n**CloudFormation Stack Drift** — AWS `DetectStackDrift` results show live resources diverging from template—essential for CloudFormation-centric teams.\n\nDocumented **Data sources**: `StackDriftStatus`, `StackResourceDriftStatus`. **App/TA** (typical add-on context): AWS CloudFormation API, CloudTrail. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudformation:drift. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudformation:drift\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where StackDriftStatus=\"DRIFTED\" OR DetectionStatus=\"DETECTION_FAILED\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by StackName, region** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the AWS CloudFormation console and drift detection results. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (drifted stacks), Bar chart (by account), Timeline.",
-  "grandmaExplanation": "We watch for configuration drift so live systems do not quietly diverge from what we declared in code."
+  "equipmentModels": [
+    "aws_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: AWS CloudFormation API, CloudTrail.\n• Ensure the following data sources are available: `StackDriftStatus`, `StackResourceDriftStatus`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSchedule drift detection after stack updates. Alert on DRIFTED. Optionally ingest full drift detail JSON.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudformation:drift\"\n| where StackDriftStatus=\"DRIFTED\" OR DetectionStatus=\"DETECTION_FAILED\"\n| stats latest(_time) as last_check, values(LogicalResourceId) as drifted_resources by StackName, region\n| sort -last_check\n```\n\nUnderstanding this SPL\n\n**CloudFormation Stack Drift** — AWS `DetectStackDrift` results show live resources diverging from template—essential for CloudFormation-centric teams.\n\nDocumented **Data sources**: `StackDriftStatus`, `StackResourceDriftStatus`. **App/TA** (typical add-on context): AWS CloudFormation API, CloudTrail. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudformation:drift. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudformation:drift\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where StackDriftStatus=\"DRIFTED\" OR DetectionStatus=\"DETECTION_FAILED\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by StackName, region** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the AWS CloudFormation console and drift detection results. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (drifted stacks), Bar chart (by account), Timeline.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (AWS CloudFormation API, CloudTrail — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:cloudformation:drift into aws. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`StackName, region`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for configuration drift so live systems do not quietly diverge from what we declared in code.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

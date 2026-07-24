@@ -8,31 +8,55 @@
     "Availability"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Character sheets (`rpg:character`), VTT sessions (`rpg:session`), initiative rounds (`rpg:initiative`), encounters (`rpg:combat`), campaign ops (`rpg:ops`).",
-  "app": "Tabletop campaign telemetry — D&D Beyond character exports, Roll20 session logs, initiative trackers, and campaign asset checklists — streamed to Splunk HEC via APIs, exports, and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Campaign Asset Archive Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_campaign_asset_archive_gap` (UC-25.46.33), SOC dashboard panel \"Personal — Campaign Asset Archive Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.46.33 positive (Campaign, Asset, Archive, Gap): ingest synthetic events into `index=personal` sourcetype='rpg:ops' where `sum` grouped by `asset_type` satisfies `backlog` > 0 for 'Campaign Asset Archive Gap'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.46.33 negative (Archive Gap): ingest benign `personal` / `rpg:ops` events where `asset_type` stays below `backlog` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Campaign Asset Archive Gap'."
+  },
+  "dataSources": "Character sheets (`rpg:character`), VTT sessions (`rpg:session`), initiative rounds (`rpg:initiative`), encounters (`rpg:combat`), campaign ops (`rpg:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Tabletop campaign telemetry — D&D Beyond character exports, Roll20 session logs, initiative trackers, and campaign asset checklists — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=rpg:ops asset_type=* archive_state=*\n| stats sum(eval(if(archive_state!=\"archived\",1,0))) as backlog, count as total by asset_type\n| where backlog>0\n| sort - backlog",
-  "description": "Lists pending campaign assets backlog by asset type for campaign record-keeping.",
-  "value": "Backlog counts expose where small unfinished tasks accumulate and create hidden drag inside campaign record-keeping.",
+  "description": "Alerts on UC-25.46.33 — Campaign, Asset, Archive, Gap — using `index=personal` sourcetype `rpg:ops`, grouped by `asset_type`. Outputs `sum` each `the scheduled window`; alert when `backlog` > 0. Primary focus: Archive Gap. Purpose-built for 'Campaign Asset Archive Gap' in Personal workflows.",
+  "value": "For 'Campaign Asset Archive Gap', UC-25.46.33 converts `activity` on `rpg:ops` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Mark each `rpg:ops` record with a pending-state flag and summarize backlog totals by `asset_type`.",
   "visualization": "Table of asset type with pending campaign assets counts.",
   "cimModels": [],
   "references": [
     {
       "title": "D&D Beyond — digital tools",
-      "url": "https://www.dndbeyond.com/"
+      "url": "https://www.dndbeyond.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Roll20 — virtual tabletop",
-      "url": "https://roll20.net/"
+      "url": "https://roll20.net/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Improved Initiative — encounter tracker",
-      "url": "https://www.improved-initiative.com/"
+      "url": "https://www.improved-initiative.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It builds where unfinished campaign assets are piling up so you can clear the biggest queues in campaign record-keeping."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.46.33)** — Connector for 'Campaign Asset Archive Gap' stops polling `rpg:ops`; stale `sum` on `asset_type` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected for UC-25.46.33, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rpg:ops`. Dedup with `stats latest(*) by asset_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `backlog` > 0 for 'Campaign Asset Archive Gap'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Tabletop RPG Campaigns — typical feeds: Campaign sessions (`campaign:session`), NPC ledger (`npc:ledger`), loot drops (`loot:drop`), XP awards (`xp:award`)..\n• **Sourcetypes in this search**: `rpg:ops`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=rpg:ops`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Tabletop RPG telemetry — virtual-tabletop session logs (Roll20, Foundry VTT), campaign trackers (World Anvil), and XP / loot / NPC ledgers — streamed to Splunk HEC via scripted inputs..\n\n**Author notes:** Mark each `rpg:ops` record with a pending-state flag and summarize backlog totals by `asset_type`.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"rpg:ops\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=rpg:ops earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Campaign Asset Archive Gap** over `personal` data (primarily `sourcetype=rpg:ops`) across the full search range. It applies numeric thresholds on `backlog` (> 0) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `asset_type`, `backlog`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=rpg:ops asset_type=* archive_state=*\n| stats sum(eval(if(archive_state!=\"archived\",1,0))) as backlog, count as total by asset_type\n| where backlog>0\n| sort - backlog\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=rpg:ops earliest=-7d\n| head 50\n| table asset_type, backlog\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=rpg:ops earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `backlog` before alerting:\n\n```spl\nindex=personal sourcetype=rpg:ops earliest=-30d\n| stats perc50(backlog) AS p50 perc90(backlog) AS p90 perc99(backlog) AS p99 max(backlog) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.46.33: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Asset Type With Pending Campaign Assets Counts (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `rpg:ops` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=rpg:ops | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It builds where unfinished campaign assets are piling up so you can clear the biggest queues in campaign record-keeping.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

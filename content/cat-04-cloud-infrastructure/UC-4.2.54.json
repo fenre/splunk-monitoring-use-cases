@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=azure:diagnostics` (BastionAuditLogs)",
-  "app": "`Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics)",
+  "exclusions": "Covers the detection logic documented for 'Azure Bastion Session Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_azure_bastion_session_audit` (UC-4.2.54), SOC dashboard panel \"Operations — Azure Bastion Session Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-4.2.54 positive (Azure, Bastion, Session, Audit): ingest synthetic events into `index=cloud` sourcetype='azure:diagnostics' where `unique_targets` grouped by `userName`, `clientIpAddress` satisfies detection threshold for 'Azure Bastion Session Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.2.54 negative (Session Audit): ingest benign `cloud` / `azure:diagnostics` events where `userName`, `clientIpAddress` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Azure Bastion Session Audit'."
+  },
+  "dataSources": "`sourcetype=azure:diagnostics` (BastionAuditLogs) Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics) — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=cloud sourcetype=\"azure:diagnostics\" Category=\"BastionAuditLogs\"\n| stats count as sessions, dc(targetVMIPAddress) as unique_targets by userName, clientIpAddress\n| sort -sessions",
-  "description": "Bastion provides secure, auditable VM access without public IPs. Monitoring session activity ensures compliance with access policies and detects unauthorized connection attempts.",
-  "value": "Bastion provides secure, auditable VM access without public IPs. Monitoring session activity ensures compliance with access policies and detects unauthorized connection attempts.",
+  "description": "Detects Session Audit activity in UC-4.2.54 ('Azure Bastion Session Audit') from `index=cloud` sourcetype `azure:diagnostics`. Rolls up `unique_targets` by `userName`, `clientIpAddress` across `the scheduled window` and pages when configured threshold. Covers Azure, Bastion, Session, Audit. Operations operators treat UC-4.2.54 as the canonical signal.",
+  "value": "Operators running UC-4.2.54 on `azure:diagnostics` feeds shorten triage for Session Audit tied to 'Azure Bastion Session Audit', lowering operational risk and delayed incident response.",
   "implementation": "Enable diagnostic logging on Azure Bastion to send audit logs via Event Hub. Track user sessions by `userName`, `targetVMIPAddress`, `protocol` (SSH/RDP), and `duration`. Alert on connections to unexpected VMs, connections from unusual IP addresses, and failed authentication attempts. Correlate with Entra ID sign-in logs for identity context.",
   "visualization": "Table (sessions by user and target), Bar chart (sessions by protocol), Line chart (session count over time).",
   "cimModels": [
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110"
+      "url": "https://splunkbase.splunk.com/app/3110",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Our own break-glass and automation accounts show up the same as anyone else, and a delete or write during a change window is expected. We allowlist the roles that do routine maintenance and we link alerts to approved changes before we call an incident.",
+  "knownFalsePositives": "1. **Maintenance window on `cloud` (UC-4.2.54)** — Planned work for 'Azure Bastion Session Audit' shifts `unique_targets` over `span=1h` while `userName`, `clientIpAddress` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `azure:diagnostics`** — Scheduled automation elevates `clientIpAddress` without crossing configured threshold for UC-4.2.54. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `userName`, `clientIpAddress`** — Health checks in `cloud` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `azure:diagnostics`** — First 48h baseline for UC-4.2.54 on `userName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `userName`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078.004",
     "T1580"
@@ -38,6 +56,16 @@
     "azure",
     "m365"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics).\n• Ensure the following data sources are available: `sourcetype=azure:diagnostics` (BastionAuditLogs).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable diagnostic logging on Azure Bastion to send audit logs via Event Hub. Track user sessions by `userName`, `targetVMIPAddress`, `protocol` (SSH/RDP), and `duration`. Alert on connections to unexpected VMs, connections from unusual IP addresses, and failed authentication attempts. Correlate with Entra ID sign-in logs for identity context.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud sourcetype=\"azure:diagnostics\" Category=\"BastionAuditLogs\"\n| stats count as sessions, dc(targetVMIPAddress) as unique_targets by userName, clientIpAddress\n| sort -sessions\n```\n\nUnderstanding this SPL\n\n**Azure Bastion Session Audit** — Bastion provides secure, auditable VM access without public IPs. Monitoring session activity ensures compliance with access policies and detects unauthorized connection attempts.\n\nDocumented **Data sources**: `sourcetype=azure:diagnostics` (BastionAuditLogs). **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: azure:diagnostics. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"azure:diagnostics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by userName, clientIpAddress** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (sessions by user and target), Bar chart (sessions by protocol), Line chart (session count over time).",
-  "grandmaExplanation": "Bastion provides secure, auditable VM access without public."
+  "equipmentModels": [
+    "azure_generic",
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics).\n• Ensure the following data sources are available: `sourcetype=azure:diagnostics` (BastionAuditLogs).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable diagnostic logging on Azure Bastion to send audit logs via Event Hub. Track user sessions by `userName`, `targetVMIPAddress`, `protocol` (SSH/RDP), and `duration`. Alert on connections to unexpected VMs, connections from unusual IP addresses, and failed authentication attempts. Correlate with Entra ID sign-in logs for identity context.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud sourcetype=\"azure:diagnostics\" Category=\"BastionAuditLogs\"\n| stats count as sessions, dc(targetVMIPAddress) as unique_targets by userName, clientIpAddress\n| sort -sessions\n```\n\nUnderstanding this SPL\n\n**Azure Bastion Session Audit** — Bastion provides secure, auditable VM access without public IPs. Monitoring session activity ensures compliance with access policies and detects unauthorized connection attempts.\n\nDocumented **Data sources**: `sourcetype=azure:diagnostics` (BastionAuditLogs). **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: azure:diagnostics. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"azure:diagnostics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by userName, clientIpAddress** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (sessions by user and target), Bar chart (sessions by protocol), Line chart (session count over time).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics) — Splunk Add-on for Microsoft Azure (Splunkbase 3110)). Enable the modular input or HEC token that writes sourcetype=azure:diagnostics into cloud. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`clientIpAddress, userName`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "Bastion provides secure, auditable VM access without public.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

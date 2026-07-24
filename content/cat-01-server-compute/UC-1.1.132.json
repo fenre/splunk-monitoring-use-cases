@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=os` scripted metrics from `pmset -g batt`, `ioreg -rn AppleSmartBattery` (cycle count, max capacity %, AC/watts)",
-  "app": "Splunk Universal Forwarder for macOS, Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase #833) for optional scripted input packaging",
+  "exclusions": "Covers the detection logic documented for 'macOS Notebook Battery Health and Cycle Count Threshold' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_macos_notebook_battery_health_and_cycle_count_th` (UC-1.1.132), SOC dashboard panel \"Linux — macOS Notebook Battery Health and Cycle Count Threshold\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.132 positive (macOS, Notebook, Battery, Health, and): ingest synthetic events into `index=os` sourcetype='macos_battery' where `count` grouped by `host` satisfies `cycles` > 1000, or `health_pct` < 80 for 'macOS Notebook Battery Health and Cycle Count Threshold'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.132 negative (Count Threshold): ingest benign `os` / `macos_battery` events where `host` stays below `cycles` > 1000, or `health_pct` < 80, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 3 confirms zero alert rows for 'macOS Notebook Battery Health and Cycle Count Threshold'."
+  },
+  "dataSources": "`index=os` scripted metrics from `pmset -g batt`, `ioreg -rn AppleSmartBattery` (cycle count, max capacity %, AC/watts) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder for macOS, Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase #833) for optional scripted input packaging — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=macos_battery host=*\n| stats latest(cycle_count) as cycles, latest(max_capacity_pct) as health_pct, latest(battery_condition) as condition by host\n| where cycles > 1000 OR health_pct < 80 OR like(condition, \"%Service%\")",
-  "description": "Lithium battery wear on Mac notebooks shows up as rising cycle counts, falling maximum capacity versus design, and \"Service Recommended\" conditions from power management. Tracking these signals prioritizes depot battery swaps before users lose runtime or swell-risk events ground a fleet.",
-  "value": "Reduces unexpected power loss and field failures by surfacing degraded Mac batteries before runtime collapses or Apple flags a service condition.",
+  "description": "Alerts on when Count Threshold criteria fire for 'macOS Notebook Battery Health and Cycle Count Threshold' (UC-1.1.132) in `index=os` sourcetype `macos_battery`. Pipeline aggregates `count` by `host` over `the scheduled window`. Alert logic enforces `cycles` > 1000, or `health_pct` < 80. Title terms: macOS, Notebook, Battery, Health, and. Eliminates manual hunting for UC-1.1.132 conditions.",
+  "value": "UC-1.1.132 helps teams contain macOS, Notebook, Battery, Health, and scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
   "implementation": "Schedule a lightweight scripted input (UF `inputs.conf`) every 6–24h: parse `pmset -g batt` for state and `ioreg -rn AppleSmartBattery` for `CycleCount`, `AppleRawMaxCapacity` vs `DesignCapacity`, and `PermanentFailureStatus`. Normalize `max_capacity_pct=100*AppleRawMaxCapacity/DesignCapacity`. Set `battery_condition` from `pmset` or ioreg `Condition` string. Route to `index=os`, `sourcetype=macos_battery`. Alert when cycles exceed policy (often 800–1200 for corporate refresh), health under 80%, or condition indicates service.",
   "visualization": "Single value (hosts below health threshold), Table (host, cycles, health_pct, condition), Histogram (cycle count distribution).",
   "cimModels": [
@@ -22,17 +28,33 @@
   "references": [
     {
       "title": "Splunk Documentation: Install the universal forwarder on macOS",
-      "url": "https://docs.splunk.com/Documentation/Forwarder/latest/Deployment/"
+      "url": "https://docs.splunk.com/Documentation/Forwarder/latest/Deployment/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Unix and Linux (Splunkbase 833)",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Loaner laptops and lab units can sit at high cycle counts for years on AC without field risk. `ioreg` values jump after SMC reset or macOS updates—confirm with a second sample before procurement tickets. TCC/privacy prompts can block `ioreg` in some user sessions; the script may return partial fields that look worse than reality.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'macOS Notebook Battery Health and Cycle Count Threshold'. Correlate with apt/yum logs in the same `macos_battery` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `macos_battery`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `cycles` > 1000.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "macos"
+  ],
+  "equipmentModels": [
+    "linux_generic",
+    "macos_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,6 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Splunk Universal Forwarder on macOS with a `bin/` script scheduled via `inputs.conf`.\n• Python or shell access to `pmset` and `ioreg` (no root required for read-only battery queries in most builds).\n\nStep 1 — Emit one JSON or key=value event per host per run with fields: `cycle_count`, `max_capacity_pct`, `battery_condition`, optional `is_charging`.\n\nStep 2 — Save the SPL as a scheduled alert with a lookup allowlist for loaner/demo devices.\n\nStep 3 — Validate against Apple System Information → Power sample values.\n\nStep 4 — Operationalize with asset tag join on `host` for procurement.",
-  "grandmaExplanation": "We watch how worn down laptop batteries are getting so support can replace them before people suddenly run out of juice in the middle of work."
+  "detailedImplementation": "Prerequisites\n• Splunk Universal Forwarder on macOS with a `bin/` script scheduled via `inputs.conf`.\n• Python or shell access to `pmset` and `ioreg` (no root required for read-only battery queries in most builds).\n\nStep 1 — Emit one JSON or key=value event per host per run with fields: `cycle_count`, `max_capacity_pct`, `battery_condition`, optional `is_charging`.\n\nStep 2 — Save the SPL as a scheduled alert with a lookup allowlist for loaner/demo devices.\n\nStep 3 — Validate against Apple System Information → Power sample values.\n\nStep 4 — Operationalize with asset tag join on `host` for procurement.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder for macOS, Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase #833) for optional scripted input packaging — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=macos_battery into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cycles, health_pct, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how worn down laptop batteries are getting so support can replace them before people suddenly run out of juice in the middle of work.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

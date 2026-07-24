@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Pre-Launch and Lingering Session Management' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_pre_launch_and_lingering_session_management` (UC-2.6.35), SOC dashboard panel \"Linux — Pre-Launch and Lingering Session Management\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.35 positive (Pre, Launch, and, Lingering, Session): ingest synthetic events into `index=xd` sourcetype='citrix:broker:events' where `users` grouped by `_time`, `session_type`, `delivery_group`, `published_app` satisfies detection threshold for 'Pre-Launch and Lingering Session Management'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.35 negative (Session Management): ingest benign `xd` / `citrix:broker:events` events where `_time`, `session_type`, `delivery_group`, `published_app` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 4 confirms zero alert rows for 'Pre-Launch and Lingering Session Management'."
+  },
   "dataSources": "`index=xd` `sourcetype=\"citrix:broker:events\"` (session, idle, prelaunch, `SessionState`), `sourcetype=\"citrix:vda:events\"` (disconnect, idle timer), `index=uberagent` `sourcetype=\"uberAgent:Session:SessionInfo\"` or `sourcetype=\"uberAgent:Process:ProcessStartup\"` for per-session process counts",
   "app": "uberAgent UXM (Splunkbase 1448), Template for Citrix XenDesktop 7 (TA-XD7-Broker)",
   "spl": "index=xd sourcetype=\"citrix:broker:events\" (match(_raw, \"(?i)pre[\\s-]*launch|lingering|ghost|idle|disc\") OR event_type IN (\"SessionDisconnect\", \"SessionInfo\") OR match(event_type, \"(?i)SessionPreLaunch\"))\n| eval session_type=if(match(_raw, \"(?i)pre[\\s-]*launch|prelaunch\"), \"prelaunch\", if(match(_raw, \"(?i)linger|disconnected|idle\"), \"idle_linger\", \"other\"))\n| where session_type!=\"other\"\n| bin _time span=1h\n| stats count, dc(user) as users, values(session_id) as sample_sessions by _time, session_type, delivery_group, published_app\n| table _time, session_type, delivery_group, published_app, count, users, sample_sessions",
-  "description": "Pre-launched and lingering sessions keep apps warm and retain user context, but they consume memory, session licenses, and power-managed capacity. Misconfigured idle timers, excessive pre-launch, or sessions stuck in disconnected state can exhaust pools and look like a capacity outage. Tuning visibility from broker and VDA events shows where session lifecycle policy diverges from design.",
-  "value": "Pre-launched and lingering sessions keep apps warm and retain user context, but they consume memory, session licenses, and power-managed capacity. Misconfigured idle timers, excessive pre-launch, or sessions stuck in disconnected state can exhaust pools and look like a capacity outage. Tuning visibility from broker and VDA events shows where session lifecycle policy diverges from design.",
+  "description": "Identifies risk tied to Pre, Launch, and, Lingering, Session through UC-2.6.35 on `index=xd` sourcetype `citrix:broker:events`. Summarises `users` grouped by `_time`, `session_type`, `delivery_group`, `published_app` across `1h` before applying configured threshold. Operators tune 'Pre-Launch and Lingering Session Management' using UC-2.6.35 runbook steps.",
+  "value": "Tracking `users` via UC-2.6.35 on `citrix:broker:events` feeds improves response to 'Pre-Launch and Lingering Session Management' and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Map published app and user fields. For ghost capacity, also pull uberAgent session or host CPU to correlate pre-launch with sustained resource use. Compare counts against GPO- or policy-driven idle and disconnect timers. Alert when pre-launch or linger counts exceed rolling baselines, or when idle sessions outnumber active sessions in a business hour window.",
   "visualization": "Area chart (prelaunch vs idle_linger by group), Table (top published apps with linger), Donut (session type mix).",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "uberAgent UXM for Citrix",
-      "url": "https://splunkbase.splunk.com/app/1448"
+      "url": "https://splunkbase.splunk.com/app/1448",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Session and launch time spikes may track image updates, profile migrations, or broker outages; compare to the same app on other sites before blaming the network only.",
+  "knownFalsePositives": "1. **Patch Tuesday on `xd`** — Package managers spike `_time` metrics for 'Pre-Launch and Lingering Session Management'. Correlate with apt/yum logs in the same `citrix:broker:events` window.\n\n2. **Nightly backup I/O on `_time`** — Predictable `dc` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `citrix:broker:events`** — Nagios/Zabbix polls `_time` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `_time` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `_time`, `valid_until`.",
   "equipment": [
     "citrix"
   ],
@@ -33,6 +55,12 @@
     "citrix_uberagent"
   ],
   "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: uberAgent UXM (Splunkbase 1448), Template for Citrix XenDesktop 7 (TA-XD7-Broker).\n• Ensure the following data sources are available: `sourcetype=\"citrix:broker:events\"`, `sourcetype=\"citrix:vda:events\"`, `index=uberagent` optional.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnsure session-related broker events are indexed with consistent `event_type` and user fields. If event names differ by version, centralize a macro with OR clauses. Ingest VDA `CtxSession` or equivalent event ids as needed for idle/linger details.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; extend `event_type` list to your build):\n\n```spl\nindex=xd sourcetype=\"citrix:broker:events\" (match(_raw, \"(?i)pre[\\s-]*launch|lingering|ghost|idle|disc\") OR event_type IN (\"SessionDisconnect\", \"SessionInfo\") OR match(event_type, \"(?i)SessionPreLaunch\"))\n| eval session_type=if(match(_raw, \"(?i)pre[\\s-]*launch|prelaunch\"), \"prelaunch\", if(match(_raw, \"(?i)linger|disconnected|idle\"), \"idle_linger\", \"other\"))\n| where session_type!=\"other\"\n| bin _time span=1h\n| stats count, dc(user) as users, values(session_id) as sample_sessions by _time, session_type, delivery_group, published_app\n| table _time, session_type, delivery_group, published_app, count, users, sample_sessions\n```\n\nStep 3 — Validate\nFor a published app with known pre-launch, compare hourly counts. Spot-check a linger-heavy user against the Citrix session list.\n\nStep 4 — Operationalize\nPair with the desktop policy team. Track improvements after GPO and Citrix policy changes.",
-  "grandmaExplanation": "We see when apps are left running in the background to start faster, and when people walk away and leave those sessions open — so you catch wasted space and slow computers before they hurt real work."
+  "grandmaExplanation": "We see when apps are left running in the background to start faster, and when people walk away and leave those sessions open — so you catch wasted space and slow computers before they hurt real work.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,27 +8,55 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Argo Workflows events (`argo:workflow`).",
-  "app": "Argo Workflows controller logs and the Argo API via HEC scripted inputs.",
+  "exclusions": "Covers the detection logic documented for 'Argo Workflows Workflow Workflow Duration p95' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_argo_workflows_workflow_workflow_duration_p95` (UC-24.7.56), SOC dashboard panel \"Operations — Argo Workflows Workflow Workflow Duration p95\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.7.56 positive (Argo, Workflows, Workflow, Workflow, Duration): ingest synthetic events into `index=bi` sourcetype='argo:workflow' where `avg_s` grouped by `workflow_template` satisfies `p95_s` > 600 for 'Argo Workflows Workflow Workflow Duration p95'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.56 negative (Duration p95): ingest benign `bi` / `argo:workflow` events where `workflow_template` stays below `p95_s` > 600, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Argo Workflows Workflow Workflow Duration p95'."
+  },
+  "dataSources": "Argo Workflows events (`argo:workflow`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Argo Workflows controller logs and the Argo API via HEC scripted inputs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=argo:workflow phase=\"Succeeded\"\n| eval dur_s=round(duration_s/1,2)\n| stats avg(dur_s) as avg_s, p95(dur_s) as p95_s, count as runs by workflow_template\n| where p95_s>600\n| sort - p95_s",
-  "description": "Computes the 95th-percentile workflow duration for each workflow in Argo Workflows and flags the slowest, pointing owners at the specific content or jobs that need optimisation.",
-  "value": "Tail latency, not the average, is what users feel; ranking Argo Workflows workflows by p95 focuses tuning effort where it removes the most pain.",
+  "description": "Surfaces Duration p95 activity in UC-24.7.56 ('Argo Workflows Workflow Workflow Duration p95') from `index=bi` sourcetype `argo:workflow`. Rolls up `avg_s` by `workflow_template` across `the scheduled window` and pages when `p95_s` > 600. Covers Argo, Workflows, Workflow, Workflow, Duration. Operations operators treat UC-24.7.56 as the canonical signal.",
+  "value": "Operators running UC-24.7.56 on `argo:workflow` feeds shorten triage for Duration p95 tied to 'Argo Workflows Workflow Workflow Duration p95', lowering operational risk and delayed incident response.",
   "implementation": "Ingest Argo Workflows timing data; schedule daily over a trailing week and review the slowest workflows with their owners.",
   "visualization": "Table of workflow by p95 workflow duration, trend line.",
   "cimModels": [],
   "references": [
     {
       "title": "Argo Workflows — Documentation",
-      "url": "https://argo-workflows.readthedocs.io/en/latest/"
+      "url": "https://argo-workflows.readthedocs.io/en/latest/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Argo Workflows — Metrics",
-      "url": "https://argo-workflows.readthedocs.io/en/latest/metrics/"
+      "url": "https://argo-workflows.readthedocs.io/en/latest/metrics/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We measure how slow the worst cases are in Argo Workflows so the sluggish ones get fixed before people give up on them."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.56)** — Planned work for 'Argo Workflows Workflow Workflow Duration p95' shifts `avg_s` over `span=1h` while `workflow_template` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `argo:workflow`** — Scheduled automation elevates `dur_s` without crossing `p95_s` > 600 for UC-24.7.56. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `workflow_template`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `argo:workflow`** — First 48h baseline for UC-24.7.56 on `workflow_template` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `workflow_template`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Argo Workflows controller logs and the Argo API via HEC scripted inputs. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=argo:workflow into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`p95_s, workflow_template`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We measure how slow the worst cases are in Argo Workflows so the sluggish ones get fixed before people give up on them.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

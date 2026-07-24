@@ -9,31 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Closet activity (`style:wardrobe`), cleaning tasks (`style:cleaning`), shoe wears (`style:shoes`), beauty inventory (`beauty:product`), audits (`style:audit`).",
-  "app": "Wardrobe and beauty telemetry — Stylebook closet exports, dry-cleaning reminders, shoe-rotation logs, and makeup inventory audits — streamed to Splunk HEC via exports and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Shoe Rotation Rest Days by Pair' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_shoe_rotation_rest_days_by_pair` (UC-25.49.23), SOC dashboard panel \"Personal — Shoe Rotation Rest Days by Pair\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.49.23 positive (Shoe, Rotation, Rest, Days, Pair): ingest synthetic events into `index=personal` sourcetype='style:shoes' where `avg_lag_days`, `worst_lag_days` grouped by `pair_name` satisfies detection threshold for 'Shoe Rotation Rest Days by Pair'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.49.23 negative (by Pair): ingest benign `personal` / `style:shoes` events where `pair_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 4 confirms zero alert rows for 'Shoe Rotation Rest Days by Pair'."
+  },
+  "dataSources": "Closet activity (`style:wardrobe`), cleaning tasks (`style:cleaning`), shoe wears (`style:shoes`), beauty inventory (`beauty:product`), audits (`style:audit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Wardrobe and beauty telemetry — Stylebook closet exports, dry-cleaning reminders, shoe-rotation logs, and makeup inventory audits — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=style:shoes pair_name=* last_wear_epoch=* wear_epoch=*\n| eval lag_days=round((wear_epoch-last_wear_epoch)/86400,1)\n| stats avg(lag_days) as avg_lag_days, max(lag_days) as worst_lag_days by pair_name\n| sort - avg_lag_days",
-  "description": "Measures rest days by shoe pair for shoe rotation.",
-  "value": "Lag tracking shows which shoe pair create the slowest handoffs, syncs, or review loops inside shoe rotation.",
+  "description": "Identifies risk tied to Shoe, Rotation, Rest, Days, Pair through UC-25.49.23 on `index=personal` sourcetype `style:shoes`. Summarises `avg_lag_days`, `worst_lag_days` grouped by `pair_name` across `the scheduled window` before applying configured threshold. Operators tune 'Shoe Rotation Rest Days by Pair' using UC-25.49.23 runbook steps.",
+  "value": "Tracking `avg_lag_days`, `worst_lag_days` via UC-25.49.23 on `style:shoes` feeds improves response to 'Shoe Rotation Rest Days by Pair' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Capture the timestamps needed to compute `rest days` on `style:shoes` events and aggregate them by `pair_name`.",
   "visualization": "Table of shoe pair with average and worst rest days.",
   "cimModels": [],
   "references": [
     {
       "title": "Stylebook",
-      "url": "https://stylebookapp.com/"
+      "url": "https://stylebookapp.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Google Calendar",
-      "url": "https://calendar.google.com/"
+      "url": "https://calendar.google.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Notion",
-      "url": "https://www.notion.so/"
+      "url": "https://www.notion.so/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It records how long things take for each shoe pair so you can see where shoe rotation slows down."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.49.23)** — Connector for 'Shoe Rotation Rest Days by Pair' stops polling `style:shoes`; stale `avg_lag_days`, `worst_lag_days` on `pair_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_lag_days`, `worst_lag_days` over `1w` is expected for UC-25.49.23, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `style:shoes`. Dedup with `stats latest(*) by pair_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Shoe Rotation Rest Days by Pair'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Wardrobe, Fashion & Beauty — typical feeds: Wardrobe items (`wardrobe:item`), outfit wears (`outfit:wear`), skincare routines (`skincare:routine`), laundry cycles (`laundry:cycle`)..\n• **Sourcetypes in this search**: `style:shoes`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=style:shoes`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Wardrobe and grooming logs — closet apps (Whering, Stylebook), cost-per-wear trackers, skincare-routine logs, and smart-laundry cycles — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Capture the timestamps needed to compute `rest days` on `style:shoes` events and aggregate them by `pair_name`.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"style:shoes\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=style:shoes earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Shoe Rotation Rest Days by Pair** over `personal` data (primarily `sourcetype=style:shoes`) across the full search range. The `avg, max` aggregation groups by `pair_name`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `pair_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=style:shoes pair_name=* last_wear_epoch=* wear_epoch=*\n| eval lag_days=round((wear_epoch-last_wear_epoch)/86400,1)\n| stats avg(lag_days) as avg_lag_days, max(lag_days) as worst_lag_days by pair_name\n| sort - avg_lag_days\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=style:shoes earliest=-7d\n| head 50\n| table pair_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=style:shoes earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.49.23: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Shoe Pair With Average And Worst Rest Days (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `style:shoes` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=style:shoes | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It records how long things take for each shoe pair so you can see where shoe rotation slows down.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,27 +8,55 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Fivetran REST API connector status (`fivetran:connector`), log-service sync events (`fivetran:log`), and usage/MAR exports.",
-  "app": "Fivetran REST API (`/v1/connectors`, `/v1/metadata`) and Fivetran Platform Connector logs via HEC scripted inputs; Fivetran log-service events (`fivetran:log`).",
+  "exclusions": "Covers the detection logic documented for 'Fivetran Connector Paused or Broken' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_fivetran_connector_paused_or_broken` (UC-24.8.10), SOC dashboard panel \"Operations — Fivetran Connector Paused or Broken\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.8.10 positive (Fivetran, Connector, Paused, Broken): ingest synthetic events into `index=bi` sourcetype='fivetran:connector' where `count` grouped by `connector_id` satisfies detection threshold for 'Fivetran Connector Paused or Broken'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.8.10 negative (or Broken): ingest benign `bi` / `fivetran:connector` events where `connector_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Fivetran Connector Paused or Broken'."
+  },
+  "dataSources": "Fivetran REST API connector status (`fivetran:connector`), log-service sync events (`fivetran:log`), and usage/MAR exports. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Fivetran REST API (`/v1/connectors`, `/v1/metadata`) and Fivetran Platform Connector logs via HEC scripted inputs; Fivetran log-service events (`fivetran:log`). — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=fivetran:connector\n| stats latest(paused) as paused, latest(sync_state) as sync_state, latest(setup_state) as setup_state by connector_id\n| where paused=\"true\" OR setup_state=\"broken\" OR setup_state=\"incomplete\"\n| sort connector_id",
-  "description": "Reports Fivetran connectors that are paused or in a broken/incomplete setup state, which stop delivering data without generating a sync failure.",
-  "value": "A paused or broken connector silently stops the data flow; polling connector state catches the outage that failure alerts miss entirely.",
+  "description": "Identifies UC-24.8.10 for Fivetran, Connector, Paused, Broken over `index=bi` sourcetype `fivetran:connector` with thresholds configured threshold. Groups `count` by `connector_id` each `the scheduled window`. Centered on or Broken indicators. Supports repeatable operations triage for 'Fivetran Connector Paused or Broken'.",
+  "value": "For 'Fivetran Connector Paused or Broken', UC-24.8.10 converts `activity` on `fivetran:connector` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Poll the Fivetran connectors API into HEC; schedule every 15 minutes and alert when a production connector is paused or broken.",
   "visualization": "Table of connector by state, status panel.",
   "cimModels": [],
   "references": [
     {
       "title": "Fivetran — REST API reference",
-      "url": "https://fivetran.com/docs/rest-api"
+      "url": "https://fivetran.com/docs/rest-api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Fivetran — Platform Connector / logs",
-      "url": "https://fivetran.com/docs/logs/fivetran-platform"
+      "url": "https://fivetran.com/docs/logs/fivetran-platform",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We make sure every data connector is switched on and healthy so none quietly stops delivering data."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.8.10)** — Planned work for 'Fivetran Connector Paused or Broken' shifts `count` over `span=1h` while `connector_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `fivetran:connector`** — Scheduled automation elevates `src` without crossing configured threshold for UC-24.8.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `connector_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `fivetran:connector`** — First 48h baseline for UC-24.8.10 on `connector_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `connector_id`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Fivetran REST API (`/v1/connectors`, `/v1/metadata`) and Fivetran Platform Connector logs via HEC scripted inputs; Fivetran log-service events (`fivetran:log`). — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=fivetran:connector into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`connector_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We make sure every data connector is switched on and healthy so none quietly stops delivering data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

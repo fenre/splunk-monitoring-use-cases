@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "BMC/BIOS version data via scripted input",
-  "app": "Custom scripted input (`ipmitool`, `dmidecode`), vendor APIs",
+  "exclusions": "Covers the detection logic documented for 'Firmware Version Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_firmware_version_compliance` (UC-1.4.5), SOC dashboard panel \"Linux — Firmware Version Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.4.5 positive (Firmware, Version, Compliance): ingest synthetic events into `index=hardware` sourcetype='firmware_inventory' where `count` grouped by `host`, `model` satisfies detection threshold for 'Firmware Version Compliance'. Validate lookup `current_firmware`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.4.5 negative (Version Compliance): ingest benign `hardware` / `firmware_inventory` events where `host`, `model` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 10 confirms zero alert rows for 'Firmware Version Compliance'."
+  },
+  "dataSources": "BMC/BIOS version data via scripted input Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (`ipmitool`, `dmidecode`), vendor APIs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=hardware sourcetype=firmware_inventory\n| stats latest(bios_version) as bios, latest(bmc_version) as bmc by host, model\n| lookup current_firmware model OUTPUT expected_bios, expected_bmc\n| eval bios_current = if(bios=expected_bios, \"Yes\", \"No\")\n| where bios_current=\"No\"",
-  "description": "Outdated firmware may have security vulnerabilities or known bugs. Fleet-wide firmware tracking supports patch management.",
-  "value": "A single list of which boxes still run old system or out-of-band firmware makes patch and risk conversations concrete instead of sampling a few serial numbers by hand.",
+  "description": "Monitors UC-1.4.5 — Firmware, Version, Compliance — using `index=hardware` sourcetype `firmware_inventory`, grouped by `host`, `model`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `current_firmware`. Purpose-built for 'Firmware Version Compliance' in Linux workflows.",
+  "value": "For 'Firmware Version Compliance', UC-1.4.5 converts `activity` on `firmware_inventory` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Create scripted input: `ipmitool mc info` or `dmidecode -t bios`. Run daily. Maintain a lookup table of expected firmware versions per server model. Dashboard showing compliance.",
   "visualization": "Table (host, model, current vs. expected), Pie chart (compliant %), Bar chart by model.",
   "cimModels": [],
@@ -20,10 +26,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "OEMs format the same build as different strings; normalize before equality checks. A deliberate golden-image rollout or vendor mandatory update can make many machines look `No` through rollout week—compare to change records and the lookup’s effective date column.",
+  "knownFalsePositives": "1. **Patch Tuesday on `hardware`** — Package managers spike `host` metrics for 'Firmware Version Compliance'. Correlate with apt/yum logs in the same `firmware_inventory` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `firmware_inventory`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hardware_bmc"
   ],
@@ -31,6 +53,12 @@
     "hardware_bmc_dmidecode",
     "hardware_bmc_ipmi"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`ipmitool`, `dmidecode`), vendor APIs.\n• Ensure the following data sources are available: BMC/BIOS version data via scripted input.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOn Linux, run `ipmitool mc info` and `dmidecode -t bios` (or Redfish) on a schedule; parse `bios_version` and `bmc_version` and `model`. Populate `current_firmware` lookup with `expected_bios` and `expected_bmc` per `model`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust as needed):\n\n```spl\nindex=hardware sourcetype=firmware_inventory\n| stats latest(bios_version) as bios, latest(bmc_version) as bmc by host, model\n| lookup current_firmware model OUTPUT expected_bios, expected_bmc\n| eval bios_current = if(bios=expected_bios, \"Yes\", \"No\")\n| where bios_current=\"No\"\n```\n\nExtend with a similar `bmc` check if required.\n\nUnderstanding this SPL\n\n**Firmware Version Compliance** — Outdated firmware may have security vulnerabilities or known bugs. Fleet-wide firmware tracking supports patch management.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=firmware_inventory`.\n• `stats` and `lookup` join live versions to `expected_*` from policy.\n• `where` shows hosts out of policy on BIOS in this example.\n\n\nStep 3 — Validate\nHand-check a few hosts against the vendor or DCIM UI. For full details, see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We compare each server’s built-in and management-controller software versions to what you say they should be, so outdated firmware does not sit there quietly as a security or bug risk."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`ipmitool`, `dmidecode`), vendor APIs.\n• Ensure the following data sources are available: BMC/BIOS version data via scripted input.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOn Linux, run `ipmitool mc info` and `dmidecode -t bios` (or Redfish) on a schedule; parse `bios_version` and `bmc_version` and `model`. Populate `current_firmware` lookup with `expected_bios` and `expected_bmc` per `model`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust as needed):\n\n```spl\nindex=hardware sourcetype=firmware_inventory\n| stats latest(bios_version) as bios, latest(bmc_version) as bmc by host, model\n| lookup current_firmware model OUTPUT expected_bios, expected_bmc\n| eval bios_current = if(bios=expected_bios, \"Yes\", \"No\")\n| where bios_current=\"No\"\n```\n\nExtend with a similar `bmc` check if required.\n\nUnderstanding this SPL\n\n**Firmware Version Compliance** — Outdated firmware may have security vulnerabilities or known bugs. Fleet-wide firmware tracking supports patch management.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=firmware_inventory`.\n• `stats` and `lookup` join live versions to `expected_*` from policy.\n• `where` shows hosts out of policy on BIOS in this example.\n\n\nStep 3 — Validate\nHand-check a few hosts against the vendor or DCIM UI. For full details, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted input (`ipmitool`, `dmidecode`), vendor APIs — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=firmware_inventory into hardware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`bios_current, expected_bios, expected_bmc, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We compare each server’s built-in and management-controller software versions to what you say they should be, so outdated firmware does not sit there quietly as a security or bug risk.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

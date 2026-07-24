@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=bms:elevator`",
-  "app": "Elevator controller API, vibration/current sensors via IoT gateway",
+  "exclusions": "Covers the detection logic documented for 'Elevator Door Fault Frequency and Prediction' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_elevator_door_fault_frequency_and_prediction` (UC-14.1.37), SOC dashboard panel \"Operations — Elevator Door Fault Frequency and Prediction\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.1.37 positive (Elevator, Door, Fault, Frequency, and): ingest synthetic events into `index=building` sourcetype='bms:elevator' where `daily_faults`, `avg_close_time`, `reversals` grouped by `elevator_id`, `_time` satisfies `door_close_time_ms` > 5000, `fault_rate_pct` > 1, or `daily_faults` > 5 for 'Elevator Door Fault Frequency and Prediction'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.1.37 negative (and Prediction): ingest benign `building` / `bms:elevator` events where `elevator_id`, `_time` stays below `door_close_time_ms` > 5000, `fault_rate_pct` > 1, or `daily_faults` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Elevator Door Fault Frequency and Prediction'."
+  },
+  "dataSources": "`sourcetype=bms:elevator` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Elevator controller API, vibration/current sensors via IoT gateway — Universal Forwarder (Splunkbase 617)",
   "spl": "index=building sourcetype=\"bms:elevator\" event_type=\"door_*\"\n| eval is_fault=if(event_type=\"door_fault\" OR door_close_time_ms > 5000 OR door_reversal=1, 1, 0)\n| bin _time span=1d\n| stats sum(is_fault) as daily_faults, count as total_door_cycles, avg(door_close_time_ms) as avg_close_time, sum(door_reversal) as reversals by elevator_id, _time\n| eval fault_rate_pct=round(daily_faults*100/total_door_cycles, 2)\n| where fault_rate_pct > 1 OR daily_faults > 5\n| table _time, elevator_id, daily_faults, total_door_cycles, fault_rate_pct, avg_close_time, reversals",
-  "description": "Door faults are the most common elevator malfunction and the leading cause of entrapments. Monitoring door close force, cycle time, and motor amperage detects deteriorating door systems 2-6 weeks before failure — preventing passenger entrapments and service calls.",
-  "value": "Door faults are the most common elevator malfunction and the leading cause of entrapments. Monitoring door close force, cycle time, and motor amperage detects deteriorating door systems 2-6 weeks before failure — preventing passenger entrapments and service calls.",
+  "description": "Detects UC-14.1.37 for Elevator, Door, Fault, Frequency, and over `index=building` sourcetype `bms:elevator` with thresholds `door_close_time_ms` > 5000, `fault_rate_pct` > 1, or `daily_faults` > 5. Groups `daily_faults`, `avg_close_time`, `reversals` by `elevator_id`, `_time` each `1d`. Centered on and Prediction indicators. Supports repeatable operations triage for 'Elevator Door Fault Frequency and Prediction'.",
+  "value": "For 'Elevator Door Fault Frequency and Prediction', UC-14.1.37 converts `daily_faults`, `avg_close_time`, `reversals` on `bms:elevator` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Collect door cycle events including close force, cycle time, and reversal events. Trend door close time — increasing values indicate worn rollers, dirty tracks, or actuator degradation. Alert when fault rate exceeds 1% or close time exceeds 5 seconds.",
   "visualization": "Door fault trend per elevator; close time degradation chart; reversal frequency; fault prediction timeline.",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Fault storms during load tests, vendor visits, or software updates logged in the BMS, not all need urgent dispatch.",
+  "knownFalsePositives": "1. **Maintenance window on `building` (UC-14.1.37)** — Planned work for 'Elevator Door Fault Frequency and Prediction' shifts `daily_faults`, `avg_close_time`, `reversals` over `span=1d` while `elevator_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `bms:elevator`** — Scheduled automation elevates `_time` without crossing `door_close_time_ms` > 5000 for UC-14.1.37. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `elevator_id`, `_time`** — Health checks in `building` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bms:elevator`** — First 48h baseline for UC-14.1.37 on `elevator_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `elevator_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365"
   ],
+  "equipmentModels": [
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Elevator controller API, vibration/current sensors via IoT gateway.\n• Ensure the following data sources are available: `sourcetype=bms:elevator`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect door cycle events including close force, cycle time, and reversal events. Trend door close time — increasing values indicate worn rollers, dirty tracks, or actuator degradation. Alert when fault rate exceeds 1% or close time exceeds 5 seconds.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=building sourcetype=\"bms:elevator\" event_type=\"door_*\"\n| eval is_fault=if(event_type=\"door_fault\" OR door_close_time_ms > 5000 OR door_reversal=1, 1, 0)\n| bin _time span=1d\n| stats sum(is_fault) as daily_faults, count as total_door_cycles, avg(door_close_time_ms) as avg_close_time, sum(door_reversal) as reversals by elevator_id, _time\n| eval fault_rate_pct=round(daily_faults*100/total_door_cycles, 2)\n| where fault_rate_pct > 1 OR daily_faults > 5\n| table _time, elevator_id, daily_faults, total_door_cycles, fault_rate_pct, avg_close_time, reversals\n```\n\nUnderstanding this SPL\n\n**Elevator Door Fault Frequency and Prediction** — Door faults are the most common elevator malfunction and the leading cause of entrapments. Monitoring door close force, cycle time, and motor amperage detects deteriorating door systems 2-6 weeks before failure — preventing passenger entrapments and service calls.\n\nDocumented **Data sources**: `sourcetype=bms:elevator`. **App/TA** (typical add-on context): Elevator controller API, vibration/current sensors via IoT gateway. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: building; **sourcetype**: bms:elevator. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=building, sourcetype=\"bms:elevator\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **is_fault** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by elevator_id, _time** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **fault_rate_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where fault_rate_pct > 1 OR daily_faults > 5` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Elevator Door Fault Frequency and Prediction**): table _time, elevator_id, daily_faults, total_door_cycles, fault_rate_pct, avg_close_time, reversals\n\n\nStep 3 — Validate\nRun the search in a known window. Spot-check a few events against the BMS console (for example Niagara, Tridium, or Honeywell) and confirm zones, values, and alarms line up. Verify field names and that the right roles can search the index.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Door fault trend per elevator; close time degradation chart; reversal frequency; fault prediction timeline.",
-  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with elevators and other moving equipment that people rely on before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with elevators and other moving equipment that people rely on before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

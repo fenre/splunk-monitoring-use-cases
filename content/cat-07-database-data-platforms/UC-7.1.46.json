@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`_cat/recovery` or `_indices/recovery` JSON (`files_percent`, `bytes_percent`, `stage`, `index`, `shard`, `node`)",
-  "app": "Custom scripted input (Elasticsearch REST API)",
+  "exclusions": "Covers the detection logic documented for 'Elasticsearch Shard Recovery Stall Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_elasticsearch_shard_recovery_stall_detection` (UC-7.1.46), SOC dashboard panel \"Operations — Elasticsearch Shard Recovery Stall Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.46 positive (Elasticsearch, Shard, Recovery, Stall, Detection): ingest synthetic events into `index=database` sourcetype='elasticsearch:recovery' where `count` grouped by `index`, `shard`, `node` satisfies `files_percent` < 100, or `stall_age_min` > 30 for 'Elasticsearch Shard Recovery Stall Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.46 negative (Stall Detection): ingest benign `database` / `elasticsearch:recovery` events where `index`, `shard`, `node` stays below `files_percent` < 100, or `stall_age_min` > 30, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Elasticsearch Shard Recovery Stall Detection'."
+  },
+  "dataSources": "`_cat/recovery` or `_indices/recovery` JSON (`files_percent`, `bytes_percent`, `stage`, `index`, `shard`, `node`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (Elasticsearch REST API) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"elasticsearch:recovery\"\n| where (files_percent < 100 AND stage!=\"done\") OR stage IN (\"index\",\"translog\",\"finalize\")\n| eval stall_age_min=round((now()-_time)/60,1)\n| where stall_age_min > 30\n| stats latest(files_percent) as files_pct latest(bytes_percent) as bytes_pct latest(stage) as stage by index, shard, node",
-  "description": "Recoveries that linger with low files_percent or bytes_percent indicate slow disks, network partitions, or allocation issues. SRE teams monitor recovery progress alongside cluster health.",
-  "value": "Prevents prolonged yellow/red cluster states and uneven shard placement after node loss or rolling restarts.",
+  "description": "Alerts on Stall Detection anomalies for UC-7.1.46 with window `the scheduled window` on `index=database` sourcetype `elasticsearch:recovery`. Combines `count` by `index`, `shard`, `node` and compares against `files_percent` < 100, or `stall_age_min` > 30. Mapped to keywords Elasticsearch, Shard, Recovery, Stall, Detection for dashboard routing.",
+  "value": "Alerting on Elasticsearch, Shard, Recovery, Stall, Detection through UC-7.1.46 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Poll recovery API every 2–5 minutes. Include primary/replica role. Alert when any shard recovery is not done beyond your SLA window. Exclude expected long initializations by tagging index patterns.",
   "visualization": "Table (index, shard, stage, percent), Timeline (recovery events), Single value (stuck recoveries).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Elasticsearch cat recovery API",
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-recovery.html"
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-recovery.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Slow queries during full backup windows, statistics updates, or after index rebuilds; correlate with maintenance and batch schedules before paging.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.46)** — Planned work for 'Elasticsearch Shard Recovery Stall Detection' shifts `count` over `span=1h` while `index`, `shard`, `node` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `elasticsearch:recovery`** — Scheduled automation elevates `shard` without crossing `files_percent` < 100 for UC-7.1.46. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `index`, `shard`, `node`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `elasticsearch:recovery`** — First 48h baseline for UC-7.1.46 on `index` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `index`, `exception_reason`, `valid_until`.",
   "equipment": [
     "elasticsearch"
   ],
@@ -39,5 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted input (Elasticsearch REST API) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=elasticsearch:recovery into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`files_percent, index, node, shard`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

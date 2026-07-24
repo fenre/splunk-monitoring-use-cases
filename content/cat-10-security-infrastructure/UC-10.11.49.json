@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=crowdstrike:ioc`",
-  "app": "`TA-crowdstrike-falcon`",
+  "exclusions": "Covers the detection logic documented for 'CrowdStrike Behavioral IOC Trending' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_crowdstrike_behavioral_ioc_trending` (UC-10.11.49), SOC dashboard panel \"Security Infra — CrowdStrike Behavioral IOC Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.11.49 positive (CrowdStrike, Behavioral, IOC, Trending): ingest synthetic events into `index=endpoint` sourcetype='crowdstrike:ioc' where `count` grouped by `ioc_type` satisfies `count` > 0 for 'CrowdStrike Behavioral IOC Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.11.49 negative (IOC Trending): ingest benign `endpoint` / `crowdstrike:ioc` events where `ioc_type` stays below `count` > 0, or exclude the test entity via `soc_exception_register.csv`. Variant 11 confirms zero alert rows for 'CrowdStrike Behavioral IOC Trending'."
+  },
+  "dataSources": "`sourcetype=crowdstrike:ioc` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`TA-crowdstrike-falcon` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=endpoint sourcetype=\"crowdstrike:ioc\"\n| timechart span=1d count by ioc_type\n| where count>0",
-  "description": "Behavioral IOC trending measures hunting hypothesis validation over time.",
-  "value": "Behavioral IOC trending measures hunting hypothesis validation over time.",
+  "description": "Surfaces UC-10.11.49 — CrowdStrike, Behavioral, IOC, Trending — using `index=endpoint` sourcetype `crowdstrike:ioc`, grouped by `ioc_type`. Outputs `count` each `1d`; alert when `count` > 0. Primary focus: IOC Trending. Purpose-built for 'CrowdStrike Behavioral IOC Trending' in Security Infra workflows.",
+  "value": "UC-10.11.49 helps teams contain CrowdStrike, Behavioral, IOC, Trending scenarios and reduce missed threat campaigns, control regressions, and SOC SLA breaches before incidents compound.",
   "implementation": "Track custom IOC hits: hash, domain, IP. Retire stale IOCs to reduce noise.",
   "visualization": "Line chart (IOC hits), Table (top values).",
   "cimModels": [
@@ -22,15 +28,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "CrowdStrike detections from EICAR test files, security training samples, or red team campaigns; review prevention policy and host criticality before paging.",
+  "knownFalsePositives": "1. **Maintenance window on `endpoint` (UC-10.11.49)** — Planned work for 'CrowdStrike Behavioral IOC Trending' shifts `count` over `span=1d` while `ioc_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `crowdstrike:ioc`** — Scheduled automation elevates `src` without crossing `count` > 0 for UC-10.11.49. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ioc_type`** — Health checks in `endpoint` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `crowdstrike:ioc`** — First 48h baseline for UC-10.11.49 on `ioc_type` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `ioc_type`, `exception_reason`, `valid_until`.",
   "detectionType": "Hunting",
   "securityDomain": "threat",
   "equipment": [
     "crowdstrike"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA-crowdstrike-falcon`.\n• Ensure the following data sources are available: `sourcetype=crowdstrike:ioc`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTrack custom IOC hits: hash, domain, IP. Retire stale IOCs to reduce noise.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=endpoint sourcetype=\"crowdstrike:ioc\"\n| timechart span=1d count by ioc_type\n| where count>0\n```\n\nUnderstanding this SPL\n\n**CrowdStrike Behavioral IOC Trending** — Behavioral IOC trending measures hunting hypothesis validation over time.\n\nDocumented **Data sources**: `sourcetype=crowdstrike:ioc`. **App/TA** (typical add-on context): `TA-crowdstrike-falcon`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: endpoint; **sourcetype**: crowdstrike:ioc. That sourcetype matches what this use case lists under Data sources.\n\n**Detection type** for this use case: Hunting — interpret thresholds and fields in that context.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=endpoint, sourcetype=\"crowdstrike:ioc\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by ioc_type** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where count>0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nRun the search over a window that includes both normal production traffic and, if you have one, a documented test (vendor sandbox, lab rule hit, or exercise). Compare a few sample events to the vendor’s own console or reports and tune indexes, fields, and thresholds so alerts are actionable before paging.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (IOC hits), Table (top values).",
-  "grandmaExplanation": "We use CrowdStrike data and alerts to stay ahead of the risks described in \"CrowdStrike Behavioral IOC Trending\". We help the team notice trouble early, while a situation is still small and containable."
+  "equipmentModels": [
+    "crowdstrike_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA-crowdstrike-falcon`.\n• Ensure the following data sources are available: `sourcetype=crowdstrike:ioc`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTrack custom IOC hits: hash, domain, IP. Retire stale IOCs to reduce noise.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=endpoint sourcetype=\"crowdstrike:ioc\"\n| timechart span=1d count by ioc_type\n| where count>0\n```\n\nUnderstanding this SPL\n\n**CrowdStrike Behavioral IOC Trending** — Behavioral IOC trending measures hunting hypothesis validation over time.\n\nDocumented **Data sources**: `sourcetype=crowdstrike:ioc`. **App/TA** (typical add-on context): `TA-crowdstrike-falcon`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: endpoint; **sourcetype**: crowdstrike:ioc. That sourcetype matches what this use case lists under Data sources.\n\n**Detection type** for this use case: Hunting — interpret thresholds and fields in that context.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=endpoint, sourcetype=\"crowdstrike:ioc\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by ioc_type** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where count>0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nRun the search over a window that includes both normal production traffic and, if you have one, a documented test (vendor sandbox, lab rule hit, or exercise). Compare a few sample events to the vendor’s own console or reports and tune indexes, fields, and thresholds so alerts are actionable before paging.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (IOC hits), Table (top values).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`TA-crowdstrike-falcon` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=crowdstrike:ioc into endpoint. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`ioc_type`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use CrowdStrike data and alerts to stay ahead of the risks described in \"CrowdStrike Behavioral IOC Trending\". We help the team notice trouble early, while a situation is still small and containable.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "PostgreSQL log lines containing `FATAL:` and `password authentication failed` or `no pg_hba.conf entry`",
-  "app": "Splunk Universal Forwarder on database host, Splunk Connect for Syslog, or cloud DB log export",
+  "exclusions": "Covers the detection logic documented for 'PostgreSQL FATAL Authentication Failure Spike' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_postgresql_fatal_authentication_failure_spike` (UC-7.3.19), SOC dashboard panel \"Operations — PostgreSQL FATAL Authentication Failure Spike\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.3.19 positive (PostgreSQL, FATAL, Authentication, Failure, Spike): ingest synthetic events into `index=database` sourcetype='postgresql:log' where `users`, `sources` grouped by `host`, `_time` satisfies `failures` > 50 for 'PostgreSQL FATAL Authentication Failure Spike'. Validate filter `\"FATAL\" (\"password authentication failed\" OR \"no pg_hba.conf`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.3.19 negative (Failure Spike): ingest benign `database` / `postgresql:log` events where `host`, `_time` stays below `failures` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'PostgreSQL FATAL Authentication Failure Spike'."
+  },
+  "dataSources": "PostgreSQL log lines containing `FATAL:` and `password authentication failed` or `no pg_hba.conf entry` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder on database host, Splunk Connect for Syslog, or cloud DB log export — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"postgresql:log\"\n| search \"FATAL\" (\"password authentication failed\" OR \"no pg_hba.conf entry\")\n| bin _time span=15m\n| stats count as failures dc(user) as users dc(src_ip) as sources by host, _time\n| where failures > 50",
-  "description": "Repeated FATAL authentication messages often indicate credential attacks, mis-rotated passwords, or broken service accounts. This is standard PostgreSQL security monitoring.",
-  "value": "Detects credential attacks and misconfigurations before lockouts or application brownouts across many clients.",
+  "description": "Detects Failure Spike anomalies for UC-7.3.19 with window `15m` on `index=database` sourcetype `postgresql:log`. Combines `users`, `sources` by `host`, `_time` and compares against `failures` > 50. Mapped to keywords PostgreSQL, FATAL, Authentication, Failure, Spike for dashboard routing.",
+  "value": "Alerting on PostgreSQL, FATAL, Authentication, Failure, Spike through UC-7.3.19 reduces operational risk and delayed incident response by surfacing `users`, `sources` early.",
   "implementation": "Ensure log_line_prefix includes user and client address for parsing. Extract user and src_ip fields at ingest. Baseline failures per environment. Feed high-volume alerts into risk scoring if Splunk Enterprise Security is available.",
   "visualization": "Timeline (failures), Table (host, user, sources), Single value (failures per hour).",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "PostgreSQL client authentication",
-      "url": "https://www.postgresql.org/docs/current/client-authentication.html"
+      "url": "https://www.postgresql.org/docs/current/client-authentication.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned changes, load tests, and vendor maintenance in the data platform can move the same metrics this search uses; we compare to baselines, change records, and on-call context before we treat a hit as a production incident.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.3.19)** — Planned work for 'PostgreSQL FATAL Authentication Failure Spike' shifts `users`, `sources` over `span=15m` while `host`, `_time` remains in-scope. Applies filter `\"FATAL\" (\"password authentication failed\" OR \"no pg_hba.conf`. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `postgresql:log`** — Scheduled automation elevates `_time` without crossing `failures` > 50 for UC-7.3.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `_time`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `postgresql:log`** — First 48h baseline for UC-7.3.19 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "postgresql",
     "syslog"
@@ -39,5 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch for repeated or suspicious sign-in activity on our databases so we can catch brute-force and misconfiguration before they become account takeovers."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder on database host, Splunk Connect for Syslog, or cloud DB log export — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=postgresql:log into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, failures, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for repeated or suspicious sign-in activity on our databases so we can catch brute-force and misconfiguration before they become account takeovers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

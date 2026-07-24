@@ -8,7 +8,8 @@ to stdout.
 
 Usage:
     python -m splunk_uc lift-prompt UC-X.Y.Z
-    python -m splunk_uc lift-prompt UC-X.Y.Z --target-tier gold
+    python -m splunk_uc lift-prompt UC-X.Y.Z --target-tier gold-v2 --handcraft
+    python -m splunk_uc lift-prompt UC-X.Y.Z --domain-pack personal-hec --anchor-uc UC-25.1.1
 """
 
 from __future__ import annotations
@@ -18,12 +19,18 @@ import json
 import sys
 from pathlib import Path
 
+from splunk_uc.audits._template_fingerprints import detect_template_flags
 from splunk_uc.tools.lift._common import (
     DEFAULT_CONTENT_ROOT,
     TargetTier,
     load_sidecar,
     resolve_sidecar_path,
     score_uc,
+)
+from splunk_uc.tools.lift._domain_packs import (
+    format_pack_excerpt,
+    infer_pack_id,
+    load_domain_pack,
 )
 
 PROMPT_TEMPLATE = """You are a Splunk content-quality author. Your job: lift the depth of
@@ -44,6 +51,8 @@ the use case below to the target tier without violating the firewall.
 * `equipmentModels`: populate if a known model matches the data sources.
 * `mitreAttack[]`: populate ONLY when `splunkPillar` is `security`, the field is currently null/empty, and you can name a specific technique ID that validates against `audit-mitre-taxonomy`.
 
+{handcraft_section}
+{domain_pack_section}
 # CURRENT UC SIDECAR
 
 ```json
@@ -76,6 +85,11 @@ Return a unified JSON diff with this exact structure:
   "target_tier": "{target_tier}",
   "lifted_fields": {{
     "<field_name>": "<full replacement value>"
+  }},
+  "authoring_provenance": {{
+    "domain_pack": "{domain_pack_id}",
+    "anchor_uc": "{anchor_uc}",
+    "template_flags_cleared": ["generic_kfp", "generic_controlTest", "generic_exclusions", "generic_evidence"]
   }}
 }}
 ```
@@ -90,6 +104,48 @@ Rules:
 * Save the diff to `/tmp/lift-{uc_id}.diff.json` and return only that
   path. Do nothing else.
 """
+
+HANDCRAFT_SECTION = """# HAND-CRAFT MODE — ANTI-TEMPLATE RULES (mandatory)
+
+The sidecar currently carries bulk-enricher template fingerprints: {template_flags}.
+
+You MUST remove every template fingerprint. Specifically:
+
+* Do NOT reuse CMDB/ServiceNow/operational_exceptions.csv/monitoring_exceptions.csv
+  boilerplate unless this UC's SPL and dataSources are enterprise IT ops.
+* Do NOT use "On a lab host or staging index" controlTest boilerplate.
+* Do NOT use "Does not replace enterprise SIEM correlation" exclusions boilerplate.
+* Do NOT use generic `Saved search uc_*` + `index=evidence` evidence stubs.
+* Every KFP scenario must name systems/fields from THIS UC's `spl`, `dataSources`, or `app`.
+* Lift at least 3 narrative fields with domain-specific prose.
+* `authoring_provenance` in the diff is required (for audit trail; not written to sidecar).
+
+"""
+
+DOMAIN_PACK_SECTION = """# DOMAIN PACK REFERENCE ({domain_pack_id})
+
+Adapt scenarios from this pack — customize for the UC title and SPL; never paste verbatim.
+
+{pack_excerpt}
+
+"""
+
+
+def _build_handcraft_section(flags: list[str]) -> str:
+    if not flags:
+        return ""
+    return HANDCRAFT_SECTION.format(template_flags=", ".join(flags) or "(none detected)")
+
+
+def _build_domain_pack_section(pack_id: str | None, packs_dir: Path | None) -> tuple[str, str]:
+    if not pack_id:
+        return "", ""
+    pack = load_domain_pack(pack_id, packs_dir=packs_dir)
+    if pack is None:
+        return "", pack_id
+    excerpt = format_pack_excerpt(pack)
+    section = DOMAIN_PACK_SECTION.format(domain_pack_id=pack_id, pack_excerpt=excerpt)
+    return section, pack_id
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -113,6 +169,27 @@ def _build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_CONTENT_ROOT,
         help="Override the content root (for tests)",
     )
+    parser.add_argument(
+        "--handcraft",
+        action="store_true",
+        help="Inject anti-template rules and template-flag inventory into the prompt.",
+    )
+    parser.add_argument(
+        "--domain-pack",
+        default=None,
+        help="Domain pack id under data/domain-packs/ (inferred from category when omitted).",
+    )
+    parser.add_argument(
+        "--anchor-uc",
+        default=None,
+        help="Anchor UC id for provenance metadata (e.g. UC-25.1.1).",
+    )
+    parser.add_argument(
+        "--packs-dir",
+        type=Path,
+        default=None,
+        help="Override domain-packs directory (for tests).",
+    )
     return parser
 
 
@@ -127,6 +204,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"lift-prompt: {exc}", file=sys.stderr)
         return 1
 
+    template_flags = detect_template_flags(sidecar_data) if args.handcraft else []
+    handcraft_section = _build_handcraft_section(template_flags) if args.handcraft else ""
+
+    pack_id = args.domain_pack or infer_pack_id(sidecar_path)
+    domain_pack_section, resolved_pack = _build_domain_pack_section(pack_id, args.packs_dir)
+
     sidecar_json = json.dumps(sidecar_data, indent=2, sort_keys=True)
     gap_json = json.dumps(report.to_json(), indent=2, sort_keys=True)
     print(
@@ -135,6 +218,10 @@ def main(argv: list[str] | None = None) -> int:
             target_tier=target_tier.value,
             sidecar_json=sidecar_json,
             gap_json=gap_json,
+            handcraft_section=handcraft_section,
+            domain_pack_section=domain_pack_section,
+            domain_pack_id=resolved_pack or "",
+            anchor_uc=args.anchor_uc or args.uc_id,
         )
     )
     return 0

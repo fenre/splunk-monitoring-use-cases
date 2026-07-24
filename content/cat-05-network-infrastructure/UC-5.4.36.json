@@ -9,31 +9,52 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=aruba:syslog`, `sourcetype=aruba:clearpass`",
+  "exclusions": "Covers the detection logic documented for 'Aruba Dynamic Segmentation Policy Enforcement (HPE Aruba)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_aruba_dynamic_segmentation_policy_enforcement_hp` (UC-5.4.36), SOC dashboard panel \"Operations — Aruba Dynamic Segmentation Policy Enforcement (HPE Aruba)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.4.36 positive (Aruba, Dynamic, Segmentation, Policy, Enforcement): ingest synthetic events into `index=network` sourcetype='aruba:syslog' where `endpoints`, `users` grouped by `assigned_role`, `gw`, `tunnel_st` satisfies detection threshold for 'Aruba Dynamic Segmentation Policy Enforcement (HPE Aruba)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.4.36 negative ((HPE Aruba)): ingest benign `network` / `aruba:syslog` events where `assigned_role`, `gw`, `tunnel_st` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Aruba Dynamic Segmentation Policy Enforcement (HPE Aruba)'."
+  },
+  "dataSources": "`sourcetype=aruba:syslog`, `sourcetype=aruba:clearpass` Indexes: network. Sourcetypes: aruba:syslog, aruba:clearpass. Key fields: assigned_role, gw, tunnel_st. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Aruba Networks Add-on for Splunk` (Splunkbase 4668), `HPE Aruba ClearPass App for Splunk` (Splunkbase 7865)",
   "spl": "index=network (sourcetype=\"aruba:syslog\" OR sourcetype=\"aruba:clearpass\") (\"role\" OR \"User-Role\" OR \"user role\" OR \"tunnel\" OR \"UBT\" OR \"gateway\" OR \"enforce\")\n| eval assigned_role=coalesce(aruba_user_role, TipsRole, user_role, Role_Name, derived_role)\n| eval gw=coalesce(gateway_name, gateway_ip, cluster_name)\n| eval tunnel_st=coalesce(tunnel_status, tunnel_state, ubt_status)\n| stats dc(client_mac) as endpoints, dc(username) as users, count as events by assigned_role, gw, tunnel_st\n| where isnull(tunnel_st) OR like(lower(tunnel_st),\"%down%\") OR like(lower(tunnel_st),\"%fail%\") OR match(lower(assigned_role),\"(?i)deny|reject|quarantine|unknown\")\n| sort -endpoints",
-  "description": "Aruba Dynamic Segmentation assigns users and devices to virtual networks based on ClearPass role and policy, enforced at the Aruba gateway. Policy enforcement failures mean devices get wrong access levels — either too permissive (security risk) or too restrictive (business impact). Monitor role assignment, gateway tunnel status, and policy hits.",
-  "value": "Network security teams monitor Aruba Dynamic Segmentation role assignments and UBT tunnel health, detecting policy failures that place devices in wrong segments or break micro-segmentation enforcement.",
+  "description": "Surfaces UC-5.4.36 — Aruba, Dynamic, Segmentation, Policy, Enforcement — using `index=network` sourcetype `aruba:syslog`, grouped by `assigned_role`, `gw`, `tunnel_st`. Outputs `endpoints`, `users` each `the scheduled window`; alert when configured threshold. Primary focus: (HPE Aruba). Purpose-built for 'Aruba Dynamic Segmentation Policy Enforcement (HPE Aruba)' in Operations workflows.",
+  "value": "UC-5.4.36 operationalises 'Aruba Dynamic Segmentation Policy Enforcement (HPE Aruba)' against `aruba:syslog` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest gateway and switch UBT/syslog role-assignment and tunnel events alongside ClearPass enforcement logs. Build dashboards for role distribution per gateway and alert on tunnel down, role `deny`, or default catch-all role spikes. Validate after policy changes that expected roles appear for test users.",
   "visualization": "Sankey or table (role → gateway → tunnel state), Bar chart (endpoints by role), Timechart (tunnel failures), Table (users or MACs with unexpected roles).",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 4668",
-      "url": "https://splunkbase.splunk.com/app/4668"
+      "url": "https://splunkbase.splunk.com/app/4668",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 7865",
-      "url": "https://splunkbase.splunk.com/app/7865"
+      "url": "https://splunkbase.splunk.com/app/7865",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Wireless metrics move with user behavior, maintenance, and nearby RF; we tune alerts around change windows and known busy hours so normal days do not page the team.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.4.36)** — Planned work for 'Aruba Dynamic Segmentation Policy Enforcement (HPE Aruba)' shifts `endpoints`, `users` over `span=1h` while `assigned_role`, `gw`, `tunnel_st` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `aruba:syslog`** — Scheduled automation elevates `gw` without crossing configured threshold for UC-5.4.36. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `assigned_role`, `gw`, `tunnel_st`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aruba:syslog`** — First 48h baseline for UC-5.4.36 on `assigned_role` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `assigned_role`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog"
+  ],
+  "equipmentModels": [
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -44,5 +65,7 @@
   ],
   "detailedImplementation": "Prerequisites\n• Aruba Networks Add-on for Splunk (Splunkbase 4668) and HPE Aruba ClearPass App for Splunk (Splunkbase 7865) installed. Data in `index=network` with `sourcetype=aruba:syslog` (gateway/switch UBT events) and `sourcetype=aruba:clearpass` (policy enforcement results).\n• Aruba Dynamic Segmentation uses ClearPass to assign roles to users/devices upon authentication. The role determines which virtual network (VLAN/VxLAN) the device is placed in, enforced at the Aruba Gateway (9004/9012) via User-Based Tunneling (UBT) from access switches. This creates micro-segmentation without physical network changes.\n• Key roles to monitor: (1) \"employee\" — full corporate access, (2) \"contractor\" — limited access, (3) \"iot\" — IoT device segment, (4) \"guest\" — internet-only, (5) \"quarantine\" — blocked/remediation, (6) \"deny\" — rejected. A device landing in the wrong role is either a security risk (too permissive) or a business impact (too restrictive).\n\nStep 1 — Configure data collection\nEnsure Aruba gateway syslog includes UBT tunnel and role assignment events:\n```\n(Aruba-GW) # logging <splunk_syslog_ip> severity informational\n```\nClearPass enforcement logs should already be flowing via the ClearPass App.\n\nVerify role assignment data:\n```spl\nindex=network (sourcetype=\"aruba:syslog\" OR sourcetype=\"aruba:clearpass\") (\"role\" OR \"User-Role\" OR \"tunnel\" OR \"UBT\") earliest=-4h\n| eval role=coalesce(aruba_user_role, TipsRole, user_role, Role_Name, derived_role)\n| stats count dc(client_mac) as devices by role\n| sort -devices\n```\n\nStep 2 — Create the search and alert\n\n**Primary search — Dynamic segmentation policy health:**\n```spl\nindex=network (sourcetype=\"aruba:syslog\" OR sourcetype=\"aruba:clearpass\") (\"role\" OR \"User-Role\" OR \"user role\" OR \"tunnel\" OR \"UBT\" OR \"gateway\" OR \"enforce\") earliest=-4h\n| eval assigned_role=coalesce(aruba_user_role, TipsRole, user_role, Role_Name, derived_role)\n| eval gw=coalesce(gateway_name, gateway_ip, cluster_name)\n| eval tunnel_st=coalesce(tunnel_status, tunnel_state, ubt_status)\n| eval issue_type=case(match(lower(assigned_role), \"deny|reject\"), \"DENIED_ACCESS\", match(lower(assigned_role), \"quarantine\"), \"QUARANTINED\", match(lower(assigned_role), \"unknown|default|guest\") AND NOT match(lower(assigned_role), \"guest.policy\"), \"WRONG_ROLE\", like(lower(tunnel_st), \"%down%\") OR like(lower(tunnel_st), \"%fail%\"), \"TUNNEL_FAILURE\", isnull(tunnel_st) AND isnotnull(gw), \"TUNNEL_MISSING\", 1==1, null())\n| where isnotnull(issue_type)\n| stats dc(client_mac) as endpoints dc(username) as users count as events latest(_time) as last_seen by assigned_role, gw, issue_type\n| eval impact=case(issue_type=\"TUNNEL_FAILURE\", \"Gateway tunnel down — ALL clients on this gateway affected. Traffic not segmented!\", issue_type=\"DENIED_ACCESS\", \"Devices being blocked — check ClearPass service/policy\", issue_type=\"QUARANTINED\", \"Devices in quarantine — posture check failure or security incident\", issue_type=\"WRONG_ROLE\", \"Devices getting default/unknown role — ClearPass policy not matching\", 1==1, \"Investigate\")\n| sort issue_type, -endpoints\n```\n\n**Role distribution baseline:**\n```spl\nindex=network (sourcetype=\"aruba:syslog\" OR sourcetype=\"aruba:clearpass\") (\"role\" OR \"User-Role\") earliest=-24h\n| eval assigned_role=coalesce(aruba_user_role, TipsRole, user_role, Role_Name)\n| where isnotnull(assigned_role)\n| bin _time span=1h\n| stats dc(client_mac) as devices by _time, assigned_role\n| timechart span=1h sum(devices) by assigned_role\n```\n\nStep 3 — Validate\n(a) Connect a test device to the corporate SSID and verify it receives the expected role. Check in ClearPass: Monitoring > Access Tracker > select session > Enforcement tab.\n(b) Connect an unregistered device and verify it's assigned \"guest\" or \"quarantine\" role.\n(c) Check UBT tunnel status on the gateway: `show datapath tunnel table` — verify tunnels are established to access switches.\n\nStep 4 — Operationalize\nDashboard (\"Aruba — Dynamic Segmentation\"):\n• Row 1 — Single-value tiles: \"Total segmented devices\", \"Denied\", \"Quarantined\", \"Tunnel failures\", \"Wrong role\".\n• Row 2 — Policy issue detail table with impact description.\n• Row 3 — Role distribution trending (24h).\n\nAlerting:\n• Critical (UBT tunnel failure on any gateway): segmentation broken — all traffic unsegmented on affected switches.\n• High (> 10 devices denied in 15 min): potential mass auth failure or policy misconfiguration.\n• Warning (> 5 devices in default/unknown role): ClearPass service not matching — review policy.\n\nStep 5 — Troubleshooting\n\n• **UBT tunnel down** — Check: (1) Gateway reachability from access switch, (2) GRE/IPsec tunnel configuration, (3) Gateway cluster health: `show datapath session table` on the gateway. A tunnel failure means traffic from that switch is not segmented.\n\n• **Devices getting \"unknown\" role** — ClearPass policy is not matching. Check: (1) Service order in ClearPass (first match wins), (2) Authentication source (AD/LDAP) connectivity, (3) Role mapping rules in the enforcement policy.\n\n• **Spike in \"quarantine\" devices** — If ClearPass OnGuard (NAC posture) is configured, a Windows update may have changed a registry key or service that the posture policy checks. Review ClearPass > Configuration > Posture > Posture Policies.",
   "grandmaExplanation": "We watch aruba dynamic segmentation policy enforcement (hpe aruba) so we notice problems while they are still small, and we can fix them before Wi-Fi users get dropped calls or dead spots.",
-  "hardware": "HPE Aruba 9004/9012 Gateways, Aruba CX switches (UBT), HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance"
+  "hardware": "HPE Aruba 9004/9012 Gateways, Aruba CX switches (UBT), HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

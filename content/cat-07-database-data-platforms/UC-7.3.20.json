@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "MySQL error log (`Aborted connection`, `Access denied`) or `SHOW GLOBAL STATUS` `Aborted_connects`, `Aborted_clients` on `mysql:status`",
-  "app": "Splunk Universal Forwarder, DB Connect status poll",
+  "exclusions": "Covers the detection logic documented for 'MySQL Aborted Connection and Handshake Failure Spike' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_mysql_aborted_connection_and_handshake_failure_s` (UC-7.3.20), SOC dashboard panel \"Operations — MySQL Aborted Connection and Handshake Failure Spike\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.3.20 positive (MySQL, Aborted, Connection, and, Handshake): ingest synthetic events into `index=database` sourcetype='mysql:error' where `targets` grouped by `user`, `src_ip`, `_time` satisfies `events` > 100 for 'MySQL Aborted Connection and Handshake Failure Spike'. Validate filter `\"Aborted connection\" OR \"Access denied for user\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.3.20 negative (Failure Spike): ingest benign `database` / `mysql:error` events where `user`, `src_ip`, `_time` stays below `events` > 100, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'MySQL Aborted Connection and Handshake Failure Spike'."
+  },
+  "dataSources": "MySQL error log (`Aborted connection`, `Access denied`) or `SHOW GLOBAL STATUS` `Aborted_connects`, `Aborted_clients` on `mysql:status` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder, DB Connect status poll — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database (sourcetype=\"mysql:error\" OR sourcetype=\"mysql:log\")\n| search \"Aborted connection\" OR \"Access denied for user\"\n| bin _time span=15m\n| stats count as events dc(host) as targets by user, src_ip, _time\n| where events > 100",
-  "description": "Sudden increases in aborted connections or access denied errors point to credential attacks, TLS mismatches, or pool misconfiguration—common MySQL/MariaDB operational alerts.",
-  "value": "Supports SOC detection and helps DBAs separate attacks from application deploy mistakes quickly.",
+  "description": "Surfaces Failure Spike activity in UC-7.3.20 ('MySQL Aborted Connection and Handshake Failure Spike') from `index=database` sourcetype `mysql:error`. Rolls up `targets` by `user`, `src_ip`, `_time` across `15m` and pages when `events` > 100. Uses filter `\"Aborted connection\" OR \"Access denied for user\"`. Operations operators treat UC-7.3.20 as the canonical signal.",
+  "value": "Operators running UC-7.3.20 on `mysql:error` feeds shorten triage for Failure Spike tied to 'MySQL Aborted Connection and Handshake Failure Spike', lowering operational risk and delayed incident response.",
   "implementation": "Prefer structured error log with connection id and src_ip. If only counters exist, use delta(Aborted_connects) per poll. Correlate with firewall and WAF. Suppress known scanner IPs via lookup.",
   "visualization": "Timeline (events), Table (user, src_ip), Top values (error subtypes).",
   "cimModels": [
@@ -21,13 +27,33 @@
   "references": [
     {
       "title": "MySQL Server Error Log Reference",
-      "url": "https://dev.mysql.com/doc/refman/8.0/en/error-log.html"
+      "url": "https://dev.mysql.com/doc/refman/8.0/en/error-log.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned changes, load tests, and vendor maintenance in the data platform can move the same metrics this search uses; we compare to baselines, change records, and on-call context before we treat a hit as a production incident.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.3.20)** — Planned work for 'MySQL Aborted Connection and Handshake Failure Spike' shifts `targets` over `span=15m` while `user`, `src_ip`, `_time` remains in-scope. Applies filter `\"Aborted connection\" OR \"Access denied for user\"`. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `mysql:error`** — Scheduled automation elevates `src_ip` without crossing `events` > 100 for UC-7.3.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`, `src_ip`, `_time`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mysql:error`** — First 48h baseline for UC-7.3.20 on `user` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mysql"
+  ],
+  "equipmentModels": [
+    "db_connect_generic",
+    "mysql_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -36,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch how many sessions and pooled connections the fleet uses so we can scale or fix apps before the database hits its connection limits."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder, DB Connect status poll — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=mysql:error, mysql:log into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, events, src_ip, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how many sessions and pooled connections the fleet uses so we can scale or fix apps before the database hits its connection limits.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

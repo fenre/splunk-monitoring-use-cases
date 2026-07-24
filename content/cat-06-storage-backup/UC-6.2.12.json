@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`GetObjectLockConfiguration`, Config compliance, S3 Inventory `ObjectLockEnabled`",
-  "app": "AWS Config, S3 API inventory",
+  "exclusions": "Covers the detection logic documented for 'Object Lock Integrity' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_object_lock_integrity` (UC-6.2.12), SOC dashboard panel \"Operations — Object Lock Integrity\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.12 positive (Object, Lock, Integrity): ingest synthetic events into `index=aws` sourcetype='aws:s3:object_lock_audit' where `count` grouped by `bucket_name`, `region` satisfies detection threshold for 'Object Lock Integrity'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.12 negative (Lock Integrity): ingest benign `aws` / `aws:s3:object_lock_audit` events where `bucket_name`, `region` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Object Lock Integrity'."
+  },
+  "dataSources": "`GetObjectLockConfiguration`, Config compliance, S3 Inventory `ObjectLockEnabled` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "AWS Config, S3 API inventory — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:s3:object_lock_audit\"\n| where object_lock_enabled!=1 OR retention_mode=\"null\" OR compliance_gap=1\n| stats latest(_time) as last_check by bucket_name, region\n| table bucket_name region object_lock_enabled retention_mode compliance_gap",
-  "description": "WORM/immutability protects against ransomware and deletion. Verifies Object Lock retention mode and legal hold on regulated buckets.",
-  "value": "WORM/immutability protects against ransomware and deletion. Verifies Object Lock retention mode and legal hold on regulated buckets.",
+  "description": "Surfaces UC-6.2.12 — Object, Lock, Integrity — using `index=aws` sourcetype `aws:s3:object_lock_audit`, grouped by `bucket_name`, `region`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Lock Integrity. Purpose-built for 'Object Lock Integrity' in Operations workflows.",
+  "value": "UC-6.2.12 operationalises 'Object Lock Integrity' against `aws:s3:object_lock_audit` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Scripted audit comparing required lock settings from lookup to actual API responses. Alert on drift or disabled lock. Log tamper-evident checksum of policy JSON if stored in Splunk.",
   "visualization": "Table (buckets failing lock check), Single value (drift count), Timeline (audit runs).",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1876",
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-6.2.12)** — Planned work for 'Object Lock Integrity' shifts `count` over `span=1h` while `bucket_name`, `region` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:s3:object_lock_audit`** — Scheduled automation elevates `region` without crossing configured threshold for UC-6.2.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `bucket_name`, `region`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:s3:object_lock_audit`** — First 48h baseline for UC-6.2.12 on `bucket_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `bucket_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],
+  "equipmentModels": [
+    "aws_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: AWS Config, S3 API inventory.\n• Ensure the following data sources are available: `GetObjectLockConfiguration`, Config compliance, S3 Inventory `ObjectLockEnabled`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nScripted audit comparing required lock settings from lookup to actual API responses. Alert on drift or disabled lock. Log tamper-evident checksum of policy JSON if stored in Splunk.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:s3:object_lock_audit\"\n| where object_lock_enabled!=1 OR retention_mode=\"null\" OR compliance_gap=1\n| stats latest(_time) as last_check by bucket_name, region\n| table bucket_name region object_lock_enabled retention_mode compliance_gap\n```\n\nUnderstanding this SPL\n\n**Object Lock Integrity** — WORM/immutability protects against ransomware and deletion. Verifies Object Lock retention mode and legal hold on regulated buckets.\n\nDocumented **Data sources**: `GetObjectLockConfiguration`, Config compliance, S3 Inventory `ObjectLockEnabled`. **App/TA** (typical add-on context): AWS Config, S3 API inventory. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:s3:object_lock_audit. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:s3:object_lock_audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where object_lock_enabled!=1 OR retention_mode=\"null\" OR compliance_gap=1` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by bucket_name, region** so each row reflects one combination of those dimensions.\n• Pipeline stage (see **Object Lock Integrity**): table bucket_name region object_lock_enabled retention_mode compliance_gap\n\n\nStep 3 — Validate\nCompare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Include who owns the cloud account and the bucket lifecycle policy, because object alerts often need a finance or app owner, not only the storage team. Consider visualizations: Table (buckets failing lock check), Single value (drift count), Timeline (audit runs).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch that immutability and legal hold stay in place on critical buckets so ransomware or insiders cannot quietly turn protection off."
+  "grandmaExplanation": "We watch that immutability and legal hold stay in place on critical buckets so ransomware or insiders cannot quietly turn protection off.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'RabbitMQ Unacknowledged Message Growth Rate (Consumer Stall Signal)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_rabbitmq_unacknowledged_message_growth_rate_cons` (UC-8.5.23), SOC dashboard panel \"Operations — RabbitMQ Unacknowledged Message Growth Rate (Consumer Stall Signal)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.5.23 positive (RabbitMQ, Unacknowledged, Message, Growth, Rate): ingest synthetic events into `index=messaging` sourcetype='rabbitmq:queue' where `count` grouped by `_time`, `vhost`, `name` satisfies `unacked_growth` >= 100, `unacked` >= 200, or `cu` < 0.4 for 'RabbitMQ Unacknowledged Message Growth Rate (Consumer Stall Signal)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.5.23 negative (Stall Signal)): ingest benign `messaging` / `rabbitmq:queue` events where `_time`, `vhost`, `name` stays below `unacked_growth` >= 100, `unacked` >= 200, or `cu` < 0.4, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'RabbitMQ Unacknowledged Message Growth Rate (Consumer Stall Signal)'."
+  },
   "dataSources": "`index=messaging` `sourcetype=rabbitmq:queue` from RabbitMQ Management HTTP API `/api/queues` (`messages_unacknowledged`, `messages`, `consumer_utilisation`)",
   "app": "RabbitMQ management plugin + scripted/HEC poller (`sourcetype=rabbitmq:queue`); AMQP Messaging Modular Input (Splunkbase 1812) optional",
   "spl": "index=messaging sourcetype=\"rabbitmq:queue\" earliest=-4h\n| bin _time span=5m\n| stats latest(messages_unacknowledged) as unacked latest(consumer_utilisation) as cu by _time, vhost, name\n| sort 0 vhost name _time\n| streamstats window=2 global=f current=f last(unacked) as prev_unacked by vhost, name\n| eval unacked_growth=unacked-prev_unacked\n| where unacked_growth >= 100 AND unacked >= 200 AND (isnull(cu) OR cu < 0.4)\n| table _time, vhost, name, unacked, prev_unacked, unacked_growth, cu",
-  "description": "A sustained rise in `messages_unacknowledged` while `consumer_utilisation` stays low usually means consumers have stalled, prefetch is exhausted, or processing latency jumped before queue depth (`messages_ready`) explodes. Catching the growth rate early limits backlog and memory pressure on the broker.",
-  "value": "Reduces time-to-detect silent consumer failure, preventing publisher throttling and SLA breaches on latency-sensitive workloads.",
+  "description": "Identifies UC-8.5.23 — RabbitMQ, Unacknowledged, Message, Growth, Rate — using `index=messaging` sourcetype `rabbitmq:queue`, grouped by `_time`, `vhost`, `name`. Outputs `count` each `5m`; alert when `unacked_growth` >= 100, `unacked` >= 200, or `cu` < 0.4. Primary focus: Stall Signal). Purpose-built for 'RabbitMQ Unacknowledged Message Growth Rate (Consumer Stall Signal)' in Operations workflows.",
+  "value": "UC-8.5.23 operationalises 'RabbitMQ Unacknowledged Message Growth Rate (Consumer Stall Signal)' against `rabbitmq:queue` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Poll `/api/queues` at least every 60s; normalize `name`/`vhost` consistently. Tune `unacked_growth` and minimum `unacked` to your traffic. Exclude federation/shovel internal queues via a lookup if needed.",
   "visualization": "Line chart (`messages_unacknowledged` per queue), overlay `consumer_utilisation`; single-value alert on growth; table of worst queues.",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "RabbitMQ — Queue metrics (ready vs unacknowledged)",
-      "url": "https://www.rabbitmq.com/docs/management#queue-metrics"
+      "url": "https://www.rabbitmq.com/docs/management#queue-metrics",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk — AMQP Messaging Modular Input",
-      "url": "https://splunkbase.splunk.com/app/1812"
+      "url": "https://splunkbase.splunk.com/app/1812",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Queues and broker metrics swing during rebalancing, replay, or maintenance. We align with change windows.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging` (UC-8.5.23)** — Planned work for 'RabbitMQ Unacknowledged Message Growth Rate (Consumer Stall Signal)' shifts `count` over `span=5m` while `_time`, `vhost`, `name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `rabbitmq:queue`** — Scheduled automation elevates `vhost` without crossing `unacked_growth` >= 100 for UC-8.5.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `vhost`, `name`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `rabbitmq:queue`** — First 48h baseline for UC-8.5.23 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "rabbitmq"
+  ],
+  "equipmentModels": [
+    "rabbitmq_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-06-01",
@@ -41,6 +62,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to reduce time-to-detect silent consumer failure, preventing publisher throttling and service promises breaches on latency-sensitive workloads."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (RabbitMQ management plugin + scripted/HEC poller (`sourcetype=rabbitmq:queue`); AMQP Messaging Modular Input (Splunkbase 1812) optional). Enable the modular input or HEC token that writes sourcetype=rabbitmq:queue into messaging. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, cu, name, unacked`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to reduce time-to-detect silent consumer failure, preventing publisher throttling and service promises breaches on latency-sensitive workloads.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=openstack` `sourcetype=\"openstack:neutron\"` — `project_id`, `fip_total`, `fip_used`, `external_network_id`",
-  "app": "Quota usage exporter or Neutron DB snapshot job",
+  "exclusions": "Covers the detection logic documented for 'OpenStack Neutron Floating IP Pool Exhaustion per Project' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_openstack_neutron_floating_ip_pool_exhaustion_pe` (UC-2.9.8), SOC dashboard panel \"Linux — OpenStack Neutron Floating IP Pool Exhaustion per Project\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.9.8 positive (OpenStack, Neutron, Floating, Pool, Exhaustion): ingest synthetic events into `index=openstack` sourcetype='openstack:neutron' where `count` grouped by `project_id`, `external_network_id` satisfies `pct` >= 85 for 'OpenStack Neutron Floating IP Pool Exhaustion per Project'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.9.8 negative (per Project): ingest benign `openstack` / `openstack:neutron` events where `project_id`, `external_network_id` stays below `pct` >= 85, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 0 confirms zero alert rows for 'OpenStack Neutron Floating IP Pool Exhaustion per Project'."
+  },
+  "dataSources": "`index=openstack` `sourcetype=\"openstack:neutron\"` — `project_id`, `fip_total`, `fip_used`, `external_network_id` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Quota usage exporter or Neutron DB snapshot job — Universal Forwarder (Splunkbase 617)",
   "spl": "index=openstack sourcetype=\"openstack:neutron\" earliest=-1h\n| eval pct=100*tonumber(fip_used)/tonumber(fip_total)\n| where pct>=85\n| stats latest(pct) as util by project_id, external_network_id",
-  "description": "Exhausted floating IPs block new public services during incidents. Per-project utilization forecasts runout before the next change window.",
-  "value": "Prevents last-mile connectivity failures during scaling and DR tests.",
+  "description": "Detects 'OpenStack Neutron Floating IP Pool Exhaustion per Project' (UC-2.9.8) using `index=openstack` sourcetype `openstack:neutron` by aggregating `count` grouped by `project_id`, `external_network_id` over `the scheduled window` and alerting when `pct` >= 85. Keywords: OpenStack, Neutron, Floating, Pool, Exhaustion. Focuses on per Project behaviour so linux teams can triage UC-2.9.8 without ad-hoc log review.",
+  "value": "UC-2.9.8 accelerates insight into per Project ('OpenStack Neutron Floating IP Pool Exhaustion per Project') by tracking `activity` on `openstack:neutron` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Ingest quota metrics hourly. Alert at 85%. Automate cleanup suggestions for stale FIPs via lookup of aged associations.",
   "visualization": "Gauge per project; table external nets; trend forecast.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "OpenStack Neutron Floating IPs",
-      "url": "https://docs.openstack.org/neutron/latest/admin/"
+      "url": "https://docs.openstack.org/neutron/latest/admin/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "OpenStack metrics may swing during image builds, large migrations, or control-plane rolling updates; verify services are healthy in parallel before declaring data-plane failure.",
+  "knownFalsePositives": "1. **Patch Tuesday on `openstack`** — Package managers spike `project_id` metrics for 'OpenStack Neutron Floating IP Pool Exhaustion per Project'. Correlate with apt/yum logs in the same `openstack:neutron` window.\n\n2. **Nightly backup I/O on `project_id`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `openstack:neutron`** — Nagios/Zabbix polls `project_id` and mimics sustained load without crossing `pct` >= 85.\n\n4. **New host onboarding** — `project_id` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `project_id`, `valid_until`.",
   "equipment": [
     "openstack"
+  ],
+  "equipmentModels": [
+    "openstack_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -36,5 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Quota usage exporter or Neutron DB snapshot job — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=openstack:neutron into openstack. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`external_network_id, pct, project_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

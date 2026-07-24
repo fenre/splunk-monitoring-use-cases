@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Admin Connection Detection to ICS Assets' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_admin_connection_detection_to_ics_assets` (UC-14.9.15), SOC dashboard panel \"Operations — Admin Connection Detection to ICS Assets\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.9.15 positive (Admin, Connection, Detection, ICS, Assets): ingest synthetic events into `index=nozomi` sourcetype='nozomi:session' where `count` grouped by `src_ip`, `dst_ip`, `outside_hours`, `zone` satisfies `hour` < 7, `hour` > 18, `dow` > 5, or `connections` > 10 for 'Admin Connection Detection to ICS Assets'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.9.15 negative (ICS Assets): ingest benign `nozomi` / `nozomi:session` events where `src_ip`, `dst_ip`, `outside_hours`, `zone` stays below `hour` < 7, `hour` > 18, `dow` > 5, or `connections` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Admin Connection Detection to ICS Assets'."
+  },
   "dataSources": "`sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:session`, `sourcetype=nozomi:link`",
   "app": "`Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)",
   "spl": "index=nozomi sourcetype=\"nozomi:session\" session_type=\"engineering\"\n| eval hour=strftime(_time, \"%H\"), dow=strftime(_time, \"%u\")\n| eval outside_hours=if((hour<7 OR hour>18) OR dow>5, \"After Hours\", \"Business Hours\")\n| stats count as connections by src_ip, dst_ip, outside_hours, zone\n| where outside_hours=\"After Hours\" OR connections > 10\n| sort -connections\n| table src_ip, dst_ip, connections, outside_hours, zone",
-  "description": "OT security platforms detect administrative connections to industrial components — engineering sessions to PLCs, configuration access to field devices. These events identify who is connecting to which controller, enabling detection of unauthorized engineering access that could modify process logic.",
-  "value": "OT security platforms detect administrative connections to industrial components — engineering sessions to PLCs, configuration access to field devices. These events identify who is connecting to which controller, enabling detection of unauthorized engineering access that could modify process logic.",
+  "description": "Identifies UC-14.9.15 for Admin, Connection, Detection, ICS, Assets over `index=nozomi` sourcetype `nozomi:session` with thresholds `hour` < 7, `hour` > 18, `dow` > 5, or `connections` > 10. Groups `count` by `src_ip`, `dst_ip`, `outside_hours`, `zone` each `the scheduled window`. Centered on ICS Assets indicators. Supports repeatable operations triage for 'Admin Connection Detection to ICS Assets'.",
+  "value": "For 'Admin Connection Detection to ICS Assets', UC-14.9.15 converts `activity` on `nozomi:session` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Both platforms detect engineering/admin connections to industrial assets. Baseline approved engineering workstation IPs. Alert on connections from unapproved sources or outside business hours. Track connection frequency per engineer. Correlate with change management tickets.",
   "visualization": "Admin connection timeline; source-destination network map; after-hours connection alerts; approved vs unapproved source comparison.",
   "cimModels": [
@@ -22,18 +28,40 @@
   "references": [
     {
       "title": "Splunkbase app 5748",
-      "url": "https://splunkbase.splunk.com/app/5748"
+      "url": "https://splunkbase.splunk.com/app/5748",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 6905",
-      "url": "https://splunkbase.splunk.com/app/6905"
+      "url": "https://splunkbase.splunk.com/app/6905",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Admin connections from patch nights, break-glass support, or jump-box work with tickets.",
+  "knownFalsePositives": "1. **Maintenance window on `nozomi` (UC-14.9.15)** — Planned work for 'Admin Connection Detection to ICS Assets' shifts `count` over `span=1h` while `src_ip`, `dst_ip`, `outside_hours`, `zone` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `nozomi:session`** — Scheduled automation elevates `dst_ip` without crossing `hour` < 7 for UC-14.9.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_ip`, `dst_ip`, `outside_hours`, `zone`** — Health checks in `nozomi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nozomi:session`** — First 48h baseline for UC-14.9.15 on `src_ip` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src_ip`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
   ],
+  "equipmentModels": [
+    "cisco_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905).\n• Ensure the following data sources are available: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:session`, `sourcetype=nozomi:link`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBoth platforms detect engineering/admin connections to industrial assets. Baseline approved engineering workstation IPs. Alert on connections from unapproved sources or outside business hours. Track connection frequency per engineer. Correlate with change management tickets.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nozomi sourcetype=\"nozomi:session\" session_type=\"engineering\"\n| eval hour=strftime(_time, \"%H\"), dow=strftime(_time, \"%u\")\n| eval outside_hours=if((hour<7 OR hour>18) OR dow>5, \"After Hours\", \"Business Hours\")\n| stats count as connections by src_ip, dst_ip, outside_hours, zone\n| where outside_hours=\"After Hours\" OR connections > 10\n| sort -connections\n| table src_ip, dst_ip, connections, outside_hours, zone\n```\n\nUnderstanding this SPL\n\n**Admin Connection Detection to ICS Assets** — OT security platforms detect administrative connections to industrial components — engineering sessions to PLCs, configuration access to field devices. These events identify who is connecting to which controller, enabling detection of unauthorized engineering access that could modify process logic.\n\nDocumented **Data sources**: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:session`, `sourcetype=nozomi:link`. **App/TA** (typical add-on context): `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nozomi; **sourcetype**: nozomi:session. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nozomi, sourcetype=\"nozomi:session\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **hour** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **outside_hours** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by src_ip, dst_ip, outside_hours, zone** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where outside_hours=\"After Hours\" OR connections > 10` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Admin Connection Detection to ICS Assets**): table src_ip, dst_ip, connections, outside_hours, zone\n\nStep 3 — Validate\nRun the search for a time range that should include both routine and change activity, then compare the same assets, flows, and alerts in the Cisco Cyber Vision UI and in Nozomi Guardian or CMC, matching whichever source the event came from. Reconcile severities, counts, and key fields in both tools.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Admin connection timeline; source-destination network map; after-hours connection alerts; approved vs unapproved source comparison.",
-  "grandmaExplanation": "We log administrative and maintenance sessions to field gear so ad-hoc access is traceable, not a black box."
+  "grandmaExplanation": "We log administrative and maintenance sessions to field gear so ad-hoc access is traceable, not a black box.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

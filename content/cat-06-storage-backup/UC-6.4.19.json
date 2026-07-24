@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'Veeam Backup Copy Job Missing Expected GFS Restore Points' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_veeam_backup_copy_job_missing_expected_gfs_resto` (UC-6.4.19), SOC dashboard panel \"Operations — Veeam Backup Copy Job Missing Expected GFS Restore Points\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.4.19 positive (Veeam, Backup, Copy, Job, Missing): ingest synthetic events into `index=backup` sourcetype='veeam:backup' where `count` grouped by `jn` satisfies `days_since` > 7 for 'Veeam Backup Copy Job Missing Expected GFS Restore Points'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.4.19 negative (Restore Points): ingest benign `backup` / `veeam:backup` events where `jn` stays below `days_since` > 7, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Veeam Backup Copy Job Missing Expected GFS Restore Points'."
+  },
   "dataSources": "`veeam:backup` / `veeam:job` completion rows with `job_name`, `end_time`, and backup copy metadata",
   "app": "Veeam App for Splunk (Splunkbase 7312) or TA-ingested job history",
   "spl": "index=backup (sourcetype=\"veeam:backup\" OR sourcetype=\"veeam:job\") earliest=-30d\n| eval jn=coalesce(job_name, JobName)\n| where match(jn,\"(?i)copy\")\n| eval end_epoch=coalesce(if(isnum(end_time), end_time, null()), strptime(job_end,\"%Y-%m-%d %H:%M:%S\"), strptime(job_end,\"%Y-%m-%dT%H:%M:%S%Z\"))\n| stats latest(end_epoch) as last_success by jn\n| eval days_since=round((now()-last_success)/86400,1)\n| where isnotnull(last_success) AND days_since > 7\n| sort - days_since",
-  "description": "Backup copy jobs carry Grandfather-Father-Son (GFS) anchors for compliance; if no successful copy lands within the policy window, offsite retention gaps violate internal and external audit requirements.",
-  "value": "Protects legal hold and ransomware recovery postures by catching WAN outages, repository auth failures, or scheduling mistakes before quarterly reviews.",
+  "description": "Identifies 'Veeam Backup Copy Job Missing Expected GFS Restore Points' (UC-6.4.19) using `index=backup` sourcetype `veeam:backup` by aggregating `count` grouped by `jn` over `the scheduled window` and alerting when `days_since` > 7. Keywords: Veeam, Backup, Copy, Job, Missing. Focuses on Restore Points behaviour so operations teams can triage UC-6.4.19 without ad-hoc log review.",
+  "value": "UC-6.4.19 accelerates insight into Restore Points ('Veeam Backup Copy Job Missing Expected GFS Restore Points') by tracking `activity` on `veeam:backup` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Tag backup copy jobs in Veeam with a consistent naming prefix. Adjust `days_since` threshold to match the tightest GFS interval (weekly anchor = 7 days). Join to a lookup of regulated workloads for routing severity. Use `veeam_vbr_syslog` with the same filters if REST ingestion is unavailable.",
   "visualization": "Table (job, days since success), timeline of successes, single value (worst gap).",
   "cimModels": [
@@ -22,17 +28,33 @@
   "references": [
     {
       "title": "Veeam App for Splunk (Splunkbase)",
-      "url": "https://splunkbase.splunk.com/app/7312"
+      "url": "https://splunkbase.splunk.com/app/7312",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Veeam Help Center — Backup copy",
-      "url": "https://helpcenter.veeam.com/docs/backup/vsphere/backup_copy.html"
+      "url": "https://helpcenter.veeam.com/docs/backup/vsphere/backup_copy.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `backup` (UC-6.4.19)** — Planned work for 'Veeam Backup Copy Job Missing Expected GFS Restore Points' shifts `count` over `span=1h` while `jn` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `veeam:backup`** — Scheduled automation elevates `jn` without crossing `days_since` > 7 for UC-6.4.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `jn`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `veeam:backup`** — First 48h baseline for UC-6.4.19 on `jn` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `jn`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog",
     "veeam"
+  ],
+  "equipmentModels": [
+    "syslog_generic",
+    "veeam_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We help you see which backup runs finished cleanly and which did not, so you are not caught thinking data was protected when a job really failed or stopped early."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Veeam App for Splunk (Splunkbase 7312) or TA-ingested job history). Enable the modular input or HEC token that writes sourcetype=veeam:backup, veeam:job into backup. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`days_since, jn, job_end`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see which backup runs finished cleanly and which did not, so you are not caught thinking data was protected when a job really failed or stopped early.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

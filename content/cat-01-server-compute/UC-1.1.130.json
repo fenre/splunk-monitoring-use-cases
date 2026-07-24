@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`ss -s` or `netstat` output",
-  "app": "`Splunk_TA_nix` (scripted input)",
+  "exclusions": "Covers the detection logic documented for 'TCP Connection State Distribution (Linux)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_tcp_connection_state_distribution_linux` (UC-1.1.130), SOC dashboard panel \"Linux — TCP Connection State Distribution (Linux)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.130 positive (TCP, Connection, State, Distribution, (Linux)): ingest synthetic events into `index=os` sourcetype='tcp_states' where `close_wait` grouped by `host`, `_time` satisfies `close_wait` > 500 for 'TCP Connection State Distribution (Linux)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.130 negative (Distribution (Linux)): ingest benign `os` / `tcp_states` events where `host`, `_time` stays below `close_wait` > 500, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 3 confirms zero alert rows for 'TCP Connection State Distribution (Linux)'."
+  },
+  "dataSources": "`ss -s` or `netstat` output Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` (scripted input) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=tcp_states host=*\n| bin _time span=15m\n| stats avg(close_wait) as close_wait by host, _time\n| where close_wait > 500",
-  "description": "Count of ESTABLISHED, TIME_WAIT, CLOSE_WAIT, SYN_RECV connections. Detects connection leaks (accumulating CLOSE_WAIT), exhaustion (TIME_WAIT), and half-open buildup.",
-  "value": "Count of ESTABLISHED, TIME_WAIT, CLOSE_WAIT, SYN_RECV connections. Detects connection leaks (accumulating CLOSE_WAIT), exhaustion (TIME_WAIT), and half-open buildup.",
+  "description": "Monitors when Distribution (Linux) criteria fire for 'TCP Connection State Distribution (Linux)' (UC-1.1.130) in `index=os` sourcetype `tcp_states`. Pipeline aggregates `close_wait` by `host`, `_time` over `15m`. Alert logic enforces `close_wait` > 500. Title terms: TCP, Connection, State, Distribution, (Linux). Eliminates manual hunting for UC-1.1.130 conditions.",
+  "value": "UC-1.1.130 helps teams contain TCP, Connection, State, Distribution, (Linux) scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
   "implementation": "Create a scripted input that runs `ss -s` (parse TCP: inuse X orphaned X tw X alloc X mem X) or `netstat -an | awk` to count by state. Parse ESTAB, TIME-WAIT, CLOSE-WAIT, SYN-RECV. Run every 60 seconds. Alert when CLOSE_WAIT exceeds 1000 (possible connection leak); alert when TIME_WAIT exceeds 10000 (port exhaustion risk).",
   "visualization": "Stacked bar chart (state distribution by host), Line chart (CLOSE_WAIT over time), Table of hosts exceeding thresholds.",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Your collector must emit a numeric `close_wait` field; hyphenated `CLOSE-WAIT` from raw `ss` needs renaming at ingest. Load balancers and chatty microservices can hold many `CLOSE_WAIT` sockets briefly during deploys. Tune `_time` span to avoid single-sample spikes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'TCP Connection State Distribution (Linux)'. Correlate with apt/yum logs in the same `tcp_states` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `tcp_states`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `close_wait` > 500.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix` (scripted input).\n• Ensure the following data sources are available: `ss -s` or `netstat` output.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate a scripted input that runs `ss -s` (parse TCP: inuse X orphaned X tw X alloc X mem X) or `netstat -an | awk` to count by state. Parse ESTAB, TIME-WAIT, CLOSE-WAIT, SYN-RECV. Run every 60 seconds. Alert when CLOSE_WAIT exceeds 1000 (possible connection leak); alert when TIME_WAIT exceeds 10000 (port exhaustion risk).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=tcp_states host=*\n| bin _time span=15m\n| stats avg(close_wait) as close_wait by host, _time\n| where close_wait > 500\n```\n\nUnderstanding this SPL\n\n**TCP Connection State Distribution (Linux)** — Count of ESTABLISHED, TIME_WAIT, CLOSE_WAIT, SYN_RECV connections. Detects connection leaks (accumulating CLOSE_WAIT), exhaustion (TIME_WAIT), and half-open buildup.\n\nDocumented **Data sources**: `ss -s` or `netstat` output. **App/TA** (typical add-on context): `Splunk_TA_nix` (scripted input). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: tcp_states. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=tcp_states. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Buckets and averages parsed **close_wait** counts for leak-style detection; confirm field extraction from your `ss`/`netstat` script.\n• Filters the current rows with `where close_wait > 500` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked bar chart (state distribution by host), Line chart (CLOSE_WAIT over time), Table of hosts exceeding thresholds.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We follow half-open and stuck TCP states from Linux so connection leaks and port exhaustion are visible before services refuse new work."
+  "grandmaExplanation": "We follow half-open and stuck TCP states from Linux so connection leaks and port exhaustion are visible before services refuse new work.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -11,11 +11,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Manufacturing",
+  "exclusions": "Covers the detection logic documented for 'EtherNet/IP I/O Implicit Messaging Anomaly' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ethernet_ip_i_o_implicit_messaging_anomaly` (UC-14.6.13), SOC dashboard panel \"Operations — EtherNet/IP I/O Implicit Messaging Anomaly\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.6.13 positive (EtherNet, Implicit, Messaging, Anomaly): ingest synthetic events into `index=ot` sourcetype='zeek:cip_io:json' where `avg_len`, `sd_len`, `baseline` grouped by `_time`, `connection_id`, `source_h`, `destination_h` satisfies `sd_len` > 0 for 'EtherNet/IP I/O Implicit Messaging Anomaly'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.6.13 negative (Messaging Anomaly): ingest benign `ot` / `zeek:cip_io:json` events where `_time`, `connection_id`, `source_h`, `destination_h` stays below `sd_len` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'EtherNet/IP I/O Implicit Messaging Anomaly'."
+  },
   "dataSources": "`index=ot` `sourcetype=\"zeek:enip:json\"` (ICSNPP `cip_io.log` merged or `sourcetype=\"zeek:cip_io:json\"`: `connection_id`, `data_length`, `sequence_number`, `io_data`)",
   "app": "TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)",
   "spl": "index=ot (sourcetype=\"zeek:cip_io:json\" OR (sourcetype=\"zeek:enip:json\" io_data=*))\n| bin _time span=1s\n| stats avg(data_length) as avg_len stdev(data_length) as sd_len count by _time connection_id source_h destination_h\n| eventstats avg(avg_len) as baseline by connection_id\n| where sd_len>0 OR abs(avg_len-baseline)>64\n| table _time connection_id source_h destination_h avg_len sd_len baseline",
-  "description": "Implicit I/O carries real-time control data; sudden changes in payload size or timing can signal cable issues, configuration drift, or injection attempts affecting deterministic control.",
-  "value": "Implicit I/O carries real-time control data; sudden changes in payload size or timing can signal cable issues, configuration drift, or injection attempts affecting deterministic control.",
+  "description": "Detects when Messaging Anomaly criteria fire for 'EtherNet/IP I/O Implicit Messaging Anomaly' (UC-14.6.13) in `index=ot` sourcetype `zeek:cip_io:json`. Pipeline aggregates `avg_len`, `sd_len`, `baseline` by `_time`, `connection_id`, `source_h`, `destination_h` over `1s`. Alert logic enforces `sd_len` > 0. Title terms: EtherNet, Implicit, Messaging, Anomaly. Eliminates manual hunting for UC-14.6.13 conditions.",
+  "value": "UC-14.6.13 helps teams contain EtherNet, Implicit, Messaging, Anomaly scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Place Zeek on I/O scanner–adapter paths; prefer dedicated `cip_io` sourcetype when the TA splits logs. Learn normal `data_length` and sequence cadence per `connection_id`; alert on variance tied to control outages.",
   "visualization": "Line chart (data_length over time), Timeline (anomaly markers), Table (connection_id stats).",
   "cimModels": [
@@ -25,14 +31,38 @@
   "references": [
     {
       "title": "TA for Zeek",
-      "url": "https://splunkbase.splunk.com/app/5466"
+      "url": "https://splunkbase.splunk.com/app/5466",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Corelight App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3884"
+      "url": "https://splunkbase.splunk.com/app/3884",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Implicit I/O anomalies during controller program edits, I/O reseat, or slot replacements.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.6.13)** — Planned work for 'EtherNet/IP I/O Implicit Messaging Anomaly' shifts `avg_len`, `sd_len`, `baseline` over `span=1s` while `_time`, `connection_id`, `source_h`, `destination_h` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `zeek:cip_io:json`** — Scheduled automation elevates `connection_id` without crossing `sd_len` > 0 for UC-14.6.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `connection_id`, `source_h`, `destination_h`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zeek:cip_io:json`** — First 48h baseline for UC-14.6.13 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884).\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"zeek:enip:json\"` (ICSNPP `cip_io.log` merged or `sourcetype=\"zeek:cip_io:json\"`: `connection_id`, `data_length`, `sequence_number`, `io_data`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPlace Zeek on I/O scanner–adapter paths; prefer dedicated `cip_io` sourcetype when the TA splits logs. Learn normal `data_length` and sequence cadence per `connection_id`; alert on variance tied to control outages.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot (sourcetype=\"zeek:cip_io:json\" OR (sourcetype=\"zeek:enip:json\" io_data=*))\n| bin _time span=1s\n| stats avg(data_length) as avg_len stdev(data_length) as sd_len count by _time connection_id source_h destination_h\n| eventstats avg(avg_len) as baseline by connection_id\n| where sd_len>0 OR abs(avg_len-baseline)>64\n| table _time connection_id source_h destination_h avg_len sd_len baseline\n```\n\nUnderstanding this SPL\n\n**EtherNet/IP I/O Implicit Messaging Anomaly** — Implicit I/O carries real-time control data; sudden changes in payload size or timing can signal cable issues, configuration drift, or injection attempts affecting deterministic control.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"zeek:enip:json\"` (ICSNPP `cip_io.log` merged or `sourcetype=\"zeek:cip_io:json\"`: `connection_id`, `data_length`, `sequence_number`, `io_data`). **App/TA** (typical add-on context): TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: zeek:cip_io:json, zeek:enip:json. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"zeek:cip_io:json\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time connection_id source_h destination_h** so each row reflects one combination of those dimensions.\n• `eventstats` rolls up events into metrics; results are split **by connection_id** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where sd_len>0 OR abs(avg_len-baseline)>64` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **EtherNet/IP I/O Implicit Messaging Anomaly**): table _time connection_id source_h destination_h avg_len sd_len baseline\n\nStep 3 — Validate\nRun the search for a short window and compare key fields with Zeek or Corelight protocol logs on the sensor for the same flow. Reconcile function codes, endpoints, and time order against a small known-good capture if needed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (data_length over time), Timeline (anomaly markers), Table (connection_id stats).",
-  "grandmaExplanation": "We use deep packet inspection to watch implicit I/O messaging on EtherNet/IP so changes to cyclic traffic break from baseline."
+  "grandmaExplanation": "We use deep packet inspection to watch implicit I/O messaging on EtherNet/IP so changes to cyclic traffic break from baseline.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

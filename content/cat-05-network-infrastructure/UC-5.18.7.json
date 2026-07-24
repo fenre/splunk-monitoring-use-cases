@@ -10,28 +10,42 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Detailed: syslog from proactive OAM scripts (`ping mpls`, `traceroute mpls`, `ping vpws/vpls`), Cisco `%OAM-*`, IOS-XR BFD/SBFD over MPLS logs, Junos `rpm`/`mpls-ping` telemetry hooks, Nokia SR OS eth-cfm / MPLS-TP Y.1731 messages if enabled; synthetic probe JSON via HEC.",
-  "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`), Splunk Add-on for Juniper; custom Universal Forwarder scripted inputs wrapping vendor CLIs (guard credentials via credential store).",
+  "exclusions": "Covers the detection logic documented for 'MPLS OAM / LSP Ping and Traceroute Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_mpls_oam_lsp_ping_and_traceroute_failures` (UC-5.18.7), SOC dashboard panel \"Operations — MPLS OAM / LSP Ping and Traceroute Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.18.7 positive (MPLS, OAM, LSP, Ping, and): ingest synthetic events into `index=network` sourcetype='target_sourcetype' where `values` grouped by `host`, `sourcetype` satisfies -24h for 'MPLS OAM / LSP Ping and Traceroute Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.18.7 negative (Traceroute Failures): ingest benign `network` / `target_sourcetype` events where `host`, `sourcetype` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'MPLS OAM / LSP Ping and Traceroute Failures'."
+  },
+  "dataSources": "Detailed: syslog from proactive OAM scripts (`ping mpls`, `traceroute mpls`, `ping vpws/vpls`), Cisco `%OAM-*`, IOS-XR BFD/SBFD over MPLS logs, Junos `rpm`/`mpls-ping` telemetry hooks, Nokia SR OS eth-cfm / MPLS-TP Y.1731 messages if enabled; synthetic probe JSON via HEC. Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`), Splunk Add-on for Juniper; custom Universal Forwarder scripted inputs wrapping vendor CLIs (guard credentials via credential store). — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=network earliest=-24h@h latest=now\n| eval msg=lower(_raw)\n| eval oam=match(msg,\"(?:lsp.?ping|mpls.?ping|mpls.?trace|traceroute.?mpls|oam|bfd.*(?:mpls|lsp)|sbfd.*(?:discriminator|mpls)|mpls.?tp|y\\.1731|eth.?cfm|cv.?cc)\")\n| eval fail=match(msg,\"(?:fail|timeout|no.?reply|rtt.*(?:exceed|miss)|loss.*(?:100|[89][0-9])|malformed|misconnected|(?:down|alarm).*mpls)\")\n| where oam=1 AND fail=1\n| rex field=_raw max_match=0 \"(?i)(?:fec|prefix)\\s*[:=]?\\s*(?<fec>[0-9./:]+)\"\n| rex field=_raw max_match=0 \"(?i)(?:tunnel|lsp)\\s*[:=]?\\s*(?<lsp_name>[^\\s,]+)\"\n| rex field=_raw max_match=0 \"(?i)(?:router.?id|ingress)\\s*[:=]?\\s*(?<ingress>[0-9.]+|[0-9a-f:]+)\"\n| stats count earliest(_time) as first_seen latest(_time) as last_seen values(fec) as fecs values(lsp_name) as lsps by host sourcetype\n| sort - count",
-  "description": "Splunk aggregates MPLS Operations-and-Management probe failures—from CLI-driven LSP pings to SBFD session drops—so passive syslog silence breaks when proactive validation proves unreachable or mis-forwarded FECs despite seemingly stable RSVP adjacencies.",
-  "value": "Advanced assurance teams shorten stubborn ticket investigations because Splunk timestamps synthetic proof of broken dataplane labels alongside correlated RSVP/LDP neighbor logs instead of relying on subjective CLI screenshots.",
+  "description": "Identifies risk tied to MPLS, OAM, LSP, Ping, and through UC-5.18.7 on `index=network` sourcetype `configured sourcetype`. Summarises `values` grouped by `host`, `sourcetype` across `the scheduled window` before applying -24h. Operators tune 'MPLS OAM / LSP Ping and Traceroute Failures' using UC-5.18.7 runbook steps.",
+  "value": "Tracking `activity` via UC-5.18.7 on UC-5.18.7 search results improves response to 'MPLS OAM / LSP Ping and Traceroute Failures' and reduces operational risk and delayed incident response.",
   "implementation": "Schedule scripted probes every five minutes per critical wholesale pseudowire/FEC list, wrap stderr/stdout as JSON to Splunk, dedupe by FEC hash, alert after three consecutive probe failures.",
   "visualization": "Dashboard Studio: KPI for failing FECs; timeline colored by severity; map panel keyed by site lookup showing impacted POP pairs.",
   "references": [
     {
       "title": "Cisco IOS XR MPLS OAM Configuration Guide",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Juniper MPLS Applications User Guide — MPLS Ping and Traceroute",
-      "url": "https://www.juniper.net/documentation/us/en/software/junos/mpls/"
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/mpls/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IETF RFC 6428 — MPLS On-Demand Connectivity Verification",
-      "url": "https://www.rfc-editor.org/rfc/rfc6428"
+      "url": "https://www.rfc-editor.org/rfc/rfc6428",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**ICMP suppression:** some hops drop TTL-expired replies yet dataplane fine—pair with LFIB checks.**CPU-driven delay:** slow RE spikes RTT—threshold adaptive.**Multi-segment pseudowires:** misconfigured FEC strings cause repetitive noise until inventory corrected.**Scheduler overlap:** cron collisions duplicate failures—dedupe `fec+minute`.**IPv6 vs IPv4 FEC:** mismatched family yields false failure.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.18.7)** — Planned work for 'MPLS OAM / LSP Ping and Traceroute Failures' shifts `values` over `span=1h` while `host`, `sourcetype` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `configured_sourcetype`** — Scheduled automation elevates `sourcetype` without crossing configured threshold for UC-5.18.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `sourcetype`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.18.7 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "N/A (fault monitoring)"
   ],
@@ -55,7 +69,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Secure credential vault accessible to universal forwarder service account.\n• FEC inventory prioritized by revenue tier.\n\nStep 1 — Probe command baseline\nCisco IOS-XR: `ping mpls ipv4 <fec> repeat 5`; Junos: `ping mpls rsvp <lsp-name> count 5`; Nokia: equivalent `oam` test commands per TIMOS release docs.\n\nStep 2 — Wrapper script\nPython wrapper captures return codes, latency stats, and timestamps; ships via HEC with sourcetype `mpls:oam_probe`.\n\nStep 3 — Splunk transforms\nSet `TIMESTAMP_FIELDS` for JSON `probe_ts`; map `fec`, `lsp_name`, `forwarding equivalence class` identifiers consistently.\n\nStep 4 — Validation\nInduce failure by shutting passive interface in lab—ensure three consecutive failures trigger alert while single jitter drop does not.\n\nStep 5 — Documentation\nPublish operator playbook linking Splunk alert to recommended `traceroute mpls` depth parameters and PE isolation tests.",
+  "detailedImplementation": "Prerequisites\n• Secure credential vault accessible to universal forwarder service account.\n• FEC inventory prioritized by revenue tier.\n\nStep 1 — Probe command baseline\nCisco IOS-XR: `ping mpls ipv4 <fec> repeat 5`; Junos: `ping mpls rsvp <lsp-name> count 5`; Nokia: equivalent `oam` test commands per TIMOS release docs.\n\nStep 2 — Wrapper script\nPython wrapper captures return codes, latency stats, and timestamps; ships via HEC with sourcetype `mpls:oam_probe`.\n\nStep 3 — Splunk transforms\nSet `TIMESTAMP_FIELDS` for JSON `probe_ts`; map `fec`, `lsp_name`, `forwarding equivalence class` identifiers consistently.\n\nStep 4 — Validation\nInduce failure by shutting passive interface in lab—ensure three consecutive failures trigger alert while single jitter drop does not.\n\nStep 5 — Documentation\nPublish operator playbook linking Splunk alert to recommended `traceroute mpls` depth parameters and PE isolation tests.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cisco Networks Add-on for Splunk (`TA-cisco_ios`), Splunk Add-on for Juniper; custom Universal Forwarder scripted inputs wrapping vendor CLIs (guard credentials via credential store). — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=see SPL into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, sourcetype`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We send tiny test postcards along the same hidden tracks big traffic uses. When postcards bounce or vanish, we know the track is cracked even if the loudspeaker still says everything is fine.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

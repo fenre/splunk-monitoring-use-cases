@@ -9,11 +9,17 @@
     "Cost"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=power|cooling|environment` · `sourcetype=\"snmp:apc:ups\"` (APC PowerNet / AirIR / ATS / NetBotz OIDs per deployment)",
-  "app": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions",
+  "exclusions": "Covers the detection logic documented for 'APC UPS SNMP Power Factor Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_apc_ups_snmp_power_factor_trending` (UC-15.4.12), SOC dashboard panel \"Operations — APC UPS SNMP Power Factor Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-15.4.12 positive (APC, UPS, SNMP, Power, Factor): ingest synthetic events into `index=power` sourcetype='snmp:apc:ups' where `avg` grouped by `ups_name` satisfies -7d for 'APC UPS SNMP Power Factor Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.4.12 negative (Factor Trending): ingest benign `power` / `snmp:apc:ups` events where `ups_name` stays below -7d, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'APC UPS SNMP Power Factor Trending'."
+  },
+  "dataSources": "`index=power|cooling|environment` · `sourcetype=\"snmp:apc:ups\"` (APC PowerNet / AirIR / ATS / NetBotz OIDs per deployment) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions — Universal Forwarder (Splunkbase 617)",
   "spl": "index=power sourcetype=\"snmp:apc:ups\" earliest=-7d\n| eval pf=tonumber(coalesce(upsAdvOutputPowerFactor, output_power_factor, \"\"))/100\n| where isnotnull(pf)\n| timechart span=1h avg(pf) by ups_name",
-  "description": "Declining power factor at the UPS output can signal upstream harmonics or mis-sized loads increasing electrical losses.",
-  "value": "Guides electrical remediation and rightsizing projects.",
+  "description": "Detects 'APC UPS SNMP Power Factor Trending' patterns (UC-15.4.12) sourced from `index=power` sourcetype `snmp:apc:ups`. Threshold bundle: -7d; aggregation grain: `ups_name`; metrics: `avg`. Watch terms: APC, UPS, SNMP, Power, Factor.",
+  "value": "UC-15.4.12 gives Operations teams earlier visibility into Factor Trending through `snmp:apc:ups` feeds, lowering operational risk and delayed incident response.",
   "implementation": "(1) Confirm scaling factor in MIB. (2) Correlate with PDU PF if metered.",
   "visualization": "Line chart PF; SLA band 0.9–1.0.",
   "cimModels": [
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "Schneider Electric — APC product support",
-      "url": "https://www.se.com/ww/en/product-category/3100-2000-pdu/"
+      "url": "https://www.se.com/ww/en/product-category/3100-2000-pdu/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Connect for SNMP",
-      "url": "https://splunkbase.splunk.com/apps#/search=connect%20for%20snmp"
+      "url": "https://splunkbase.splunk.com/apps#/search=connect%20for%20snmp",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Power spikes during equipment power cycling, scheduled load shifting, or DR drills.",
+  "knownFalsePositives": "1. **Maintenance window on `power` (UC-15.4.12)** — Planned work for 'APC UPS SNMP Power Factor Trending' shifts `avg` over `span=1h` while `ups_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `snmp:apc:ups`** — Scheduled automation elevates `pf` without crossing configured threshold for UC-15.4.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ups_name`** — Health checks in `power` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:apc:ups`** — First 48h baseline for UC-15.4.12 on `ups_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ups_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apc_dc",
     "snmp"
@@ -46,6 +64,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=snmp:apc:ups into power. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`ups_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

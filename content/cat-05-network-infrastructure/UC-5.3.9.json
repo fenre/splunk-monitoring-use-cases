@@ -9,21 +9,43 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=f5:bigip:ltm`, SNMP",
-  "app": "F5 TA (`Splunk_TA_f5-bigip`), Splunk_TA_citrix-netscaler",
+  "exclusions": "Covers the detection logic documented for 'Connection Queue Depth (F5 BIG-IP)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_connection_queue_depth_f5_big_ip` (UC-5.3.9), SOC dashboard panel \"Operations — Connection Queue Depth (F5 BIG-IP)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.3.9 positive (Connection, Queue, Depth, (F5, BIG): ingest synthetic events into `index=network` sourcetype='f5:bigip:ltm' where `count` grouped by `virtual_server` satisfies `queue_depth` > 0 for 'Connection Queue Depth (F5 BIG-IP)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.3.9 negative (BIG IP)): ingest benign `network` / `f5:bigip:ltm` events where `virtual_server` stays below `queue_depth` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Connection Queue Depth (F5 BIG-IP)'."
+  },
+  "dataSources": "`sourcetype=f5:bigip:ltm`, SNMP Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "F5 TA (`Splunk_TA_f5-bigip`), Splunk_TA_citrix-netscaler — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"f5:bigip:ltm\"\n| stats latest(curConns) as connections, latest(connqDepth) as queue_depth by virtual_server\n| where queue_depth > 0 | sort -queue_depth",
-  "description": "Growing connection queues indicate backend saturation. Users experience timeouts before the server actually fails.",
-  "value": "Application delivery teams monitor F5 BIG-IP connection queue depth by comparing client-side and server-side connection counts, detecting backend bottlenecks where new connections are backing up.",
+  "description": "Surfaces UC-5.3.9 — Connection, Queue, Depth, (F5, BIG — using `index=network` sourcetype `f5:bigip:ltm`, grouped by `virtual_server`. Outputs `count` each `the scheduled window`; alert when `queue_depth` > 0. Primary focus: BIG IP). Purpose-built for 'Connection Queue Depth (F5 BIG-IP)' in Operations workflows.",
+  "value": "Alerting on Connection, Queue, Depth, (F5, BIG through UC-5.3.9 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Monitor LTM connection queue statistics via iControl REST or SNMP. Alert when queue depth exceeds 0 persistently (>5 min). Correlate with backend pool member health.",
   "visualization": "Line chart (queue depth over time), Table (virtual server, connections, queue), Gauge.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk_TA_f5-bigip",
-      "url": "https://splunkbase.splunk.com/app/2680"
+      "url": "https://splunkbase.splunk.com/app/2680",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Flash crowds, new campaigns, and slow backends can fill queues during honest peaks.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.3.9)** — Planned work for 'Connection Queue Depth (F5 BIG-IP)' shifts `count` over `span=1h` while `virtual_server` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `f5:bigip:ltm`** — Scheduled automation elevates `src` without crossing `queue_depth` > 0 for UC-5.3.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `virtual_server`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `f5:bigip:ltm`** — First 48h baseline for UC-5.3.9 on `virtual_server` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `virtual_server`, `exception_reason`, `valid_until`.",
   "equipment": [
     "citrix",
     "f5",
@@ -34,6 +56,12 @@
     "f5_bigip",
     "snmp_generic"
   ],
-  "detailedImplementation": "Prerequisites\n* Splunk Add-on for F5 BIG-IP (`Splunk_TA_f5-bigip`, Splunkbase 2680). F5 iControl REST or SNMP polling for connection queue statistics. Key metrics: `clientside_cur_conns`, `serverside_cur_conns`, `num_active_members`, queue depth from `oneconnect` or `connection-limit` pool statistics.\n\nStep 1 -- Configure data collection\nPoll F5 iControl REST for pool and virtual server stats including queue metrics, or use SNMP OID `ltmVsStatusCurrSessions` (1.3.6.1.4.1.3375.2.2.10.13.2.1.2). Verify:\n```spl\nindex=network (sourcetype=\"f5:bigip:api\" OR sourcetype=\"f5:bigip:syslog\") earliest=-4h\n| where isnotnull(clientside_cur_conns) OR match(_raw, \"(?i)(queue|connection.limit)\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Connection queue depth and saturation:**\n```spl\nindex=network (sourcetype=\"f5:bigip:api\" OR sourcetype=\"f5:bigip:syslog\") earliest=-4h\n| eval client_conns=coalesce(clientside_cur_conns, client_connections)\n| eval server_conns=coalesce(serverside_cur_conns, server_connections)\n| eval vs=coalesce(virtual_server, virtual_name)\n| bin _time span=5m\n| stats max(client_conns) as peak_client max(server_conns) as peak_server by _time, host, vs\n| eval queue_estimate=peak_client - peak_server\n| eval queue_ratio=if(peak_client > 0, round(peak_server/peak_client, 2), 1)\n| where queue_estimate > 50 OR queue_ratio < 0.8\n| lookup f5_vip_inventory.csv virtual_server as vs OUTPUT application, tier\n| eval severity=case(queue_estimate > 500, \"CRITICAL -- large connection backlog\", queue_estimate > 100, \"HIGH\", queue_ratio < 0.5, \"WARNING -- backends not keeping up\", 1==1, \"Monitor\")\n| sort severity, -queue_estimate\n```\n\nStep 3 -- Validate\n(a) Check current connections: `tmsh show ltm virtual <vs> stats` -- compare clientside and serverside current connections.\n(b) If clientside >> serverside, connections are queuing.\n(c) Reduce pool capacity (disable members) and verify queue buildup in Splunk.\n\nStep 4 -- Operationalize\nDashboard (\"F5 -- Connection Queues\"):\n* Row 1 -- Single-value: \"VIPs with queue buildup\", \"Max queue depth\", \"Avg queue ratio\".\n* Row 2 -- Per-VIP queue analysis table.\n\nAlerting:\n* Critical (queue estimate > 500 for > 5 min): severe backend bottleneck.\n* Warning (queue ratio < 0.7 for > 10 min): backends falling behind.\n\nStep 5 -- Troubleshooting\n\n* **High queue but backend connections low** -- Connection limit on pool members may be throttling. Check: `tmsh list ltm pool <pool> members connection-limit`.\n\n* **Queue builds during specific hours** -- Backend capacity insufficient for peak load. Consider auto-scaling or pre-warming backend instances.\n\n* **OneConnect multiplexing** -- If using OneConnect profile, clientside connections will be much higher than serverside (by design -- this is connection reuse, not queuing).",
-  "grandmaExplanation": "We look at how deep connection queues get so a slow back end or a traffic spike is not hiding behind a few lucky fast replies."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n* Splunk Add-on for F5 BIG-IP (`Splunk_TA_f5-bigip`, Splunkbase 2680). F5 iControl REST or SNMP polling for connection queue statistics. Key metrics: `clientside_cur_conns`, `serverside_cur_conns`, `num_active_members`, queue depth from `oneconnect` or `connection-limit` pool statistics.\n\nStep 1 -- Configure data collection\nPoll F5 iControl REST for pool and virtual server stats including queue metrics, or use SNMP OID `ltmVsStatusCurrSessions` (1.3.6.1.4.1.3375.2.2.10.13.2.1.2). Verify:\n```spl\nindex=network (sourcetype=\"f5:bigip:api\" OR sourcetype=\"f5:bigip:syslog\") earliest=-4h\n| where isnotnull(clientside_cur_conns) OR match(_raw, \"(?i)(queue|connection.limit)\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Connection queue depth and saturation:**\n```spl\nindex=network (sourcetype=\"f5:bigip:api\" OR sourcetype=\"f5:bigip:syslog\") earliest=-4h\n| eval client_conns=coalesce(clientside_cur_conns, client_connections)\n| eval server_conns=coalesce(serverside_cur_conns, server_connections)\n| eval vs=coalesce(virtual_server, virtual_name)\n| bin _time span=5m\n| stats max(client_conns) as peak_client max(server_conns) as peak_server by _time, host, vs\n| eval queue_estimate=peak_client - peak_server\n| eval queue_ratio=if(peak_client > 0, round(peak_server/peak_client, 2), 1)\n| where queue_estimate > 50 OR queue_ratio < 0.8\n| lookup f5_vip_inventory.csv virtual_server as vs OUTPUT application, tier\n| eval severity=case(queue_estimate > 500, \"CRITICAL -- large connection backlog\", queue_estimate > 100, \"HIGH\", queue_ratio < 0.5, \"WARNING -- backends not keeping up\", 1==1, \"Monitor\")\n| sort severity, -queue_estimate\n```\n\nStep 3 -- Validate\n(a) Check current connections: `tmsh show ltm virtual <vs> stats` -- compare clientside and serverside current connections.\n(b) If clientside >> serverside, connections are queuing.\n(c) Reduce pool capacity (disable members) and verify queue buildup in Splunk.\n\nStep 4 -- Operationalize\nDashboard (\"F5 -- Connection Queues\"):\n* Row 1 -- Single-value: \"VIPs with queue buildup\", \"Max queue depth\", \"Avg queue ratio\".\n* Row 2 -- Per-VIP queue analysis table.\n\nAlerting:\n* Critical (queue estimate > 500 for > 5 min): severe backend bottleneck.\n* Warning (queue ratio < 0.7 for > 10 min): backends falling behind.\n\nStep 5 -- Troubleshooting\n\n* **High queue but backend connections low** -- Connection limit on pool members may be throttling. Check: `tmsh list ltm pool <pool> members connection-limit`.\n\n* **Queue builds during specific hours** -- Backend capacity insufficient for peak load. Consider auto-scaling or pre-warming backend instances.\n\n* **OneConnect multiplexing** -- If using OneConnect profile, clientside connections will be much higher than serverside (by design -- this is connection reuse, not queuing).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (F5 TA (`Splunk_TA_f5-bigip`), Splunk_TA_citrix-netscaler — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=f5:bigip:ltm into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`queue_depth, virtual_server`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We look at how deep connection queues get so a slow back end or a traffic spike is not hiding behind a few lucky fast replies.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

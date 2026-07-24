@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=wxcc:ivr_activity` (custom via API), `sourcetype=wxcc:call_legs`",
-  "app": "Webex Contact Center GraphQL API via HEC, `Cisco Webex Add-on` (Splunkbase #5781)",
+  "exclusions": "Covers the detection logic documented for 'Webex Contact Center IVR Containment Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_webex_contact_center_ivr_containment_rate` (UC-11.3.43), SOC dashboard panel \"Operations — Webex Contact Center IVR Containment Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.3.43 positive (Webex, Contact, Center, IVR, Containment): ingest synthetic events into `index=contact_center` sourcetype='wxcc:call_legs' where `contained`, `to_agent`, `abandoned` grouped by `_time`, `entry_point` satisfies detection threshold for 'Webex Contact Center IVR Containment Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.3.43 negative (Containment Rate): ingest benign `contact_center` / `wxcc:call_legs` events where `_time`, `entry_point` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Webex Contact Center IVR Containment Rate'."
+  },
+  "dataSources": "`sourcetype=wxcc:ivr_activity` (custom via API), `sourcetype=wxcc:call_legs` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Webex Contact Center GraphQL API via HEC, `Cisco Webex Add-on` (Splunkbase #5781) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=contact_center sourcetype=\"wxcc:call_legs\"\n| eval reached_agent=if(isnotnull(agent_id) AND agent_id!=\"\", 1, 0)\n| eval self_served=if(reached_agent==0 AND disposition==\"Completed\", 1, 0)\n| eval abandoned_ivr=if(reached_agent==0 AND disposition==\"Abandoned\", 1, 0)\n| bin _time span=1d\n| stats count as total_calls, sum(self_served) as contained, sum(reached_agent) as to_agent, sum(abandoned_ivr) as abandoned by _time, entry_point\n| eval containment_pct=round(contained*100/total_calls, 1)\n| eval abandon_pct=round(abandoned*100/total_calls, 1)\n| table _time, entry_point, total_calls, contained, to_agent, abandoned, containment_pct, abandon_pct\n| sort -_time, -total_calls",
-  "description": "IVR containment rate measures the percentage of callers who complete their task within the IVR self-service system without speaking to a live agent. High containment reduces agent workload and cost per contact. Declining containment signals IVR menu confusion, new customer issues not covered by self-service, or technical failures in IVR integrations (database lookup failures, speech recognition errors) — all of which increase agent queue volume and customer frustration.",
-  "value": "IVR containment rate measures the percentage of callers who complete their task within the IVR self-service system without speaking to a live agent. High containment reduces agent workload and cost per contact. Declining containment signals IVR menu confusion, new customer issues not covered by self-service, or technical failures in IVR integrations (database lookup failures, speech recognition errors) — all of which increase agent queue volume and customer frustration.",
+  "description": "Alerts on UC-11.3.43 — Webex, Contact, Center, IVR, Containment — using `index=contact_center` sourcetype `wxcc:call_legs`, grouped by `_time`, `entry_point`. Outputs `contained`, `to_agent`, `abandoned` each `1d`; alert when configured threshold. Primary focus: Containment Rate. Purpose-built for 'Webex Contact Center IVR Containment Rate' in Operations workflows.",
+  "value": "Alerting on Webex, Contact, Center, IVR, Containment through UC-11.3.43 reduces operational risk and delayed incident response by surfacing `contained`, `to_agent`, `abandoned` early.",
   "implementation": "Ingest WxCC call leg data which tracks each call's journey through the IVR flow. A call is \"contained\" if it completes with a successful disposition without ever being connected to an agent. Track containment rate daily by entry point (phone number or IVR menu). Industry benchmarks vary: 30-50% for complex support, 60-80% for billing/account inquiries. Alert when containment drops more than 10 percentage points from the 7-day average — this usually indicates an IVR integration failure (e.g., backend API timeout causing the \"try again later\" path). Correlate IVR path data with specific menu choices to identify where callers bail out. Report weekly to operations leadership with trend and top escalation reasons.",
   "visualization": "Line chart (containment rate trend over 30 days), Funnel chart (IVR path flow from entry to exit), Bar chart (containment by entry point), Single value (today's containment vs target).",
   "cimModels": [
@@ -22,17 +28,39 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Simple call flows, callbacks, and high callback-success designs that change containment rate.",
+  "knownFalsePositives": "1. **Maintenance window on `contact_center` (UC-11.3.43)** — Planned work for 'Webex Contact Center IVR Containment Rate' shifts `contained`, `to_agent`, `abandoned` over `span=1d` while `_time`, `entry_point` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `wxcc:call_legs`** — Scheduled automation elevates `entry_point` without crossing configured threshold for UC-11.3.43. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `entry_point`** — Health checks in `contact_center` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `wxcc:call_legs`** — First 48h baseline for UC-11.3.43 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
   "equipmentModels": [
     "cisco_webex"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Webex Contact Center GraphQL API via HEC, `Cisco Webex Add-on` (Splunkbase #5781).\n• Ensure the following data sources are available: `sourcetype=wxcc:ivr_activity` (custom via API), `sourcetype=wxcc:call_legs`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest WxCC call leg data which tracks each call's journey through the IVR flow. A call is \"contained\" if it completes with a successful disposition without ever being connected to an agent. Track containment rate daily by entry point (phone number or IVR menu). Industry benchmarks vary: 30-50% for complex support, 60-80% for billing/account inquiries. Alert when containment drops more than 10 percentage points from the 7-day average — this usually indicates an IVR integration failure (e.g., bac…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=contact_center sourcetype=\"wxcc:call_legs\"\n| eval reached_agent=if(isnotnull(agent_id) AND agent_id!=\"\", 1, 0)\n| eval self_served=if(reached_agent==0 AND disposition==\"Completed\", 1, 0)\n| eval abandoned_ivr=if(reached_agent==0 AND disposition==\"Abandoned\", 1, 0)\n| bin _time span=1d\n| stats count as total_calls, sum(self_served) as contained, sum(reached_agent) as to_agent, sum(abandoned_ivr) as abandoned by _time, entry_point\n| eval containment_pct=round(contained*100/total_calls, 1)\n| eval abandon_pct=round(abandoned*100/total_calls, 1)\n| table _time, entry_point, total_calls, contained, to_agent, abandoned, containment_pct, abandon_pct\n| sort -_time, -total_calls\n```\n\nUnderstanding this SPL\n\n**Webex Contact Center IVR Containment Rate** — IVR containment rate measures the percentage of callers who complete their task within the IVR self-service system without speaking to a live agent. High containment reduces agent workload and cost per contact. Declining containment signals IVR menu confusion, new customer issues not covered by self-service, or technical failures in IVR integrations (database lookup failures, speech recognition errors) — all of which increase agent queue volume and customer frustration.\n\nDocumented **Data sources**: `sourcetype=wxcc:ivr_activity` (custom via API), `sourcetype=wxcc:call_legs`. **App/TA** (typical add-on context): Webex Contact Center GraphQL API via HEC, `Cisco Webex Add-on` (Splunkbase #5781). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: contact_center; **sourcetype**: wxcc:call_legs. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=contact_center, sourcetype=\"wxcc:call_legs\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **reached_agent** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **self_served** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **abandoned_ivr** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time, entry_point** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **containment_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **abandon_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Webex Contact Center IVR Containment Rate**): table _time, entry_point, total_calls, contained, to_agent, abandoned, containment_pct, abandon_pct\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with Cisco Webex Control Hub analytics, audit, and service status for the same time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (containment rate trend over 30 days), Funnel chart (IVR path flow from entry to exit), Bar chart (containment by entry point), Single value (today's containment vs target).",
   "grandmaExplanation": "We use this to stay ahead of email and collaboration problems, so the team is not the last to know when something drifts or breaks.",
-  "hardware": "Webex Contact Center (WxCC), Cisco UCCX IVR"
+  "hardware": "Webex Contact Center (WxCC), Cisco UCCX IVR",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

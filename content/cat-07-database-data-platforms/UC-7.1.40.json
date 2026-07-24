@@ -8,6 +8,8 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Database Audit Log Tampering Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_database_audit_log_tampering_detection` (UC-7.1.40), SOC dashboard panel \"Operations — Database Audit Log Tampering Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "compliance": [
     {
       "regulation": "FDA Part 11",
@@ -65,11 +67,15 @@
       "evidenceArtifact": "Saved search 'UC-7.1.40' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
-  "dataSources": "Oracle `V$OPTION` where parameter='Unified Auditing', `ALTER SYSTEM AUDIT`, `DROP AUDIT POLICY`, SQL Server audit shutdown events",
-  "app": "OS audit, database audit, syslog",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.40 positive (Database, Audit, Log, Tampering, Detection): ingest synthetic events into `index=db_audit` sourcetype='oracle_audit' where `count` grouped by `entity` satisfies detection threshold for 'Database Audit Log Tampering Detection'. Validate filter `action IN (\"AUDIT DISABLED\",\"AUDIT_POLICY_DROP\",\"AUDIT_TRAIL`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.40 negative (Tampering Detection): ingest benign `db_audit` / `oracle_audit` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Database Audit Log Tampering Detection'."
+  },
+  "dataSources": "Oracle `V$OPTION` where parameter='Unified Auditing', `ALTER SYSTEM AUDIT`, `DROP AUDIT POLICY`, SQL Server audit shutdown events Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "OS audit, database audit, syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=db_audit sourcetype=oracle_audit OR sourcetype=mssql:audit\n| search action IN (\"AUDIT DISABLED\",\"AUDIT_POLICY_DROP\",\"AUDIT_TRAIL_OFF\") OR statement=\"*AUDIT*FALSE*\"\n| table _time, db_user, action, object_name, statement\n| sort -_time",
-  "description": "Detects unexpected audit trail disable, audit file deletion, or Unified Audit policy changes that may indicate cover-up activity.",
-  "value": "Detects unexpected audit trail disable, audit file deletion, or Unified Audit policy changes that may indicate cover-up activity.",
+  "description": "Alerts on UC-7.1.40 for Database, Audit, Log, Tampering, Detection over `index=db_audit` sourcetype `oracle_audit` with thresholds configured threshold. Groups `count` by `entity` each `the scheduled window`. Differentiated by filter `action IN (\"AUDIT DISABLED\",\"AUDIT_POLICY_DROP\",\"AUDIT_TRAIL`. Supports repeatable operations triage for 'Database Audit Log Tampering Detection'.",
+  "value": "For 'Database Audit Log Tampering Detection', UC-7.1.40 converts `activity` on `oracle_audit` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Forward database and OS audit to tamper-evident storage. Alert on any audit disable or policy drop outside CAB. Correlate with DBA group membership.",
   "visualization": "Timeline (audit config changes), Table (privileged actions), Single value (critical audit events 24h).",
   "cimModels": [
@@ -78,10 +84,26 @@
   "references": [
     {
       "title": "Splunk — DB Connect",
-      "url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/WhatisDBX"
+      "url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/WhatisDBX",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned access reviews, recertification, break-glass accounts, and vendor maintenance can emit privilege- or access-change events that match the rule but are already approved; require a change ticket for context.",
+  "knownFalsePositives": "1. **Maintenance window on `db_audit` (UC-7.1.40)** — Planned work for 'Database Audit Log Tampering Detection' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `action IN (\"AUDIT DISABLED\",\"AUDIT_POLICY_DROP\",\"AUDIT_TRAIL`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `oracle_audit`** — Scheduled automation elevates `src` without crossing configured threshold for UC-7.1.40. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `db_audit` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `oracle_audit`** — First 48h baseline for UC-7.1.40 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "mssql",
     "oracle",
@@ -91,7 +113,13 @@
     "oracle_oracle_db"
   ],
   "status": "verified",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we cross-check the same window in SQL Server Management Studio, Azure Data Studio, or the Azure SQL portal with `sys.dm_*` views; Oracle Enterprise Manager, SQLcl, or SQL Developer with `V$` views so live metrics match what Splunk shows.\n• Install and configure the required add-on or app: OS audit, database audit, syslog.\n• Ensure the following data sources are available: Oracle `V$OPTION` where parameter='Unified Auditing', `ALTER SYSTEM AUDIT`, `DROP AUDIT POLICY`, SQL Server audit shutdown events.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward database and OS audit to tamper-evident storage. Alert on any audit disable or policy drop outside CAB. Correlate with DBA group membership.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=db_audit sourcetype=oracle_audit OR sourcetype=mssql:audit\n| search action IN (\"AUDIT DISABLED\",\"AUDIT_POLICY_DROP\",\"AUDIT_TRAIL_OFF\") OR statement=\"*AUDIT*FALSE*\"\n| table _time, db_user, action, object_name, statement\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Database Audit Log Tampering Detection** — Detects unexpected audit trail disable, audit file deletion, or Unified Audit policy changes that may indicate cover-up activity.\n\nDocumented **Data sources**: Oracle `V$OPTION` where parameter='Unified Auditing', `ALTER SYSTEM AUDIT`, `DROP AUDIT POLICY`, SQL Server audit shutdown events. **App/TA** (typical add-on context): OS audit, database audit, syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: db_audit; **sourcetype**: oracle_audit, mssql:audit. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=db_audit, sourcetype=oracle_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Pipeline stage (see **Database Audit Log Tampering Detection**): table _time, db_user, action, object_name, statement\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (audit config changes), Table (privileged actions), Single value (critical audit events 24h).",
   "grandmaExplanation": "We follow SQL Server performance and availability signals so the team can catch regressions, AG issues, and tempdb pressure on business-critical systems.",
-  "subcategory": "7.4"
+  "prerequisiteUseCases": [],
+  "subcategory": "7.4",
+  "wave": "crawl"
 }

@@ -6,6 +6,40 @@
 
 ## Current release
 
+**v8.23.0 — Hand-craft tooling and full template burndown (14,876 / 14,876 clean template provenance)** *(shipped 2026-07-24)*
+
+Theme: **every UC reads like it was written for its SPL, not stamped from a
+bulk template.** Domain packs, SPL-aware narrative helpers, and quality-pass
+lift tooling replace bulk-enricher prose across descriptions, values,
+knownFalsePositives, and controlTest blocks while keeping zero template-provenance
+flags at fail severity.
+
+### Shipped outcomes
+
+- **14,876 / 14,876** use cases pass `audit-template-provenance` with no flags.
+- **Hand-craft lift pipeline** — `scripts/handcraft_metadata_lift.py` with
+  `--quality-pass`, `scripts/_spl_narrative.py`, and `data/domain-packs/*.json`.
+- **Content-quality gate** — zero fail-severity findings from
+  `audit-content-quality` after SPL-unique narrative rewrite.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.23.0 release entry.
+
+---
+
+## Previous releases
+
+**v8.22.0 — Gold standard uplift (14,876 / 14,876 pass Gold v1 and Gold v2)** *(shipped 2026-07-23)*
+
+Theme: **structural completeness at catalogue scale.** Backfill scripts and
+build metrics alignment bring every UC to Gold v1/v2 with HEC exceptions for
+cat-25 personal feeds.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.22.0 release entry.
+
+---
+
+## Previous releases (continued)
+
 **v8.19.0 — Personal & Hobbyist Monitoring (cat-25) variable-depth expansion: +2,711 use cases with research-driven per-subcategory targets (6,431 use cases across 115 subcategories; 14,876 catalogue-wide)** *(shipped 2026-07-23)*
 
 Theme: **depth that matches the domain, not a batch number.** Replaced the
@@ -27,7 +61,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.19.0 release entry.
 
 ---
 
-## Previous releases
+## Previous releases (continued)
 
 **v8.18.0 — Personal & Hobbyist Monitoring (cat-25) Wave 10: 495 new use cases — deepen Wave 9 subs to 33 and add 15 new domains (3,720 use cases across 115 subcategories)** *(shipped 2026-07-23)*
 

@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=batch` `sourcetype=controlm:alert` EMS saturation, `sourcetype=controlm:audit` diagnostic; optional OS metrics with `host` tag matching EM",
-  "app": "Control-M Enterprise Manager logs, database client errors, Splunk Infrastructure Add-on",
+  "exclusions": "Covers the detection logic documented for 'Control-M Server and Gateway Resource Saturation — DB Connections and Thread Pools' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_control_m_server_and_gateway_resource_saturation` (UC-12.7.15), SOC dashboard panel \"Operations — Control-M Server and Gateway Resource Saturation — DB Connections and Thread Pools\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.7.15 positive (Control, Server, and, Gateway, Resource): ingest synthetic events into `index=batch` sourcetype='controlm:alert' where `values` grouped by `signature`, `sev` satisfies `count` >= 3 for 'Control-M Server and Gateway Resource Saturation — DB Connections and Thread Pools'. Validate filter `\"connection pool\" OR \"thread pool\" OR \"out of memory\" OR \"da`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.7.15 negative (Thread Pools): ingest benign `batch` / `controlm:alert` events where `signature`, `sev` stays below `count` >= 3, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Control-M Server and Gateway Resource Saturation — DB Connections and Thread Pools'."
+  },
+  "dataSources": "`index=batch` `sourcetype=controlm:alert` EMS saturation, `sourcetype=controlm:audit` diagnostic; optional OS metrics with `host` tag matching EM Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Control-M Enterprise Manager logs, database client errors, Splunk Infrastructure Add-on — Universal Forwarder (Splunkbase 617)",
   "spl": "index=batch sourcetype=\"controlm:alert\" OR sourcetype=\"controlm:audit\"\n| search \"connection pool\" OR \"thread pool\" OR \"out of memory\" OR \"database\" OR \"too many connections\" OR \"ORA-00020\" OR \"SQL*Net\"\n| eval sev=case(match(_raw,\"(?i)critical|severe\"),\"critical\", match(_raw,\"(?i)warn\"),\"warning\", 1=1,\"info\")\n| stats count, latest(_time) as last_evt, values(controlm_server) as servers by signature, sev\n| where count>=3\n| sort -count",
-  "description": "The Control-M server tier collapses under connection leaks, JDBC pool exhaustion, and JVM thread starvation long before jobs fail visibly. Mining alert and audit signatures for database and thread pressure gives platform owners a leading indicator.",
-  "value": "Avoids enterprise-wide scheduling brownouts during month-end peaks and shortens war-room time when EM is unstable.",
+  "description": "Alerts on UC-12.7.15 — Control, Server, and, Gateway, Resource — using `index=batch` sourcetype `controlm:alert`, grouped by `signature`, `sev`. Outputs `values` each `the scheduled window`; alert when `count` >= 3. Filter chain includes filter `\"connection pool\" OR \"thread pool\" OR \"out of memory\" OR \"da`. Purpose-built for 'Control-M Server and Gateway Resource Saturation — DB Connections and Thread Pools' in Operations workflows.",
+  "value": "For 'Control-M Server and Gateway Resource Saturation — DB Connections and Thread Pools', UC-12.7.15 converts `activity` on `controlm:alert` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Normalize `signature` with `rex` or `eval` to strip timestamps. Enrich with DB AWR snapshots via DB Connect for correlation. Route critical sev to platform NOC. Tune noise with allowlists for known maintenance scripts.",
   "visualization": "Timechart of alert rate by signature, gauge (open critical), table with server and DBA owner.",
   "cimModels": [
@@ -23,17 +29,33 @@
   "references": [
     {
       "title": "BMC Control-M Enterprise Manager",
-      "url": "https://documents.bmc.com/supportu/controlm/"
+      "url": "https://documents.bmc.com/supportu/controlm/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Transient errors during platform maintenance, network blips, or certificate renewals on shared services.",
+  "knownFalsePositives": "1. **Maintenance window on `batch` (UC-12.7.15)** — Planned work for 'Control-M Server and Gateway Resource Saturation — DB Connections and Thread Pools' shifts `values` over `span=1h` while `signature`, `sev` remains in-scope. Applies filter `\"connection pool\" OR \"thread pool\" OR \"out of memory\" OR \"da`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `controlm:alert`** — Scheduled automation elevates `sev` without crossing `count` >= 3 for UC-12.7.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `signature`, `sev`** — Health checks in `batch` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `controlm:alert`** — First 48h baseline for UC-12.7.15 on `signature` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `signature`, `exception_reason`, `valid_until`.",
   "equipment": [
     "controlm",
     "db_connect"
+  ],
+  "equipmentModels": [
+    "controlm_generic",
+    "db_connect_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-01",
@@ -43,5 +65,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch batch and control jobs so missed handoffs or resource limits do not break business processing."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Control-M Enterprise Manager logs, database client errors, Splunk Infrastructure Add-on — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=controlm:alert, controlm:audit into batch. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`sev, signature`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch batch and control jobs so missed handoffs or resource limits do not break business processing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=syslog, linux_audit`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
+  "exclusions": "Covers the detection logic documented for 'Auditd Daemon Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_auditd_daemon_health` (UC-1.1.92), SOC dashboard panel \"Linux — Auditd Daemon Health\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.92 positive (Auditd, Daemon, Health): ingest synthetic events into `index=os` sourcetype='linux_audit' where `last_event` grouped by `host` satisfies detection threshold for 'Auditd Daemon Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.92 negative (Daemon Health): ingest benign `os` / `linux_audit` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'Auditd Daemon Health'."
+  },
+  "dataSources": "`sourcetype=syslog, linux_audit` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix, custom scripted input` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=linux_audit host=*\n| stats count as audit_events, max(_time) as last_event by host\n| where audit_events == 0 OR (now() - last_event) > 300",
-  "description": "Auditd daemon failure results in loss of security audit trail, creating compliance and forensic gaps.",
-  "value": "Auditd daemon failure results in loss of security audit trail, creating compliance and forensic gaps.",
+  "description": "Monitors UC-1.1.92 — Auditd, Daemon, Health — using `index=os` sourcetype `linux_audit`, grouped by `host`. Outputs `last_event` each `the scheduled window`; alert when configured threshold. Primary focus: Daemon Health. Purpose-built for 'Auditd Daemon Health' in Linux workflows.",
+  "value": "Operators running UC-1.1.92 on `linux_audit` feeds shorten triage for Daemon Health tied to 'Auditd Daemon Health', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Monitor auditd process status and audit event flow. Create alerts when no audit events are received for 5+ minutes. Include daemon status checks and restart recommendations.",
   "visualization": "Alert, Single Value",
   "cimModels": [
@@ -21,14 +27,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 833",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Hosts that rarely emit audit events by design (minimal `audit.rules`) can look “stale” even though auditd is healthy. Indexing lag, forwarder buffer backlog, or a narrow `index=` scope that omits the host’s audit data can falsely suggest a gap. During maintenance we also pause or redirect audit shipping on purpose.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Auditd Daemon Health'. Correlate with apt/yum logs in the same `linux_audit` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `max` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_audit`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "syslog"
   ],
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=syslog, linux_audit`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor auditd process status and audit event flow. Create alerts when no audit events are received for 5+ minutes. Include daemon status checks and restart recommendations (`systemctl status auditd` on Linux).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=linux_audit host=*\n| stats count as audit_events, max(_time) as last_event by host\n| where audit_events == 0 OR (now() - last_event) > 300\n```\n\nUnderstanding this SPL\n\n**Auditd Daemon Health** — Auditd daemon failure results in loss of security audit trail, creating compliance and forensic gaps.\n\nDocumented **Data sources**: `sourcetype=syslog, linux_audit`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: linux_audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=linux_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where audit_events == 0 OR (now() - last_event) > 300` — typically the threshold or rule expression for this monitoring goal.\n\nThere is no faithful CIM/tstats equivalent for “absence of linux_audit events per host” without a summary index or entity model; keep this as raw `linux_audit` SPL.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Single Value",
-  "grandmaExplanation": "We make sure security audit records keep flowing from Linux hosts so we are not blind to changes and logins when auditors or incident response need the trail."
+  "grandmaExplanation": "We make sure security audit records keep flowing from Linux hosts so we are not blind to changes and logins when auditors or incident response need the trail.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

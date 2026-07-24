@@ -9,23 +9,55 @@
     "Performance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift ride exports (`zwift:activity`).",
-  "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as file inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Strava Segment PR Near-Miss Tracker' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_strava_segment_pr_near_miss_tracker` (UC-25.1.16), SOC dashboard panel \"Personal — Strava Segment PR Near-Miss Tracker\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.1.16 positive (Strava, Segment, Near, Miss, Tracker): ingest synthetic events into `index=personal` sourcetype='strava:activity' where `closest_gap` grouped by `segment_name` satisfies `closest_gap` > 0, or `closest_gap` <= 10 for 'Strava Segment PR Near-Miss Tracker'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.1.16 negative (Miss Tracker): ingest benign `personal` / `strava:activity` events where `segment_name` stays below `closest_gap` > 0, or `closest_gap` <= 10, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'Strava Segment PR Near-Miss Tracker'."
+  },
+  "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift ride exports (`zwift:activity`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as file inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=strava:activity has_segments=true\n| stats min(pr_gap_seconds) as closest_gap, count as attempts by segment_name\n| where closest_gap>0 AND closest_gap<=10\n| sort closest_gap",
-  "description": "Finds the segments where you are repeatedly a few seconds short of a personal record, so you know exactly which efforts are one good day away from a breakthrough.",
-  "value": "Near misses are motivating because they show fitness is already there; this list turns vague 'I think I'm close' feelings into specific targets.",
+  "description": "Identifies UC-25.1.16 — Strava, Segment, Near, Miss, Tracker — using `index=personal` sourcetype `strava:activity`, grouped by `segment_name`. Outputs `closest_gap` each `the scheduled window`; alert when `closest_gap` > 0, or `closest_gap` <= 10. Primary focus: Miss Tracker. Purpose-built for 'Strava Segment PR Near-Miss Tracker' in Personal workflows.",
+  "value": "Tracking `closest_gap` via UC-25.1.16 on `strava:activity` feeds improves response to 'Strava Segment PR Near-Miss Tracker' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Forward per-segment performance data from Strava; review the tightest near misses before your next hard session.",
   "visualization": "Leaderboard of segments with the smallest PR gaps.",
   "cimModels": [],
   "references": [
     {
       "title": "Strava - API reference",
-      "url": "https://developers.strava.com/docs/reference/"
+      "url": "https://developers.strava.com/docs/reference/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It ranks which parts of your routes you are only a few seconds away from beating your best time on."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.1.16)** — Connector for 'Strava Segment PR Near-Miss Tracker' stops polling `strava:activity`; stale `closest_gap` on `segment_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `closest_gap` over `1w` is expected for UC-25.1.16, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `strava:activity`. Dedup with `stats latest(*) by segment_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `closest_gap` > 0 for 'Strava Segment PR Near-Miss Tracker'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Strava — REST API or webhook → Splunk HEC scripted input.\n• **Subcategory context**: Fitness & Activity Tracking — typical feeds: Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports..\n• **Sourcetypes in this search**: `strava:activity`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Strava** events into `index=personal` with `sourcetype=strava:activity`.\n\n**Collection method:** REST API or webhook → Splunk HEC scripted input.\n\n**Reference endpoint / path:** `GET https://www.strava.com/api/v3/athlete/activities`.\n\n**Suggested poll interval:** 900s (or push via Strava webhook subscription).\n\n**Key fields to extract:** `type, distance_km, moving_time_s, start_date, athlete_id`.\n\n**Typical connector stack:** Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files..\n\n**Author notes:** Forward per-segment performance data from Strava; review the tightest near misses before your next hard session.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"strava:activity\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=strava:activity earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Strava Segment PR Near-Miss Tracker** over `personal` data (primarily `sourcetype=strava:activity`) across the full search range. It applies numeric thresholds on `closest_gap` (> 0) after min — tune these constants to your household baseline.\n\n**Fields this search depends on:** `closest_gap`, `segment_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=strava:activity has_segments=true\n| stats min(pr_gap_seconds) as closest_gap, count as attempts by segment_name\n| where closest_gap>0 AND closest_gap<=10\n| sort closest_gap\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Strava app → You → Activities list for the same week totals. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=strava:activity earliest=-7d\n| head 50\n| table closest_gap, segment_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=strava:activity earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `closest_gap` before alerting:\n\n```spl\nindex=personal sourcetype=strava:activity earliest=-30d\n| stats perc50(closest_gap) AS p50 perc90(closest_gap) AS p90 perc99(closest_gap) AS p99 max(closest_gap) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.1.16: Personal evidence` with the following panel layout:\n\n**Panel 1 — Leaderboard Of Segments With The Smallest Pr Gaps (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Strava — no Strava events / missing fields:** If `strava:activity` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Strava connector script is still running (`systemctl status` or cron log).\n\n**Strava — NULL values in extracted fields:** The Strava JSON export shape drifted — compare a raw event (`index=personal sourcetype=strava:activity | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Strava — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Strava — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Strava APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It ranks which parts of your routes you are only a few seconds away from beating your best time on.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

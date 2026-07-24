@@ -8,24 +8,42 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Page Load Duration Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_page_load_duration_trending` (UC-5.9.38), SOC dashboard panel \"Operations — Page Load Duration Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.9.38 positive (Page, Load, Duration, Trending): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `avg_load` grouped by `thousandeyes.test.name`, `server.address` satisfies `avg_load_s` > 5 for 'Page Load Duration Trending'. Validate macro `stream_index`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.9.38 negative (Duration Trending): ingest benign `target_index` / `target_sourcetype` events where `thousandeyes.test.name`, `server.address` stays below `avg_load_s` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Page Load Duration Trending'."
+  },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` with `thousandeyes.test.type=\"page-load\"`. OTel v2 metric `web.page_load.duration` reports total page load time in **seconds** — from navigation start to page fully rendered.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`stream_index` thousandeyes.test.type=\"page-load\"\n| stats avg(web.page_load.duration) as avg_load p95(web.page_load.duration) as p95_load by thousandeyes.test.name, server.address\n| eval avg_load_s=round(avg_load,2), p95_load_s=round(p95_load,2)\n| where avg_load_s > 5\n| sort -avg_load_s",
-  "description": "Tracks full page load duration for Page Load tests — the total time from navigation start to the page being fully rendered with all dependent resources. Flags pages where average load time exceeds 5 seconds. This metric captures the complete user experience, including DNS, network, server processing, content download, and browser rendering.",
-  "value": "Google research shows that as page load time increases from 1 to 3 seconds, bounce probability increases 32%. From 1 to 5 seconds, it increases 90%. Page load duration directly impacts user retention, conversion rates, and SEO rankings. By trending this metric over time, teams detect performance regressions from deployments (new JavaScript library adding 2 seconds), infrastructure changes (CDN misconfiguration), and external dependency degradation (slow analytics script). The p95 percentile is especially important — it reveals the worst 5% of user experiences that averages mask.",
+  "description": "Detects Duration Trending anomalies for UC-5.9.38 with window `the scheduled window` on `index=target_index` sourcetype `configured sourcetype`. Combines `avg_load` by `thousandeyes.test.name`, `server.address` and compares against `avg_load_s` > 5. Mapped to keywords Page, Load, Duration, Trending for dashboard routing.",
+  "value": "Alerting on Page, Load, Duration, Trending through UC-5.9.38 reduces operational risk and delayed incident response by surfacing `avg_load` early.",
   "implementation": "Same Page Load tests as UC-5.9.37. Duration is measured alongside completion rate.",
   "visualization": "(1) Table: pages sorted by load time. (2) Timechart: load duration trending per page. (3) Percentile chart: p50, p95, p99 distribution. (4) Bar chart: load time by agent location.",
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes OTel v2 — Page Load metrics",
-      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics"
+      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Heavy pages by design.** Some pages (dashboards, data-heavy reports) are inherently slow to load. Establish page-specific baselines rather than using a universal threshold.\n\n**Page load duration not reported on failure.** If `web.page_load.completion` = 0%, `web.page_load.duration` may not be reported (the page didn't finish loading). Check completion first.\n\n**Browser caching disabled in tests.** ThousandEyes Page Load tests typically clear cache between rounds, meaning every test is a cold-cache load. Real users with browser cache enabled will see faster load times.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.9.38)** — Planned work for 'Page Load Duration Trending' shifts `avg_load` over `span=1h` while `thousandeyes.test.name`, `server.address` remains in-scope. Applies macro `stream_index`. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `server.address` without crossing `avg_load_s` > 5 for UC-5.9.38. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `thousandeyes.test.name`, `server.address`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.9.38 on `thousandeyes.test.name` is unstable; join `stream_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `thousandeyes.test.name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
