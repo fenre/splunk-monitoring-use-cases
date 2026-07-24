@@ -14,6 +14,12 @@ the release notes block in `index.html` by hand.
 
 ### Changed
 
+- **Link-check (#75):** Fixed broken PDPC advisory URL in UC-22.57.13 (404 →
+  May 2022 PDF). Added CI-timeout ignore patterns for
+  `experienceleague.adobe.com`, `ipfabric.io`, `martinfowler.com`,
+  `wiki.onosproject.org`, and `www.sonarsource.com`.
+- **Regulatory change-watch (#80):** Cleared stale `uk-gdpr` ETag drift finding
+  after human review — routine `legislation.gov.uk` Last-Modified refresh only.
 - **cat-25 Personal & Hobbyist consolidation — 115 → 69 subcategories (6,431
   use cases preserved).** Nineteen merge groups absorb thematic duplicates from
   the wave expansion (smart home cluster, fitness/endurance, health/biohacking,
