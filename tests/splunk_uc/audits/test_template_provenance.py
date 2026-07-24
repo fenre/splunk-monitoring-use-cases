@@ -54,7 +54,8 @@ def test_audit_template_provenance_on_real_exemplar(tmp_path: Path) -> None:
         return
     payload = template_provenance.audit_paths([exemplar])
     assert payload["summary"]["total"] == 1
-    assert payload["summary"]["any_template"] >= 1
+    assert payload["summary"]["any_template"] == 0
+    assert payload["summary"]["clean"] == 1
 
 
 def test_audit_paths_empty_flags_not_listed(tmp_path: Path) -> None:
